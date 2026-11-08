@@ -27,7 +27,7 @@ class LLMError(Exception):
 
 
 class LLMUnavailable(Exception):
-    """The selected backend cannot be used: not running, model missing, or no credentials."""
+    """The Gemini API provider cannot be used: no credentials or not reachable."""
 
 
 def build_brief(book: dict, cast: dict, plan: EpisodePlan) -> str:

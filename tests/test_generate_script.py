@@ -9,7 +9,7 @@ from video_pipeline import generate_script, mcp_server
 from video_pipeline.agents import AgentEvent, AgentResult, AgentUnavailable
 from video_pipeline.contract import load_disallowed_terms, validate_script
 from video_pipeline.episode import plan_episode
-from video_pipeline.episode_tools import CONFIG_DIR, EpisodeTools
+from video_pipeline.episode_tools import CONFIG_DIR, ROOT, EpisodeTools
 from video_pipeline.llm import LLMUnavailable
 
 TERMS = load_disallowed_terms(CONFIG_DIR / "disallowed_terms.txt")
@@ -246,3 +246,9 @@ def test_invalid_book_writes_nothing(monkeypatch, tmp_path, capsys, mutate, mess
 def test_missing_book_file(monkeypatch, tmp_path, capsys):
     assert run(monkeypatch, tmp_path, tmp_path / "nope.json", status=never_called) == 1
     assert "book data file not found" in capsys.readouterr().err
+
+
+def test_default_paths_resolve_from_the_project_root():  # FR-1
+    for args in (generate_script._parse_args([]), mcp_server.parse_args([])):
+        assert args.book == ROOT / "book_data.json"
+        assert args.episodes_dir == ROOT / "episodes"

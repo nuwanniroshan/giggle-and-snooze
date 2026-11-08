@@ -127,11 +127,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         description="Generate episode_script.json for a book (ChatGPT via Codex by default).",
         allow_abbrev=False,  # otherwise the removed --mode would silently mean --model
     )
-    parser.add_argument("--book", type=Path, default=Path("book_data.json"))
+    parser.add_argument("--book", type=Path, default=ROOT / "book_data.json")
     parser.add_argument("--provider", choices=PROVIDERS, default="codex")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--force", action="store_true", help="overwrite an existing script")
-    parser.add_argument("--episodes-dir", type=Path, default=Path("episodes"))
+    parser.add_argument("--episodes-dir", type=Path, default=ROOT / "episodes")
     parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
     parser.add_argument("--model", default=None, help="override the provider's model")
     return parser.parse_args(argv)
