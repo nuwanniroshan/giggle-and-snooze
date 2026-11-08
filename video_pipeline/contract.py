@@ -318,6 +318,11 @@ def _narration_errors(number: int, narration: list[dict], text: str, terms: list
         sentences = split_sentences(plain)
         if i < len(narration) - 1 and not ends_sentence(plain):
             errors.append(f"{where}: must end at a sentence end")
+        if i > 0:
+            prev_plain = strip_tags(narration[i - 1].get("text", ""))
+            joined_count = len(split_sentences(prev_plain + " " + plain))
+            if joined_count < len(split_sentences(prev_plain)) + len(sentences):
+                errors.append(f"{where}: must begin at a sentence start")
         if len(sentences) > MAX_NARRATION_SENTENCES:
             errors.append(f"{where}: has {len(sentences)} sentences (max 2)")
         if len(sentences) > 1 and word_count(plain) > MAX_NARRATION_WORDS:

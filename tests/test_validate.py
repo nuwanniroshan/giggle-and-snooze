@@ -75,6 +75,15 @@ def mutate_line_ends_mid_sentence(script):
     lines[1]["text"] = rest
 
 
+def mutate_split_dialogue_tag(script):
+    page = script["pages"][4]  # mini page 5 ends '"I can't find my way home!" Little Dot cried.'
+    lines = [x for x in page["lines"] if x["role"] == "narration"]
+    index = next(i for i, x in enumerate(lines) if '!" Little Dot cried.' in x["text"])
+    quote, tag = lines[index]["text"].split('!" ', 1)
+    lines[index]["text"] = quote + '!"'
+    page["lines"].insert(page["lines"].index(lines[index]) + 1, {**lines[index], "text": tag})
+
+
 def mutate_two_long_sentences(script):
     page = script["pages"][2]  # mini page 3: a 40+ word sentence, then "Granny Dusk smiled."
     lines = [x for x in page["lines"] if x["role"] == "narration"]
@@ -178,6 +187,7 @@ def mutate_cast(script):
         (mutate_qa_before_narration, "narration lines must come before Q&A lines"),  # AC-2.3
         (mutate_three_sentences, "page 4 narration line 1: has 3 sentences (max 2)"),  # AC-2.4
         (mutate_line_ends_mid_sentence, "page 4 narration line 1: must end at a sentence end"),
+        (mutate_split_dialogue_tag, "page 5 narration line 3: must begin at a sentence start"),
         (mutate_two_long_sentences, "page 3 narration line 1: has 50 words (max 40 unless"),
         (mutate_intro_no_kid, "intro needs at least one kid line"),  # AC-4.1
         (mutate_intro_no_storyteller, "intro needs at least one storyteller line"),  # AC-4.1
