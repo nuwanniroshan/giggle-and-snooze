@@ -58,3 +58,32 @@
 |------|--------|-------------|
 | `config/cast.json` | JSON object, three roles | Fixed recurring cast (FR-2) |
 | `config/disallowed_terms.txt` | one term per line, `#` comments | Kid-safety term list (Security, AC-7.1–7.3) |
+
+## Episode tools (added v2.0.0) (FR-8, MCP server `kiddo`)
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `get_episode_plan` | none | `{title, age_range, pages: [{page_number, text, illustration}], cast, qa_pages: [{page_number, kids}], brief, banter_schema}` |
+| `validate_banter` | `banter` (object or JSON string: `{intro, moments, outro}`) | `{valid: bool, errors: [str]}` |
+| `save_episode_script` | `banter` | `{saved: true, path, errors: []}` or `{saved: false, errors: [...]}`; at most 5 per run |
+
+The server's command line fixes the book, seed, force flag, episodes and config directories (`--book --seed --force --episodes-dir --config-dir`).
+
+## Agent run log
+
+| File | Content |
+|------|---------|
+| `episodes/<slug>/agent/<YYYYmmdd-HHMMSS>-codex.jsonl` | Raw `codex exec --json` events: `thread.started`, `turn.started`, `item.started`/`item.completed` (`agent_message`, `mcp_tool_call`, `error`), `turn.completed` |
+| `…-codex.stderr.log` | Codex stderr (diagnostics only, never credentials) |
+
+Gitignored. Regenerated on each run.
+
+## AgentEvent (in memory)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| kind | `say` \| `tool` \| `tool-result` \| `error` \| `done` | Event type |
+| text | str | Message text, error message, or the tool result as JSON |
+| tool | str | Tool name (`tool`, `tool-result`) |
+| ok | bool | False when the tool call itself failed |
+| data | object | Tool arguments (`tool`) or parsed tool result (`tool-result`) |

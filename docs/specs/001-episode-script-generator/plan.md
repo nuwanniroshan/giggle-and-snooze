@@ -1,6 +1,6 @@
 # Implementation Plan: Episode Script Generator
 
-**Spec:** docs/specs/001-episode-script-generator/spec.md (v2.0.0, Approved; phases 4–6 need re-planning, see Plan Changelog)
+**Spec:** docs/specs/001-episode-script-generator/spec.md (v2.0.0, Approved; Phases 4–6 replaced by Phases 7–11, see Plan Changelog)
 **Decisions:** none (no ADRs; tech choices traced inline below)
 **Created:** 2026-11-08
 
@@ -1881,32 +1881,1588 @@ def test_pilot_book_end_to_end_local(tmp_path):
 
 ---
 
+## Revision v2.0.0: subscription providers and episode tools
+
+### Context (v2.0.0)
+
+The local `qwen2.5:7b` model failed validation on every real run, so spec v2.0.0 swaps it for providers the producer already pays for. The default is ChatGPT, through the Codex CLI that ships inside the ChatGPT app (`/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`, logged in with ChatGPT). Gemini API stays as an opt-in provider. This follows the video-studio pattern: an MCP server exposes the deterministic work as tools, and a headless agent does the writing. video-studio's `packages/ai` (provider status/run, binary discovery, event-stream parsing) and `apps/mcp` (tool server) are ported to Python here.
+
+**Spike result (2026-11-08, done in the scratchpad):** `codex exec --json` ran with a stdio MCP server via `-c mcp_servers.<name>.*` and `default_tools_approval_mode="approve"`, with the shell tools disabled (`--disable shell_tool --disable unified_exec …`) and a read-only sandbox. It took about 24 s.
+- It called only the MCP tools.
+- It corrected itself after a refused save.
+- It reported that it had no shell.
+
+Event lines look like this: `{"type":"item.started|item.completed","item":{"type":"mcp_tool_call","server","tool","arguments","result":{"content":[…],"structured_content":…},"error":null|{"message"}}}`, `item.type == "agent_message"` (`text`), and `{"type":"turn.completed"}`. The Python `mcp` SDK is 2.3.0, where FastMCP is now `from mcp.server.mcpserver import MCPServer`.
+
+## Global Constraints (v2.0.0 additions; Phase 0–3 constraints still apply)
+
+- Providers: `codex` (default, agent) and `gemini-api` (opt-in, one request per attempt, 3 attempts). Neither falls back to the other (FR-7).
+- An agent run gets only the `kiddo` MCP tools:
+  - read-only sandbox, empty temporary working directory;
+  - built-in tools disabled: `shell_tool unified_exec apps plugins browser_use computer_use in_app_browser multi_agent view_image sleep_tool`;
+  - `web_search="disabled"`, `--ignore-user-config --ignore-rules --ephemeral`.
+
+  The run is limited to 600 s and 5 saves (FR-7, AC-6.8).
+- The episode tools take the book, seed, force flag and directories from the server's command line, never from the agent (FR-8).
+- The run log is the raw Codex JSONL, saved as `episodes/<slug>/agent/<YYYYmmdd-HHMMSS>-codex.jsonl`, with stderr next to it as `.stderr.log`. These logs are gitignored.
+- The seed alone decides the episode plan (AC-6.3). Banter text may differ between runs.
+- New runtime dependency: `mcp>=2.3,<3`. The test marker `ollama` is replaced by `codex` (the real-provider test, excluded by default).
+- Unit tests never start the real Codex. They use fake `codex` shell scripts or monkeypatched functions. The MCP server test runs the real server over stdio, which is local and needs no network.
+
+## Goal (v2.0.0)
+
+`uv run python -m video_pipeline.generate_script` writes a valid `episodes/<slug>/episode_script.json` using the producer's ChatGPT login. `--provider gemini-api` uses `GEMINI_API_KEY`. The same three tools can also be used interactively from the ChatGPT/Codex app.
+
+**Gates**
+- **Simplicity:** three components, as before:
+  - deterministic core: `contract.py`, `episode.py` and the new `episode_tools.py`;
+  - model access: `llm.py` (Gemini API and the brief), the new `agents.py` (Codex runner) and the new `mcp_server.py` (a thin wrapper);
+  - CLI: `generate_script.py`.
+
+  ✓
+- **Anti-abstraction:** no provider class hierarchy. Codex is a set of functions (`codex_status`, `build_codex_command`, `run_codex`), and Gemini stays a function. `EpisodeTools` is one dataclass shared by the MCP server and the CLI, so the rules live in one place. ✓
+- **Integration-first:** the MCP server is tested over real stdio JSON-RPC, and the CLI tests drive the real `EpisodeTools` through a fake agent that parses the real Codex command line. ✓
+
+---
+
+## Phase 7 (added v2.0.0): Episode tools core and reusable writing brief
+
+**Implements:** FR-8 (tool logic), FR-2/FR-7 (save rules) | **Satisfies:** AC-6.1, AC-6.2, AC-6.7 (tool side), AC-6.3 (plan from seed)
+**Files:** `video_pipeline/episode_tools.py` (new), `video_pipeline/llm.py`, `video_pipeline/generate_script.py`, `tests/test_episode_tools.py` (new), `tests/test_llm.py`, `tests/test_generate_script.py`, `tests/helpers.py`, `pyproject.toml`; delete the untracked `tests/test_ollama_integration.py`
+**Interfaces:** Consumes `load_book`, `plan_episode`, `assemble_script`, `banter_plan_errors`, `EpisodePlan` and `BookError` (`episode.py`), and `Banter`, `parse_banter`, `BanterParseError`, `ConfigError`, `load_disallowed_terms`, `slugify` and `validate_script` (`contract.py`). Produces:
+- `ROOT`, `CONFIG_DIR`, `DEFAULT_SEED = 7`, `MAX_SAVES = 5`;
+- `output_path(book, episodes_dir)`, `load_cast(path)`, `write_atomic(path, data)` (moved from `generate_script.py`);
+- `EpisodeTools`, with `load(...)`, `check(banter) -> (script | None, errors)`, `get_episode_plan() -> dict`, `validate_banter(banter) -> dict` and `save_episode_script(banter) -> dict`;
+- `build_brief(book, cast, plan) -> str` in `llm.py`;
+- `plan_signature(script)` in `tests/helpers.py`.
+
+This phase keeps the uncommitted Phase 6 prompt improvements in `llm.py` and `tests/test_llm.py` (verbatim grounding wording) and the `extend-exclude` line in `pyproject.toml`. Stage only the files listed above, and leave `CLAUDE.md` and `.claude/rules/data-pipeline.md` for Phase 11.
+
+- [ ] `rm tests/test_ollama_integration.py` (untracked; it is replaced in Phase 11).
+- [ ] Add to `tests/helpers.py`:
+```python
+def plan_signature(script: dict) -> list[tuple]:
+    """Everything the seed decides on each page (AC-6.3): Q&A placement, kids, narration, motion."""
+    return [
+        (
+            page["page_number"],
+            page["has_qa"],
+            page["ffmpeg_camera"]["narration_motion"],
+            tuple(line["text"] for line in page["lines"] if line["role"] == "narration"),
+            tuple(
+                sorted(
+                    {
+                        line["speaker"]
+                        for line in page["lines"]
+                        if line["role"] != "narration" and line["speaker"] != "storyteller"
+                    }
+                )
+            ),
+        )
+        for page in script["pages"]
+    ]
+```
+- [ ] Write `tests/test_episode_tools.py`:
+```python
+import json
+
+import pytest
+
+from tests.helpers import MINI_BOOK, load_json, make_banter
+from video_pipeline import episode_tools
+from video_pipeline.contract import ConfigError, validate_script
+from video_pipeline.episode import BookError, plan_episode
+from video_pipeline.episode_tools import CONFIG_DIR, MAX_SAVES, EpisodeTools, output_path, write_atomic
+
+
+def make_tools(tmp_path, force=False, seed=7) -> EpisodeTools:
+    return EpisodeTools.load(MINI_BOOK, seed, tmp_path / "episodes", CONFIG_DIR, force)
+
+
+def valid_banter(tools: EpisodeTools) -> dict:
+    return make_banter(tools.book, tools.plan).model_dump()
+
+
+def test_output_path_uses_slug(tmp_path):
+    book = load_json(MINI_BOOK)
+    assert output_path(book, tmp_path) == tmp_path / "the-lantern-bug-parade" / "episode_script.json"
+
+
+def test_plan_comes_from_seed(tmp_path):
+    tools = make_tools(tmp_path, seed=11)
+    assert tools.plan == plan_episode(tools.book, 11)
+
+
+def test_get_episode_plan_has_everything_the_agent_needs(tmp_path):  # FR-8
+    tools = make_tools(tmp_path)
+    plan = tools.get_episode_plan()
+    assert plan["title"] == "The Lantern Bug Parade"
+    assert plan["age_range"] == "Ages 3-6"
+    assert [p["page_number"] for p in plan["pages"]] == list(range(1, 9))
+    assert plan["pages"][1]["illustration"].startswith("Mr. Pebble the beetle")
+    assert set(plan["cast"]) == {"storyteller", "kid_older", "kid_younger"}
+    expected = [
+        {"page_number": n, "kids": list(kids)} for n, kids in sorted(tools.plan.qa_speakers.items())
+    ]
+    assert plan["qa_pages"] == expected
+    assert "grounding" in plan["brief"] and "PAGE 8" in plan["brief"]
+    assert "Reply with JSON only" not in plan["brief"]
+    assert plan["banter_schema"]["title"] == "Banter"
+
+
+def test_validate_banter_accepts_valid_and_lists_errors(tmp_path):
+    tools = make_tools(tmp_path)
+    assert tools.validate_banter(valid_banter(tools)) == {"valid": True, "errors": []}
+    result = tools.validate_banter({"intro": [], "moments": [], "outro": []})
+    assert result["valid"] is False
+    assert any("intro" in error for error in result["errors"])
+
+
+def test_validate_banter_accepts_a_json_string(tmp_path):
+    tools = make_tools(tmp_path)
+    assert tools.validate_banter(json.dumps(valid_banter(tools)))["valid"] is True
+
+
+def test_save_writes_valid_script(tmp_path):  # AC-1.2
+    tools = make_tools(tmp_path)
+    result = tools.save_episode_script(valid_banter(tools))
+    assert result == {"saved": True, "path": str(tools.out), "errors": []}
+    assert validate_script(load_json(tools.out), tools.book, tools.terms) == []
+
+
+def test_save_refuses_invalid_banter(tmp_path):  # AC-6.7
+    tools = make_tools(tmp_path)
+    result = tools.save_episode_script({"intro": []})
+    assert result["saved"] is False and result["errors"]
+    assert not tools.out.exists()
+
+
+def test_save_respects_force(tmp_path):  # AC-6.1, AC-6.2
+    tools = make_tools(tmp_path)
+    tools.out.parent.mkdir(parents=True)
+    tools.out.write_bytes(b"hand edited")
+    result = tools.save_episode_script(valid_banter(tools))
+    assert result["saved"] is False and "--force" in result["errors"][0]
+    assert tools.out.read_bytes() == b"hand edited"
+    forced = make_tools(tmp_path, force=True)
+    assert forced.save_episode_script(valid_banter(forced))["saved"] is True
+
+
+def test_save_limit(tmp_path):  # FR-7: at most 5 saves
+    tools = make_tools(tmp_path)
+    for _ in range(MAX_SAVES):
+        assert tools.save_episode_script({})["saved"] is False
+    result = tools.save_episode_script(valid_banter(tools))
+    assert result["saved"] is False and "save limit reached" in result["errors"][0]
+    assert not tools.out.exists()
+
+
+def test_load_needs_terms_file(tmp_path):  # AC-7.2
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "cast.json").write_text((CONFIG_DIR / "cast.json").read_text(), encoding="utf-8")
+    with pytest.raises(ConfigError, match="disallowed_terms.txt"):
+        EpisodeTools.load(MINI_BOOK, 7, tmp_path, config)
+
+
+def test_load_rejects_bad_book(tmp_path):
+    with pytest.raises(BookError, match="not found"):
+        EpisodeTools.load(tmp_path / "nope.json", 7, tmp_path, CONFIG_DIR)
+
+
+def test_interrupted_write_keeps_previous_file(monkeypatch, tmp_path):  # Reliability NFR
+    target = tmp_path / "episode_script.json"
+    target.write_text("previous", encoding="utf-8")
+
+    def boom(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(episode_tools.os, "replace", boom)
+    with pytest.raises(OSError):
+        write_atomic(target, {"new": True})
+    assert target.read_text(encoding="utf-8") == "previous"
+    assert list(tmp_path.iterdir()) == [target]
+```
+- [ ] Add to `tests/test_llm.py` (keep every existing test for now; Phase 10 removes the local ones):
+```python
+def test_build_brief_is_the_prompt_without_reply_format():
+    book = load_json(MINI_BOOK)
+    cast, plan = load_json(CAST_PATH), plan_episode(book, 7)
+    brief = build_brief(book, cast, plan)
+    assert "Reply with JSON only" not in brief
+    assert "grounding from PAGE" in brief and "CAST" in brief and "RULES" in brief
+    prompt = build_prompt(book, cast, plan)
+    assert prompt.startswith(brief)
+    assert "Reply with JSON only" in prompt and '"title": "Banter"' in prompt
+```
+  and add `build_brief` to that file's `video_pipeline.llm` import list.
+- [ ] Delete `test_interrupted_write_keeps_previous_file` from `tests/test_generate_script.py` (it moves to `test_episode_tools.py`).
+- [ ] Run `uv run pytest tests/test_episode_tools.py tests/test_llm.py -q`. Expect FAIL (`ModuleNotFoundError: video_pipeline.episode_tools`, `ImportError: build_brief`).
+- [ ] In `video_pipeline/llm.py`, split `build_prompt` so the brief can be reused. Replace the whole `build_prompt` function with:
+```python
+def build_brief(book: dict, cast: dict, plan: EpisodePlan) -> str:
+    """Everything a writer needs: book, cast, the planned Q&A moments and the rules (no reply format)."""
+    meta = book["metadata"]
+    title = meta["title"]
+    cast_lines = "\n".join(f"- {role}: {c['name']}, {c['description']}" for role, c in cast.items())
+    pages = "\n\n".join(
+        f"PAGE {p['page_number']}\nTEXT: {normalize_ws(p['text'])}\n"
+        f"ILLUSTRATION: {normalize_ws(p['prompt'])}"
+        for p in book["pages"]
+    )
+    by_number = {p["page_number"]: p for p in book["pages"]}
+    moments = "\n".join(
+        f"- page {number}: {_WHO[tuple(sorted(kids))]} (grounding from PAGE {number} only)\n"
+        f"     PAGE {number} TEXT: {normalize_ws(by_number[number]['text'])}\n"
+        f"     PAGE {number} ILLUSTRATION: {normalize_ws(by_number[number]['prompt'])}"
+        for number, kids in sorted(plan.qa_speakers.items())
+    )
+    return f"""You write the spoken banter for a cozy read-aloud storytime video of the children's \
+book "{title}" ({meta.get("age_range", "young children")}). The Storyteller reads every page \
+aloud; you write only the extra dialogue described below.
+
+CAST
+{cast_lines}
+
+BOOK
+{pages}
+
+WRITE
+1. "intro": 2-4 lines before the book opens, with at least one kid line and one storyteller line. \
+One line must say the exact title "{title}".
+2. "moments": exactly one Q&A moment for each page below, spoken right after that page is read:
+{moments}
+   Each moment has 2-5 lines. Only the listed kids speak (when both are listed, both speak). \
+The last line is the storyteller answering.
+   kid_older asks curious questions about the plot or guesses at mysteries. kid_younger reacts \
+to funny or cute details in the illustration.
+   "grounding" is 2-6 consecutive words copied character for character from that page's \
+TEXT or ILLUSTRATION, pointing at what the moment is about. It is checked by exact text search, \
+so never summarize, rename or write your own label. Copy it from the PAGE block with the \
+same number as the moment: a phrase found only on another page is wrong, even a character name. \
+Example: if a TEXT says "the little fox hid \
+under a mossy log", then "under a mossy log" is right and "fox hiding" is wrong.
+   Use only what has happened up to that page. Never reveal later pages.
+3. "outro": 3-5 lines after the book closes, with at least one kid line. The last line is the \
+storyteller inviting viewers to subscribe and come back for the next story.
+
+RULES
+- Kid lines are at most 25 words.
+- The only allowed inline tags are <giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>. No other \
+tags, markup or stage directions.
+- Everything is gentle and suitable for young children. Do not invent story events that are \
+not in the book.
+"""
+
+
+def build_prompt(
+    book: dict, cast: dict, plan: EpisodePlan, feedback: list[str] | None = None
+) -> str:
+    """One-shot prompt (Gemini API): the brief plus the JSON reply format and any feedback."""
+    prompt = (
+        build_brief(book, cast, plan)
+        + "\nREPLY\nReply with JSON only, matching this JSON schema:\n"
+        + json.dumps(Banter.model_json_schema())
+        + "\n"
+    )
+    if feedback:
+        problems = "\n".join(f"- {error}" for error in feedback)
+        prompt += f"\nYOUR PREVIOUS ANSWER WAS REJECTED. Fix these problems:\n{problems}\n"
+    return prompt
+```
+- [ ] Create `video_pipeline/episode_tools.py`:
+```python
+"""The episode tools (FR-8): plan, validate and save. Shared by the MCP server and the CLI.
+
+The book, seed, output folder and force flag are fixed when the tools are created, so a model
+using them can only read this book's plan and write this book's script.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from video_pipeline.contract import (
+    Banter,
+    BanterParseError,
+    ConfigError,
+    load_disallowed_terms,
+    parse_banter,
+    slugify,
+    validate_script,
+)
+from video_pipeline.episode import (
+    EpisodePlan,
+    assemble_script,
+    banter_plan_errors,
+    load_book,
+    plan_episode,
+)
+from video_pipeline.llm import build_brief
+
+ROOT = Path(__file__).resolve().parent.parent
+CONFIG_DIR = ROOT / "config"
+DEFAULT_SEED = 7
+MAX_SAVES = 5
+
+
+def output_path(book: dict, episodes_dir: Path) -> Path:
+    return Path(episodes_dir) / slugify(book["metadata"]["title"]) / "episode_script.json"
+
+
+def load_cast(path: Path) -> dict:
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ConfigError(f"cast configuration not found: {path}") from None
+    except json.JSONDecodeError as exc:
+        raise ConfigError(f"cast configuration is not valid JSON: {path} ({exc})") from None
+
+
+def write_atomic(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(tmp, path)  # noqa: PTH105 - tests patch episode_tools.os.replace
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+@dataclass
+class EpisodeTools:
+    book: dict
+    cast: dict
+    terms: list[str]
+    seed: int
+    out: Path
+    force: bool = False
+    saves: int = 0
+    plan: EpisodePlan = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.plan = plan_episode(self.book, self.seed)
+
+    @classmethod
+    def load(
+        cls,
+        book_path: Path,
+        seed: int,
+        episodes_dir: Path,
+        config_dir: Path,
+        force: bool = False,
+    ) -> EpisodeTools:
+        book = load_book(Path(book_path))
+        terms = load_disallowed_terms(Path(config_dir) / "disallowed_terms.txt")
+        cast = load_cast(Path(config_dir) / "cast.json")
+        return cls(book, cast, terms, seed, output_path(book, episodes_dir), force)
+
+    def check(self, banter: dict | str) -> tuple[dict | None, list[str]]:
+        """Assemble and validate; returns (script, []) when valid, else (None, errors)."""
+        raw = banter if isinstance(banter, str) else json.dumps(banter)
+        try:
+            parsed = parse_banter(raw)
+        except BanterParseError as exc:
+            return None, exc.errors
+        script = assemble_script(self.book, self.cast, self.plan, parsed)
+        errors = banter_plan_errors(parsed, self.plan) + validate_script(
+            script, self.book, self.terms
+        )
+        return (None, errors) if errors else (script, [])
+
+    def get_episode_plan(self) -> dict:
+        meta = self.book["metadata"]
+        return {
+            "title": meta["title"],
+            "age_range": meta.get("age_range", "young children"),
+            "pages": [
+                {"page_number": p["page_number"], "text": p["text"], "illustration": p["prompt"]}
+                for p in self.book["pages"]
+            ],
+            "cast": self.cast,
+            "qa_pages": [
+                {"page_number": number, "kids": list(kids)}
+                for number, kids in sorted(self.plan.qa_speakers.items())
+            ],
+            "brief": build_brief(self.book, self.cast, self.plan),
+            "banter_schema": Banter.model_json_schema(),
+        }
+
+    def validate_banter(self, banter: dict | str) -> dict:
+        _, errors = self.check(banter)
+        return {"valid": not errors, "errors": errors}
+
+    def save_episode_script(self, banter: dict | str) -> dict:
+        if self.saves >= MAX_SAVES:
+            return {"saved": False, "errors": [f"save limit reached ({MAX_SAVES} saves); stop"]}
+        self.saves += 1
+        script, errors = self.check(banter)
+        if script is None:
+            return {"saved": False, "errors": errors}
+        if self.out.exists() and not self.force:
+            return {
+                "saved": False,
+                "errors": [f"{self.out} already exists; the producer must re-run with --force"],
+            }
+        write_atomic(self.out, script)
+        return {"saved": True, "path": str(self.out), "errors": []}
+```
+- [ ] In `video_pipeline/generate_script.py`:
+  - delete the local definitions of `CONFIG_DIR`, `DEFAULT_SEED`, `output_path`, `load_cast` and `write_atomic`, and the now-unused `import os`;
+  - import them instead: `from video_pipeline.episode_tools import CONFIG_DIR, DEFAULT_SEED, load_cast, output_path, write_atomic`.
+
+  The behaviour is unchanged. Phase 10 rewrites this file.
+- [ ] Run `uv run pytest -q`. Expect all PASS. Run `uv run ruff check . && uv run ruff format --check .`. Expect clean.
+- [ ] Commit (stage only this phase's files): `feat(script): Phase 7: episode tools core and reusable writing brief`
+
+---
+
+## Phase 8 (added v2.0.0): MCP server for the episode tools
+
+**Implements:** FR-8 | **Satisfies:** AC-6.7 (refused save over MCP), FR-8 tool list
+**Files:** `video_pipeline/mcp_server.py` (new), `tests/test_mcp_server.py` (new), `pyproject.toml`, `uv.lock`
+**Interfaces:** Consumes `EpisodeTools`, `CONFIG_DIR` and `DEFAULT_SEED` (`episode_tools.py`), `BookError` and `ConfigError`. Produces `SERVER_NAME = "kiddo"`, `TOOL_NAMES`, `parse_args(argv) -> Namespace` (flags `--book --seed --force --episodes-dir --config-dir`), `create_server(tools) -> MCPServer` and `main(argv=None) -> int`.
+
+This ports video-studio's `apps/mcp/src/server.ts` (the tool server Claude and the studio share) as a thin Python wrapper. The tool logic stays in `EpisodeTools`.
+
+- [ ] Run `uv add "mcp>=2.3,<3"`, which updates `pyproject.toml` and `uv.lock`.
+- [ ] Write `tests/test_mcp_server.py`:
+```python
+"""Runs the real MCP server over stdio (local, no network) with hand-written JSON-RPC."""
+
+import json
+import subprocess
+import sys
+
+from tests.helpers import MINI_BOOK, ROOT, load_json, make_banter
+from video_pipeline import mcp_server
+from video_pipeline.contract import load_disallowed_terms, validate_script
+from video_pipeline.episode import plan_episode
+from video_pipeline.episode_tools import CONFIG_DIR
+
+
+def call_server(args: list[str], requests: list[tuple[str, dict]]) -> list[dict]:
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "video_pipeline.mcp_server", *args],
+        cwd=ROOT,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    def send(message: dict) -> None:
+        proc.stdin.write(json.dumps(message) + "\n")
+        proc.stdin.flush()
+
+    def receive(request_id: int) -> dict:
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                raise AssertionError(f"server closed: {proc.stderr.read()}")
+            message = json.loads(line)
+            if message.get("id") == request_id:
+                return message
+
+    try:
+        send({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1"}}})
+        receive(0)
+        send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        replies = []
+        for request_id, (method, params) in enumerate(requests, start=1):
+            send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+            replies.append(receive(request_id))
+        return replies
+    finally:
+        proc.stdin.close()
+        proc.terminate()
+        proc.wait(timeout=10)
+
+
+def tool_payload(reply: dict) -> object:
+    result = reply["result"]
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict) and set(structured) == {"result"}:
+        return structured["result"]
+    if structured is not None:
+        return structured
+    return json.loads(result["content"][0]["text"])
+
+
+def server_args(tmp_path, *extra: str) -> list[str]:
+    return ["--book", str(MINI_BOOK), "--episodes-dir", str(tmp_path), *extra]
+
+
+def test_lists_exactly_the_episode_tools(tmp_path):
+    [reply] = call_server(server_args(tmp_path), [("tools/list", {})])
+    assert {tool["name"] for tool in reply["result"]["tools"]} == set(mcp_server.TOOL_NAMES)
+
+
+def test_plan_tool_uses_the_server_seed(tmp_path):
+    [reply] = call_server(
+        server_args(tmp_path, "--seed", "11"),
+        [("tools/call", {"name": "get_episode_plan", "arguments": {}})],
+    )
+    book = load_json(MINI_BOOK)
+    expected = sorted(plan_episode(book, 11).qa_speakers)
+    assert [p["page_number"] for p in tool_payload(reply)["qa_pages"]] == expected
+
+
+def test_save_over_mcp_refuses_invalid_then_saves_valid(tmp_path):  # AC-6.7
+    book = load_json(MINI_BOOK)
+    banter = make_banter(book, plan_episode(book, 7)).model_dump()
+    refused, saved = call_server(
+        server_args(tmp_path),
+        [
+            ("tools/call", {"name": "save_episode_script", "arguments": {"banter": {"intro": []}}}),
+            ("tools/call", {"name": "save_episode_script", "arguments": {"banter": banter}}),
+        ],
+    )
+    assert tool_payload(refused)["saved"] is False and tool_payload(refused)["errors"]
+    assert tool_payload(saved)["saved"] is True
+    out = tmp_path / "the-lantern-bug-parade" / "episode_script.json"
+    terms = load_disallowed_terms(CONFIG_DIR / "disallowed_terms.txt")
+    assert validate_script(load_json(out), book, terms) == []
+
+
+def test_bad_book_exits_before_serving(tmp_path, capsys):
+    assert mcp_server.main(["--book", str(tmp_path / "nope.json")]) == 1
+    assert "book data file not found" in capsys.readouterr().err
+```
+- [ ] Run `uv run pytest tests/test_mcp_server.py -q`. Expect FAIL (`ImportError: cannot import name 'mcp_server'`).
+- [ ] Create `video_pipeline/mcp_server.py`:
+```python
+"""MCP server exposing the episode tools (FR-8) over stdio.
+
+Run: uv run python -m video_pipeline.mcp_server --book book_data.json [--seed N] [--force]
+The book, seed and force flag come from this command line, never from the model.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from mcp.server.mcpserver import MCPServer
+
+from video_pipeline.contract import ConfigError
+from video_pipeline.episode import BookError
+from video_pipeline.episode_tools import CONFIG_DIR, DEFAULT_SEED, EpisodeTools
+
+SERVER_NAME = "kiddo"
+TOOL_NAMES = ("get_episode_plan", "validate_banter", "save_episode_script")
+
+
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="python -m video_pipeline.mcp_server")
+    parser.add_argument("--book", type=Path, default=Path("book_data.json"))
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--episodes-dir", type=Path, default=Path("episodes"))
+    parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
+    return parser.parse_args(argv)
+
+
+def create_server(tools: EpisodeTools) -> MCPServer:
+    server = MCPServer(SERVER_NAME)
+
+    @server.tool()
+    def get_episode_plan() -> dict:
+        """Call this first. Returns the book pages, cast, the Q&A pages with the kids who must
+        speak in each, the writing brief with every rule, and the banter JSON schema."""
+        return tools.get_episode_plan()
+
+    @server.tool()
+    def validate_banter(banter: dict) -> dict:
+        """Check a banter object {intro, moments, outro} against every rule.
+        Returns {valid, errors}. Fix every error and validate again."""
+        return tools.validate_banter(banter)
+
+    @server.tool()
+    def save_episode_script(banter: dict) -> dict:
+        """Validate the banter and save the episode script. Returns {saved, path, errors}.
+        Nothing is written when errors are returned. At most 5 saves per run."""
+        return tools.save_episode_script(banter)
+
+    return server
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        tools = EpisodeTools.load(
+            args.book, args.seed, args.episodes_dir, args.config_dir, args.force
+        )
+    except (BookError, ConfigError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    create_server(tools).run()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+- [ ] Run `uv run pytest -q`. Expect all PASS. Ruff clean.
+- [ ] Commit: `feat(script): Phase 8: MCP server for the episode tools`
+
+---
+
+## Phase 9 (added v2.0.0): Codex (ChatGPT) agent provider
+
+**Implements:** FR-7 (codex provider, limits, run log), Security (tools only) | **Satisfies:** AC-6.6, AC-6.8 (command side)
+**Files:** `video_pipeline/agents.py` (new), `tests/test_agents.py` (new), `tests/fixtures/codex_events.jsonl` (new)
+**Interfaces:** Consumes `SERVER_NAME` (`mcp_server.py`). Produces:
+- constants `CODEX_BIN_ENV = "KIDDO_CODEX_BIN"`, `CODEX_SEARCH`, `AGENT_TIMEOUT_S = 600`, `DISABLED_FEATURES` and `AGENT_PROMPT`;
+- `AgentUnavailable`, the frozen dataclass `AgentEvent(kind, text="", tool="", ok=True, data=None)`, and `AgentResult(ok, events, log_path, reason)` with a `last_save` property;
+- `find_codex() -> Path | None` and `codex_status() -> Path`;
+- `build_codex_command(binary, server_command, server_args, server_env, model=None) -> list[str]`;
+- `parse_codex_event(line) -> list[AgentEvent]`;
+- `run_codex(command, log_path, timeout_s=AGENT_TIMEOUT_S, on_event=None) -> AgentResult`.
+
+This ports video-studio's `packages/ai/src/index.ts` and `packages/ai/src/stream.ts`:
+- `findClaude` becomes `find_codex`, which also looks inside the ChatGPT app bundle;
+- `status()` becomes `codex_status`, which runs `codex login status`;
+- `run()` becomes `run_codex`, which streams JSONL, enforces a timeout and records stderr;
+- `createStreamParser` becomes `parse_codex_event`;
+- `--strict-mcp-config --tools ""` becomes `--ignore-user-config`, the `--disable` flags and the read-only sandbox.
+
+- [ ] Create `tests/fixtures/codex_events.jsonl`. These are the event shapes captured in the spike:
+```text
+{"type":"thread.started","thread_id":"t1"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Getting the plan."}}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"kiddo","tool":"get_episode_plan","arguments":{},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"kiddo","tool":"get_episode_plan","arguments":{},"result":{"content":[{"type":"text","text":"{\"title\": \"T\"}"}],"structured_content":{"title":"T"}},"error":null,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"mcp_tool_call","server":"kiddo","tool":"save_episode_script","arguments":{"banter":{}},"result":{"content":[{"type":"text","text":"{\"saved\": false, \"errors\": [\"bad\"]}"}],"structured_content":{"result":{"saved":false,"errors":["bad"]}}},"error":null,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_3","type":"mcp_tool_call","server":"kiddo","tool":"validate_banter","arguments":{},"result":null,"error":{"message":"MCP tool call requires approval"},"status":"failed"}}
+not json
+{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}
+```
+- [ ] Write `tests/test_agents.py`:
+```python
+import json
+from pathlib import Path
+
+import pytest
+
+from tests.helpers import FIXTURES
+from video_pipeline import agents
+from video_pipeline.agents import (
+    AGENT_PROMPT,
+    DISABLED_FEATURES,
+    AgentEvent,
+    AgentResult,
+    AgentUnavailable,
+    build_codex_command,
+    codex_status,
+    find_codex,
+    parse_codex_event,
+    run_codex,
+)
+
+EVENTS = FIXTURES / "codex_events.jsonl"
+
+
+def fake_bin(tmp_path: Path, body: str) -> Path:
+    path = tmp_path / "codex"
+    path.write_text("#!/bin/sh\n" + body + "\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def test_find_codex_prefers_env(monkeypatch, tmp_path):
+    binary = fake_bin(tmp_path, "true")
+    monkeypatch.setenv(agents.CODEX_BIN_ENV, str(binary))
+    assert find_codex() == binary
+
+
+def test_find_codex_checks_known_locations(monkeypatch, tmp_path):
+    monkeypatch.delenv(agents.CODEX_BIN_ENV, raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    binary = fake_bin(tmp_path, "true")
+    monkeypatch.setattr(agents, "CODEX_SEARCH", (tmp_path / "missing", binary))
+    assert find_codex() == binary
+    monkeypatch.setattr(agents, "CODEX_SEARCH", (tmp_path / "missing",))
+    assert find_codex() is None
+
+
+def test_codex_status_logged_in(monkeypatch, tmp_path):
+    binary = fake_bin(tmp_path, 'echo "Logged in using ChatGPT"')
+    monkeypatch.setenv(agents.CODEX_BIN_ENV, str(binary))
+    assert codex_status() == binary
+
+
+def test_codex_status_not_logged_in(monkeypatch, tmp_path):  # AC-6.6
+    binary = fake_bin(tmp_path, 'echo "Not logged in"; exit 1')
+    monkeypatch.setenv(agents.CODEX_BIN_ENV, str(binary))
+    with pytest.raises(AgentUnavailable, match="codex login"):
+        codex_status()
+
+
+def test_codex_status_not_installed(monkeypatch, tmp_path):  # AC-6.6
+    monkeypatch.delenv(agents.CODEX_BIN_ENV, raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setattr(agents, "CODEX_SEARCH", ())
+    with pytest.raises(AgentUnavailable, match="ChatGPT desktop app"):
+        codex_status()
+
+
+def test_build_codex_command_allows_only_the_episode_tools():  # AC-6.8
+    command = build_codex_command(
+        Path("/bin/codex"), "/py", ["-m", "video_pipeline.mcp_server", "--seed", "7"],
+        {"PYTHONPATH": "/repo"}, model="gpt-x",
+    )
+    assert command[:2] == ["/bin/codex", "exec"]
+    for flag in ("--json", "--ephemeral", "--ignore-user-config", "--ignore-rules",
+                 "--skip-git-repo-check"):
+        assert flag in command
+    assert command[command.index("--sandbox") + 1] == "read-only"
+    disabled = {command[i + 1] for i, arg in enumerate(command) if arg == "--disable"}
+    assert disabled == set(DISABLED_FEATURES)
+    settings = {command[i + 1] for i, arg in enumerate(command) if arg == "-c"}
+    assert 'mcp_servers.kiddo.command="/py"' in settings
+    assert 'mcp_servers.kiddo.args=["-m", "video_pipeline.mcp_server", "--seed", "7"]' in settings
+    assert 'mcp_servers.kiddo.env.PYTHONPATH="/repo"' in settings
+    assert 'mcp_servers.kiddo.default_tools_approval_mode="approve"' in settings
+    assert 'web_search="disabled"' in settings
+    assert command[command.index("--model") + 1] == "gpt-x"
+    assert command[-1] == AGENT_PROMPT
+    assert not any(arg.startswith("--dangerously") for arg in command)
+
+
+def test_agent_prompt_names_every_tool():
+    for name in ("get_episode_plan", "validate_banter", "save_episode_script"):
+        assert name in AGENT_PROMPT
+
+
+def test_parse_codex_event_fixture():
+    events = [e for line in EVENTS.read_text().splitlines() for e in parse_codex_event(line)]
+    assert [e.kind for e in events] == ["say", "tool", "tool-result", "tool-result", "tool-result", "done"]
+    assert events[0].text == "Getting the plan."
+    assert events[2].data == {"title": "T"}
+    assert events[3].tool == "save_episode_script"
+    assert events[3].data == {"saved": False, "errors": ["bad"]}
+    assert events[4].ok is False and "approval" in events[4].text
+
+
+def test_last_save_is_the_latest_save_result(tmp_path):
+    result = AgentResult(
+        ok=True,
+        events=[
+            AgentEvent("tool-result", tool="save_episode_script", data={"saved": False}),
+            AgentEvent("tool-result", tool="validate_banter", data={"valid": True}),
+            AgentEvent("tool-result", tool="save_episode_script", data={"saved": True}),
+        ],
+        log_path=tmp_path / "log.jsonl",
+    )
+    assert result.last_save == {"saved": True}
+    assert AgentResult(ok=True, events=[], log_path=tmp_path).last_save is None
+
+
+def test_run_codex_streams_events_and_keeps_log(tmp_path):
+    binary = fake_bin(tmp_path, f'cat "{EVENTS}"')
+    log_path = tmp_path / "agent" / "run.jsonl"
+    seen: list[AgentEvent] = []
+    result = run_codex([str(binary)], log_path, on_event=seen.append)
+    assert result.ok and result.reason == ""
+    assert seen == result.events and result.events[-1].kind == "done"
+    assert log_path.read_text() == EVENTS.read_text()
+    assert log_path.with_suffix(".stderr.log").exists()
+
+
+def test_run_codex_time_limit(tmp_path):  # FR-7: 10-minute limit
+    binary = fake_bin(tmp_path, "exec sleep 5")  # exec: kill reaches sleep, closing stdout
+    result = run_codex([str(binary)], tmp_path / "run.jsonl", timeout_s=0.5)
+    assert result.ok is False and "time limit" in result.reason
+
+
+def test_run_codex_failure_exit(tmp_path):
+    binary = fake_bin(tmp_path, "echo boom >&2; exit 3")
+    result = run_codex([str(binary)], tmp_path / "run.jsonl")
+    assert result.ok is False and "status 3" in result.reason
+    assert "boom" in (tmp_path / "run.stderr.log").read_text()
+
+
+def test_run_codex_runs_in_an_empty_directory(tmp_path):  # AC-6.8: no project files
+    binary = fake_bin(tmp_path, 'ls -A | wc -l | tr -d " " >&2')
+    run_codex([str(binary)], tmp_path / "run.jsonl")
+    assert (tmp_path / "run.stderr.log").read_text().strip() == "0"
+
+
+def test_run_codex_missing_binary(tmp_path):
+    with pytest.raises(AgentUnavailable, match="could not start"):
+        run_codex([str(tmp_path / "nope")], tmp_path / "run.jsonl")
+```
+- [ ] Run `uv run pytest tests/test_agents.py -q`. Expect FAIL (`ImportError: cannot import name 'agents'`).
+- [ ] Create `video_pipeline/agents.py`:
+```python
+"""Agent provider (FR-7): run a tool-using model headless with only the episode tools.
+
+Ported from video-studio's packages/ai (status, binary discovery, headless run, event parsing)
+for the Codex CLI that ships with the ChatGPT app and uses the producer's ChatGPT login.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+import threading
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+from video_pipeline.mcp_server import SERVER_NAME
+
+CODEX_BIN_ENV = "KIDDO_CODEX_BIN"
+CODEX_SEARCH = (
+    Path("/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex"),
+    Path.home() / ".local/bin/codex",
+    Path("/opt/homebrew/bin/codex"),
+    Path("/usr/local/bin/codex"),
+    Path.home() / ".npm-global/bin/codex",
+)
+AGENT_TIMEOUT_S = 600
+DISABLED_FEATURES = (
+    "shell_tool", "unified_exec", "apps", "plugins", "browser_use", "computer_use",
+    "in_app_browser", "multi_agent", "view_image", "sleep_tool",
+)
+INSTALL_HINT = (
+    "install the ChatGPT desktop app (it includes Codex) or set "
+    f"{CODEX_BIN_ENV} to the codex binary"
+)
+LOGIN_HINT = "run `codex login` and sign in with ChatGPT"
+
+AGENT_PROMPT = """You write the spoken banter for a children's read-aloud storytime episode.
+Use only the kiddo tools.
+1. Call get_episode_plan. Its "brief" holds the book, the cast, the Q&A pages with the kids who \
+must speak in each, and every rule; "banter_schema" is the JSON shape of a banter.
+2. Write the complete banter: intro, exactly one moment per Q&A page, outro. Every "grounding" \
+is 2-6 consecutive words copied exactly from the TEXT or ILLUSTRATION of that same page.
+3. Call validate_banter with it. Fix every error it lists and validate again until it returns \
+no errors.
+4. Call save_episode_script with the valid banter. If it returns errors, fix them and save \
+again. You have at most 5 saves.
+5. Finish with one short line: the saved path, or the errors you could not fix."""
+
+
+class AgentUnavailable(Exception):
+    """The agent provider is not installed, not logged in, or could not start (AC-6.6)."""
+
+
+@dataclass(frozen=True)
+class AgentEvent:
+    kind: str  # "say" | "tool" | "tool-result" | "error" | "done"
+    text: str = ""
+    tool: str = ""
+    ok: bool = True
+    data: object = None
+
+
+@dataclass
+class AgentResult:
+    ok: bool
+    events: list[AgentEvent]
+    log_path: Path
+    reason: str = ""
+
+    @property
+    def last_save(self) -> dict | None:
+        for event in reversed(self.events):
+            if (
+                event.kind == "tool-result"
+                and event.tool == "save_episode_script"
+                and isinstance(event.data, dict)
+            ):
+                return event.data
+        return None
+
+
+def find_codex() -> Path | None:
+    if os.environ.get(CODEX_BIN_ENV):
+        return Path(os.environ[CODEX_BIN_ENV])
+    on_path = shutil.which("codex")
+    if on_path:
+        return Path(on_path)
+    return next((p for p in CODEX_SEARCH if os.access(p, os.X_OK)), None)
+
+
+def codex_status() -> Path:
+    """The codex binary when installed and logged in; AgentUnavailable otherwise."""
+    binary = find_codex()
+    if binary is None:
+        raise AgentUnavailable(f"Codex (ChatGPT) provider not found: {INSTALL_HINT}")
+    try:
+        result = subprocess.run(
+            [str(binary), "login", "status"],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise AgentUnavailable(
+            f"Codex (ChatGPT) provider could not start ({exc}): {INSTALL_HINT}"
+        ) from None
+    status = (result.stdout + result.stderr).strip().lower()
+    if result.returncode != 0 or not status.startswith("logged in"):
+        raise AgentUnavailable(f"Codex (ChatGPT) provider is not logged in: {LOGIN_HINT}")
+    return binary
+
+
+def build_codex_command(
+    binary: Path,
+    server_command: str,
+    server_args: list[str],
+    server_env: dict[str, str],
+    model: str | None = None,
+) -> list[str]:
+    key = f"mcp_servers.{SERVER_NAME}"
+    command = [
+        str(binary), "exec", "--json", "--ephemeral", "--skip-git-repo-check",
+        "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only",
+    ]
+    for feature in DISABLED_FEATURES:
+        command += ["--disable", feature]
+    settings = [
+        f"{key}.command={json.dumps(server_command)}",
+        f"{key}.args={json.dumps(server_args)}",
+        *(f"{key}.env.{name}={json.dumps(value)}" for name, value in server_env.items()),
+        f"{key}.startup_timeout_sec=60",
+        f'{key}.default_tools_approval_mode="approve"',
+        'web_search="disabled"',
+    ]
+    for setting in settings:
+        command += ["-c", setting]
+    if model:
+        command += ["--model", model]
+    command.append(AGENT_PROMPT)
+    return command
+
+
+def _tool_payload(result: dict) -> object:
+    structured = result.get("structured_content")
+    if isinstance(structured, dict) and set(structured) == {"result"}:
+        return structured["result"]
+    if structured is not None:
+        return structured
+    text = "\n".join(
+        c.get("text", "") for c in result.get("content", []) if c.get("type") == "text"
+    )
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+
+
+def parse_codex_event(line: str) -> list[AgentEvent]:
+    """One `codex exec --json` line → agent events (pure; unit-tested)."""
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(event, dict):
+        return []
+    kind, item = event.get("type"), event.get("item") or {}
+    item_type = item.get("type")
+    if kind == "item.completed" and item_type == "agent_message":
+        return [AgentEvent("say", text=str(item.get("text", "")).strip())]
+    if kind == "item.started" and item_type == "mcp_tool_call":
+        return [AgentEvent("tool", tool=item.get("tool", ""), data=item.get("arguments"))]
+    if kind == "item.completed" and item_type == "mcp_tool_call":
+        error = item.get("error")
+        payload = None if error else _tool_payload(item.get("result") or {})
+        text = error.get("message", "") if error else json.dumps(payload, ensure_ascii=False)
+        return [
+            AgentEvent("tool-result", text=text, tool=item.get("tool", ""), ok=not error,
+                       data=payload)
+        ]
+    if kind == "item.completed" and item_type == "error":
+        return [AgentEvent("error", text=str(item.get("message", "")))]
+    if kind in ("turn.failed", "error"):
+        error = event.get("error")
+        message = error.get("message") if isinstance(error, dict) else event.get("message")
+        return [AgentEvent("error", text=str(message or kind))]
+    if kind == "turn.completed":
+        return [AgentEvent("done")]
+    return []
+
+
+def run_codex(
+    command: list[str],
+    log_path: Path,
+    timeout_s: float = AGENT_TIMEOUT_S,
+    on_event: Callable[[AgentEvent], None] | None = None,
+) -> AgentResult:
+    """Run the agent in an empty temporary directory; keep its JSONL log and stderr."""
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    stderr_path = log_path.with_suffix(".stderr.log")
+    events: list[AgentEvent] = []
+    timed_out = threading.Event()
+    with (
+        tempfile.TemporaryDirectory(prefix="kiddo-agent-") as workdir,
+        log_path.open("w", encoding="utf-8") as log,
+        stderr_path.open("w", encoding="utf-8") as stderr,
+    ):
+        try:
+            proc = subprocess.Popen(
+                command, cwd=workdir, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=stderr, text=True,
+            )
+        except OSError as exc:
+            raise AgentUnavailable(f"Codex (ChatGPT) provider could not start: {exc}") from None
+
+        def stop() -> None:
+            timed_out.set()
+            proc.kill()
+
+        timer = threading.Timer(timeout_s, stop)
+        timer.start()
+        try:
+            for line in proc.stdout:
+                log.write(line)
+                for event in parse_codex_event(line):
+                    events.append(event)
+                    if on_event:
+                        on_event(event)
+            proc.wait()
+        finally:
+            timer.cancel()
+    if timed_out.is_set():
+        reason = f"agent stopped after {timeout_s:.0f} s (time limit)"
+    elif proc.returncode != 0:
+        reason = f"agent exited with status {proc.returncode}; see {stderr_path}"
+    elif not any(event.kind == "done" for event in events):
+        reason = "agent ended without finishing its turn"
+    else:
+        reason = ""
+    return AgentResult(ok=not reason, events=events, log_path=log_path, reason=reason)
+```
+- [ ] Run `uv run pytest -q`. Expect all PASS. Ruff clean.
+- [ ] Commit: `feat(script): Phase 9: Codex (ChatGPT) agent provider`
+
+---
+
+## Phase 10 (added v2.0.0): CLI providers, remove the local model
+
+**Implements:** FR-1, FR-7, Error Scenarios | **Satisfies:** AC-1.1–1.3, AC-6.1–6.8, AC-7.2–7.4
+**Files:** `video_pipeline/generate_script.py`, `video_pipeline/llm.py`, `tests/test_generate_script.py`, `tests/test_llm.py`, `pyproject.toml`, `.gitignore`
+**Interfaces:** Consumes everything from Phases 7–9 plus `generate_cloud`, `build_prompt`, `CLOUD_MODEL`, `LLMError` and `LLMUnavailable` (`llm.py`). Produces `PROVIDERS = ("codex", "gemini-api")`, `MAX_ATTEMPTS = 3`, `REVIEW_NOTICE`, `GenerationFailed(message, errors)`, `generate_episode_script(tools, generate) -> dict` (Gemini API loop), `mcp_server_args(args) -> list[str]`, `run_agent(args, tools) -> None` and `main(argv=None) -> int`. CLI flags: `--book --provider {codex,gemini-api} --seed --force --episodes-dir --config-dir --model`. `--mode` is removed.
+
+- [ ] In `video_pipeline/llm.py`:
+  - delete `LOCAL_MODEL`, `OLLAMA_URL` and `generate_local`;
+  - change the docstring to `"""Text-model access: the shared writing brief and the opt-in Gemini API provider."""`;
+  - change the message in `generate_cloud` to `f"the gemini-api provider needs the {GEMINI_KEY_ENV} environment variable"`.
+- [ ] In `tests/test_llm.py`, delete `test_generate_local_sends_reproducible_request`, `test_generate_local_missing_model`, `test_generate_local_server_down` and `test_generate_local_bad_reply`, and remove `generate_local` from the import list.
+- [ ] In `pyproject.toml`, set `markers = ["codex: runs the real Codex (ChatGPT) provider; needs the ChatGPT app logged in"]` and `addopts = "-m 'not codex'"`.
+- [ ] Append to `.gitignore`: `episodes/*/agent/`
+- [ ] Replace `tests/test_generate_script.py` with:
+```python
+import json
+import shutil
+from pathlib import Path
+
+import pytest
+
+from tests.helpers import CAST_PATH, MINI_BOOK, PILOT_BOOK, load_json, make_banter, plan_signature
+from video_pipeline import generate_script, mcp_server
+from video_pipeline.agents import AgentEvent, AgentResult, AgentUnavailable
+from video_pipeline.contract import load_disallowed_terms, validate_script
+from video_pipeline.episode import plan_episode
+from video_pipeline.episode_tools import CONFIG_DIR, EpisodeTools
+from video_pipeline.llm import LLMUnavailable
+
+TERMS = load_disallowed_terms(CONFIG_DIR / "disallowed_terms.txt")
+FAKE_CODEX = Path("/fake/codex")
+
+
+def server_args_from(command: list[str]) -> list[str]:
+    prefix = "mcp_servers.kiddo.args="
+    setting = next(c for c in command if c.startswith(prefix))
+    return json.loads(setting[len(prefix):])[2:]  # drop "-m video_pipeline.mcp_server"
+
+
+class FakeAgent:
+    """Plays the agent: starts the real EpisodeTools from the server args in the real command."""
+
+    def __init__(self, banter=None, saves=1, reason=""):
+        self.banter, self.saves, self.reason = banter, saves, reason
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command, log_path, timeout_s=600, on_event=None):
+        self.commands.append(command)
+        args = mcp_server.parse_args(server_args_from(command))
+        tools = EpisodeTools.load(args.book, args.seed, args.episodes_dir, args.config_dir,
+                                  args.force)
+        banter = self.banter(tools) if callable(self.banter) else self.banter
+        if banter is None:
+            banter = make_banter(tools.book, tools.plan).model_dump()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("{}\n", encoding="utf-8")
+        events = [
+            AgentEvent("tool-result", tool="save_episode_script",
+                       data=tools.save_episode_script(banter))
+            for _ in range(self.saves)
+        ]
+        return AgentResult(ok=not self.reason, events=events, log_path=log_path,
+                           reason=self.reason)
+
+
+def never_called(*args, **kwargs):
+    raise AssertionError("this provider must not be used")
+
+
+def run(monkeypatch, tmp_path, book_path=MINI_BOOK, extra=(), agent=None, cloud=None,
+        status=None):
+    monkeypatch.setattr(generate_script, "codex_status", status or (lambda: FAKE_CODEX))
+    monkeypatch.setattr(generate_script, "run_codex", agent or never_called)
+    monkeypatch.setattr(generate_script, "generate_cloud", cloud or never_called)
+    args = ["--book", str(book_path), "--episodes-dir", str(tmp_path / "episodes"), *extra]
+    return generate_script.main(args)
+
+
+def out_path(tmp_path, slug="the-lantern-bug-parade"):
+    return tmp_path / "episodes" / slug / "episode_script.json"
+
+
+def test_default_provider_writes_valid_script(monkeypatch, tmp_path):  # AC-1.1, AC-1.2
+    agent = FakeAgent()
+    assert run(monkeypatch, tmp_path, agent=agent) == 0
+    script = load_json(out_path(tmp_path))
+    assert validate_script(script, load_json(MINI_BOOK), TERMS) == []
+    command = agent.commands[0]
+    assert command[0] == str(FAKE_CODEX) and "read-only" in command  # AC-6.8
+
+
+def test_agent_log_goes_under_the_episode(monkeypatch, tmp_path):  # AC-6.8
+    assert run(monkeypatch, tmp_path, agent=FakeAgent()) == 0
+    logs = list((out_path(tmp_path).parent / "agent").glob("*-codex.jsonl"))
+    assert len(logs) == 1
+
+
+def test_pilot_book_needs_no_changes(monkeypatch, tmp_path):  # AC-1.3
+    assert run(monkeypatch, tmp_path, PILOT_BOOK, agent=FakeAgent()) == 0
+    script = load_json(out_path(tmp_path, "the-snail-mail-express"))
+    assert validate_script(script, load_json(PILOT_BOOK), TERMS) == []
+    assert sum(p["has_qa"] for p in script["pages"]) in (7, 8)
+
+
+def test_existing_script_refused_without_force(monkeypatch, tmp_path, capsys):  # AC-6.1
+    target = out_path(tmp_path)
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"hand edited")
+    assert run(monkeypatch, tmp_path, status=never_called) == 1
+    assert target.read_bytes() == b"hand edited"
+    err = capsys.readouterr().err
+    assert str(target) in err and "--force" in err
+
+
+def test_force_overwrites(monkeypatch, tmp_path):  # AC-6.2
+    target = out_path(tmp_path)
+    target.parent.mkdir(parents=True)
+    target.write_text("{}", encoding="utf-8")
+    assert run(monkeypatch, tmp_path, extra=["--force"], agent=FakeAgent()) == 0
+    assert validate_script(load_json(target), load_json(MINI_BOOK), TERMS) == []
+
+
+def test_same_seed_gives_the_same_plan(monkeypatch, tmp_path):  # AC-6.3
+    def other_text(tools):
+        banter = make_banter(tools.book, tools.plan).model_dump()
+        for moment in banter["moments"]:
+            moment["lines"][-1]["text"] = "What a lovely page!"
+        return banter
+
+    extra = ["--seed", "11", "--force"]
+    assert run(monkeypatch, tmp_path, extra=extra, agent=FakeAgent()) == 0
+    first = load_json(out_path(tmp_path))
+    assert run(monkeypatch, tmp_path, extra=extra, agent=FakeAgent(other_text)) == 0
+    second = load_json(out_path(tmp_path))
+    assert first != second
+    assert plan_signature(first) == plan_signature(second)
+
+
+def test_other_seed_still_valid(monkeypatch, tmp_path):  # AC-6.4
+    assert run(monkeypatch, tmp_path, extra=["--seed", "3"], agent=FakeAgent()) == 0
+    assert validate_script(load_json(out_path(tmp_path)), load_json(MINI_BOOK), TERMS) == []
+
+
+def test_gemini_api_one_request_per_attempt(monkeypatch, tmp_path):  # AC-6.5
+    book = load_json(MINI_BOOK)
+    valid = make_banter(book, plan_episode(book, 7)).model_dump_json()
+    calls = []
+
+    def cloud(prompt, seed, model=None):
+        calls.append((prompt, seed))
+        return "{}" if len(calls) == 1 else valid
+
+    extra = ["--provider", "gemini-api"]
+    assert run(monkeypatch, tmp_path, extra=extra, cloud=cloud, status=never_called) == 0
+    assert len(calls) == 2 and "REJECTED" in calls[1][0]
+    assert [seed for _, seed in calls] == [7, 8]
+    assert validate_script(load_json(out_path(tmp_path)), book, TERMS) == []
+
+
+def test_gemini_api_gives_up_after_three_attempts(monkeypatch, tmp_path, capsys):
+    calls = []
+
+    def cloud(prompt, seed, model=None):
+        calls.append(seed)
+        return "{}"
+
+    extra = ["--provider", "gemini-api"]
+    assert run(monkeypatch, tmp_path, extra=extra, cloud=cloud, status=never_called) == 1
+    assert len(calls) == 3 and not out_path(tmp_path).exists()
+    assert "intro" in capsys.readouterr().err
+
+
+def test_gemini_api_missing_key(monkeypatch, tmp_path, capsys):
+    def cloud(prompt, seed, model=None):
+        raise LLMUnavailable("the gemini-api provider needs the GEMINI_API_KEY environment variable")
+
+    extra = ["--provider", "gemini-api"]
+    assert run(monkeypatch, tmp_path, extra=extra, cloud=cloud, status=never_called) == 1
+    assert "GEMINI_API_KEY" in capsys.readouterr().err
+
+
+def test_codex_unavailable_has_no_fallback(monkeypatch, tmp_path, capsys):  # AC-6.6
+    def down():
+        raise AgentUnavailable("Codex (ChatGPT) provider is not logged in: run `codex login`")
+
+    assert run(monkeypatch, tmp_path, status=down) == 1
+    assert "codex login" in capsys.readouterr().err
+    assert not out_path(tmp_path).exists()
+
+
+def test_refused_saves_fail_the_run(monkeypatch, tmp_path, capsys):  # AC-6.7
+    agent = FakeAgent(banter={"intro": []}, saves=5)
+    assert run(monkeypatch, tmp_path, agent=agent) == 1
+    err = capsys.readouterr().err
+    assert "did not save a valid script" in err and "intro" in err
+    assert not out_path(tmp_path).exists()
+
+
+def test_agent_time_limit_fails_the_run(monkeypatch, tmp_path, capsys):  # FR-7
+    agent = FakeAgent(banter={}, reason="agent stopped after 600 s (time limit)")
+    assert run(monkeypatch, tmp_path, agent=agent) == 1
+    assert "time limit" in capsys.readouterr().err
+
+
+def test_mode_flag_is_gone(monkeypatch, tmp_path):
+    with pytest.raises(SystemExit):
+        run(monkeypatch, tmp_path, extra=["--mode", "local"])
+
+
+def test_missing_terms_file_stops_before_any_request(monkeypatch, tmp_path, capsys):  # AC-7.2
+    config = tmp_path / "config"
+    config.mkdir()
+    shutil.copy(CAST_PATH, config / "cast.json")
+    assert run(monkeypatch, tmp_path, extra=["--config-dir", str(config)],
+               status=never_called) == 1
+    assert str(config / "disallowed_terms.txt") in capsys.readouterr().err
+    assert not out_path(tmp_path).exists()
+
+
+def test_empty_terms_file_warns(monkeypatch, tmp_path, capsys):  # AC-7.3
+    config = tmp_path / "config"
+    config.mkdir()
+    shutil.copy(CAST_PATH, config / "cast.json")
+    (config / "disallowed_terms.txt").write_text("# nothing yet\n", encoding="utf-8")
+    assert run(monkeypatch, tmp_path, extra=["--config-dir", str(config)],
+               agent=FakeAgent()) == 0
+    assert "disallowed-terms list is empty" in capsys.readouterr().out
+
+
+def test_success_prints_review_notice(monkeypatch, tmp_path, capsys):  # AC-7.4
+    assert run(monkeypatch, tmp_path, agent=FakeAgent()) == 0
+    out = capsys.readouterr().out
+    assert "reviewed by a person" in out and "before voice synthesis" in out
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda b: b["pages"].pop(), "supported range is 8-32"),
+        (lambda b: b["pages"][2].pop("prompt"), "page 3: 'prompt' is missing or empty"),
+        (lambda b: b["pages"][4].update(page_number=9), "page 5: page_number must be 5"),
+    ],
+)
+def test_invalid_book_writes_nothing(monkeypatch, tmp_path, capsys, mutate, message):
+    book = load_json(MINI_BOOK)
+    mutate(book)
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps(book), encoding="utf-8")
+    assert run(monkeypatch, tmp_path, bad, status=never_called) == 1
+    assert message in capsys.readouterr().err
+
+
+def test_missing_book_file(monkeypatch, tmp_path, capsys):
+    assert run(monkeypatch, tmp_path, tmp_path / "nope.json", status=never_called) == 1
+    assert "book data file not found" in capsys.readouterr().err
+```
+- [ ] Run `uv run pytest tests/test_generate_script.py tests/test_llm.py -q`. Expect FAIL (`--provider` unknown, `codex_status` and `run_codex` not in `generate_script`).
+- [ ] Replace `video_pipeline/generate_script.py` with:
+```python
+"""CLI: generate episodes/<slug>/episode_script.json from a book data file (spec 001 v2.0.0).
+
+Default provider: the Codex agent on the producer's ChatGPT login, using only the episode tools.
+Opt-in: --provider gemini-api (GEMINI_API_KEY).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from collections.abc import Callable
+from pathlib import Path
+
+from video_pipeline.agents import (
+    AgentEvent,
+    AgentUnavailable,
+    build_codex_command,
+    codex_status,
+    run_codex,
+)
+from video_pipeline.contract import ConfigError, validate_script
+from video_pipeline.episode import BookError
+from video_pipeline.episode_tools import (
+    CONFIG_DIR,
+    DEFAULT_SEED,
+    ROOT,
+    EpisodeTools,
+    write_atomic,
+)
+from video_pipeline.llm import (
+    CLOUD_MODEL,
+    LLMError,
+    LLMUnavailable,
+    build_prompt,
+    generate_cloud,
+)
+
+PROVIDERS = ("codex", "gemini-api")
+MAX_ATTEMPTS = 3
+REVIEW_NOTICE = (
+    "Review required: this script must be reviewed by a person before voice synthesis "
+    "(age-suitability, no spoilers from later pages, no invented story events)."
+)
+
+Generate = Callable[[str, int], str]
+
+
+class GenerationFailed(Exception):
+    def __init__(self, message: str, errors: list[str]) -> None:
+        super().__init__(message)
+        self.errors = errors
+
+
+def generate_episode_script(tools: EpisodeTools, generate: Generate) -> dict:
+    """Gemini API: one request per attempt, errors fed back, at most MAX_ATTEMPTS (FR-7)."""
+    feedback: list[str] | None = None
+    errors: list[str] = []
+    for attempt in range(MAX_ATTEMPTS):
+        prompt = build_prompt(tools.book, tools.cast, tools.plan, feedback)
+        script, errors = tools.check(generate(prompt, tools.seed + attempt))
+        if script is not None:
+            return script
+        feedback = errors
+    raise GenerationFailed(f"generation failed after {MAX_ATTEMPTS} attempts", errors)
+
+
+def mcp_server_args(args: argparse.Namespace) -> list[str]:
+    server = [
+        "-m", "video_pipeline.mcp_server",
+        "--book", str(args.book.resolve()),
+        "--seed", str(args.seed),
+        "--episodes-dir", str(args.episodes_dir.resolve()),
+        "--config-dir", str(args.config_dir.resolve()),
+    ]
+    return [*server, "--force"] if args.force else server
+
+
+def _print_event(event: AgentEvent) -> None:
+    if event.kind == "tool":
+        print(f"  · {event.tool}")
+    elif event.kind == "tool-result" and isinstance(event.data, dict) and event.data.get("errors"):
+        print(f"    {len(event.data['errors'])} problem(s) to fix")
+    elif event.kind == "error":
+        print(f"  ! {event.text}")
+
+
+def run_agent(args: argparse.Namespace, tools: EpisodeTools) -> None:
+    binary = codex_status()
+    command = build_codex_command(
+        binary, sys.executable, mcp_server_args(args), {"PYTHONPATH": str(ROOT)}, args.model
+    )
+    log_path = tools.out.parent / "agent" / f"{time.strftime('%Y%m%d-%H%M%S')}-codex.jsonl"
+    print(f"running the Codex (ChatGPT) agent; log: {log_path}")
+    result = run_codex(command, log_path, on_event=_print_event)
+    save = result.last_save or {}
+    if save.get("saved") and tools.out.exists():
+        errors = validate_script(json.loads(tools.out.read_text(encoding="utf-8")),
+                                 tools.book, tools.terms)
+        if not errors:
+            return
+        raise GenerationFailed(f"saved script failed re-validation; run log: {log_path}", errors)
+    reason = result.reason or "the agent did not save a valid script"
+    raise GenerationFailed(f"{reason}; run log: {log_path}", save.get("errors") or [])
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="python -m video_pipeline.generate_script",
+        description="Generate episode_script.json for a book (ChatGPT via Codex by default).",
+    )
+    parser.add_argument("--book", type=Path, default=Path("book_data.json"))
+    parser.add_argument("--provider", choices=PROVIDERS, default="codex")
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--force", action="store_true", help="overwrite an existing script")
+    parser.add_argument("--episodes-dir", type=Path, default=Path("episodes"))
+    parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
+    parser.add_argument("--model", default=None, help="override the provider's model")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    try:
+        tools = EpisodeTools.load(
+            args.book, args.seed, args.episodes_dir, args.config_dir, args.force
+        )
+        if tools.out.exists() and not args.force:
+            print(
+                f"error: {tools.out} already exists; re-run with --force to overwrite it",
+                file=sys.stderr,
+            )
+            return 1
+        if not tools.terms:
+            print("warning: the disallowed-terms list is empty; no terms will be checked")
+        if args.provider == "gemini-api":
+            model = args.model or CLOUD_MODEL
+            script = generate_episode_script(
+                tools, lambda prompt, seed: generate_cloud(prompt, seed, model)
+            )
+            write_atomic(tools.out, script)
+        else:
+            run_agent(args, tools)
+    except (BookError, ConfigError, LLMUnavailable, LLMError, AgentUnavailable) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except GenerationFailed as exc:
+        print(f"error: {exc}; problems in the last attempt:", file=sys.stderr)
+        for problem in exc.errors:
+            print(f"  - {problem}", file=sys.stderr)
+        return 1
+    print(f"wrote {tools.out}")
+    print(REVIEW_NOTICE)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+  Ordering note: the old CLI checked for overwrite before loading the terms file. Now `EpisodeTools.load` reads the book, terms and cast first, then the overwrite check runs. Every path still exits before any provider call. AC-6.1 holds because the terms file exists in the default config.
+- [ ] Run `uv run pytest -q`. Expect all PASS. Ruff clean.
+- [ ] Commit: `feat(script): Phase 10: CLI providers (Codex default, Gemini API opt-in); remove local model`
+
+---
+
+## Phase 11 (added v2.0.0): Real-provider verification and docs
+
+**Implements:** All FRs | **Satisfies:** AC-1.1–1.3, AC-6.3 and AC-6.8 against the real Codex; NFR Performance (≤ 10 min)
+**Files:** `tests/test_codex_integration.py` (new), `CLAUDE.md`, `.claude/rules/data-pipeline.md`, `.claude/rules/tts-and-llm.md`
+**Interfaces:** Consumes `main`, `CONFIG_DIR`, `validate_script`, `load_disallowed_terms`, `parse_codex_event`, `TOOL_NAMES` and `plan_signature`. Produces nothing new.
+
+- [ ] Write `tests/test_codex_integration.py`:
+```python
+"""Real Codex (ChatGPT) run on the pilot book. Run with: uv run pytest -m codex -v -s"""
+
+import time
+
+import pytest
+
+from tests.helpers import PILOT_BOOK, load_json, plan_signature
+from video_pipeline.agents import parse_codex_event
+from video_pipeline.contract import load_disallowed_terms, validate_script
+from video_pipeline.episode_tools import CONFIG_DIR
+from video_pipeline.generate_script import main
+from video_pipeline.mcp_server import TOOL_NAMES
+
+pytestmark = pytest.mark.codex
+
+
+def test_pilot_book_end_to_end_codex(tmp_path):
+    args = ["--book", str(PILOT_BOOK), "--episodes-dir", str(tmp_path)]
+    started = time.monotonic()
+    assert main(args) == 0
+    elapsed = time.monotonic() - started
+    out = tmp_path / "the-snail-mail-express" / "episode_script.json"
+    terms = load_disallowed_terms(CONFIG_DIR / "disallowed_terms.txt")
+    first = load_json(out)
+    assert validate_script(first, load_json(PILOT_BOOK), terms) == []
+    assert elapsed < 600, f"took {elapsed:.0f} s"  # NFR Performance
+
+    [log] = (out.parent / "agent").glob("*-codex.jsonl")  # AC-6.8
+    text = log.read_text(encoding="utf-8")
+    events = [e for line in text.splitlines() for e in parse_codex_event(line)]
+    assert {e.tool for e in events if e.kind == "tool"} <= set(TOOL_NAMES)
+    assert '"command_execution"' not in text and '"file_change"' not in text
+
+    assert main([*args, "--force"]) == 0  # AC-6.3 with the real provider
+    assert plan_signature(load_json(out)) == plan_signature(first)
+```
+- [ ] Run `uv run pytest -m codex -v -s`. Expect PASS. Two real runs: about 1–5 minutes each, using ChatGPT plan usage.
+  - **If validation keeps failing:** read the run log. The agent sees every error through `validate_banter`, so failures usually mean an unclear rule. Tighten `AGENT_PROMPT` or `build_brief`, add a unit-test assertion for the new wording, and re-run.
+- [ ] Run the full suite `uv run pytest -v` and `uv run ruff check . && uv run ruff format --check .`. Expect all PASS.
+- [ ] Generate the pilot script for review: `uv run python -m video_pipeline.generate_script --force`. Read `episodes/the-snail-mail-express/episode_script.json` for age-suitability, spoilers and invented events (AC-7.4, a human gate), and report the findings to the user.
+- [ ] Update `CLAUDE.md`. In Commands, replace the `ollama` lines with:
+  - `uv run pytest -m codex` (real ChatGPT run);
+  - `uv run python -m video_pipeline.generate_script [--book PATH] [--provider codex|gemini-api] [--seed N] [--force]`;
+  - `uv run python -m video_pipeline.mcp_server --book PATH` (the episode tools, to add to the ChatGPT/Codex app as an MCP server).
+
+  In the stage-1 note, add: default provider Codex from the ChatGPT app (`KIDDO_CODEX_BIN` overrides), agent run logs in `episodes/<slug>/agent/`. Remove the Ollama mentions.
+- [ ] `.claude/rules/data-pipeline.md`: keep the `episodes/<slug>/episode_script.json` line from the old Phase 6. `.claude/rules/tts-and-llm.md`:
+  - replace "Never run Ollama and MLX TTS at the same time…" with "✓ Text generation runs through a provider CLI or API, not a local model, so voice synthesis has the full memory.";
+  - change the JSON bullet to: "Request JSON from the Gemini API (`responseMimeType`) and validate every banter through `EpisodeTools.check` before writing."
+- [ ] Commit: `feat(script): Phase 11: real-provider verification and docs`
+
+---
+
+---
+
 ## Quickstart Validation
 
 ```bash
 uv sync --inexact
-ollama pull qwen2.5:7b
-uv run python -m video_pipeline.generate_script            # → wrote episodes/the-snail-mail-express/episode_script.json + review notice
-uv run python -m video_pipeline.generate_script            # → error: … already exists; re-run with --force (exit 1, file unchanged)
-uv run python -m video_pipeline.generate_script --force    # → identical file (same seed)
-uv run python -m video_pipeline.generate_script --force --seed 8   # → a different, still-valid take
-GEMINI_API_KEY=… uv run python -m video_pipeline.generate_script --force --mode cloud   # opt-in cloud
-uv run pytest -v && uv run pytest -m ollama -v
+uv run python -m video_pipeline.generate_script                  # → Codex agent runs; wrote episodes/the-snail-mail-express/episode_script.json + review notice
+uv run python -m video_pipeline.generate_script                  # → error: … already exists; re-run with --force (exit 1, file unchanged)
+uv run python -m video_pipeline.generate_script --force          # → new banter, same plan (same seed)
+uv run python -m video_pipeline.generate_script --force --seed 8 # → a different plan, still valid
+GEMINI_API_KEY=… uv run python -m video_pipeline.generate_script --force --provider gemini-api
+uv run pytest -v && uv run pytest -m codex -v -s
 ```
 
 ## Spec coverage
 
 | Spec item | Phase(s) |
 |---|---|
-| FR-1 Input | 2 (load_book, slugify), 5 (CLI `--book`) |
-| FR-2 Contract | 1 (Banter), 3 (validate_script), 0 (config/cast.json) |
-| FR-3 Narration | 2 (split_narration), 3 |
-| FR-4 Q&A moments | 2 (schedule, speakers), 3, 4 (prompt), 5 (banter_plan_errors in loop) |
-| FR-5 Tags | 1, 3 |
-| FR-6 Camera | 2 (motions, zoom_target), 3 |
-| FR-7 Modes, reproducibility, re-runs, retries | 4, 5 |
-| NFR Performance / Security / Reliability / Cost | 6, 1+3+4, 5, 4+5 |
-| Error Scenarios table | 2 (book errors), 4 (backend errors), 5 (terms, overwrite, retries, atomic write) |
+| FR-1 Input | 2, 7 (`EpisodeTools.load`), 10 (`--book`) |
+| FR-2 Contract | 1, 3, 7 (`check`, save validates) |
+| FR-3 Narration / FR-5 Tags / FR-6 Camera | 1–3 (unchanged) |
+| FR-4 Q&A moments | 2, 3, 7 (brief), 9 (agent prompt) |
+| FR-7 Providers, reproducibility, re-runs, limits, log | 7 (save limit, force), 9 (codex, 600 s, log), 10 (provider choice, gemini-api loop, no fallback) |
+| FR-8 Episode tools | 7 (logic), 8 (MCP server) |
+| NFR Performance / Security / Reliability / Cost | 11, 9+10, 7 (`write_atomic`), 10 |
+| Error Scenarios | 2, 9 (codex missing/not logged in, time limit), 10 (key missing, refused saves, retries) |
+| AC-6.3 plan reproducible | 7 (`plan_signature`), 10, 11 |
+| AC-6.6 / 6.7 / 6.8 | 9+10 / 7+8+10 / 9+10+11 |
 
 ## Plan Changelog
 
@@ -1915,3 +3471,4 @@ uv run pytest -v && uv run pytest -m ollama -v
 | 2.0.0 | Phase 4 | Partly invalidated: local Ollama backend removed; Gemini API backend and prompt builder kept |
 | 2.0.0 | Phase 5 | Partly invalidated: provider selection and retry loop to be rewritten for agent providers (FR-7) |
 | 2.0.0 | Phase 6 | Invalidated: replaced by the provider and episode-tools phases (FR-7, FR-8), to be planned with sdd-plan |
+| 2.0.0 | Phases 7–11 | Added: episode tools, MCP server, Codex provider, CLI providers, real-provider verification (FR-7, FR-8) |
