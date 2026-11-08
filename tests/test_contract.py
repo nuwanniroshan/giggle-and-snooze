@@ -84,3 +84,36 @@ def test_parse_banter_reports_field_errors():
 )
 def test_qa_schedule_errors(pages, count, expected):
     assert qa_schedule_errors(pages, count) == expected
+
+
+def test_split_sentences_keeps_name_verb_dialogue_tag_with_quote():
+    text = '"Three lost treasures, Barnaby!" Clara declared, jotting clues. Barnaby nodded.'
+    assert split_sentences(text) == [
+        '"Three lost treasures, Barnaby!" Clara declared, jotting clues.',
+        "Barnaby nodded.",
+    ]
+
+
+def test_split_sentences_keeps_multi_word_name_dialogue_tag():
+    assert split_sentences('"Hurry up!" Mr. Pebble buzzed. "We march soon."') == [
+        '"Hurry up!" Mr. Pebble buzzed.',
+        '"We march soon."',
+    ]
+    assert split_sentences('"Why?" Granny Dusk asked softly.') == [
+        '"Why?" Granny Dusk asked softly.'
+    ]
+
+
+def test_split_sentences_keeps_verb_first_dialogue_tag():
+    assert split_sentences('"Look out!" said Clara. Then she ran.') == [
+        '"Look out!" said Clara.',
+        "Then she ran.",
+    ]
+
+
+def test_split_sentences_still_splits_new_sentence_after_quote():
+    assert split_sentences('"Wait!" Tilly flew off.') == ['"Wait!"', "Tilly flew off."]
+    assert split_sentences('"Thank you." Clara thanked Fergus.') == [
+        '"Thank you."',
+        "Clara thanked Fergus.",
+    ]

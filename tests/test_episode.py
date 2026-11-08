@@ -1,5 +1,6 @@
 import json
 import random
+import re
 
 import pytest
 
@@ -7,6 +8,7 @@ from tests.helpers import CAST_PATH, MINI_BOOK, PILOT_BOOK, load_json, make_bant
 from video_pipeline.contract import (
     KIDS,
     NARRATION_MOTIONS,
+    SPEECH_VERBS,
     normalize_ws,
     qa_schedule_errors,
     split_sentences,
@@ -77,6 +79,27 @@ def test_split_narration_keeps_long_sentence_whole():
     assert len(lines) == 2
     assert word_count(lines[0]) > 40
     assert lines[1] == "Granny Dusk smiled."
+
+
+def test_split_narration_keeps_dialogue_tag_on_fixture():  # AC-2.4, FR-3
+    text = load_json(MINI_BOOK)["pages"][4]["text"]
+    assert split_narration(text)[-1] == '"I can\'t find my way home!" Little Dot cried.'
+
+
+_TAG_START_RE = re.compile(r"^((?:[A-Z][\w.'’-]*\s+){1,3})([a-z]+)\b")
+
+
+def _starts_with_dialogue_tag(text: str) -> bool:
+    match = _TAG_START_RE.match(text)
+    return bool(match) and match.group(2) in SPEECH_VERBS
+
+
+def test_pilot_narration_never_breaks_before_a_dialogue_tag():  # AC-2.4, FR-3
+    for page in load_json(PILOT_BOOK)["pages"]:
+        for pieces in (split_narration(page["text"]), split_sentences(page["text"])):
+            for before, after in zip(pieces, pieces[1:], strict=False):
+                broken = re.search(r"[\"”’']$", before) and _starts_with_dialogue_tag(after)
+                assert not broken, f"page {page['page_number']}: {before!r} | {after!r}"
 
 
 @pytest.mark.parametrize("page_count", range(8, 33))

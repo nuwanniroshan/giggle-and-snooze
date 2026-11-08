@@ -33,6 +33,20 @@ MAX_NARRATION_SENTENCES = 2
 TAG_RE = re.compile(r"<[^<>]*>")
 _SENTENCE_END_RE = re.compile(r"[.!?…][\"'”’)]*$")
 _ABBREVIATIONS = frozenset({"Mr.", "Mrs.", "Ms.", "Dr.", "St.", "Jr.", "Sr."})
+_CLOSING_QUOTE_RE = re.compile(r"[.!?…][\"'”’]+$")
+_MAX_TAG_NAME_WORDS = 3
+# Verbs that turn "Name verb" after a closing quotation into a dialogue tag (FR-3). Includes
+# every verb the pilot book uses after a quote and a name (called, declared, exclaimed, piped,
+# said, beamed, groaned, wondered, ribbited, explained).
+SPEECH_VERBS = frozenset(
+    {
+        "added", "admitted", "announced", "answered", "asked", "beamed", "begged", "buzzed",
+        "called", "cheered", "chirped", "chuckled", "cried", "croaked", "declared", "exclaimed",
+        "explained", "gasped", "giggled", "groaned", "hooted", "laughed", "murmured", "muttered",
+        "piped", "replied", "ribbited", "sang", "said", "shouted", "sighed", "sniffled",
+        "squeaked", "whispered", "wondered", "yelled",
+    }
+)  # fmt: skip
 
 Speaker = Literal["storyteller", "kid_older", "kid_younger"]
 
@@ -95,9 +109,20 @@ def ends_sentence(text: str) -> bool:
     return bool(_SENTENCE_END_RE.search(normalize_ws(text)))
 
 
+def _is_dialogue_tag(words: list[str]) -> bool:
+    """True when words start with 1-3 capitalised name words followed by a speech verb."""
+    for count in range(1, _MAX_TAG_NAME_WORDS + 1):
+        if len(words) <= count or not all(word[:1].isupper() for word in words[:count]):
+            return False
+        if re.sub(r"\W+$", "", words[count]) in SPEECH_VERBS:
+            return True
+    return False
+
+
 def split_sentences(text: str) -> list[str]:
-    """Split at whitespace after . ! ? … (plus closing quotes), unless an abbreviation
-    or a lowercase word follows (e.g. '"Wait!" she said')."""
+    """Split at whitespace after . ! ? … (plus closing quotes), unless an abbreviation,
+    a lowercase word (e.g. '"Wait!" she said') or, after a closing quotation mark, a
+    dialogue tag such as '"Wait!" Granny Dusk whispered' follows."""
     tokens = normalize_ws(text).split(" ") if text.strip() else []
     sentences: list[str] = []
     current: list[str] = []
@@ -109,6 +134,7 @@ def split_sentences(text: str) -> list[str]:
             and token not in _ABBREVIATIONS
             and following
             and not following[0].islower()
+            and not (_CLOSING_QUOTE_RE.search(token) and _is_dialogue_tag(tokens[i + 1 :]))
         ):
             sentences.append(" ".join(current))
             current = []
