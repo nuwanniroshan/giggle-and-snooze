@@ -67,6 +67,37 @@ def mutate_three_sentences(script):
     lines[1]["text"] = lines[1]["text"].split(". ", 1)[1]
 
 
+def mutate_line_ends_mid_sentence(script):
+    page = script["pages"][3]  # mini page 4: 2 narration lines
+    lines = [x for x in page["lines"] if x["role"] == "narration"]
+    first, rest = lines[1]["text"].split(" ", 1)
+    lines[0]["text"] += " " + first
+    lines[1]["text"] = rest
+
+
+def mutate_two_long_sentences(script):
+    page = script["pages"][2]  # mini page 3: a 40+ word sentence, then "Granny Dusk smiled."
+    lines = [x for x in page["lines"] if x["role"] == "narration"]
+    lines[0]["text"] += " " + lines[1]["text"]
+    page["lines"].remove(lines[1])
+
+
+def mutate_intro_no_kid(script):
+    for line in script["intro"]["lines"]:
+        line["speaker"] = "storyteller"
+
+
+def mutate_intro_no_storyteller(script):
+    for line in script["intro"]["lines"]:
+        line["speaker"] = "kid_younger"
+
+
+def mutate_moment_no_kid(script):
+    for line in qa_page(script)["lines"]:
+        if line["speaker"] in ("kid_older", "kid_younger"):
+            line.update(speaker="storyteller", role="answer")
+
+
 def mutate_all_both(script):
     for page in script["pages"]:
         if page["has_qa"]:
@@ -146,6 +177,11 @@ def mutate_cast(script):
         (mutate_word, "page 1: narration does not match the page text word for word"),  # AC-2.2
         (mutate_qa_before_narration, "narration lines must come before Q&A lines"),  # AC-2.3
         (mutate_three_sentences, "page 4 narration line 1: has 3 sentences (max 2)"),  # AC-2.4
+        (mutate_line_ends_mid_sentence, "page 4 narration line 1: must end at a sentence end"),
+        (mutate_two_long_sentences, "page 3 narration line 1: has 50 words (max 40 unless"),
+        (mutate_intro_no_kid, "intro needs at least one kid line"),  # AC-4.1
+        (mutate_intro_no_storyteller, "intro needs at least one storyteller line"),  # AC-4.1
+        (mutate_moment_no_kid, "Q&A moment needs at least one kid line"),  # AC-3.4
         (mutate_all_both, "needs at least one Q&A moment with only Leo (kid_older)"),  # AC-3.3
         (mutate_moment_ends_with_kid, "Q&A moment must end with a storyteller answer"),  # AC-3.4
         (mutate_moment_too_long, "Q&A moment must have 2-5 lines"),  # AC-3.4
