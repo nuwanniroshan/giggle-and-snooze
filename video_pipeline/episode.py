@@ -29,8 +29,13 @@ MAX_PAGES = 32
 DEFAULT_ZOOM = {"x": 0.5, "y": 0.5, "zoom": 1.3}
 X_CUES = {"left": 0.3, "right": 0.7}
 Y_CUES = {
-    "top": 0.3, "above": 0.3, "sky": 0.3, "background": 0.4,
-    "foreground": 0.65, "bottom": 0.7, "below": 0.7,
+    "top": 0.3,
+    "above": 0.3,
+    "sky": 0.3,
+    "background": 0.4,
+    "foreground": 0.65,
+    "bottom": 0.7,
+    "below": 0.7,
 }
 SPEAKER_SETS = (("kid_older",), ("kid_younger",), ("kid_older", "kid_younger"))
 

@@ -141,8 +141,10 @@ def test_banter_plan_errors_detects_mismatch():
     assert banter_plan_errors(banter, plan) == []
     first = banter.moments[0]
     wrong = [k for k in KIDS if (k,) != plan.qa_speakers[first.page_number]][0]
-    first.lines = [line.model_copy(update={"speaker": wrong}) if line.speaker in KIDS else line
-                   for line in first.lines]
+    first.lines = [
+        line.model_copy(update={"speaker": wrong}) if line.speaker in KIDS else line
+        for line in first.lines
+    ]
     banter.moments.append(first.model_copy(update={"page_number": 99}))
     errors = banter_plan_errors(banter, plan)
     assert any(f"page {first.page_number}: kids speaking must be exactly" in e for e in errors)
