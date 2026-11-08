@@ -1,0 +1,228 @@
+{
+  "metadata": {
+    "title": "The Snail Mail Express",
+    "subtitle": "A Whisperwood Hollow Story",
+    "author": "Swivel Kids Press",
+    "illustrator": "Illustrated in Cozy Whimsical Gouache",
+    "age_range": "Ages 6–8",
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [8.5, 8.5],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 20,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Whisperwood Storybook Press",
+    "publication_year": 2026,
+    "dedication": "For every curious traveler who knows that the slowest path has the most wonders to show.",
+    "blurb": "In the bustling canopy of Whisperwood Hollow, everyone is in a hurry—except eight-year-old Clara and her giant, cottage-shelled snail, Barnaby! Together, they run The Snail Mail Express, delivering lost forest treasures that speedy creatures leave behind. When three mysterious, unaddressed parcels appear in the mossy drop-box—a silver dewdrop thimble, a ticking acorn watch, and a perforated birch-bark melody—Clara and Barnaby set out down Fern-Fiddle Lane. Along the way, they prove that slowing down isn't falling behind: it's the secret to noticing what matters most."
+  },
+  "style_bible": {
+    "primary_reference": "/Users/swiveltech/Disk/Swivel/kiddo/assets/references/ref2_girl_and_snail.jpg",
+    "secondary_reference": "/Users/swiveltech/Disk/Swivel/kiddo/assets/references/ref1_forest_animals.png",
+    "style_prompt_prefix": "Cozy whimsical children's picture book illustration in warm hand-painted gouache and watercolor texture on soft cream paper, visible expressive brushstrokes, cottagecore woodland aesthetic, warm golden and earthy color palette with muted greens, berry reds, ochre yellows, and warm browns, soft rounded character shapes, gentle storybook lighting, NO TEXT OR LETTERS IN IMAGE. ",
+    "clara_description": "Clara, a sweet 8-year-old girl with wavy chestnut-brown hair, round rosy cheeks, warm dark eyes, wearing a cozy berry-red long-sleeved dress with a white collar and delicate white wavy hem trim, white knee-high socks, and red shoes, holding a small teal-green hardcover book",
+    "barnaby_description": "Barnaby, a friendly giant golden-yellow garden snail with two tall eye-stalks, a gentle smiling face with rosy cheeks, and a large warm spiraled brown shell that has a tiny whitewashed wooden cottage built into its side with a red pitched roof and a round-arched brown wooden door, with tiny red-and-white toadstool mushrooms growing along his yellow foot"
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "Welcome to the Snail Mail Express",
+      "chapter_label": "Page 1",
+      "layout": "image_top_text_bottom",
+      "word_count": 88,
+      "text": "Beneath the mossy roots of the Great Whisperwood Oak stood the smallest, slowest post office in the forest. A hand-painted wooden sign creaked gently in the morning breeze: THE SNAIL MAIL EXPRESS — NO RUSH, NO FUSS, ALWAYS DELIVERED.\n\nEight-year-old Clara adjusted her berry-red dress and opened her teal Postmaster's Logbook. Beside her, Barnaby—a giant golden snail with a tiny whitewashed cottage built right into his spiraled brown shell—wiggled his eye-stalks happily and gave a polite, bubbly yawn. Every morning began with a warm cup of clover tea and a promise.",
+      "illustration_file": "page_01.png",
+      "prompt": "Clara sitting happily on the spiraled brown cottage-shell of Barnaby the giant yellow snail in front of a cozy mossy tree-trunk post office with a wooden mailbox shaped like an acorn, surrounded by oversized green ferns, red-capped white-spotted mushrooms, and warm morning sunlight on a cream gouache background."
+    },
+    {
+      "page_number": 2,
+      "title": "The Morning Sorting Bell",
+      "chapter_label": "Page 2",
+      "layout": "full_bleed_card_bottom_right",
+      "word_count": 92,
+      "text": "Ding-a-ling! As Clara rang the brass sorting bell, a gust of wind ruffled her chestnut curls. Whoosh! Fleet the Peregrine Falcon streaked across the treetops in a blur of slate-blue feathers, carrying an armful of express letters.\n\n\"Still polishing your shell, Barnaby?\" Fleet called down with a boastful laugh, his big yellow eyes gleaming. \"At your pace, winter will arrive before you reach the pond!\"\n\nBarnaby simply blinked his gentle dark eyes and munched a dandelion leaf. Clara patted his warm yellow neck. \"Speed is fine for clouds,\" she whispered, \"but forest treasures need careful eyes.\"",
+      "illustration_file": "page_02.png",
+      "prompt": "A proud grey-and-white striped woodland hawk with big bright yellow eyes swooping fast through sunlit birch tree branches above, while below on a mossy path Clara in her red dress pets Barnaby the giant yellow cottage-shelled snail beside a little brass bell and wildflowers, warm gouache storybook painting."
+    },
+    {
+      "page_number": 3,
+      "title": "Three Mysterious Parcels",
+      "chapter_label": "Page 3",
+      "layout": "image_top_text_bottom",
+      "word_count": 94,
+      "text": "When Clara unlatched the mossy Lost-and-Found drop-box, she gasped in delight. Resting on a bed of dried lavender were three unclaimed treasures with no names and no addresses at all.\n\nFirst was a tiny silver thimble sparkling like a frozen dewdrop. Second was a round pocket-watch carved from a polished oak acorn, its tiny hands stuck at four o'clock. Third was a rolled scroll of white birch bark punched with dozens of mysterious pinholes.\n\n\"Three lost treasures, Barnaby!\" Clara declared, jotting clues into her teal logbook. \"Let's follow the trail and find where each one belongs.\"",
+      "illustration_file": "page_03.png",
+      "prompt": "Close-up storybook gouache illustration of Clara in her red dress kneeling beside a mossy wooden forest mailbox, holding a teal notebook and looking with wonder at three magical tiny items on a bed of moss: a sparkling silver thimble, a brass acorn pocket-watch, and a rolled birch-bark scroll, while Barnaby the yellow snail peeks curiously over her shoulder."
+    },
+    {
+      "page_number": 4,
+      "title": "Setting Out Down Fern-Fiddle Lane",
+      "chapter_label": "Page 4",
+      "layout": "full_bleed_card_top_left",
+      "word_count": 86,
+      "text": "Clara tucked the three parcels safely inside the little arched wooden door of Barnaby's shell-cottage, then climbed up to her favorite reading perch atop his warm brown spiral.\n\nWith a soft, silvery glide, the Snail Mail Express rolled down Fern-Fiddle Lane. Golden sunbeams slanted through the emerald canopy like ribbons of honey. While squirrels and rabbits scampered past in a dizzy rush, Barnaby traveled at the exact speed of a drifting cloud—slow enough for Clara to read her logbook and inspect every leaf along the way.",
+      "illustration_file": "page_04.png",
+      "prompt": "Clara in her red dress and white knee socks sitting peacefully atop the giant brown cottage-shell of Barnaby the yellow snail, reading her teal book as they glide along a winding mossy forest path framed by giant curling green ferns, red toadstools, and white woodland flowers, faithful to the cozy gouache style."
+    },
+    {
+      "page_number": 5,
+      "title": "Clue One: A Trail of Polka-Dot Thread",
+      "chapter_label": "Page 5",
+      "layout": "image_top_text_bottom",
+      "word_count": 89,
+      "text": "Near the reed-lined banks of Bramble Pond, Barnaby paused beside a patch of wild strawberries. His left eye-stalk dipped toward a prickly bramble twig.\n\n\"Good eye, partner!\" Clara exclaimed, leaning down with her brass magnifying glass. Snagged on a tiny thorn was a single strand of crimson silk thread, knotted with a microscopic scrap of red-and-white polka-dot fabric. Anyone running at top speed would have blurred right past it, but from Barnaby's steady saddle, the tiny clue glowed like a beacon pointing straight toward the water's edge.",
+      "illustration_file": "page_05.png",
+      "prompt": "Clara leaning down from Barnaby the giant yellow cottage-shelled snail, holding a brass magnifying glass to inspect a glowing red silk thread caught on a berry bramble twig beside a sunlit woodland pond, with red mushrooms and lush green leaves in warm gouache texture."
+    },
+    {
+      "page_number": 6,
+      "title": "Millie the Seamstress Ant",
+      "chapter_label": "Page 6",
+      "layout": "image_top_text_bottom",
+      "word_count": 95,
+      "text": "Perched atop a speckled granite stone at the pond's edge stood Millie, the smallest seamstress in Whisperwood Hollow. She was a trim black carpenter ant wearing a flared red dress covered in crisp white polka dots, and she looked terribly flustered.\n\nSpread before her was a half-stitched boat sail made from a dried maple leaf, alongside a sewing needle made from a pine spine.\n\n\"Oh, fiddlesticks and fern-spores!\" Millie piped in a voice like a tiny silver bell. \"Every time I push this needle through the leaf stem, it pricks my thumb! I'll never finish the Beetle Regatta sails before sundown!\"",
+      "illustration_file": "page_06.png",
+      "prompt": "A charming little black ant wearing a bright red dress with white polka dots standing on a mossy speckled stone at the edge of a quiet forest pond, trying to sew a leaf sail with a pine needle, while Clara and Barnaby the giant yellow cottage-shelled snail approach gently on the grassy bank, warm gouache illustration."
+    },
+    {
+      "page_number": 7,
+      "title": "The Silver Dewdrop Thimble",
+      "chapter_label": "Page 7",
+      "layout": "full_bleed_card_bottom_left",
+      "word_count": 90,
+      "text": "Clara reached into her leather satchel and gently lowered the tiny silver thimble onto the mossy rock right beside Millie.\n\n\"Special delivery from the Snail Mail Express,\" Clara said with a warm smile.\n\nMillie gasped, her antennae curling into happy loops. \"My grandmother's silver dewdrop thimble! It rolled off my sewing cart yesterday when a badger thundered by!\" She slipped it onto her tiny hand and stitched three neat seams in a flash. In gratitude, Millie hoisted up a thimble-sized jar of wild clover honey for their tea.",
+      "illustration_file": "page_07.png",
+      "prompt": "Clara gently handing a tiny sparkling silver thimble to the little black ant in the red white-polka-dot dress on a mossy pond rock, while Barnaby the yellow cottage-shelled snail smiles warmly beside them, surrounded by water lilies and golden sunlight in hand-painted gouache style."
+    },
+    {
+      "page_number": 8,
+      "title": "Into the Whispering Birch Grove",
+      "chapter_label": "Page 8",
+      "layout": "image_top_text_bottom",
+      "word_count": 88,
+      "text": "With one parcel checked off in Clara's teal logbook, the pair glided deeper into the Whispering Birch Grove. Tall pale tree trunks rose around them like painted pillars, and soft gray rain clouds gathered overhead.\n\nPitter-pat, pitter-pat! Warm summer raindrops began to drum against the broad fern leaves. Instead of scrambling frantically for cover like the chipmunks, Barnaby simply tucked his head halfway beneath his eaves, and Clara opened the little round-arched wooden door built right into the side of his spiral shell.",
+      "illustration_file": "page_08.png",
+      "prompt": "Gentle silver summer rain falling in a grove of tall white birch trees; Clara in her red dress is stepping toward the cozy glowing wooden door built into the brown spiral shell of Barnaby the giant yellow snail, with red mushrooms and lush green ferns sheltering them, warm gouache painting."
+    },
+    {
+      "page_number": 9,
+      "title": "The Ticking Acorn Watch",
+      "chapter_label": "Page 9",
+      "layout": "image_top_text_bottom",
+      "word_count": 96,
+      "text": "Inside Barnaby's shell-cottage, it was as snug as a bakery oven. Curved cedar shelves held rows of postage stamps, spools of twine, and a whistling copper kettle. While clover-honey tea steeped in two porcelain mugs, Clara examined the second lost treasure under a brass lantern.\n\nShe brushed a speck of pine resin from the gears of the acorn pocket-watch and gave the stem three gentle turns. Tick-tock, tick-tock! Inside the polished cap, she spotted a tiny carved emblem: two curved white tusks above a cluster of forest truffles.\n\n\"Only one neighbor carves oak like that,\" Clara beamed. \"Bramwell the Boar!\"",
+      "illustration_file": "page_09.png",
+      "prompt": "Cozy interior view inside the magical spiraled wooden snail-shell cottage: curved warm wood walls, tiny bookshelves, a steaming teapot on a table, and Clara in her red dress sitting at a small wooden desk under a glowing lantern examining a golden acorn pocket-watch with her magnifying glass, warm gouache style."
+    },
+    {
+      "page_number": 10,
+      "title": "Bramwell the Truffle Boar's Dilemma",
+      "chapter_label": "Page 10",
+      "layout": "full_bleed_card_bottom_right",
+      "word_count": 93,
+      "text": "By the time the rain cleared into a shimmering rainbow mist, Barnaby arrived at the Great Hollow Elm. There stood Bramwell, a round, bristly brown wild boar with two grand curved ivory tusks and tiny worried eyes. Beside him sat a woven wicker basket overflowing with plump blackberry tarts and earthy truffles.\n\n\"Oh dear, oh crumble!\" Bramwell groaned, pacing in circles on his short little hooves. \"I dropped my pocket-watch in the moss this morning! Without it, I don't know when to take my tarts to the Woodland Bake-Off—I'm surely too late already!\"",
+      "illustration_file": "page_10.png",
+      "prompt": "A round, lovable bristly brown wild boar with two big curved white tusks and expressive small eyes looking worried beside a woven basket of berry pastries on a grassy forest hill, while Clara riding Barnaby the giant yellow cottage-shelled snail arrives through sunbeams in a lush gouache forest."
+    },
+    {
+      "page_number": 11,
+      "title": "Right on Snail Time",
+      "chapter_label": "Page 11",
+      "layout": "image_top_text_bottom",
+      "word_count": 89,
+      "text": "\"You aren't late at all, Mr. Bramwell!\" Clara called out cheerfully. She hopped down from Barnaby's shell and placed the ticking acorn watch into the boar's furry paw.\n\nBramwell held it to his ear, his whiskers twitching with pure joy as the steady tick-tock echoed. \"Four-fifteen! Why, the judging doesn't begin until five! And you even cleaned the pine sap off the mainspring!\"\n\nBeaming from tusk to tusk, Bramwell wrapped three warm cinnamon-acorn scones in a checkered napkin and tucked them into Barnaby's mail basket.",
+      "illustration_file": "page_11.png",
+      "prompt": "Clara in her red dress handing a polished golden acorn watch to the happy round brown wild boar with white tusks, who is offering her a checkered cloth bundle of warm scones from his wicker basket, while Barnaby the yellow cottage-shelled snail looks on happily, warm gouache illustration."
+    },
+    {
+      "page_number": 12,
+      "title": "The Puzzling Birch-Bark Song",
+      "chapter_label": "Page 12",
+      "layout": "image_top_text_bottom",
+      "word_count": 87,
+      "text": "As the afternoon sun mellowed into amber gold, Clara unrolled the third and final parcel: the strip of silky white birch bark. Unlike the thimble and the watch, it bore no emblem, no thread, and no initials—only neat rows of tiny star-shaped holes punched straight through the bark.\n\n\"What could it be, Barnaby?\" Clara wondered aloud, holding the scroll toward the sky. Dots of golden sunlight shone through the holes onto her red dress like dancing fireflies. \"It looks almost like a secret code written for the wind.\"",
+      "illustration_file": "page_12.png",
+      "prompt": "Clara sitting on the cottage shell of Barnaby the giant yellow snail in a golden late-afternoon meadow, holding up a curling white birch-bark scroll punched with tiny star-shaped holes that cast glowing specks of sunlight onto her red dress and teal book, warm gouache artwork."
+    },
+    {
+      "page_number": 13,
+      "title": "Crossing the Mist-Stone Bridge",
+      "chapter_label": "Page 13",
+      "layout": "full_bleed_card_top_right",
+      "word_count": 91,
+      "text": "Barnaby glided across the old Mist-Stone Bridge, where lily pads floated on dark emerald water. Standing knee-deep in the shallows was Fergus, a lanky green pond frog with tall, periscope-like golden eyes.\n\n\"Good evening, Postmaster Clara!\" Fergus ribbited, tipping a cattail reed like a hat. \"If you're looking for someone who lost a treasure today, listen up toward the Old Weeping Willow. Ever since sunset began, someone high in the branches has been sighing louder than a bullfrog with the hiccups!\"\n\nClara thanked Fergus and guided Barnaby toward the willow's trailing curtain of leaves.",
+      "illustration_file": "page_13.png",
+      "prompt": "Barnaby the giant yellow cottage-shelled snail with Clara on top crossing a mossy stone arch bridge over a lily-pad pond, while a quirky long-legged green frog with tall yellow eyes stands in the shallow water pointing upward toward a glowing willow tree, warm storybook gouache style."
+    },
+    {
+      "page_number": 14,
+      "title": "Listening to the Quiet Forest",
+      "chapter_label": "Page 14",
+      "layout": "image_top_text_bottom",
+      "word_count": 90,
+      "text": "Beneath the sweeping boughs of the Old Weeping Willow, the forest grew hushed and velvet-still. Because Barnaby moved without a single snapping twig or crunching pebble, Clara could hear the smallest sounds in the hollow: the sleepy rustle of beetles, the murmur of the brook, and—high above—a quiet, sniffly sigh.\n\nClara peered up through the golden willow fronds. Huddled on a crooked branch, with his slate-blue wings drooped low and his leather mailbag empty, sat Fleet the Falcon—the very bird who had zoomed past them that morning!",
+      "illustration_file": "page_14.png",
+      "prompt": "In a twilight grove under a golden weeping willow tree, Clara and Barnaby the giant yellow cottage-shelled snail look up gently at the grey-and-white striped falcon with big yellow eyes sitting sadly on a low branch with drooping wings, warm atmospheric gouache illustration."
+    },
+    {
+      "page_number": 15,
+      "title": "The Speedy Bird's Lost Lullaby",
+      "chapter_label": "Page 15",
+      "layout": "image_top_text_bottom",
+      "word_count": 95,
+      "text": "\"Fleet?\" Clara called softly. \"What's wrong?\"\n\nThe falcon fluttered down to a mossy stump, looking embarrassed. \"I was showing off how fast I could fly during my morning rounds,\" he admitted, scuffing his yellow talons. \"I dove through the oak canopy at top speed, and the wind ripped my grandmother's birch-bark wind-chime scroll right out of my satchel. I've flown over the forest ten times searching for it, but everything below just looks like a green blur! Without her lullaby, my little owlet cousins can't fall asleep.\"",
+      "illustration_file": "page_15.png",
+      "prompt": "The grey-and-white striped falcon with big yellow eyes perched humbly on a mossy tree stump talking to Clara in her red dress and Barnaby the giant yellow cottage-shelled snail, surrounded by glowing twilight mushrooms and soft ferns in warm hand-painted gouache."
+    },
+    {
+      "page_number": 16,
+      "title": "Music in the Lantern Light",
+      "chapter_label": "Page 16",
+      "layout": "full_bleed_card_bottom_left",
+      "word_count": 94,
+      "text": "Clara smiled and lifted the perforated birch-bark scroll from her satchel. She hung it carefully from the little brass lantern hook beside Barnaby's cottage door.\n\nJust then, a gentle evening breeze drifted off the pond and whispered straight through the star-shaped pinholes. Ooo-la-lee, loo-la-lay! The curled bark hummed like a tiny wooden flute, weaving a sweet, chiming woodland melody that echoed softly through the willow branches.\n\nFleet's big yellow eyes went wide with wonder. \"You found it!\" he gasped. \"Right by the oak tree where I dropped it!\"",
+      "illustration_file": "page_16.png",
+      "prompt": "Magical twilight scene: a glowing warm lantern hangs beside the tiny cottage door on Barnaby the giant yellow snail's shell, illuminating the punched white birch-bark scroll as golden musical sparkles drift into the air, while Clara and the yellow-eyed falcon watch in awe, cozy gouache illustration."
+    },
+    {
+      "page_number": 17,
+      "title": "A Lesson in Going Slow",
+      "chapter_label": "Page 17",
+      "layout": "image_top_text_bottom",
+      "word_count": 88,
+      "text": "\"It was waiting in the Lost-and-Found box all along,\" Clara explained kindly. \"When you fly like lightning, it's easy to miss what's right beneath your feathers.\"\n\nFleet bowed his feathered head toward Barnaby. \"I'm sorry I teased you this morning, Master Barnaby,\" the falcon said sincerely. \"I crossed the whole forest ten times today and saw nothing at all. You crossed it once—and saved three neighbors' treasures.\"\n\nBarnaby tapped Fleet's wing affectionately with one golden eye-stalk, welcoming him aboard the roof of the cottage shell.",
+      "illustration_file": "page_17.png",
+      "prompt": "The grey-and-white falcon with yellow eyes perched peacefully on the red cottage roof of Barnaby the giant yellow snail's shell right next to Clara in her red dress, as Barnaby gently touches wings with the bird in a warm twilight forest, gouache storybook style."
+    },
+    {
+      "page_number": 18,
+      "title": "The Starlight Tea Party",
+      "chapter_label": "Page 18",
+      "layout": "full_bleed_card_top_left",
+      "word_count": 96,
+      "text": "Before heading home, Clara spread a checkered picnic cloth on the mossy bank beside Bramble Pond. Under a canopy of twinkling fireflies, the neighbors gathered for an impromptu celebration!\n\nBramwell the Boar served his prize-winning cinnamon-acorn scones. Millie the Ant poured steaming cups of clover-honey tea. Fergus the Frog played a cheerful bass rhythm on a hollow reed, while the birch-bark scroll chimed softly in the breeze and Fleet kept time with his wings. Never had Whisperwood Hollow heard a sweeter woodland concert.",
+      "illustration_file": "page_18.png",
+      "prompt": "A joyful cozy twilight tea party by a forest pond: Clara in her red dress, Barnaby the giant yellow cottage-shelled snail, the brown wild boar with white tusks, the tiny ant in a red polka-dot dress on a mushroom, the green frog, and the falcon all sharing scones and teacups under glowing fireflies, warm gouache illustration."
+    },
+    {
+      "page_number": 19,
+      "title": "Homeward Under the Moon",
+      "chapter_label": "Page 19",
+      "layout": "image_top_text_bottom",
+      "word_count": 84,
+      "text": "When the silver crescent moon rose above the birch trees, it was time to head home. Fleet flew gently overhead, carrying the birch-bark lullaby back to the sleepy owlets at a calm, unhurried glide.\n\nDown on the mossy path, Barnaby carried Clara smoothly back toward the Great Whisperwood Oak. Tiny red toadstools along the lane seemed to nod goodnight, and by the warm glow of her lantern, Clara wrote three neat checkmarks in her teal Postmaster's Logbook.",
+      "illustration_file": "page_19.png",
+      "prompt": "Clara in her red dress sitting atop Barnaby the giant yellow cottage-shelled snail writing in her teal book by warm lantern light as they glide down a moonlit forest path with glowing fireflies, red mushrooms, and a crescent moon in a warm navy-and-gold gouache sky."
+    },
+    {
+      "page_number": 20,
+      "title": "The Postmaster's Promise",
+      "chapter_label": "Page 20",
+      "layout": "image_top_text_bottom",
+      "word_count": 82,
+      "text": "Back at the Old Oak Post Office, Barnaby curled comfortably onto his bed of soft clover moss. Warm golden light spilled from the little arched cottage door on his shell.\n\nClara tucked her teal logbook under her arm, kissed Barnaby's velvety yellow forehead, and whispered, \"Goodnight, partner. Tomorrow there will be brand-new letters to sort and brand-new wonders to notice.\"\n\nBecause in Whisperwood Hollow, the Snail Mail Express was never late—it arrived at the exact moment a friend needed it most.",
+      "illustration_file": "page_20.png",
+      "prompt": "Cozy bedtime finale: Barnaby the giant yellow snail resting peacefully on a bed of moss with warm golden light glowing from the tiny red-roofed wooden cottage door on his brown spiral shell, while Clara in her red dress hugs his neck lovingly surrounded by sleepy woodland flowers and fireflies, warm gouache painting."
+    }
+  ]
+}
