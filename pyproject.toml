@@ -1,0 +1,30 @@
+[project]
+name = "kiddo"
+version = "0.1.0"
+description = "Storybook-to-YouTube read-aloud video pipeline"
+requires-python = ">=3.12"
+dependencies = [
+    "pillow>=10",
+    "reportlab>=4",
+    "pydantic>=2.7",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = ["ollama: needs a running local Ollama with the configured model"]
+addopts = "-m 'not ollama'"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "PTH"]
+ignore = ["E501"]  # the formatter wraps code; long test messages and comments stay readable
