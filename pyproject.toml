@@ -19,8 +19,8 @@ package = false
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-markers = ["ollama: needs a running local Ollama with the configured model"]
-addopts = "-m 'not ollama'"
+markers = ["codex: runs the real Codex (ChatGPT) provider; needs the ChatGPT app logged in"]
+addopts = "-m 'not codex'"
 
 [tool.ruff]
 target-version = "py312"

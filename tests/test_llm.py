@@ -15,7 +15,6 @@ from video_pipeline.llm import (
     build_brief,
     build_prompt,
     generate_cloud,
-    generate_local,
 )
 
 
@@ -77,34 +76,6 @@ def test_build_prompt_demands_verbatim_grounding():
             f"     PAGE {number} TEXT: {normalize_ws(page['text'])}\n"
             f"     PAGE {number} ILLUSTRATION: {normalize_ws(page['prompt'])}"
         ) in prompt
-
-
-def test_generate_local_sends_reproducible_request(monkeypatch):
-    requests = fake_urlopen(monkeypatch, {"message": {"content": '{"ok": 1}'}})
-    assert generate_local("hello", 9) == '{"ok": 1}'
-    body = json.loads(requests[0].data)
-    assert requests[0].full_url == "http://127.0.0.1:11434/api/chat"
-    assert body["options"] == {"seed": 9, "temperature": 0}
-    assert body["keep_alive"] == 0 and body["stream"] is False
-    assert body["format"]["title"] == "Banter"
-
-
-def test_generate_local_missing_model(monkeypatch):
-    fake_urlopen(monkeypatch, exc=http_error(404))
-    with pytest.raises(LLMUnavailable, match="ollama pull qwen2.5:7b"):
-        generate_local("hello", 1)
-
-
-def test_generate_local_server_down(monkeypatch):
-    fake_urlopen(monkeypatch, exc=urllib.error.URLError("refused"))
-    with pytest.raises(LLMUnavailable, match="not reachable"):
-        generate_local("hello", 1)
-
-
-def test_generate_local_bad_reply(monkeypatch):
-    fake_urlopen(monkeypatch, {"unexpected": True})
-    with pytest.raises(LLMError, match="unexpected response"):
-        generate_local("hello", 1)
 
 
 def test_generate_cloud_requires_key_and_sends_nothing_without_it(monkeypatch):

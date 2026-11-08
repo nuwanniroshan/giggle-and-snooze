@@ -1,4 +1,4 @@
-"""Text-model backends: local Ollama (default) and opt-in cloud Gemini. One request per call."""
+"""Text-model access: the shared writing brief and the opt-in Gemini API provider."""
 
 from __future__ import annotations
 
@@ -10,8 +10,6 @@ import urllib.request
 from video_pipeline.contract import Banter, normalize_ws
 from video_pipeline.episode import EpisodePlan
 
-LOCAL_MODEL = "qwen2.5:7b"
-OLLAMA_URL = "http://127.0.0.1:11434"
 CLOUD_MODEL = "gemini-2.5-flash"
 GEMINI_KEY_ENV = "GEMINI_API_KEY"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -114,42 +112,12 @@ def _post_json(url: str, payload: dict, headers: dict[str, str] | None = None) -
         return json.loads(response.read().decode("utf-8"))
 
 
-def generate_local(
-    prompt: str, seed: int, model: str = LOCAL_MODEL, base_url: str = OLLAMA_URL
-) -> str:
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "format": Banter.model_json_schema(),
-        "stream": False,
-        "options": {"seed": seed, "temperature": 0},
-        "keep_alive": 0,
-    }
-    try:
-        data = _post_json(f"{base_url}/api/chat", payload)
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            raise LLMUnavailable(
-                f"local model '{model}' is not installed; run: ollama pull {model}"
-            ) from None
-        raise LLMError(f"local model request failed: HTTP {exc.code}") from None
-    except TimeoutError:
-        raise LLMError(f"local model did not answer within {TIMEOUT_S} s") from None
-    except (urllib.error.URLError, ConnectionError):
-        raise LLMUnavailable(
-            f"local model server is not reachable at {base_url}; "
-            "start Ollama (open the app or run: ollama serve)"
-        ) from None
-    try:
-        return data["message"]["content"]
-    except (KeyError, TypeError):
-        raise LLMError("local model returned an unexpected response") from None
-
-
 def generate_cloud(prompt: str, seed: int, model: str = CLOUD_MODEL) -> str:
     key = os.environ.get(GEMINI_KEY_ENV)
     if not key:
-        raise LLMUnavailable(f"cloud mode needs the {GEMINI_KEY_ENV} environment variable")
+        raise LLMUnavailable(
+            f"the gemini-api provider needs the {GEMINI_KEY_ENV} environment variable"
+        )
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
