@@ -152,3 +152,177 @@ def qa_schedule_errors(qa_pages: list[int], page_count: int) -> list[str]:
         if after - before not in (2, 3):
             errors.append(f"gap between Q&A pages {before} and {after} must be 2 or 3 pages")
     return errors
+
+
+def validate_script(script: dict, book: dict, terms: list[str]) -> list[str]:
+    """Check a complete episode script against every spec rule; [] means valid."""
+    missing = [key for key in TOP_LEVEL_KEYS if key not in script]
+    if missing:
+        return [f"missing top-level key: {key}" for key in missing]
+    title = book["metadata"]["title"]
+    errors: list[str] = []
+    if script["book_slug"] != slugify(title):
+        errors.append(f"book_slug must be {slugify(title)!r}")
+    if script["title"] != title:
+        errors.append(f"title must be {title!r}")
+    if script["aspect_ratio"] != "16:9":
+        errors.append("aspect_ratio must be '16:9'")
+    if script["resolution"] != [1920, 1080]:
+        errors.append("resolution must be [1920, 1080]")
+    errors += _cast_errors(script["cast"])
+    errors += _bookend_errors(script["intro"], "intro", terms, title)
+    errors += _bookend_errors(script["outro"], "outro", terms, title)
+    errors += _page_errors(script["pages"], book, terms)
+    return errors
+
+
+def _cast_errors(cast: object) -> list[str]:
+    if not isinstance(cast, dict) or set(cast) != set(SPEAKERS):
+        return ["cast must define exactly: storyteller, kid_older, kid_younger"]
+    return [
+        f"cast.{role}.{field} is required"
+        for role in SPEAKERS
+        for field in CAST_FIELDS
+        if not str(cast[role].get(field, "")).strip()
+    ]
+
+
+def _line_errors(where: str, line: dict, terms: list[str], generated: bool) -> list[str]:
+    errors: list[str] = []
+    speaker, text = line.get("speaker"), line.get("text", "")
+    if speaker not in SPEAKERS:
+        errors.append(f"{where}: unknown speaker {speaker!r}")
+    if not strip_tags(text):
+        errors.append(f"{where}: empty text")
+    for tag in TAG_RE.findall(text):
+        if tag[1:-1] not in ALLOWED_TAGS:
+            errors.append(f"{where}: tag {tag} is not allowed")
+    if generated:
+        for term in find_disallowed(text, terms):
+            errors.append(f"{where}: disallowed term {term!r}")
+        if speaker in KIDS and word_count(text) > MAX_KID_WORDS:
+            errors.append(f"{where}: kid line has {word_count(text)} words (max {MAX_KID_WORDS})")
+    return errors
+
+
+def _bookend_errors(block: dict, name: str, terms: list[str], title: str) -> list[str]:
+    lines = block.get("lines", [])
+    errors = [
+        error
+        for i, line in enumerate(lines)
+        for error in _line_errors(f"{name} line {i + 1}", line, terms, generated=True)
+    ]
+    low, high, effect = (2, 4, INTRO_EFFECT) if name == "intro" else (3, 5, OUTRO_EFFECT)
+    speakers = [line.get("speaker") for line in lines]
+    if not low <= len(lines) <= high:
+        errors.append(f"{name} must have {low}-{high} lines (has {len(lines)})")
+    if not set(speakers) & set(KIDS):
+        errors.append(f"{name} needs at least one kid line")
+    if block.get("ffmpeg_effect") != effect:
+        errors.append(f"{name}.ffmpeg_effect must be {effect!r}")
+    if name == "intro":
+        if "storyteller" not in speakers:
+            errors.append("intro needs at least one storyteller line")
+        if not any(title.lower() in line.get("text", "").lower() for line in lines):
+            errors.append(f"intro must mention the title {title!r}")
+    else:
+        last = lines[-1] if lines else {}
+        if last.get("speaker") != "storyteller" or "subscribe" not in last.get("text", "").lower():
+            errors.append("outro must end with a storyteller line inviting viewers to subscribe")
+    return errors
+
+
+def _page_errors(pages: list[dict], book: dict, terms: list[str]) -> list[str]:
+    book_pages = book["pages"]
+    expected = [page["page_number"] for page in book_pages]
+    if [page.get("page_number") for page in pages] != expected:
+        return [f"pages must be numbered 1..{len(expected)} in book order"]
+    errors: list[str] = []
+    qa_pages: list[int] = []
+    kinds: list[frozenset[str]] = []
+    for book_page, page in zip(book_pages, pages, strict=True):
+        number, lines = book_page["page_number"], page.get("lines", [])
+        split = 0
+        while split < len(lines) and lines[split].get("role") == "narration":
+            split += 1
+        narration, qa = lines[:split], lines[split:]
+        errors += _narration_errors(number, narration, book_page["text"], terms)
+        if any(line.get("role") == "narration" for line in qa):
+            errors.append(f"page {number}: narration lines must come before Q&A lines")
+        camera = page.get("ffmpeg_camera", {})
+        if camera.get("narration_motion") not in NARRATION_MOTIONS:
+            errors.append(f"page {number}: narration_motion must be one of {NARRATION_MOTIONS}")
+        if page.get("has_qa"):
+            qa_pages.append(number)
+            kinds.append(frozenset(line.get("speaker") for line in qa) & frozenset(KIDS))
+            errors += _qa_errors(number, qa, page, book_page, terms)
+        elif qa or "qa_zoom_target" in camera or "qa_grounding" in page:
+            errors.append(f"page {number}: has_qa is false but the page has Q&A content")
+    errors += qa_schedule_errors(qa_pages, len(book_pages))
+    for kind, label in (
+        (frozenset({"kid_older"}), "only Leo (kid_older)"),
+        (frozenset({"kid_younger"}), "only Mia (kid_younger)"),
+        (frozenset(KIDS), "both kids"),
+    ):
+        if kind not in kinds:
+            errors.append(f"needs at least one Q&A moment with {label}")
+    return errors
+
+
+def _narration_errors(number: int, narration: list[dict], text: str, terms: list[str]) -> list[str]:
+    if not narration:
+        return [f"page {number}: no narration lines"]
+    errors: list[str] = []
+    for i, line in enumerate(narration):
+        where = f"page {number} narration line {i + 1}"
+        errors += _line_errors(where, line, terms, generated=False)
+        if line.get("speaker") != "storyteller":
+            errors.append(f"{where}: narration must be spoken by the storyteller")
+        plain = strip_tags(line.get("text", ""))
+        sentences = split_sentences(plain)
+        if i < len(narration) - 1 and not ends_sentence(plain):
+            errors.append(f"{where}: must end at a sentence end")
+        if len(sentences) > MAX_NARRATION_SENTENCES:
+            errors.append(f"{where}: has {len(sentences)} sentences (max 2)")
+        if len(sentences) > 1 and word_count(plain) > MAX_NARRATION_WORDS:
+            errors.append(f"{where}: has {word_count(plain)} words (max 40 unless one sentence)")
+    joined = strip_tags(" ".join(line.get("text", "") for line in narration))
+    if joined != normalize_ws(text):
+        errors.append(f"page {number}: narration does not match the page text word for word")
+    return errors
+
+
+def _qa_errors(
+    number: int, qa: list[dict], page: dict, book_page: dict, terms: list[str]
+) -> list[str]:
+    errors: list[str] = []
+    for i, line in enumerate(qa):
+        where = f"page {number} Q&A line {i + 1}"
+        errors += _line_errors(where, line, terms, generated=True)
+        speaker, role = line.get("speaker"), line.get("role")
+        if speaker == "storyteller" and role != "answer":
+            errors.append(f"{where}: storyteller Q&A lines must have role 'answer'")
+        if speaker in KIDS and role not in ("question", "reaction"):
+            errors.append(f"{where}: kid lines must have role 'question' or 'reaction'")
+    if not 2 <= len(qa) <= 5:
+        errors.append(f"page {number}: Q&A moment must have 2-5 lines (has {len(qa)})")
+    if not any(line.get("speaker") in KIDS for line in qa):
+        errors.append(f"page {number}: Q&A moment needs at least one kid line")
+    if not qa or qa[-1].get("speaker") != "storyteller":
+        errors.append(f"page {number}: Q&A moment must end with a storyteller answer")
+    grounding = normalize_ws(page.get("qa_grounding", "")).lower()
+    sources = (normalize_ws(book_page["text"]).lower(), normalize_ws(book_page["prompt"]).lower())
+    if not grounding or not any(grounding in source for source in sources):
+        errors.append(
+            f"page {number}: qa_grounding must be a phrase copied word for word "
+            "from the page text or illustration description"
+        )
+    zoom = page.get("ffmpeg_camera", {}).get("qa_zoom_target")
+    valid_zoom = isinstance(zoom, dict) and all(
+        isinstance(zoom.get(key), (int, float)) for key in ("x", "y", "zoom")
+    )
+    if not valid_zoom or not (
+        0 <= zoom["x"] <= 1 and 0 <= zoom["y"] <= 1 and 1 <= zoom["zoom"] <= 2
+    ):
+        errors.append(f"page {number}: qa_zoom_target needs x, y in [0, 1] and zoom in [1, 2]")
+    return errors
