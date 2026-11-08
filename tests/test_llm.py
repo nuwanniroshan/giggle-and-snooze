@@ -111,6 +111,8 @@ def test_build_brief_is_the_prompt_without_reply_format():
     brief = build_brief(book, cast, plan)
     assert "Reply with JSON only" not in brief
     assert "grounding from PAGE" in brief and "CAST" in brief and "RULES" in brief
+    rules = brief.split("RULES", 1)[1]
+    assert "asterisks" in rules and "brackets" in rules and "parenthes" in rules
     prompt = build_prompt(book, cast, plan)
     assert prompt.startswith(brief)
     assert "Reply with JSON only" in prompt and '"title": "Banter"' in prompt

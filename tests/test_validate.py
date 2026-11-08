@@ -166,6 +166,37 @@ def test_validator_rejects(mutate, expected):
     assert any(expected in e for e in errors), errors
 
 
+@pytest.mark.parametrize(
+    ("where", "text", "markup"),
+    [
+        ("intro", "*giggles* Look, a book!", "*giggles*"),
+        ("intro", "[laughs] Look, a book!", "[laughs]"),
+        ("intro", "Look, a book! (whispering)", "(whispering)"),
+        ("intro", "_softly_ Look, a book!", "_softly_"),
+        ("qa", "*points* Who sent it?", "*points*"),
+    ],
+)
+def test_validator_rejects_stage_directions_in_generated_lines(where, text, markup):  # FR-5
+    book, script = build()
+    if where == "intro":
+        line, label = script["intro"]["lines"][1], "intro line 2"
+    else:
+        page = qa_page(script)
+        line = next(x for x in page["lines"] if x["speaker"] != "storyteller")
+        label = f"page {page['page_number']} Q&A line 1"
+    line["text"] = text
+    errors = validate_script(script, book, TERMS)
+    assert f"{label}: stage direction or markup {markup!r} is not allowed" in errors, errors
+
+
+def test_book_narration_may_contain_brackets():  # FR-5 checks generated lines only
+    book, script = build()
+    book["pages"][0]["text"] = book["pages"][0]["text"].replace("tiny", "tiny (very tiny)", 1)
+    line = script["pages"][0]["lines"][0]
+    line["text"] = line["text"].replace("tiny", "tiny (very tiny)", 1)
+    assert validate_script(script, book, TERMS) == []
+
+
 def test_missing_top_level_key():
     book, script = build()
     del script["outro"]

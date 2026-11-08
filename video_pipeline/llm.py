@@ -79,7 +79,8 @@ storyteller inviting viewers to subscribe and come back for the next story.
 RULES
 - Kid lines are at most 25 words.
 - The only allowed inline tags are <giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>. No other \
-tags, markup or stage directions.
+tags, markup or stage directions: no asterisks (*giggles*), no square brackets ([laughs]), no \
+parenthesised directions ((whispering)) and no underscores (_softly_).
 - Everything is gentle and suitable for young children. Do not invent story events that are \
 not in the book.
 """

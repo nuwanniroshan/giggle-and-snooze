@@ -31,6 +31,8 @@ MAX_NARRATION_WORDS = 40
 MAX_NARRATION_SENTENCES = 2
 
 TAG_RE = re.compile(r"<[^<>]*>")
+# Stage directions and markup in generated lines (FR-5): *giggles*, [laughs], (whispering), _softly_
+STAGE_DIRECTION_RE = re.compile(r"\*[^*]*\*|\[[^\]]*\]|\([^()]*\)|(?<!\w)_[^_]+_(?!\w)")
 _SENTENCE_END_RE = re.compile(r"[.!?…][\"'”’)]*$")
 _ABBREVIATIONS = frozenset({"Mr.", "Mrs.", "Ms.", "Dr.", "St.", "Jr.", "Sr."})
 _CLOSING_QUOTE_RE = re.compile(r"[.!?…][\"'”’]+$")
@@ -224,6 +226,8 @@ def _line_errors(where: str, line: dict, terms: list[str], generated: bool) -> l
         if tag[1:-1] not in ALLOWED_TAGS:
             errors.append(f"{where}: tag {tag} is not allowed")
     if generated:
+        for markup in STAGE_DIRECTION_RE.findall(text):
+            errors.append(f"{where}: stage direction or markup {markup!r} is not allowed")
         for term in find_disallowed(text, terms):
             errors.append(f"{where}: disallowed term {term!r}")
         if speaker in KIDS and word_count(text) > MAX_KID_WORDS:
