@@ -6,5 +6,6 @@
 - ✓ Write JSON atomically (`*.tmp`, then `os.replace`) with `indent=2, ensure_ascii=False`.
 - ✓ Make each stage idempotent behind one CLI entry, and skip work whose inputs haven't changed.
 - ✓ Name outputs from book metadata (`build/<book_slug>/<stage>/...`), never a hardcoded title.
+- ✓ `episodes/<slug>/episode_script.json` is generated but hand-editable; regenerating requires `--force`.
 - ✗ Never hand-edit generated files in `build/`.
 - ✗ Don't hardcode durations, titles or text in code. Read them from the JSON.

@@ -7,3 +7,4 @@ __pycache__/
 !.env.example
 build/
 .claude/settings.local.json
+episodes/*/agent/

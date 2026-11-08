@@ -1,0 +1,16 @@
+# One term per line, matched case-insensitively as a whole word or phrase in generated lines.
+# Lines starting with # are comments. Narration (the book's own text) is not checked.
+kill
+killed
+blood
+bloody
+gun
+weapon
+stupid
+idiot
+dumb
+shut up
+hate
+ugly
+damn
+hell

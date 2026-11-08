@@ -1,0 +1,9 @@
+{"type":"thread.started","thread_id":"t1"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Getting the plan."}}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"kiddo","tool":"get_episode_plan","arguments":{},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"kiddo","tool":"get_episode_plan","arguments":{},"result":{"content":[{"type":"text","text":"{\"title\": \"T\"}"}],"structured_content":{"title":"T"}},"error":null,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"mcp_tool_call","server":"kiddo","tool":"save_episode_script","arguments":{"banter":{}},"result":{"content":[{"type":"text","text":"{\"saved\": false, \"errors\": [\"bad\"]}"}],"structured_content":{"result":{"saved":false,"errors":["bad"]}}},"error":null,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_3","type":"mcp_tool_call","server":"kiddo","tool":"validate_banter","arguments":{},"result":null,"error":{"message":"MCP tool call requires approval"},"status":"failed"}}
+not json
+{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}
