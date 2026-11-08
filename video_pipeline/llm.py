@@ -32,9 +32,8 @@ class LLMUnavailable(Exception):
     """The selected backend cannot be used: not running, model missing, or no credentials."""
 
 
-def build_prompt(
-    book: dict, cast: dict, plan: EpisodePlan, feedback: list[str] | None = None
-) -> str:
+def build_brief(book: dict, cast: dict, plan: EpisodePlan) -> str:
+    """Everything a writer needs: book, cast, the planned Q&A moments and the rules (no reply format)."""
     meta = book["metadata"]
     title = meta["title"]
     cast_lines = "\n".join(f"- {role}: {c['name']}, {c['description']}" for role, c in cast.items())
@@ -43,15 +42,16 @@ def build_prompt(
         f"ILLUSTRATION: {normalize_ws(p['prompt'])}"
         for p in book["pages"]
     )
+    by_number = {p["page_number"]: p for p in book["pages"]}
     moments = "\n".join(
-        f"- page {number}: {_WHO[tuple(sorted(kids))]}"
+        f"- page {number}: {_WHO[tuple(sorted(kids))]} (grounding from PAGE {number} only)\n"
+        f"     PAGE {number} TEXT: {normalize_ws(by_number[number]['text'])}\n"
+        f"     PAGE {number} ILLUSTRATION: {normalize_ws(by_number[number]['prompt'])}"
         for number, kids in sorted(plan.qa_speakers.items())
     )
-    prompt = f"""You write the spoken banter for a cozy read-aloud storytime video of the children's \
+    return f"""You write the spoken banter for a cozy read-aloud storytime video of the children's \
 book "{title}" ({meta.get("age_range", "young children")}). The Storyteller reads every page \
 aloud; you write only the extra dialogue described below.
-Reply with JSON only, matching this JSON schema:
-{json.dumps(Banter.model_json_schema())}
 
 CAST
 {cast_lines}
@@ -68,8 +68,12 @@ One line must say the exact title "{title}".
 The last line is the storyteller answering.
    kid_older asks curious questions about the plot or guesses at mysteries. kid_younger reacts \
 to funny or cute details in the illustration.
-   "grounding" is a short phrase (2-6 words) copied exactly from that page's TEXT or \
-ILLUSTRATION, naming what the moment is about.
+   "grounding" is 2-6 consecutive words copied character for character from that page's \
+TEXT or ILLUSTRATION, pointing at what the moment is about. It is checked by exact text search, \
+so never summarize, rename or write your own label. Copy it from the PAGE block with the \
+same number as the moment: a phrase found only on another page is wrong, even a character name. \
+Example: if a TEXT says "the little fox hid \
+under a mossy log", then "under a mossy log" is right and "fox hiding" is wrong.
    Use only what has happened up to that page. Never reveal later pages.
 3. "outro": 3-5 lines after the book closes, with at least one kid line. The last line is the \
 storyteller inviting viewers to subscribe and come back for the next story.
@@ -81,6 +85,18 @@ tags, markup or stage directions.
 - Everything is gentle and suitable for young children. Do not invent story events that are \
 not in the book.
 """
+
+
+def build_prompt(
+    book: dict, cast: dict, plan: EpisodePlan, feedback: list[str] | None = None
+) -> str:
+    """One-shot prompt (Gemini API): the brief plus the JSON reply format and any feedback."""
+    prompt = (
+        build_brief(book, cast, plan)
+        + "\nREPLY\nReply with JSON only, matching this JSON schema:\n"
+        + json.dumps(Banter.model_json_schema())
+        + "\n"
+    )
     if feedback:
         problems = "\n".join(f"- {error}" for error in feedback)
         prompt += f"\nYOUR PREVIOUS ANSWER WAS REJECTED. Fix these problems:\n{problems}\n"

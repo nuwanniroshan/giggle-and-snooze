@@ -52,3 +52,25 @@ def make_banter(book: dict, plan: EpisodePlan) -> Banter:
             ],
         }
     )
+
+
+def plan_signature(script: dict) -> list[tuple]:
+    """Everything the seed decides on each page (AC-6.3): Q&A placement, kids, narration, motion."""
+    return [
+        (
+            page["page_number"],
+            page["has_qa"],
+            page["ffmpeg_camera"]["narration_motion"],
+            tuple(line["text"] for line in page["lines"] if line["role"] == "narration"),
+            tuple(
+                sorted(
+                    {
+                        line["speaker"]
+                        for line in page["lines"]
+                        if line["role"] != "narration" and line["speaker"] != "storyteller"
+                    }
+                )
+            ),
+        )
+        for page in script["pages"]
+    ]

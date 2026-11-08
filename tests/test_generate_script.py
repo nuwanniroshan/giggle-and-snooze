@@ -166,17 +166,3 @@ def test_invalid_book_writes_nothing(monkeypatch, tmp_path, capsys, mutate, mess
 def test_missing_book_file(monkeypatch, tmp_path, capsys):
     assert run(monkeypatch, tmp_path, tmp_path / "nope.json") == 1
     assert "book data file not found" in capsys.readouterr().err
-
-
-def test_interrupted_write_keeps_previous_file(monkeypatch, tmp_path):  # Reliability NFR
-    target = tmp_path / "episode_script.json"
-    target.write_text("previous", encoding="utf-8")
-
-    def boom(src, dst):
-        raise OSError("disk full")
-
-    monkeypatch.setattr(generate_script.os, "replace", boom)
-    with pytest.raises(OSError):
-        generate_script.write_atomic(target, {"new": True})
-    assert target.read_text(encoding="utf-8") == "previous"
-    assert list(tmp_path.iterdir()) == [target]

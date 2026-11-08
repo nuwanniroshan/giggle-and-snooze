@@ -6,11 +6,13 @@ import urllib.request
 import pytest
 
 from tests.helpers import CAST_PATH, MINI_BOOK, load_json
+from video_pipeline.contract import normalize_ws
 from video_pipeline.episode import plan_episode
 from video_pipeline.llm import (
     GEMINI_KEY_ENV,
     LLMError,
     LLMUnavailable,
+    build_brief,
     build_prompt,
     generate_cloud,
     generate_local,
@@ -58,6 +60,23 @@ def test_build_prompt_lists_pages_plan_and_feedback():
         assert f"- page {number}:" in prompt
     assert "REJECTED" in prompt and "- intro too short" in prompt
     assert "Leo (Age 8)" in prompt and "Mia (Age 5)" in prompt
+
+
+def test_build_prompt_demands_verbatim_grounding():
+    book = load_json(MINI_BOOK)
+    prompt = build_prompt(book, load_json(CAST_PATH), plan_episode(book, 7))
+    assert "checked by exact text search" in prompt
+    assert "never summarize, rename or write your own label" in prompt
+    assert "a phrase found only on another page is wrong" in prompt
+    pages = {p["page_number"]: p for p in book["pages"]}
+    for number in plan_episode(book, 7).qa_speakers:
+        assert f"grounding from PAGE {number} only" in prompt
+        page = pages[number]
+        assert (
+            f"(grounding from PAGE {number} only)\n"
+            f"     PAGE {number} TEXT: {normalize_ws(page['text'])}\n"
+            f"     PAGE {number} ILLUSTRATION: {normalize_ws(page['prompt'])}"
+        ) in prompt
 
 
 def test_generate_local_sends_reproducible_request(monkeypatch):
@@ -113,3 +132,14 @@ def test_generate_cloud_errors_never_leak_key(monkeypatch):
     with pytest.raises(LLMError) as excinfo:
         generate_cloud("hello", 1)
     assert "secret-key" not in str(excinfo.value)
+
+
+def test_build_brief_is_the_prompt_without_reply_format():
+    book = load_json(MINI_BOOK)
+    cast, plan = load_json(CAST_PATH), plan_episode(book, 7)
+    brief = build_brief(book, cast, plan)
+    assert "Reply with JSON only" not in brief
+    assert "grounding from PAGE" in brief and "CAST" in brief and "RULES" in brief
+    prompt = build_prompt(book, cast, plan)
+    assert prompt.startswith(brief)
+    assert "Reply with JSON only" in prompt and '"title": "Banter"' in prompt

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -14,7 +12,6 @@ from video_pipeline.contract import (
     ConfigError,
     load_disallowed_terms,
     parse_banter,
-    slugify,
     validate_script,
 )
 from video_pipeline.episode import (
@@ -23,6 +20,13 @@ from video_pipeline.episode import (
     banter_plan_errors,
     load_book,
     plan_episode,
+)
+from video_pipeline.episode_tools import (
+    CONFIG_DIR,
+    DEFAULT_SEED,
+    load_cast,
+    output_path,
+    write_atomic,
 )
 from video_pipeline.llm import (
     CLOUD_MODEL,
@@ -34,9 +38,7 @@ from video_pipeline.llm import (
     generate_local,
 )
 
-CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 MAX_ATTEMPTS = 3
-DEFAULT_SEED = 7
 REVIEW_NOTICE = (
     "Review required: this script must be reviewed by a person before voice synthesis "
     "(age-suitability, no spoilers from later pages, no invented story events)."
@@ -49,19 +51,6 @@ class GenerationFailed(Exception):
     def __init__(self, errors: list[str]) -> None:
         super().__init__(f"generation failed after {MAX_ATTEMPTS} attempts")
         self.errors = errors
-
-
-def output_path(book: dict, episodes_dir: Path) -> Path:
-    return episodes_dir / slugify(book["metadata"]["title"]) / "episode_script.json"
-
-
-def load_cast(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        raise ConfigError(f"cast configuration not found: {path}") from None
-    except json.JSONDecodeError as exc:
-        raise ConfigError(f"cast configuration is not valid JSON: {path} ({exc})") from None
 
 
 def generate_episode_script(
@@ -83,16 +72,6 @@ def generate_episode_script(
                 return script
         feedback = errors
     raise GenerationFailed(errors)
-
-
-def write_atomic(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        os.replace(tmp, path)  # noqa: PTH105 - tests patch generate_script.os.replace
-    finally:
-        tmp.unlink(missing_ok=True)
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
