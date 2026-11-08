@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync *)", "Bash(uv lock *)", "Bash(uv tree *)",
+      "Bash(uv run pytest *)", "Bash(uv run python -m pytest *)", "Bash(uv run ruff *)", "Bash(uv run mypy *)",
+      "Bash(uv pip list *)", "Bash(uv pip show *)",
+      "Bash(ffprobe *)", "Bash(ffmpeg -version)", "Bash(ffmpeg -hide_banner *)",
+      "Bash(ollama list *)", "Bash(ollama ps *)", "Bash(ollama show *)",
+      "Bash(file *)", "Bash(du *)", "Bash(ls *)",
+      "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)"
+    ],
+    "ask": [
+      "Bash(uv add *)", "Bash(uv remove *)", "Bash(uv pip install *)", "Bash(uv run --with *)", "Bash(uvx *)",
+      "Bash(curl *)", "Bash(wget *)", "Bash(git push *)", "Bash(ollama pull *)"
+    ],
+    "deny": [
+      "Read(.env)", "Read(.env.*)", "Read(**/*.pem)", "Read(**/*.key)",
+      "Read(**/credentials*.json)", "Read(**/service-account*.json)",
+      "Read(~/.cache/huggingface/token)", "Read(~/.ssh/**)", "Read(~/.config/gcloud/**)", "Read(~/.netrc)",
+      "Edit(.env)", "Edit(.env.*)", "Edit(./.venv/**)",
+      "Bash(cat .env*)", "Bash(env)", "Bash(printenv *)",
+      "Bash(rm -rf *)", "Bash(sudo *)", "Bash(git reset --hard *)", "Bash(git clean *)",
+      "Bash(pip install *)", "Bash(huggingface-cli upload *)", "Bash(hf upload *)",
+      "Bash(ollama rm *)", "Bash(ollama push *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "command -v jq >/dev/null && command -v uvx >/dev/null || exit 0; f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.py) uvx ruff format --quiet \"$f\"; uvx ruff check --fix --quiet \"$f\" || { uvx ruff check \"$f\" >&2; exit 2; };; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
