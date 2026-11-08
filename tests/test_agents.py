@@ -1,3 +1,5 @@
+import json
+import time
 from pathlib import Path
 
 import pytest
@@ -146,6 +148,30 @@ def test_run_codex_time_limit(tmp_path):  # FR-7: 10-minute limit
     binary = fake_bin(tmp_path, "exec sleep 5")  # exec: kill reaches sleep, closing stdout
     result = run_codex([str(binary)], tmp_path / "run.jsonl", timeout_s=0.5)
     assert result.ok is False and "time limit" in result.reason
+
+
+def refused_save_line(errors: list[str]) -> str:
+    item = {
+        "type": "mcp_tool_call",
+        "tool": "save_episode_script",
+        "result": {"structured_content": {"saved": False, "errors": errors}},
+        "error": None,
+    }
+    return json.dumps({"type": "item.completed", "item": item})
+
+
+def test_run_codex_stops_after_five_refused_saves(tmp_path):  # FR-7, AC-6.7
+    events = tmp_path / "events.jsonl"
+    events.write_text(
+        "\n".join(refused_save_line([f"intro: problem {n}"]) for n in range(6)) + "\n",
+        encoding="utf-8",
+    )
+    binary = fake_bin(tmp_path, f'cat "{events}"; exec sleep 5')
+    started = time.monotonic()
+    result = run_codex([str(binary)], tmp_path / "run.jsonl")
+    assert time.monotonic() - started < 3
+    assert result.ok is False and "5 refused saves" in result.reason
+    assert result.last_save == {"saved": False, "errors": ["intro: problem 4"]}
 
 
 def test_run_codex_failure_exit(tmp_path):

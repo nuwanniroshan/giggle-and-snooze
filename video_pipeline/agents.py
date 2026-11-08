@@ -16,6 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from video_pipeline.episode_tools import MAX_SAVES
 from video_pipeline.mcp_server import SERVER_NAME
 
 CODEX_BIN_ENV = "KIDDO_CODEX_BIN"
@@ -79,15 +80,21 @@ class AgentResult:
     reason: str = ""
 
     @property
+    def save_results(self) -> list[dict]:
+        return [event.data for event in self.events if _is_save_result(event)]
+
+    @property
     def last_save(self) -> dict | None:
-        for event in reversed(self.events):
-            if (
-                event.kind == "tool-result"
-                and event.tool == "save_episode_script"
-                and isinstance(event.data, dict)
-            ):
-                return event.data
-        return None
+        saves = self.save_results
+        return saves[-1] if saves else None
+
+
+def _is_save_result(event: AgentEvent) -> bool:
+    return (
+        event.kind == "tool-result"
+        and event.tool == "save_episode_script"
+        and isinstance(event.data, dict)
+    )
 
 
 def find_codex() -> Path | None:
@@ -213,11 +220,16 @@ def run_codex(
     log_path: Path,
     timeout_s: float = AGENT_TIMEOUT_S,
     on_event: Callable[[AgentEvent], None] | None = None,
+    max_refused_saves: int = MAX_SAVES,
 ) -> AgentResult:
-    """Run the agent in an empty temporary directory; keep its JSONL log and stderr."""
+    """Run the agent in an empty temporary directory; keep its JSONL log and stderr.
+
+    The agent is stopped at the time limit or once `max_refused_saves` saves were refused (FR-7).
+    """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     stderr_path = log_path.with_suffix(".stderr.log")
     events: list[AgentEvent] = []
+    refused = 0
     timed_out = threading.Event()
     with (
         tempfile.TemporaryDirectory(prefix="kiddo-agent-") as workdir,
@@ -249,10 +261,17 @@ def run_codex(
                     events.append(event)
                     if on_event:
                         on_event(event)
+                    if _is_save_result(event) and not event.data.get("saved"):
+                        refused += 1
+                if refused >= max_refused_saves:
+                    proc.kill()
+                    break
             proc.wait()
         finally:
             timer.cancel()
-    if timed_out.is_set():
+    if refused >= max_refused_saves:
+        reason = f"agent stopped after {refused} refused saves"
+    elif timed_out.is_set():
         reason = f"agent stopped after {timeout_s:.0f} s (time limit)"
     elif proc.returncode != 0:
         reason = f"agent exited with status {proc.returncode}; see {stderr_path}"

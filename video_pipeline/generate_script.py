@@ -26,6 +26,7 @@ from video_pipeline.episode_tools import (
     CONFIG_DIR,
     DEFAULT_SEED,
     ROOT,
+    SAVE_LIMIT_ERROR,
     EpisodeTools,
     write_atomic,
 )
@@ -108,7 +109,16 @@ def run_agent(args: argparse.Namespace, tools: EpisodeTools) -> None:
             return
         raise GenerationFailed(f"saved script failed re-validation; run log: {log_path}", errors)
     reason = result.reason or "the agent did not save a valid script"
-    raise GenerationFailed(f"{reason}; run log: {log_path}", save.get("errors") or [])
+    raise GenerationFailed(f"{reason}; run log: {log_path}", _last_save_errors(result.save_results))
+
+
+def _last_save_errors(saves: list[dict]) -> list[str]:
+    """Errors of the last refused save that reported real problems, not the save limit."""
+    for save in reversed(saves):
+        errors = save.get("errors") or []
+        if errors and errors != [SAVE_LIMIT_ERROR]:
+            return errors
+    return []
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:

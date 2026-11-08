@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
 DEFAULT_SEED = 7
 MAX_SAVES = 5
+SAVE_LIMIT_ERROR = f"save limit reached ({MAX_SAVES} saves); stop"
 
 
 def output_path(book: dict, episodes_dir: Path) -> Path:
@@ -123,7 +124,7 @@ class EpisodeTools:
 
     def save_episode_script(self, banter: dict | str) -> dict:
         if self.saves >= MAX_SAVES:
-            return {"saved": False, "errors": [f"save limit reached ({MAX_SAVES} saves); stop"]}
+            return {"saved": False, "errors": [SAVE_LIMIT_ERROR]}
         self.saves += 1
         script, errors = self.check(banter)
         if script is None:

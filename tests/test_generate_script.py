@@ -183,6 +183,14 @@ def test_refused_saves_fail_the_run(monkeypatch, tmp_path, capsys):  # AC-6.7
     assert not out_path(tmp_path).exists()
 
 
+def test_save_limit_reports_the_last_validation_errors(monkeypatch, tmp_path, capsys):
+    agent = FakeAgent(banter={"intro": []}, saves=6)  # FR-7: 6th save hits the limit
+    assert run(monkeypatch, tmp_path, agent=agent) == 1
+    err = capsys.readouterr().err
+    assert "intro" in err and "save limit reached" not in err
+    assert not out_path(tmp_path).exists()
+
+
 def test_agent_time_limit_fails_the_run(monkeypatch, tmp_path, capsys):  # FR-7
     agent = FakeAgent(banter={}, reason="agent stopped after 600 s (time limit)")
     assert run(monkeypatch, tmp_path, agent=agent) == 1
