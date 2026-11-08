@@ -183,6 +183,22 @@ def test_refused_saves_fail_the_run(monkeypatch, tmp_path, capsys):  # AC-6.7
     assert not out_path(tmp_path).exists()
 
 
+class ValidThenInvalidAgent(FakeAgent):
+    """Saves valid banter, then a refused (invalid) save in the same run."""
+
+    def __call__(self, command, log_path, timeout_s=600, on_event=None):
+        valid = super().__call__(command, log_path, timeout_s, on_event)
+        self.banter = {"intro": []}
+        invalid = super().__call__(command, log_path, timeout_s, on_event)
+        return AgentResult(ok=True, events=valid.events + invalid.events, log_path=log_path)
+
+
+def test_valid_save_then_refused_save_succeeds(monkeypatch, tmp_path):  # AC-6.7, FR-7
+    agent = ValidThenInvalidAgent()
+    assert run(monkeypatch, tmp_path, extra=["--force"], agent=agent) == 0
+    assert validate_script(load_json(out_path(tmp_path)), load_json(MINI_BOOK), TERMS) == []
+
+
 def test_save_limit_reports_the_last_validation_errors(monkeypatch, tmp_path, capsys):
     agent = FakeAgent(banter={"intro": []}, saves=6)  # FR-7: 6th save hits the limit
     assert run(monkeypatch, tmp_path, agent=agent) == 1

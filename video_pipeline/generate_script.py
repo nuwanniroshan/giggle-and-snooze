@@ -100,8 +100,7 @@ def run_agent(args: argparse.Namespace, tools: EpisodeTools) -> None:
     log_path = tools.out.parent / "agent" / f"{time.strftime('%Y%m%d-%H%M%S')}-codex.jsonl"
     print(f"running the Codex (ChatGPT) agent; log: {log_path}")
     result = run_codex(command, log_path, on_event=_print_event)
-    save = result.last_save or {}
-    if save.get("saved") and tools.out.exists():
+    if any(save.get("saved") for save in result.save_results) and tools.out.exists():
         errors = validate_script(
             json.loads(tools.out.read_text(encoding="utf-8")), tools.book, tools.terms
         )
