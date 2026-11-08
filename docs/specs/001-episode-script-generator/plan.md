@@ -1,6 +1,6 @@
 # Implementation Plan: Episode Script Generator
 
-**Spec:** docs/specs/001-episode-script-generator/spec.md (v1.1.0, Approved)
+**Spec:** docs/specs/001-episode-script-generator/spec.md (v2.0.0, Approved; phases 4–6 need re-planning, see Plan Changelog)
 **Decisions:** none (no ADRs; tech choices traced inline below)
 **Created:** 2026-11-08
 
@@ -1368,7 +1368,7 @@ def _qa_errors(number: int, qa: list[dict], page: dict, book_page: dict, terms: 
 
 ---
 
-## Phase 4: Model backends (local Ollama, opt-in cloud Gemini)
+## ~~Phase 4: Model backends (local Ollama, opt-in cloud Gemini)~~ (partly invalidated v2.0.0 — `generate_local` removed; `generate_cloud` and `build_prompt` reused by the v2.0.0 phases)
 
 **Implements:** FR-7 (modes, no fallback, one request per attempt), NFR Performance (model released), Security (credentials from env only) | **Satisfies:** AC-1.4, AC-6.5 (backend side)
 **Files:** `video_pipeline/llm.py`, `tests/test_llm.py`
@@ -1655,7 +1655,7 @@ def generate_cloud(prompt: str, seed: int, model: str = CLOUD_MODEL) -> str:
 
 ---
 
-## Phase 5: CLI, retry loop and atomic write
+## ~~Phase 5: CLI, retry loop and atomic write~~ (partly invalidated v2.0.0 — `write_atomic`, overwrite guard, terms gate and review notice kept; backend selection and retry loop rewritten in the v2.0.0 phases)
 
 **Implements:** FR-1, FR-7, NFR Reliability, Security (terms file gate, review notice), Error Scenarios | **Satisfies:** AC-1.1–1.4, AC-6.1–6.5, AC-7.2–7.4 (Phase 0 tests)
 **Files:** `video_pipeline/generate_script.py`
@@ -1823,7 +1823,7 @@ if __name__ == "__main__":
 
 ---
 
-## Phase 6: Integration verification
+## ~~Phase 6: Integration verification~~ (invalidated v2.0.0 — real local-model run replaced by the Codex provider integration check in the v2.0.0 phases)
 
 **Implements:** All FRs | **Satisfies:** All ACs, NFR Performance (3 min, model released), AC-6.3 against the real model
 **Files:** `tests/test_ollama_integration.py`, `CLAUDE.md` (add the commands), `.claude/rules/data-pipeline.md` (note that `episodes/` holds hand-editable scripts)
@@ -1907,3 +1907,11 @@ uv run pytest -v && uv run pytest -m ollama -v
 | FR-7 Modes, reproducibility, re-runs, retries | 4, 5 |
 | NFR Performance / Security / Reliability / Cost | 6, 1+3+4, 5, 4+5 |
 | Error Scenarios table | 2 (book errors), 4 (backend errors), 5 (terms, overwrite, retries, atomic write) |
+
+## Plan Changelog
+
+| Version | Phase | Change |
+|---------|-------|--------|
+| 2.0.0 | Phase 4 | Partly invalidated: local Ollama backend removed; Gemini API backend and prompt builder kept |
+| 2.0.0 | Phase 5 | Partly invalidated: provider selection and retry loop to be rewritten for agent providers (FR-7) |
+| 2.0.0 | Phase 6 | Invalidated: replaced by the provider and episode-tools phases (FR-7, FR-8), to be planned with sdd-plan |

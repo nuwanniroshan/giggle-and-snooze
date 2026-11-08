@@ -1,7 +1,7 @@
 # Feature 001: Episode Script Generator
 
 **Status:** Approved
-**Version:** 1.1.0
+**Version:** 2.0.0
 **Created:** 2026-11-08
 **Last Updated:** 2026-11-08
 **Branch:** `feat/001-episode-script-generator`
@@ -12,6 +12,7 @@
 |---------|------|--------|
 | 1.0.0 | 2026-11-08 | Initial approved spec |
 | 1.1.0 | 2026-11-08 | Spec review fixes: defined whitespace normalisation (AC-2.2); added narration line-splitting rule (FR-3, AC-2.4); split kid-safety into automated checks vs human review (FR-4, Security, AC-7.x); added missing/empty disallowed-terms list behaviour; zoom target is a best-effort estimate with a default (FR-6, AC-5.5) |
+| 2.0.0 | 2026-11-08 | Replaced the local Ollama model with providers that run on the producer's existing subscriptions. The local 7B model failed validation on every real run. Rewrote FR-7, Goals, AC-1.1, AC-6.3, AC-6.5, the Performance and Cost NFRs and the provider error scenarios. Removed AC-1.4 (no cloud request in default mode) and the model-release NFR. Added FR-8 (episode tools) and AC-6.6–6.8. Default provider: ChatGPT via the Codex CLI login; the Gemini API key stays as an opt-in provider. Banter text is no longer byte-reproducible; the episode plan still is. |
 
 ---
 
@@ -24,21 +25,21 @@ Each book has to become an episode script before any voices or video can be prod
 - Produce a complete, valid episode script from a book data file with one command and no per-book code changes.
 - Keep the narration exactly faithful to the book: every page in order, using the book's own text.
 - Make the kid interruptions feel natural and varied: about every 2–3 pages, sometimes one kid and sometimes both, each tied to something on that page.
-- Run fully offline by default at zero cloud cost; the cloud text model is opt-in for each run.
-- Get the same script from the same inputs and settings, so a script can be reproduced and reviewed.
+- Write the banter with a capable hosted model through subscriptions the producer already pays for (ChatGPT by default), with no per-run API cost on the default path.
+- Get the same episode plan (Q&A pages, speakers, camera motions, narration lines) from the same inputs and seed, so runs can be compared and reviewed.
 
 ## Non-Goals
 
 - Synthesizing audio, mixing music or sound effects, or rendering video (later pipeline stages).
 - Generating intro/outro images or YouTube metadata (title, description, tags, timestamps).
 - Editing or rewriting the book's story text.
-- Any user interface beyond a command-line invocation.
+- Any user interface beyond a command-line invocation and the episode tools (FR-8).
 
 ## Users and Context
 
 **Primary users:** The channel producer, who runs the pipeline for each new book (weekly or monthly).
 **Secondary users:** The downstream pipeline stages (voice synthesis, video rendering) that read the episode script; the producer, who may hand-edit a script before rendering.
-**Usage context:** On the local Mac after a book's data file and illustrations are final, before voice synthesis. Usually offline.
+**Usage context:** On the local Mac after a book's data file and illustrations are final, before voice synthesis. Needs a network connection and a logged-in provider (ChatGPT by default).
 **User mental model:** "Point it at a book, get the read-aloud script." The producer thinks in terms of pages, the Storyteller, Leo (the older kid, ~8) and Mia (the younger kid, ~5), and the "Q&A moments" where the kids chime in.
 
 ## User Stories
@@ -51,10 +52,9 @@ Each book has to become an episode script before any voices or video can be prod
 
 **Acceptance criteria:**
 
-- [ ] **AC-1.1** Given a valid book data file and no existing script for that book When the producer runs the generator in default mode Then an episode script is written to `episodes/<book-slug>/episode_script.json` and the command exits successfully
+- [ ] **AC-1.1** Given a valid book data file and no existing script for that book When the producer runs the generator with the default provider Then an episode script is written to `episodes/<book-slug>/episode_script.json` and the command exits successfully
 - [ ] **AC-1.2** Given a valid book data file When the generator completes Then the saved script passes validation against the episode script contract (FR-2) with zero errors
 - [ ] **AC-1.3** Given a book data file for a book other than the pilot book (different title, page count between 8 and 32) When the generator runs Then it produces a valid script with no code or configuration changes other than pointing it at the new file
-- [ ] **AC-1.4** Given the generator runs in default mode When it completes Then no request was sent to any cloud service
 
 ### Story 2: Verbatim narration of every page
 
@@ -109,19 +109,22 @@ Each book has to become an episode script before any voices or video can be prod
 - [ ] **AC-5.4** Given the intro and the outro When inspected Then each has a camera effect: `zoom_in_center` for the intro and `zoom_out_warm_fade` for the outro
 - [ ] **AC-5.5** Given a Q&A page whose illustration description gives no position cue for the grounding detail When the script is generated Then its zoom target is exactly `x = 0.5`, `y = 0.5`, `zoom = 1.3`
 
-### Story 6: Safe re-runs and opt-in cloud
+### Story 6: Safe re-runs and providers
 
 **As a** producer
-**I want** existing scripts protected and cloud use to be my explicit choice
+**I want** existing scripts protected and the text model to run through a subscription I already have
 **So that** hand edits aren't lost and costs stay near zero
 
 **Acceptance criteria:**
 
 - [ ] **AC-6.1** Given a script already exists for the book When the producer runs the generator without the force option Then the existing file is unchanged (byte-identical), a message names the existing file and the force option, and the command exits with a non-zero status
 - [ ] **AC-6.2** Given a script already exists When the producer runs the generator with the force option Then the file is replaced by a newly generated, valid script
-- [ ] **AC-6.3** Given the same book data file, settings and seed in default (local) mode When the generator is run twice with force Then both output files are byte-identical
+- [ ] **AC-6.3** Given the same book data file and seed When the generator is run twice with force Then both scripts have identical page entries apart from Q&A line text and `qa_grounding`: the same `has_qa` pages, the same kids speaking in each Q&A moment, the same narration lines and the same narration motions
 - [ ] **AC-6.4** Given the same inputs When the seed setting is changed Then the generator is allowed to produce a different script, which still passes every acceptance criterion above
-- [ ] **AC-6.5** Given the producer selects cloud mode and cloud credentials are present When the generator runs Then it sends at most one generation request per attempt, and the script it writes passes the same validation as in local mode
+- [ ] **AC-6.5** Given the producer selects the Gemini API provider and its key is present When the generator runs Then it sends at most one generation request per attempt, and the script it writes passes the same validation as with the default provider
+- [ ] **AC-6.6** Given the selected provider's command-line tool is missing or not logged in When the generator runs Then it exits non-zero naming the provider and how to install or log in, sends no generation request, writes nothing, and does not switch to another provider
+- [ ] **AC-6.7** Given an agent provider is running When it tries to save a banter that fails validation Then the save is refused with the full error list, nothing is written, and the provider may correct the banter and try again; the run fails if no valid save happens within the run's limits (FR-7)
+- [ ] **AC-6.8** Given an agent provider runs When it is started Then it is given only the episode tools (FR-8), with no shell access and no other file access, and its run log is saved under `episodes/<book-slug>/agent/`
 
 ### Story 7: Kid-safety gate
 
@@ -202,28 +205,44 @@ The output follows the `episode_script.json` contract in PRD.md §4.2, made exac
 - Treat the zoom target as a best-effort estimate of where the grounding detail sits, inferred only from the illustration description's position words (e.g. "left", "foreground", "top"). When the description gives no position cue, use the centre default `x = 0.5, y = 0.5, zoom = 1.3` (AC-5.5). The producer may hand-edit zoom targets in the saved script.
 - Give the intro and outro the camera effects in AC-5.4.
 
-### FR-7: Generation modes, reproducibility and re-runs
+### FR-7: Providers, reproducibility and re-runs
+
+The banter (intro, Q&A moment lines and grounding phrases, outro) is written by a text-model provider. Everything else in the script is produced deterministically from the book and the seed.
 
 **Must:**
-- Use the local text model by default, with no network access needed.
-- Offer cloud mode only as an explicit per-run option.
-- Take a seed setting (default fixed) and produce byte-identical output for identical inputs, settings and seed in local mode (AC-6.3).
+- Support these providers, chosen per run:
+  - `codex` (default): an agent run through the producer's ChatGPT login via the Codex command-line tool. It reads the plan, writes the banter, checks it and saves it using only the episode tools (FR-8).
+  - `gemini-api` (opt-in): one generation request per attempt to the Gemini API with a key from the environment, retried up to 3 attempts in total with the previous attempt's validation errors fed back.
+- Check that the selected provider is available (installed and logged in, or key present) before sending anything (AC-6.6).
+- Take a seed setting (default fixed) that alone decides the episode plan: Q&A pages, which kids speak in each, narration motions and narration line splits (AC-6.3).
 - Refuse to overwrite an existing script unless the force option is given (AC-6.1, AC-6.2).
-- When model output fails validation, retry generation up to 3 attempts in total, then fail.
+- Limit an agent run to 10 minutes and 5 save attempts; stop it and fail when either limit is reached.
+- Keep each agent run's log (its steps and tool calls, never credentials) under `episodes/<book-slug>/agent/`.
 
 **Must not:**
-- Fall back from cloud to local mode, or from local to cloud mode, without being told to.
+- Fall back from one provider to another without being told to.
+- Give an agent provider shell access, file access or any tool other than the episode tools.
+
+### FR-8: Episode tools
+
+The deterministic parts of the generator are exposed as tools over the Model Context Protocol, so an agent provider (headless, or the producer chatting in ChatGPT/Codex) can do the creative writing while the tools enforce the rules.
+
+**Must:**
+- Provide `get_episode_plan`: for a book and seed, returns the book title and age range, each page's number, text and illustration description, the cast, the Q&A pages with the kids who must speak in each, and the writing rules from this spec.
+- Provide `validate_banter`: takes a banter (intro, moments, outro) and returns every validation error against the plan and this spec, or none.
+- Provide `save_episode_script`: takes a banter, assembles the full script, validates it, and writes it atomically only when it is valid and the force rule allows (AC-6.1, AC-6.7). Returns the saved path, or the errors.
+- Take the book file, seed and force setting from how the tools were started, not from the agent, so an agent cannot point them at other files.
 
 ## Non-Functional Requirements
 
 ### Performance
 
-- Local mode generates a 20-page script in at most 3 minutes on the target machine (M1 Pro, 16 GB), excluding the one-time model download.
-- The generator releases the local model when it finishes so the next stage (voice synthesis) has the memory.
+- The default provider generates a valid 20-page script in at most 10 minutes (FR-7 limit).
+- No model runs on the local machine, so voice synthesis has the full memory afterwards.
 
 ### Security
 
-- Cloud credentials are read only from the environment, never from files in the repository, and are never written to logs, output or the script.
+- Credentials are never read from or written to the repository, logs, output or the script. The Gemini API key comes only from the environment; the Codex provider uses the Codex tool's own login.
 - Every generated line is checked against a project-level disallowed-terms list before saving; any match counts as a validation failure (FR-7 retries apply). The list file must exist (AC-7.2); an empty list is allowed but reported (AC-7.3).
 - Automated checks cover only the disallowed-terms list and the structural rules in this spec. Age-suitability, spoilers and invented events are a human review gate before voice synthesis (AC-7.4).
 - Model output is treated as untrusted: it is used only after it passes validation.
@@ -235,7 +254,7 @@ The output follows the `episode_script.json` contract in PRD.md §4.2, made exac
 
 ### Cost
 
-- Default mode costs nothing in cloud usage. Cloud mode makes one generation request per attempt (at most 3 per run), targeting under $0.01 per successful run.
+- The default provider uses the producer's existing ChatGPT subscription: no per-run API charge. The Gemini API provider makes one request per attempt (at most 3 per run), targeting under $0.01 per successful run.
 
 ## Error Scenarios
 
@@ -244,9 +263,10 @@ The output follows the `episode_script.json` contract in PRD.md §4.2, made exac
 | Book data file missing or not valid JSON | Exit non-zero naming the file path; nothing written |
 | A page lacks `text` or an illustration `prompt`, or page numbers are not 1..N in order | Exit non-zero naming the page and the missing or invalid field; nothing written |
 | Book has fewer than 8 or more than 32 pages | Exit non-zero stating the supported range; nothing written |
-| Local model not running or not installed | Exit non-zero saying the local model is unavailable and how to start it; no cloud fallback |
-| Cloud mode selected but no credentials in the environment | Exit non-zero naming the missing environment variable; no local fallback |
-| Model output fails validation (narration mismatch, bad tag, Q&A rule, disallowed term) 3 times | Exit non-zero listing the validation errors from the last attempt; nothing written |
+| Codex command-line tool not found or not logged in | Exit non-zero naming the provider and how to install or log in; no other provider tried |
+| Gemini API provider selected but no key in the environment | Exit non-zero naming the missing environment variable; no other provider tried |
+| Gemini API output fails validation 3 times | Exit non-zero listing the validation errors from the last attempt; nothing written |
+| Agent run reaches 10 minutes or 5 refused saves without a valid save | Agent stopped; exit non-zero listing the last validation errors; nothing written; run log kept |
 | Disallowed-terms list file missing | Exit non-zero naming the expected file path; no generation request sent; nothing written |
 | Disallowed-terms list file empty | Proceed; output message states the list is empty |
 | Script already exists and force not given | Exit non-zero naming the file and the force option; file unchanged |
@@ -256,10 +276,10 @@ The output follows the `episode_script.json` contract in PRD.md §4.2, made exac
 
 None. Resolved during specification:
 - Narration is verbatim (emotion tags allowed).
-- Local mode is the default; cloud is opt-in per run.
+- The default provider is ChatGPT via the Codex login; the Gemini API is opt-in.
 - Kid cast is a fixed recurring pair (Leo ~8, Mia ~5); each Q&A moment has one or both kids, varied by seed.
 - Existing scripts are kept unless forced.
-- Output is reproducible for the same inputs, settings and seed in local mode.
+- The episode plan is reproducible for the same inputs and seed; banter text may differ between runs (v2.0.0).
 
 ## Out of Scope (Future Considerations)
 
