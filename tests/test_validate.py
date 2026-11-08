@@ -109,6 +109,10 @@ def mutate_outro_ends_with_kid(script):
     script["outro"]["lines"].append({"speaker": "kid_older", "text": "Bye!"})
 
 
+def mutate_outro_no_come_back(script):
+    script["outro"]["lines"][-1]["text"] = "Please subscribe!"
+
+
 def mutate_motion(script):
     script["pages"][0]["ffmpeg_camera"]["narration_motion"] = "spin"
 
@@ -150,6 +154,7 @@ def mutate_cast(script):
         (mutate_bad_tag, "intro line 1: tag <whisper> is not allowed"),  # FR-5
         (mutate_intro_no_title, "intro must mention the title"),  # AC-4.1
         (mutate_outro_ends_with_kid, "outro must end with a storyteller line inviting"),  # AC-4.2
+        (mutate_outro_no_come_back, "and come back for the next story"),  # AC-4.2
         (mutate_motion, "page 1: narration_motion must be one of"),  # AC-5.1
         (mutate_zoom_range, "qa_zoom_target needs x, y in [0, 1] and zoom in [1, 2]"),  # AC-5.2
         (mutate_zoom_on_plain_page, "has_qa is false but the page has Q&A content"),  # AC-5.3

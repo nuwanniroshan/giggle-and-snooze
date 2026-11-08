@@ -29,6 +29,7 @@ TOP_LEVEL_KEYS = (
 MAX_KID_WORDS = 25
 MAX_NARRATION_WORDS = 40
 MAX_NARRATION_SENTENCES = 2
+COME_BACK_CUES = ("come back", "next story", "next time")
 
 TAG_RE = re.compile(r"<[^<>]*>")
 # Stage directions and markup in generated lines (FR-5): *giggles*, [laughs], (whispering), _softly_
@@ -257,8 +258,13 @@ def _bookend_errors(block: dict, name: str, terms: list[str], title: str) -> lis
             errors.append(f"intro must mention the title {title!r}")
     else:
         last = lines[-1] if lines else {}
-        if last.get("speaker") != "storyteller" or "subscribe" not in last.get("text", "").lower():
-            errors.append("outro must end with a storyteller line inviting viewers to subscribe")
+        text = last.get("text", "").lower()
+        invites = "subscribe" in text and any(cue in text for cue in COME_BACK_CUES)
+        if last.get("speaker") != "storyteller" or not invites:
+            errors.append(
+                "outro must end with a storyteller line inviting viewers to subscribe "
+                "and come back for the next story"
+            )
     return errors
 
 
