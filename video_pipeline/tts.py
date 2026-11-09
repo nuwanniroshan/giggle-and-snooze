@@ -22,7 +22,8 @@ class ModelSettings:
     temperature: float
     top_p: float
     max_tokens: int
-    support_repos: tuple[tuple[str, str], ...] = ()
+    # (repo, revision, allow_patterns): None fetches the whole repo, a tuple only those files.
+    support_repos: tuple[tuple[str, str, tuple[str, ...] | None], ...] = ()
 
 
 class VoiceUnavailable(Exception):
@@ -85,8 +86,12 @@ def download_model(settings: ModelSettings) -> None:
     """The only network use (spec 002 Cost): fetch the pinned model and its support files."""
     from huggingface_hub import snapshot_download
 
-    for repo, revision in ((settings.repo, settings.revision), *settings.support_repos):
-        snapshot_download(repo_id=repo, revision=revision)
+    snapshot_download(repo_id=settings.repo, revision=settings.revision)
+    for repo, revision, patterns in settings.support_repos:
+        if patterns is None:
+            snapshot_download(repo_id=repo, revision=revision)
+        else:
+            snapshot_download(repo_id=repo, revision=revision, allow_patterns=list(patterns))
 
 
 class OrpheusVoice:

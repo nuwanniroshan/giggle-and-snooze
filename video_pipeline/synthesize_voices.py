@@ -96,7 +96,12 @@ def load_voice_config(path: Path) -> VoiceConfig:
             top_p=float(model["top_p"]),
             max_tokens=int(model["max_tokens"]),
             support_repos=tuple(
-                (item["repo"], item["revision"]) for item in model.get("support_repos", [])
+                (
+                    item["repo"],
+                    item["revision"],
+                    tuple(item["files"]) if item.get("files") is not None else None,
+                )
+                for item in model.get("support_repos", [])
             ),
         ),
         seed=int(model["seed"]),

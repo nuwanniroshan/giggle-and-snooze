@@ -4,7 +4,11 @@
     "revision": "b30aed4ecfa03c0177a5419b51919d14a105f183",
     "support_repos": [
       {"repo": "mlx-community/snac_24khz", "revision": "556af1cd3b1c5f2d294f6aa9bb886245d7b716ac"},
-      {"repo": "mlx-community/orpheus-3b-0.1-ft-bf16", "revision": "3786aac51797181edddeb0d89a8253deaee99aab"}
+      {
+        "repo": "mlx-community/orpheus-3b-0.1-ft-bf16",
+        "revision": "3786aac51797181edddeb0d89a8253deaee99aab",
+        "files": ["config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"]
+      }
     ],
     "temperature": 0.6,
     "top_p": 0.8,

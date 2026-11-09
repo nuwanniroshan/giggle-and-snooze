@@ -13,6 +13,7 @@ from video_pipeline.tts import (
     OrpheusVoice,
     PitchShiftError,
     VoiceUnavailable,
+    download_model,
     pitch_filter,
     pitch_ratio,
     pitch_shift,
@@ -112,6 +113,31 @@ def install_fakes(monkeypatch, snapshot=None, model=None):
     }.items():
         monkeypatch.setitem(sys.modules, name, module)
     return calls
+
+
+def test_download_fetches_only_listed_files_from_support_repos(monkeypatch):
+    calls = install_fakes(monkeypatch)
+    settings = ModelSettings(
+        "org/model",
+        "abc12345def",
+        0.6,
+        0.8,
+        3000,
+        support_repos=(
+            ("org/codec", "rev1", None),
+            ("org/full", "rev2", ("config.json", "tokenizer.json")),
+        ),
+    )
+    download_model(settings)
+    assert calls["snapshot"] == [
+        {"repo_id": "org/model", "revision": "abc12345def"},
+        {"repo_id": "org/codec", "revision": "rev1"},
+        {
+            "repo_id": "org/full",
+            "revision": "rev2",
+            "allow_patterns": ["config.json", "tokenizer.json"],
+        },
+    ]
 
 
 def test_engine_loads_pinned_model_offline(monkeypatch):

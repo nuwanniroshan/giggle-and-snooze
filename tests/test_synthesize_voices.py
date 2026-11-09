@@ -96,6 +96,17 @@ def test_clip_key_identity():  # FR-7
     assert base != clip_key("Hello there.", "tara", 0, other_model)
 
 
+def test_voice_config_limits_bf16_support_repo_to_tokenizer_files():
+    repos = {repo: (revision, files) for repo, revision, files in CFG.model.support_repos}
+    assert repos["mlx-community/snac_24khz"][1] is None
+    assert repos["mlx-community/orpheus-3b-0.1-ft-bf16"][1] == (
+        "config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+    )
+
+
 def test_pronunciation_changes_only_affected_lines(script):  # AC-5.4
     before = plan_jobs(script, CFG, {})
     after = plan_jobs(script, CFG, {"Tilly": "Til-ee"})
