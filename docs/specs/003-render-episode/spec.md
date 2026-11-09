@@ -1,6 +1,6 @@
 # Spec 003: Render the episode video
 
-**Version:** 1.0.0
+**Version:** 1.1.0 (1.1.0, 2026-11-09: AC-4.5 and AC-4.6 added for readable caption breaks, MINOR; requested by the producer after the pilot render)
 **Status:** Approved
 **Created:** 2026-11-09
 **Depends on:** spec 001 (episode script), spec 002 (voice synthesis; audio must be approved)
@@ -63,6 +63,8 @@ As a parent or child, I want to read along with what is being said, so that the 
 - **AC-4.1** Every spoken line is shown on screen as a caption while it is spoken, and no caption is shown when nothing is being said.
 - **AC-4.2** Captions show the line's original words from the script, with emotion tags removed and no pronunciation respellings.
 - **AC-4.3** A caption never exceeds two lines of text and stays inside the frame with a margin; longer lines are split into consecutive caption cards in reading order, each shown for a share of the line's time proportional to its words.
+- **AC-4.5** *(v1.1.0)* When a line needs more than one card, cards break at sentence ends where possible, else at clause punctuation (comma, semicolon, colon, dash), and only otherwise between words; a card never ends in the middle of a sentence when a sentence end would fit.
+- **AC-4.6** *(v1.1.0)* No caption card is a single word or shows for less than 1.2 s, unless its whole line is that short; such a fragment is merged into the neighbouring card of the same line (still within two lines), and the line's text is spread evenly across the fewest cards that fit.
 - **AC-4.4** Captions are legible over any illustration: light text on a dark translucent band at the bottom of the frame, text at least 40 px tall at 1080p.
 
 ### Story 5: Page turns
