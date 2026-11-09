@@ -29,6 +29,7 @@ import numpy as np
 import soundfile as sf
 from PIL import Image, UnidentifiedImageError
 
+from video_pipeline import timeline
 from video_pipeline.contract import ConfigError, slugify
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import CONFIG_DIR, ROOT, write_atomic
@@ -126,7 +127,9 @@ def section_filtergraph(section: Section, caption_count: int, cfg: RenderConfig)
     ]
     label = "base"
     for index, card in enumerate(section.captions, start=1):
-        enable = f"between(t,{_sec(card.start)},{_sec(card.end)})"
+        # Half-open [start, end): contiguous cards never share a boundary frame. The quotes keep
+        # the commas away from the filtergraph parser.
+        enable = f"gte(t,{_sec(card.start)})*lt(t,{_sec(card.end)})"
         chains.append(
             f"[{label}][{index}:v]overlay=x=0:y=0:eof_action=repeat:enable='{enable}'[v{index}]"
         )
@@ -296,9 +299,15 @@ def run_ffmpeg(cmd: list[str], what: str) -> None:
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError:
-        raise RenderError("ffmpeg not found; brew install ffmpeg") from None
+        raise RenderError(f"{what}: ffmpeg not found; brew install ffmpeg") from None
     except subprocess.CalledProcessError as exc:
-        detail = _tail(exc.stderr) or f"ffmpeg exit {exc.returncode}"
+        stderr = (
+            exc.stderr.decode("utf-8", "replace") if isinstance(exc.stderr, bytes) else exc.stderr
+        )
+        if "No space left on device" in (stderr or ""):
+            folder = Path(cmd[-1]).parent
+            raise RenderError(f"{what}: not enough disk space to write video in {folder}") from None
+        detail = _tail(stderr) or f"ffmpeg exit {exc.returncode}"
         raise RenderError(f"{what}: {detail}") from None
 
 
@@ -581,6 +590,7 @@ def render_video(
         )
         final_key = _digest(
             {
+                "render_version": timeline.RENDER_VERSION,
                 "sections": [[s.name, k] for s, k in zip(sections, keys, strict=True)],
                 "transitions": trans_keys,
                 "tracks": {name: sha256_file(audio.track(name)) for name in track_names},

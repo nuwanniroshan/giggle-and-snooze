@@ -1,5 +1,6 @@
 """Phase 3 of spec 003: FFmpeg command and filtergraph builders (pure; no real FFmpeg)."""
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -90,10 +91,27 @@ def test_section_filtergraph_one_overlay_per_caption_with_times(cfg):
     assert "[base][1:v]overlay=" in graph
     assert graph.count("eof_action=repeat") == 2
     assert "[v1][2:v]overlay=" in graph
-    assert "enable='between(t,0.600,2.250)'" in graph
-    assert "enable='between(t,2.250,3.500)'" in graph
+    assert "enable='gte(t,0.600)*lt(t,2.250)'" in graph
+    assert "enable='gte(t,2.250)*lt(t,3.500)'" in graph
+    assert "between(" not in graph
     assert "[v2]" in graph
     assert graph.endswith("format=yuv420p[vout]")
+
+
+def _enabled_at(enable: str, t: float) -> bool:
+    """Evaluate an `enable='gte(t,a)*lt(t,b)'` expression the way FFmpeg does."""
+    match = re.fullmatch(r"gte\(t,([\d.]+)\)\*lt\(t,([\d.]+)\)", enable)
+    assert match, enable
+    return float(match[1]) <= t < float(match[2])
+
+
+def test_caption_boundary_frame_belongs_to_exactly_one_card(cfg):  # review r1 #2
+    graph = section_filtergraph(_page(captions=CARDS), len(CARDS), cfg)
+    enables = re.findall(r"enable='([^']*)'", graph)
+    assert len(enables) == 2
+    for t in (0.6, 2.25, 3.0):
+        assert sum(_enabled_at(e, t) for e in enables) == 1, t
+    assert not any(_enabled_at(e, 3.5) for e in enables)
 
 
 def test_section_filtergraph_caption_count_must_match(cfg):
@@ -218,8 +236,24 @@ def test_run_ffmpeg_missing_binary_is_render_error(monkeypatch):
         raise FileNotFoundError(cmd[0])
 
     monkeypatch.setattr(render_episode.subprocess, "run", fake_run)
-    with pytest.raises(RenderError, match="ffmpeg not found"):
+    with pytest.raises(RenderError) as info:
         run_ffmpeg(["ffmpeg"], "section page-01")
+    assert str(info.value) == "section page-01: ffmpeg not found; brew install ffmpeg"
+
+
+def test_run_ffmpeg_disk_full_names_the_output_folder(monkeypatch, tmp_path):  # review r1 #5
+    out = tmp_path / "video" / "sections" / "page-01.tmp.mp4"
+
+    def fake_run(cmd, **kwargs):
+        stderr = f"[out#0/mp4] Error writing trailer of {out}: No space left on device"
+        raise subprocess.CalledProcessError(1, cmd, "", stderr)
+
+    monkeypatch.setattr(render_episode.subprocess, "run", fake_run)
+    with pytest.raises(RenderError) as info:
+        run_ffmpeg(["ffmpeg", "-i", "x.png", str(out)], "section page-01")
+    assert str(info.value) == (
+        f"section page-01: not enough disk space to write video in {out.parent}"
+    )
 
 
 def test_run_ffmpeg_failure_names_what_and_stderr_tail(monkeypatch):

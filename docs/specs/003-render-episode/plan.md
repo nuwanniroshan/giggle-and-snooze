@@ -196,6 +196,16 @@ Inputs already exist: `book_data.json` (pages with `illustration_file`, square 1
 - `resolve_pictures` falls back to `page_PP.png` when `illustration_file` is absent.
 - The record is deleted at re-render start.
 
+## Review fixes (round 1)
+
+1. Approval covers the tracks (AC-2.2): `status.json` records `track_sha256` (`{track: {wav, json}}`) after the tracks are built; `_validity_problems` recomputes it, so render and `approve` refuse an edited track ("audio track page-03 changed since approval; …"), a status without it ("approval predates track checks; …") and name a missing track file; `next_status` keeps an approval only when the track hashes match.
+2. Caption overlays are half-open: `enable='gte(t,a)*lt(t,b)'`, so contiguous cards never share a boundary frame.
+3. A corrupt `status.json`/`preview.json` is "<path> is unreadable; re-run synthesis" (render and approve exit 1); synthesis treats it as absent and rewrites it.
+4. `run_ffmpeg` names the step when FFmpeg is missing: "<step>: ffmpeg not found; brew install ffmpeg".
+5. FFmpeg stderr "No space left on device" → "<step>: not enough disk space to write video in <output folder>".
+6. `section_key` hashes the caption font files (path if absent); `RENDER_VERSION = 1` (timeline.py) is in the section, transition and final keys.
+7. The outro fade starts no earlier than the end of the last outro line: `fade_out_frames = max(0, min(round(outro_fade*fps), frames - ceil((lead_in + last_end)*fps)))`; `config/render.json` `outro_fade` 1.0.
+
 ## Spec coverage
 
 | Spec item | Phase(s) |

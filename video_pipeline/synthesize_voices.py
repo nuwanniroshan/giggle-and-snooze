@@ -481,12 +481,8 @@ def build_preview(track_names: list[str], paths: AudioPaths, cfg: VoiceConfig) -
     ]
     payload = [keyed, cfg.pauses["between_tracks"], cfg.sample_rate]
     preview_key = hashlib.sha256(json.dumps(payload).encode()).hexdigest()[:32]
-    if (
-        paths.preview.exists()
-        and paths.preview_meta.exists()
-        and json.loads(paths.preview_meta.read_text(encoding="utf-8")).get("preview_key")
-        == preview_key
-    ):
+    meta = _read_json_or_none(paths.preview_meta)
+    if paths.preview.exists() and meta is not None and meta.get("preview_key") == preview_key:
         return False
     tracks = [sf.read(paths.track(name), dtype="float32")[0] for name in track_names]
     gaps = [cfg.pauses["between_tracks"]] * max(0, len(tracks) - 1)
@@ -496,11 +492,53 @@ def build_preview(track_names: list[str], paths: AudioPaths, cfg: VoiceConfig) -
     return True
 
 
+class UnreadableRecord(Exception):
+    """A status.json or preview.json that is not a readable JSON object."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(f"{path} is unreadable; re-run synthesis")
+        self.path = path
+
+
+def read_record(path: Path) -> dict:
+    """A JSON object written by synthesis; a corrupt file raises UnreadableRecord."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise UnreadableRecord(path) from None
+    if not isinstance(data, dict):
+        raise UnreadableRecord(path)
+    return data
+
+
+def _read_json_or_none(path: Path) -> dict | None:
+    """A record, or None when it is missing or corrupt (synthesis then rebuilds it)."""
+    try:
+        return read_record(path)
+    except (FileNotFoundError, UnreadableRecord):
+        return None
+
+
 def current_preview_key(paths: AudioPaths) -> str | None:
-    """The key of the preview on disk, or None when there is no preview."""
+    """The key of the preview on disk, or None when there is no preview.
+
+    A corrupt preview.json raises UnreadableRecord."""
     if not (paths.preview.exists() and paths.preview_meta.exists()):
         return None
-    return json.loads(paths.preview_meta.read_text(encoding="utf-8")).get("preview_key")
+    return read_record(paths.preview_meta).get("preview_key")
+
+
+def track_hashes(paths: AudioPaths, track_names: list[str]) -> dict[str, dict[str, str | None]]:
+    """sha256 of each track's audio and timing JSON (None for a missing file), so an approval
+    covers the exact files that were listened to (spec 003 AC-2.2)."""
+
+    def sha(path: Path) -> str | None:
+        return sha256_file(path) if path.is_file() else None
+
+    return {
+        name: {"wav": sha(paths.track(name)), "json": sha(paths.track_timing(name))}
+        for name in track_names
+    }
 
 
 REVIEW_NOTICE = (
@@ -572,15 +610,14 @@ def next_status(
     settings_sha: str,
     preview_key: str | None,
     any_synthesized: bool,
+    track_sha: dict[str, dict[str, str | None]],
 ) -> dict:
     """The status this run will commit; keeps an approval only if nothing changed.
 
     The approval belongs to the preview that was listened to: clips re-synthesized by an
     earlier interrupted run change the preview key even when this run synthesizes nothing.
     """
-    previous = (
-        json.loads(paths.status.read_text(encoding="utf-8")) if paths.status.exists() else None
-    )
+    previous = _read_json_or_none(paths.status)
     keep = (
         previous is not None
         and previous.get("status") == "approved"
@@ -589,6 +626,7 @@ def next_status(
         and previous.get("preview_key") == preview_key
         and previous.get("script_sha256") == script_sha
         and previous.get("settings_sha256") == settings_sha
+        and previous.get("track_sha256") == track_sha
     )
     status = (
         previous
@@ -598,6 +636,7 @@ def next_status(
             "script_sha256": script_sha,
             "settings_sha256": settings_sha,
             "preview_key": preview_key,
+            "track_sha256": track_sha,
             "synthesized_at": _now(),
             "approved_at": None,
         }
@@ -611,16 +650,40 @@ APPROVE_COMMAND = "uv run python -m video_pipeline.synthesize_voices approve"
 def _validity_problems(
     paths: AudioPaths, status: dict, script_path: Path, settings_sha: str | None, fix: str
 ) -> list[str]:
-    """Why the synthesized audio no longer matches the script, voice settings or preview."""
+    """Why the synthesized audio no longer matches the script, voice settings, preview or tracks."""
     if not script_path.exists():
         return [f"episode script not found: {script_path}"]
+    since = "approval" if status.get("status") == "approved" else "synthesis"
     problems: list[str] = []
     if sha256_file(script_path) != status.get("script_sha256"):
         problems.append(f"{script_path} changed since the audio was synthesized; {fix}")
     if settings_sha != status.get("settings_sha256"):
         problems.append(f"voice settings changed since the audio was synthesized; {fix}")
-    if current_preview_key(paths) != status.get("preview_key"):
-        problems.append(f"the preview changed since synthesis finished; {fix}")
+    try:
+        preview_key = current_preview_key(paths)
+    except UnreadableRecord as exc:
+        problems.append(str(exc))
+    else:
+        if preview_key != status.get("preview_key"):
+            problems.append(f"the preview changed since synthesis finished; {fix}")
+    recorded = status.get("track_sha256")
+    if not isinstance(recorded, dict) or not recorded:
+        problems.append(f"{since} predates track checks; {fix}")
+    else:
+        current = track_hashes(paths, list(recorded))
+        for name in recorded:
+            missing = [
+                path
+                for path, sha in (
+                    (paths.track(name), current[name]["wav"]),
+                    (paths.track_timing(name), current[name]["json"]),
+                )
+                if sha is None
+            ]
+            if missing:
+                problems.append(f"missing audio for {name}: {missing[0]}")  # AC-2.3
+            elif current[name] != recorded[name]:
+                problems.append(f"audio track {name} changed since {since}; {fix}")
     return problems
 
 
@@ -631,7 +694,10 @@ def approval_problems(
     and the approval still holds for the current script, voice settings and preview."""
     if not paths.status.exists():
         return [f"no synthesized audio in {paths.root}; run synthesis first"]
-    status = json.loads(paths.status.read_text(encoding="utf-8"))
+    try:
+        status = read_record(paths.status)
+    except UnreadableRecord as exc:
+        return [str(exc)]
     problems = _validity_problems(
         paths, status, script_path, settings_sha, "re-run synthesis and approve again"
     )
@@ -647,7 +713,10 @@ def approval_problems(
 def approve(paths: AudioPaths, script_path: Path, settings_sha: str | None) -> dict:
     if not paths.status.exists():
         raise ApproveError(f"no synthesized audio in {paths.root}; run synthesis first")
-    status = json.loads(paths.status.read_text(encoding="utf-8"))
+    try:
+        status = read_record(paths.status)
+    except UnreadableRecord as exc:
+        raise ApproveError(str(exc)) from None
     problems = _validity_problems(
         paths, status, script_path, settings_sha, "re-run synthesis first"
     )
@@ -730,7 +799,12 @@ def _synthesize(
     any_synthesized = any(o.synthesized for o in outcomes)
     script_sha, settings_sha = sha256_file(script_path), settings_hash(cfg, script, prons)
     status = next_status(
-        paths, script_sha, settings_sha, current_preview_key(paths), any_synthesized
+        paths,
+        script_sha,
+        settings_sha,
+        current_preview_key(paths),
+        any_synthesized,
+        track_hashes(paths, names),
     )
     write_review(paths, outcomes, names, script["title"], status["status"])
     write_atomic(paths.status, status)  # status.json is the commit point: written last

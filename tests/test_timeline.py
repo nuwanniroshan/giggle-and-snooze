@@ -9,6 +9,7 @@ import pytest
 
 from tests.helpers import MINI_BOOK, ROOT, load_json
 from tests.voice_helpers import make_script
+from video_pipeline import timeline
 from video_pipeline.contract import ConfigError
 from video_pipeline.timeline import (
     Camera,
@@ -405,7 +406,7 @@ def test_build_sections_intro_outro_cameras(cfg, script, timings):
     assert intro.camera.fade_out_frames == 0
     assert outro.camera.start == (cfg.motion.outro_zoom, 0.5, 0.5)
     assert outro.camera.end == (1.0, 0.5, 0.5)
-    assert outro.camera.fade_out_frames == round(cfg.motion.outro_fade * cfg.fps)
+    assert 0 < outro.camera.fade_out_frames <= round(cfg.motion.outro_fade * cfg.fps)
     assert beat.camera.start == beat.camera.end == (1.0, 0.5, 0.5)
 
 
@@ -463,3 +464,41 @@ def test_transition_key(cfg):
     assert key != transition_key(
         "a" * 32, "b" * 32, dataclasses.replace(cfg, transition_style="fade")
     )
+
+
+def test_section_key_hashes_the_caption_font_file(cfg, script, timings, tmp_path):  # review r1 #6
+    page = {s.name: s for s in build_sections(script, timings, cfg)}["page-01"]
+    font = tmp_path / "Font.ttf"
+    font.write_bytes(b"font v1")
+    with_font = dataclasses.replace(cfg, captions=dataclasses.replace(cfg.captions, font=str(font)))
+    before = section_key(page, "abc", with_font)
+    font.write_bytes(b"font v2")  # same path, new glyphs
+    assert section_key(page, "abc", with_font) != before
+
+
+def test_render_version_invalidates_every_key(cfg, script, timings, monkeypatch):  # review r1 #6
+    assert timeline.RENDER_VERSION == 1
+    page = {s.name: s for s in build_sections(script, timings, cfg)}["page-01"]
+    section, trans = section_key(page, "abc", cfg), transition_key("a" * 32, "b" * 32, cfg)
+    monkeypatch.setattr(timeline, "RENDER_VERSION", 2)
+    assert section_key(page, "abc", cfg) != section
+    assert transition_key("a" * 32, "b" * 32, cfg) != trans
+
+
+def test_outro_fade_starts_after_the_last_line(cfg, script, timings):  # review r1 #7
+    long_fade = dataclasses.replace(cfg, motion=dataclasses.replace(cfg.motion, outro_fade=5.0))
+    for config in (cfg, long_fade):
+        outro = build_sections(script, timings, config)[-1]
+        last_end = config.lead_in + max(line["end"] for line in timings["outro"]["lines"])
+        fade = outro.camera.fade_out_frames
+        assert 0 < fade <= round(config.motion.outro_fade * config.fps)
+        assert (outro.frames - fade) / config.fps >= last_end - 1e-9
+
+
+def test_outro_fade_is_never_negative(cfg, script, timings):  # review r1 #7
+    timings["outro"]["lines"][-1]["end"] = timings["outro"]["duration"] + 5.0
+    assert build_sections(script, timings, cfg)[-1].camera.fade_out_frames == 0
+
+
+def test_shipped_outro_fade_fits_in_the_hold(cfg):  # review r1 #7
+    assert cfg.motion.outro_fade <= cfg.hold

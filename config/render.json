@@ -15,7 +15,7 @@
     "qa_ease": 1.2,
     "intro_zoom": 1.15,
     "outro_zoom": 1.15,
-    "outro_fade": 1.5
+    "outro_fade": 1.0
   },
   "backdrop": {"blur": 30, "darken": 0.55},
   "captions": {

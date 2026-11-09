@@ -114,6 +114,51 @@ def test_audio_changed_after_approval_is_refused(world, capsys):  # AC-2.2
     assert "re-run synthesis and approve again" in capsys.readouterr().err
 
 
+def test_track_audio_edited_after_approval_is_refused(world, capsys):  # AC-2.2, review r1 #1
+    wav = world["audio"] / "tracks" / "page-03.wav"
+    samples, rate = sf.read(wav, dtype="float32")
+    sf.write(wav, samples * 0.5, rate)
+    code, runner = render(world)
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "audio track page-03 changed since approval; re-run synthesis and approve again" in err
+    assert runner.calls == [] and not world["video"].exists()
+
+
+def test_track_timing_text_edited_after_approval_is_refused(world, capsys):  # review r1 #1
+    timing = world["audio"] / "tracks" / "page-03.json"
+    data = load_json(timing)
+    data["lines"][0]["text"] = "Unreviewed words"
+    timing.write_text(json.dumps(data), encoding="utf-8")
+    code, runner = render(world)
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "audio track page-03 changed since approval; re-run synthesis and approve again" in err
+    assert runner.calls == []
+
+
+def test_approval_without_track_hashes_is_refused(world, capsys):  # review r1 #1
+    status_path = world["audio"] / "status.json"
+    status = load_json(status_path)
+    del status["track_sha256"]
+    status_path.write_text(json.dumps(status), encoding="utf-8")
+    code, _ = render(world)
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "approval predates track checks; re-run synthesis and approve again" in err
+
+
+@pytest.mark.parametrize("name", ["status.json", "preview.json"])
+def test_corrupt_audio_record_is_readable_error(world, capsys, name):  # review r1 #3
+    path = world["audio"] / name
+    path.write_text("{not json", encoding="utf-8")
+    code, runner = render(world)
+    err = capsys.readouterr().err
+    assert code == 1
+    assert f"error: {path} is unreadable; re-run synthesis" in err
+    assert runner.calls == []
+
+
 def test_missing_audio_folder_is_named(world, capsys):  # AC-2.3
     import shutil
 
@@ -240,6 +285,18 @@ def test_changed_illustration_rerenders_only_that_page(world, capsys):  # AC-7.2
     out = capsys.readouterr().out
     assert f"1 rendered, {len(MINI_SECTIONS) - 1} reused" in out
     assert "page-02: reused" in out
+
+
+def test_render_version_bump_rerenders_everything(world, capsys, monkeypatch):  # review r1 #6
+    from video_pipeline import timeline
+
+    assert render(world)[0] == 0
+    monkeypatch.setattr(timeline, "RENDER_VERSION", timeline.RENDER_VERSION + 1)
+    capsys.readouterr()
+    code, runner = render(world)
+    assert code == 0 and "up to date" not in capsys.readouterr().out
+    assert sections_rendered(runner) == MINI_SECTIONS
+    assert len(runner.whats("transition ")) == len(MINI_SECTIONS) - 1
 
 
 def test_force_rerenders_every_section(world):  # AC-7.3

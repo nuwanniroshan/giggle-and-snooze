@@ -1,7 +1,8 @@
 """Stage 3 timeline (spec 003): render config, captions, sections, camera math and cache keys.
 
-Pure: no I/O beyond reading the render configuration JSON. Camera coordinates are fractions of
-the 16:9 canvas: `z` is the zoom (1 = whole canvas), `cx`/`cy` the centre of the visible crop.
+Pure: no I/O beyond reading the render configuration JSON and hashing the caption fonts. Camera
+coordinates are fractions of the 16:9 canvas: `z` is the zoom (1 = whole canvas), `cx`/`cy` the
+centre of the visible crop.
 """
 
 from __future__ import annotations
@@ -20,6 +21,9 @@ Point = tuple[float, float, float]  # (z, cx, cy)
 SectionKind = Literal["intro", "page", "beat", "outro"]
 
 CENTRE: Point = (1.0, 0.5, 0.5)
+# Part of every section, transition and final-video cache key: bump it when a code change alters
+# the rendered pixels or sound, so stale clips are re-rendered.
+RENDER_VERSION = 1
 _SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([.,!?;:…)\]’”])")
 
 
@@ -429,6 +433,13 @@ def build_sections(
         )
     )
     frames = frames_for("outro")
+    # The fade starts no earlier than the end of the last spoken outro line.
+    outro_lines = timing("outro")["lines"]
+    last_end = max((float(line["end"]) for line in outro_lines), default=0.0)
+    fade_frames = max(
+        0,
+        min(round(m.outro_fade * cfg.fps), frames - _ceil_frames(cfg.lead_in + last_end, cfg.fps)),
+    )
     sections.append(
         Section(
             "outro",
@@ -442,7 +453,7 @@ def build_sections(
                 frames,
                 (m.outro_zoom, 0.5, 0.5),
                 CENTRE,
-                fade_out_frames=round(m.outro_fade * cfg.fps),
+                fade_out_frames=fade_frames,
             ),
         )
     )
@@ -477,8 +488,17 @@ def _hash(payload: dict) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
 
 
+def _font_identity(path: str) -> str:
+    """sha256 of a font file (so replacing the file re-renders captions), else its path."""
+    font = Path(path)
+    if font.is_file():
+        return hashlib.sha256(font.read_bytes()).hexdigest()
+    return path
+
+
 def _frame_settings(cfg: RenderConfig) -> dict:
     return {
+        "render_version": RENDER_VERSION,
         "width": cfg.width,
         "height": cfg.height,
         "fps": cfg.fps,
@@ -498,6 +518,10 @@ def section_key(section: Section, picture_sha: str, cfg: RenderConfig) -> str:
             "camera": asdict(section.camera),
             "backdrop": asdict(cfg.backdrop),
             "caption_style": asdict(cfg.captions),
+            "caption_fonts": [
+                _font_identity(cfg.captions.font),
+                _font_identity(cfg.captions.fallback_font),
+            ],
             **_frame_settings(cfg),
         }
     )
