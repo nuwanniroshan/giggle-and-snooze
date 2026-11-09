@@ -82,6 +82,8 @@ def cli_args(world: dict, *extra: str) -> list[str]:
         str(world["config"]),
         "--assets-dir",
         str(world["assets"]),
+        "--sfx-dir",  # never the repo's shared folder
+        str(world["assets"] / "audio_sfx"),
         *extra,
     ]
 
