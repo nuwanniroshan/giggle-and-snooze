@@ -70,6 +70,15 @@ The three stages already exist as CLIs: `video_pipeline.generate_script`, `video
 **Implements:** FR-3 (display), FR-4, FR-7, Story 1 | **Satisfies:** AC-1.1–1.3, AC-2.x (UI), AC-3.x (UI), AC-4.1–4.4, AC-5.1–5.3, AC-6.1–6.2
 **Files:** `video_pipeline/studio/app.py`, `video_pipeline/studio/templates/{base,home,book,upload,script,audio,video}.html`, `video_pipeline/studio/static/{studio.js,studio.css}`, `pyproject.toml` (declare starlette, uvicorn, jinja2, python-multipart; dev httpx), `uv.lock`, `tests/test_studio_app.py`
 
+**Visual style (producer request, 2026-11-09): ultra-minimalist, clean, black and white, generous spacing.**
+- Colours: black `#000` text on white `#fff` only; a single mid-grey (`#6b6b6b`) for secondary text and `#e5e5e5` for 1px rules. No other colours, no gradients, no shadows, no rounded "card" chrome, no icons or emoji. State badges are plain uppercase words (e.g. `APPROVED`, `RUNNING`, `FAILED`); failed is bold, not red.
+- Type: system font stack (`-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif`), 16px base, 1.6 line height; headings by size and weight only; monospace (`ui-monospace, Menlo, monospace`) for logs and paths.
+- Spacing: an 8px scale (8/16/24/48/64); content column max 880px centred with 48px side padding (24px under 600px wide); 48px between sections, 24px between items, buttons with 12px×24px padding.
+- Controls: buttons are black filled with white text (primary) or white with a 1px black border (secondary); disabled buttons are grey text on white with the reason in small grey text beside them. Links underlined. Focus outline 2px black. Inputs and textareas 1px `#000` border, square corners.
+- Tables: no vertical lines, 1px `#e5e5e5` row rules, 16px cell padding.
+- Media: `<audio>`/`<video>` native controls, full column width.
+- One stylesheet `static/studio.css` (< 200 lines), no CSS framework.
+
 **Routes (HTML unless noted):**
 - `GET /` home: books table with per-stage state badges and next action; banner when a job is running.
 - `GET /books/new`, `POST /books` (multipart: `book_data` + `files[]` + optional `replace=1`) → errors listed, or redirect to the book.
