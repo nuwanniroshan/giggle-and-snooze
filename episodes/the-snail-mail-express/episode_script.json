@@ -1,0 +1,738 @@
+{
+  "book_slug": "the-snail-mail-express",
+  "title": "The Snail Mail Express",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "orpheus",
+      "voice": "tara",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "orpheus",
+      "voice": "zac",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "orpheus",
+      "voice": "zoe",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Settle into your cozy spot. Today we're reading The Snail Mail Express."
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> Snail mail! Does the mail get a tiny shell?"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Let's open the book and meet our delivery team."
+      }
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "static"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Beneath the mossy roots of the Great Whisperwood Oak stood the smallest, slowest post office in the forest. A hand-painted wooden sign creaked gently in the morning breeze: THE SNAIL MAIL EXPRESS — NO RUSH, NO FUSS, ALWAYS DELIVERED."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Eight-year-old Clara adjusted her berry-red dress and opened her teal Postmaster's Logbook. Beside her, Barnaby—a giant golden snail with a tiny whitewashed cottage built right into his spiraled brown shell—wiggled his eye-stalks happily and gave a polite, bubbly yawn."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Every morning began with a warm cup of clover tea and a promise."
+        }
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Ding-a-ling! As Clara rang the brass sorting bell, a gust of wind ruffled her chestnut curls."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Whoosh! Fleet the Peregrine Falcon streaked across the treetops in a blur of slate-blue feathers, carrying an armful of express letters."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"Still polishing your shell, Barnaby?\" Fleet called down with a boastful laugh, his big yellow eyes gleaming. \"At your pace, winter will arrive before you reach the pond!\""
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Barnaby simply blinked his gentle dark eyes and munched a dandelion leaf. Clara patted his warm yellow neck."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"Speed is fine for clouds,\" she whispered, \"but forest treasures need careful eyes.\""
+        }
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "static",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "When Clara unlatched the mossy Lost-and-Found drop-box, she gasped in delight. Resting on a bed of dried lavender were three unclaimed treasures with no names and no addresses at all."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "First was a tiny silver thimble sparkling like a frozen dewdrop. Second was a round pocket-watch carved from a polished oak acorn, its tiny hands stuck at four o'clock."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Third was a rolled scroll of white birch bark punched with dozens of mysterious pinholes. \"Three lost treasures, Barnaby!\" Clara declared, jotting clues into her teal logbook."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"Let's follow the trail and find where each one belongs.\""
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "<giggle> Barnaby's peeking over her shoulder! Does he want a turn looking at the tiny treasures?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "He does look curious! Clara has three treasures to investigate, and Barnaby is right beside her."
+        }
+      ],
+      "qa_grounding": "peeks curiously over her shoulder"
+    },
+    {
+      "page_number": 4,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Clara tucked the three parcels safely inside the little arched wooden door of Barnaby's shell-cottage, then climbed up to her favorite reading perch atop his warm brown spiral."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "With a soft, silvery glide, the Snail Mail Express rolled down Fern-Fiddle Lane. Golden sunbeams slanted through the emerald canopy like ribbons of honey."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "While squirrels and rabbits scampered past in a dizzy rush, Barnaby traveled at the exact speed of a drifting cloud—slow enough for Clara to read her logbook and inspect every leaf along the way."
+        }
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "static",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Near the reed-lined banks of Bramble Pond, Barnaby paused beside a patch of wild strawberries. His left eye-stalk dipped toward a prickly bramble twig."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"Good eye, partner!\" Clara exclaimed, leaning down with her brass magnifying glass. Snagged on a tiny thorn was a single strand of crimson silk thread, knotted with a microscopic scrap of red-and-white polka-dot fabric."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Anyone running at top speed would have blurred right past it, but from Barnaby's steady saddle, the tiny clue glowed like a beacon pointing straight toward the water's edge."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Could that red thread help them find who lost the thimble?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "That magnifying glass looks so big! Can Clara see the teeny thread with it?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes, it helps her inspect that tiny clue. The thread might help them find an owner; we'll keep looking with them."
+        }
+      ],
+      "qa_grounding": "crimson silk thread"
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Perched atop a speckled granite stone at the pond's edge stood Millie, the smallest seamstress in Whisperwood Hollow."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "She was a trim black carpenter ant wearing a flared red dress covered in crisp white polka dots, and she looked terribly flustered."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Spread before her was a half-stitched boat sail made from a dried maple leaf, alongside a sewing needle made from a pine spine. \"Oh, fiddlesticks and fern-spores!\" Millie piped in a voice like a tiny silver bell."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"Every time I push this needle through the leaf stem, it pricks my thumb! I'll never finish the Beetle Regatta sails before sundown!\""
+        }
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Clara reached into her leather satchel and gently lowered the tiny silver thimble onto the mossy rock right beside Millie. \"Special delivery from the Snail Mail Express,\" Clara said with a warm smile."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Millie gasped, her antennae curling into happy loops. \"My grandmother's silver dewdrop thimble!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "It rolled off my sewing cart yesterday when a badger thundered by!\" She slipped it onto her tiny hand and stitched three neat seams in a flash."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "In gratitude, Millie hoisted up a thimble-sized jar of wild clover honey for their tea."
+        }
+      ]
+    },
+    {
+      "page_number": 8,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "static",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "With one parcel checked off in Clara's teal logbook, the pair glided deeper into the Whispering Birch Grove. Tall pale tree trunks rose around them like painted pillars, and soft gray rain clouds gathered overhead."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pitter-pat, pitter-pat! Warm summer raindrops began to drum against the broad fern leaves."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Instead of scrambling frantically for cover like the chipmunks, Barnaby simply tucked his head halfway beneath his eaves, and Clara opened the little round-arched wooden door built right into the side of his spiral shell."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Can Clara shelter inside Barnaby's cottage while it rains?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "She's opening his cottage door, so that looks like her plan. Barnaby has tucked his head beneath the eaves for shelter, too."
+        }
+      ],
+      "qa_grounding": "little round-arched wooden door"
+    },
+    {
+      "page_number": 9,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Inside Barnaby's shell-cottage, it was as snug as a bakery oven. Curved cedar shelves held rows of postage stamps, spools of twine, and a whistling copper kettle."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "While clover-honey tea steeped in two porcelain mugs, Clara examined the second lost treasure under a brass lantern. She brushed a speck of pine resin from the gears of the acorn pocket-watch and gave the stem three gentle turns."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Tick-tock, tick-tock! Inside the polished cap, she spotted a tiny carved emblem: two curved white tusks above a cluster of forest truffles."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"Only one neighbor carves oak like that,\" Clara beamed. \"Bramwell the Boar!\""
+        }
+      ]
+    },
+    {
+      "page_number": 10,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "By the time the rain cleared into a shimmering rainbow mist, Barnaby arrived at the Great Hollow Elm. There stood Bramwell, a round, bristly brown wild boar with two grand curved ivory tusks and tiny worried eyes."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Beside him sat a woven wicker basket overflowing with plump blackberry tarts and earthy truffles. \"Oh dear, oh crumble!\" Bramwell groaned, pacing in circles on his short little hooves."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"I dropped my pocket-watch in the moss this morning! Without it, I don't know when to take my tarts to the Woodland Bake-Off—I'm surely too late already!\""
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "His tusks look like two big curly smiles! Why does his little face look worried?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Bramwell lost his watch, and he's worried about getting his tarts to the bake-off in time."
+        }
+      ],
+      "qa_grounding": "two big curved white tusks"
+    },
+    {
+      "page_number": 11,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"You aren't late at all, Mr. Bramwell!\" Clara called out cheerfully. She hopped down from Barnaby's shell and placed the ticking acorn watch into the boar's furry paw."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Bramwell held it to his ear, his whiskers twitching with pure joy as the steady tick-tock echoed. \"Four-fifteen!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Why, the judging doesn't begin until five! And you even cleaned the pine sap off the mainspring!\""
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Beaming from tusk to tusk, Bramwell wrapped three warm cinnamon-acorn scones in a checkered napkin and tucked them into Barnaby's mail basket."
+        }
+      ]
+    },
+    {
+      "page_number": 12,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "static",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "As the afternoon sun mellowed into amber gold, Clara unrolled the third and final parcel: the strip of silky white birch bark."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Unlike the thimble and the watch, it bore no emblem, no thread, and no initials—only neat rows of tiny star-shaped holes punched straight through the bark. \"What could it be, Barnaby?\" Clara wondered aloud, holding the scroll toward the sky."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Dots of golden sunlight shone through the holes onto her red dress like dancing fireflies. \"It looks almost like a secret code written for the wind.\""
+        },
+        {
+          "speaker": "kid_older",
+          "role": "reaction",
+          "text": "Could the holes be a message? Maybe the sunlight makes a pattern Clara can read!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "That's a thoughtful guess. The holes let sunlight through, but Clara hasn't worked out what the scroll is for yet."
+        }
+      ],
+      "qa_grounding": "tiny star-shaped holes"
+    },
+    {
+      "page_number": 13,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Barnaby glided across the old Mist-Stone Bridge, where lily pads floated on dark emerald water. Standing knee-deep in the shallows was Fergus, a lanky green pond frog with tall, periscope-like golden eyes."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"Good evening, Postmaster Clara!\" Fergus ribbited, tipping a cattail reed like a hat. \"If you're looking for someone who lost a treasure today, listen up toward the Old Weeping Willow."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Ever since sunset began, someone high in the branches has been sighing louder than a bullfrog with the hiccups!\" Clara thanked Fergus and guided Barnaby toward the willow's trailing curtain of leaves."
+        }
+      ]
+    },
+    {
+      "page_number": 14,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Beneath the sweeping boughs of the Old Weeping Willow, the forest grew hushed and velvet-still."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Because Barnaby moved without a single snapping twig or crunching pebble, Clara could hear the smallest sounds in the hollow: the sleepy rustle of beetles, the murmur of the brook, and—high above—a quiet, sniffly sigh."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Clara peered up through the golden willow fronds. Huddled on a crooked branch, with his slate-blue wings drooped low and his leather mailbag empty, sat Fleet the Falcon—the very bird who had zoomed past them that morning!"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Is Fleet the one Fergus heard sighing? Why would such a speedy bird be sad?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "His wings are all droopy. I wish I could give him a little cuddle."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Fleet seems to be the one sighing up there. His drooping wings make him look sad, but we haven't heard why yet."
+        }
+      ],
+      "qa_grounding": "with drooping wings"
+    },
+    {
+      "page_number": 15,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"Fleet?\" Clara called softly. \"What's wrong?\""
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The falcon fluttered down to a mossy stump, looking embarrassed. \"I was showing off how fast I could fly during my morning rounds,\" he admitted, scuffing his yellow talons."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"I dove through the oak canopy at top speed, and the wind ripped my grandmother's birch-bark wind-chime scroll right out of my satchel."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "I've flown over the forest ten times searching for it, but everything below just looks like a green blur! Without her lullaby, my little owlet cousins can't fall asleep.\""
+        }
+      ]
+    },
+    {
+      "page_number": 16,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Clara smiled and lifted the perforated birch-bark scroll from her satchel. She hung it carefully from the little brass lantern hook beside Barnaby's cottage door."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Just then, a gentle evening breeze drifted off the pond and whispered straight through the star-shaped pinholes. Ooo-la-lee, loo-la-lay!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The curled bark hummed like a tiny wooden flute, weaving a sweet, chiming woodland melody that echoed softly through the willow branches. Fleet's big yellow eyes went wide with wonder."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"You found it!\" he gasped. \"Right by the oak tree where I dropped it!\""
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "So the holes let the wind make music? Is that how the scroll plays his grandmother's lullaby?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes! The breeze passes through the holes, and the curled bark hums like a tiny flute. Fleet recognizes his missing scroll."
+        }
+      ],
+      "qa_grounding": "like a tiny wooden flute"
+    },
+    {
+      "page_number": 17,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"It was waiting in the Lost-and-Found box all along,\" Clara explained kindly. \"When you fly like lightning, it's easy to miss what's right beneath your feathers.\""
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Fleet bowed his feathered head toward Barnaby. \"I'm sorry I teased you this morning, Master Barnaby,\" the falcon said sincerely."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"I crossed the whole forest ten times today and saw nothing at all. You crossed it once—and saved three neighbors' treasures.\""
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Barnaby tapped Fleet's wing affectionately with one golden eye-stalk, welcoming him aboard the roof of the cottage shell."
+        }
+      ]
+    },
+    {
+      "page_number": 18,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Before heading home, Clara spread a checkered picnic cloth on the mossy bank beside Bramble Pond. Under a canopy of twinkling fireflies, the neighbors gathered for an impromptu celebration!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Bramwell the Boar served his prize-winning cinnamon-acorn scones. Millie the Ant poured steaming cups of clover-honey tea."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Fergus the Frog played a cheerful bass rhythm on a hollow reed, while the birch-bark scroll chimed softly in the breeze and Fleet kept time with his wings. Never had Whisperwood Hollow heard a sweeter woodland concert."
+        }
+      ]
+    },
+    {
+      "page_number": 19,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "When the silver crescent moon rose above the birch trees, it was time to head home. Fleet flew gently overhead, carrying the birch-bark lullaby back to the sleepy owlets at a calm, unhurried glide."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Down on the mossy path, Barnaby carried Clara smoothly back toward the Great Whisperwood Oak."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Tiny red toadstools along the lane seemed to nod goodnight, and by the warm glow of her lantern, Clara wrote three neat checkmarks in her teal Postmaster's Logbook."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Do those three checkmarks mean all three treasures got back to their owners?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "The red mushrooms look like little sleepy hats! <yawn> They're ready for bed."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes, all three treasures are home with their owners. Those little toadstools seem to nod goodnight as Clara and Barnaby head home, too."
+        }
+      ],
+      "qa_grounding": "three neat checkmarks"
+    },
+    {
+      "page_number": 20,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "static"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Back at the Old Oak Post Office, Barnaby curled comfortably onto his bed of soft clover moss. Warm golden light spilled from the little arched cottage door on his shell."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Clara tucked her teal logbook under her arm, kissed Barnaby's velvety yellow forehead, and whispered, \"Goodnight, partner. Tomorrow there will be brand-new letters to sort and brand-new wonders to notice.\""
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Because in Whisperwood Hollow, the Snail Mail Express was never late—it arrived at the exact moment a friend needed it most."
+        }
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "kid_older",
+        "text": "Barnaby went slowly enough to spot the clues. I'd like to try looking that carefully."
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "I'd like a cozy snail ride. <giggle> Goodnight, Barnaby!"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Goodnight, little listeners. Subscribe and come back for our next story."
+      }
+    ]
+  }
+}
