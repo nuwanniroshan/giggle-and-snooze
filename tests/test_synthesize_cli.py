@@ -275,3 +275,44 @@ def test_review_sheet_is_written_before_status(env, monkeypatch):  # review fix 
     with pytest.raises(OSError):
         run(env, "--reviewed")
     assert not (env["audio"] / "status.json").exists()
+
+
+def test_approval_does_not_survive_an_interrupted_force(env, monkeypatch):  # AC-4.4
+    assert run(env, "--reviewed") == 0
+    assert run(env, command="approve") == 0
+
+    class Interrupted(FakeEngine):
+        """Re-synthesizes different audio, then fails after a few clips."""
+
+        def synthesize(self, text, voice, seed):
+            if len(self.calls) >= 3:
+                raise RuntimeError("interrupted")
+            return super().synthesize(text, voice, seed) * 0.5
+
+    monkeypatch.setattr(sv, "create_engine", lambda cfg: Interrupted())
+    assert run(env, "--reviewed", "--force") == 1
+    monkeypatch.setattr(sv, "create_engine", lambda cfg: FakeEngine())
+    assert run(env, "--reviewed") == 0  # reuses the 3 new clips; nothing synthesized now
+    status = load_json(env["audio"] / "status.json")
+    assert status["status"] == "pending review" and status["approved_at"] is None
+
+
+def test_approve_refuses_when_preview_changed(env, capsys):  # AC-4.4
+    assert run(env, "--reviewed") == 0
+    meta_path = env["audio"] / "preview.json"
+    meta = load_json(meta_path)
+    meta["preview_key"] = "0" * 32
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    capsys.readouterr()
+    assert run(env, command="approve") == 1
+    err = capsys.readouterr().err
+    assert "the preview changed since synthesis finished; re-run synthesis first" in err
+    assert load_json(env["audio"] / "status.json")["status"] == "pending review"
+
+
+def test_approve_with_missing_script_names_it(env, capsys):
+    assert run(env, "--reviewed") == 0
+    env["script_path"].unlink()
+    capsys.readouterr()
+    assert run(env, command="approve") == 1
+    assert f"episode script not found: {env['script_path']}" in capsys.readouterr().err

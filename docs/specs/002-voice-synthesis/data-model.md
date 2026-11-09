@@ -11,7 +11,7 @@
 | `preview.wav` | Every track in order, with 1.0 s between tracks |
 | `preview.json` | Preview sidecar `{preview_key, tracks: [[name, track_key], …]}`, written after `preview.wav` |
 | `review.md` | Listening review sheet: one table per track (line, speaker, duration, peak, longest silence, words/s, attempts, original text) |
-| `status.json` | `{status: "pending review" \| "approved", script_sha256, settings_sha256, synthesized_at, approved_at}` |
+| `status.json` | `{status: "pending review" \| "approved", script_sha256, settings_sha256, preview_key, synthesized_at, approved_at}` (`preview_key` is the `preview.json` key the status was made for) |
 
 `<key>` is the first 32 hex characters of the sha256 of `{text: spoken, voice, semitones, repo, revision, temperature, top_p, max_tokens, sample_rate}`.
 
@@ -30,5 +30,5 @@
 - **Clip identity** leaves out `model.seed` on purpose: a seed change must not discard passing clips (it still resets the status through `settings_sha256`). Use `--force` to re-synthesize with a new seed.
 - **Reused clips** are re-checked against the current `checks`; a stored measure that no longer passes is re-synthesized.
 - **Distinct voices:** two cast roles sharing a voice is a `ConfigError` naming both roles and the voice (AC-2.4).
-- **Approve** also refuses when `settings_sha256` (voices config, cast, pronunciations) changed since synthesis. `review.md` is written before `status.json`, which is the commit point.
+- **Approve** also refuses when `settings_sha256` (voices config, cast, pronunciations) changed since synthesis. `review.md` is written before `status.json`, which is the commit point. An approval is kept on re-run only while `status.preview_key` equals the current `preview.json` key (and no clip was synthesized in this run), and `approve` refuses when they differ, so clips re-synthesized by an interrupted or failed earlier run reset the status (AC-4.4).
 - **Support repos:** mlx-audio loads `mlx-community/snac_24khz` and the bf16 tokenizer by name, so `download` writes the pinned revision to `<HF_HUB_CACHE>/models--<org>--<name>/refs/main`, and the engine refuses to load (`VoiceUnavailable` + download hint) unless `refs/main` equals the pin and the pinned snapshot is cached.

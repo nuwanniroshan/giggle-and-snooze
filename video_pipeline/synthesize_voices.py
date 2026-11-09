@@ -496,6 +496,13 @@ def build_preview(track_names: list[str], paths: AudioPaths, cfg: VoiceConfig) -
     return True
 
 
+def current_preview_key(paths: AudioPaths) -> str | None:
+    """The key of the preview on disk, or None when there is no preview."""
+    if not (paths.preview.exists() and paths.preview_meta.exists()):
+        return None
+    return json.loads(paths.preview_meta.read_text(encoding="utf-8")).get("preview_key")
+
+
 REVIEW_NOTICE = (
     "Listening review required: play {preview} (each track is in {tracks}). Listen for "
     "robotic or garbled speech, mispronounced names and emotion tags read aloud, then approve "
@@ -560,9 +567,17 @@ def write_review(
 
 
 def next_status(
-    paths: AudioPaths, script_sha: str, settings_sha: str, any_synthesized: bool
+    paths: AudioPaths,
+    script_sha: str,
+    settings_sha: str,
+    preview_key: str | None,
+    any_synthesized: bool,
 ) -> dict:
-    """The status this run will commit; keeps an approval only if nothing changed."""
+    """The status this run will commit; keeps an approval only if nothing changed.
+
+    The approval belongs to the preview that was listened to: clips re-synthesized by an
+    earlier interrupted run change the preview key even when this run synthesizes nothing.
+    """
     previous = (
         json.loads(paths.status.read_text(encoding="utf-8")) if paths.status.exists() else None
     )
@@ -570,6 +585,8 @@ def next_status(
         previous is not None
         and previous.get("status") == "approved"
         and not any_synthesized
+        and preview_key is not None
+        and previous.get("preview_key") == preview_key
         and previous.get("script_sha256") == script_sha
         and previous.get("settings_sha256") == settings_sha
     )
@@ -580,6 +597,7 @@ def next_status(
             "status": "pending review",
             "script_sha256": script_sha,
             "settings_sha256": settings_sha,
+            "preview_key": preview_key,
             "synthesized_at": _now(),
             "approved_at": None,
         }
@@ -591,7 +609,9 @@ def approve(paths: AudioPaths, script_path: Path, settings_sha: str | None) -> d
     if not paths.status.exists():
         raise ApproveError(f"no synthesized audio in {paths.root}; run synthesis first")
     status = json.loads(paths.status.read_text(encoding="utf-8"))
-    if not script_path.exists() or sha256_file(script_path) != status["script_sha256"]:
+    if not script_path.exists():
+        raise ApproveError(f"episode script not found: {script_path}")
+    if sha256_file(script_path) != status["script_sha256"]:
         raise ApproveError(
             f"{script_path} changed since the audio was synthesized; re-run synthesis first"
         )
@@ -599,6 +619,8 @@ def approve(paths: AudioPaths, script_path: Path, settings_sha: str | None) -> d
         raise ApproveError(
             "voice settings changed since the audio was synthesized; re-run synthesis first"
         )
+    if current_preview_key(paths) != status.get("preview_key"):
+        raise ApproveError("the preview changed since synthesis finished; re-run synthesis first")
     status.update(status="approved", approved_at=_now())
     write_atomic(paths.status, status)
     return status
@@ -675,7 +697,9 @@ def _synthesize(
     build_preview(names, paths, cfg)
     any_synthesized = any(o.synthesized for o in outcomes)
     script_sha, settings_sha = sha256_file(script_path), settings_hash(cfg, script, prons)
-    status = next_status(paths, script_sha, settings_sha, any_synthesized)
+    status = next_status(
+        paths, script_sha, settings_sha, current_preview_key(paths), any_synthesized
+    )
     write_review(paths, outcomes, names, script["title"], status["status"])
     write_atomic(paths.status, status)  # status.json is the commit point: written last
     synthesized = sum(o.synthesized for o in outcomes)

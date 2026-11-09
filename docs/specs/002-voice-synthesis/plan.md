@@ -1869,7 +1869,7 @@ if __name__ == "__main__":
 
 ## Review fixes (after Phase 5)
 
-An implementation review found ten defects; each was fixed test-first.
+An implementation review found eleven defects; each was fixed test-first.
 
 1. `build_tracks`: `track_key` now hashes, per line, the clip key, the sha256 of the clip WAV bytes, `line_id`, `speaker`, `role`, `text`, the `measure` dict and `attempts`, plus the gaps and sample rate. `--force` or a re-synthesized clip now rebuilds its tracks.
 2. `build_preview(track_names, paths, cfg) -> bool` keeps a `preview.json` sidecar (`preview_key` over the ordered `[track, track_key]` list, `between_tracks` and the sample rate), written after `preview.wav`; it rebuilds whenever the key differs or a file is missing. `_synthesize` always calls it.
@@ -1881,6 +1881,7 @@ An implementation review found ten defects; each was fixed test-first.
 8. Reused clips are re-checked with `clip_problems(stored measure, cfg.checks)`; failing ones are re-synthesized. Ruling: `model.seed` stays out of clip identity.
 9. `plan_jobs` rejects two roles sharing a voice (AC-2.4).
 10. `approve(paths, script_path, settings_sha)` also refuses when the voice settings changed since synthesis. `_synthesize` computes the status with `next_status`, writes `review.md`, then `status.json` last.
+11. Approval follows the preview (AC-4.4): clips re-synthesized by an interrupted or failed run (e.g. an interrupted `--force`) were reused next run and the approval survived on audio nobody heard. `status.json` now records `preview_key` (read with `current_preview_key(paths)` from `preview.json` after `build_preview`); `next_status(paths, script_sha, settings_sha, preview_key, any_synthesized)` keeps "approved" only if the previous status is approved, its `preview_key` equals the current one, nothing was synthesized this run and both hashes match. `approve` refuses with "the preview changed since synthesis finished; re-run synthesis first" when the keys differ, and with "episode script not found: <path>" when the script is missing.
 
 ---
 
