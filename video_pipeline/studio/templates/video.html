@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge, book_links %}
+{% block title %}Video: {{ book.title }}{% endblock %}
+{% block content %}
+<h1>Video</h1>
+<p class="muted">{{ book.title }}</p>
+{{ book_links(book) }}
+{% if final %}
+{% if check == 'out_of_date' %}
+<section class="notice"><p>{{ badge('out_of_date') }} The inputs changed since this video was rendered; a re-render would change it.</p></section>
+{% elif check == 'blocked' %}
+<section class="notice"><p>{{ badge('out_of_date') }} This video cannot be checked against its inputs, so it may not match them: {{ reason }}</p></section>
+{% endif %}
+<section class="stage">
+  <video controls preload="metadata" src="/media/{{ book.slug }}/video/{{ book.slug }}.mp4"></video>
+  <table>
+    <tbody>
+      {% if record and record.duration is number %}<tr><th>Duration</th><td>{{ format_duration(record.duration) }}</td></tr>{% endif %}
+      {% if record and record.rendered_at %}<tr><th>Rendered</th><td>{{ record.rendered_at }}</td></tr>{% endif %}
+      <tr><th>File</th><td class="mono">{{ final }}</td></tr>
+    </tbody>
+  </table>
+</section>
+{% else %}
+<p>No video yet. <a href="/books/{{ book.slug }}">Render video</a> once the audio is approved.</p>
+{% endif %}
+{% endblock %}

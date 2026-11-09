@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import errno
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -34,11 +35,14 @@ from video_pipeline.contract import ConfigError, slugify
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import CONFIG_DIR, ROOT, write_atomic
 from video_pipeline.frames import (
+    PAGE_TURN_FILE,
     PictureError,
     SoundError,
+    _read_cache,
     compose_canvas,
     load_page_turn,
     mix_master,
+    page_turn_sound,
     render_caption,
 )
 from video_pipeline.synthesize_voices import (
@@ -72,6 +76,10 @@ _OUTPUT_FORMAT = f"{_BT709_TAGS},format=yuv420p"
 
 class RenderError(Exception):
     """A render step failed; the message names the step and the tool's error."""
+
+
+class AudioNotApproved(RenderError):
+    """The audio gate refused: the audio is missing, unapproved or changed since approval."""
 
 
 def _sec(value: float) -> str:
@@ -535,21 +543,28 @@ def _render_transition(
     )
 
 
-def render_video(
-    book_path: Path,
-    episodes_dir: Path,
-    build_dir: Path,
-    config_dir: Path,
-    assets_dir: Path,
-    force: bool = False,
-    run: Runner = run_ffmpeg,
-    on_progress: Progress | None = None,
-) -> RenderResult:
-    """Render the approved episode of `book_path` to `build/<slug>/video/<slug>.mp4` (spec 003).
+@dataclass(frozen=True)
+class _Inputs:
+    """Everything the video is made from, loaded and checked without rendering or writing."""
 
-    Sections and transitions are cached by key; the final video is reused when the ordered keys,
-    the tracks, the page-turn sound and the audio/encode settings are unchanged (AC-7.1, AC-7.2).
-    """
+    slug: str
+    cfg: RenderConfig
+    audio: AudioPaths
+    track_names: list[str]
+    tracks: dict[str, np.ndarray]
+    sample_rate: int
+    pictures: ResolvedPictures
+    sections: list[Section]
+    keys: list[str]
+    trans_keys: list[str]
+    paths: VideoPaths
+
+
+def _load_inputs(
+    book_path: Path, episodes_dir: Path, build_dir: Path, config_dir: Path, assets_dir: Path
+) -> _Inputs:
+    """Gate on approved audio, then load the script, tracks and pictures and key every section
+    and transition. Reads only; raises RenderError (or PictureError) on anything missing."""
     book = load_book(book_path)
     slug = slugify(book["metadata"]["title"])
     script_path = Path(episodes_dir) / slug / "episode_script.json"
@@ -558,7 +573,7 @@ def render_video(
     settings_sha = current_settings_sha(voice_cfg, book, Path(book_path), script_path)
     problems = approval_problems(audio, script_path, settings_sha, Path(book_path))
     if problems:
-        raise RenderError("; ".join(problems))
+        raise AudioNotApproved("; ".join(problems))
     try:
         script = json.loads(script_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -580,30 +595,162 @@ def render_video(
     except ValueError as exc:
         raise RenderError(str(exc)) from None
     keys = [section_key(s, picture_sha[s.picture], cfg) for s in sections]
-    pairs = list(zip(sections, sections[1:], strict=False))
     trans_keys = [transition_key(a, b, cfg) for a, b in zip(keys, keys[1:], strict=False)]
-
     paths = VideoPaths(Path(build_dir) / slug / "video")
+    return _Inputs(
+        slug,
+        cfg,
+        audio,
+        track_names,
+        tracks,
+        sample_rate,
+        pictures,
+        sections,
+        keys,
+        trans_keys,
+        paths,
+    )
+
+
+def _page_turn_digest(page_turn: np.ndarray) -> str:
+    return hashlib.sha256(page_turn.tobytes()).hexdigest()
+
+
+def _final_key(inputs: _Inputs, page_turn_sha: str) -> str:
+    """The key of the finished video: the ordered section and transition keys, the tracks, the
+    page-turn sound and the audio/encode settings (AC-7.1, AC-7.2)."""
+    return _digest(
+        {
+            "render_version": timeline.RENDER_VERSION,
+            "sections": [[s.name, k] for s, k in zip(inputs.sections, inputs.keys, strict=True)],
+            "transitions": inputs.trans_keys,
+            "tracks": {name: sha256_file(inputs.audio.track(name)) for name in inputs.track_names},
+            "page_turn": page_turn_sha,
+            "sample_rate": inputs.sample_rate,
+            "audio": asdict(inputs.cfg.audio),
+            "video": asdict(inputs.cfg.video),
+        }
+    )
+
+
+def _supplied_page_turn_sha(sfx_dir: Path) -> str | None:
+    """sha256 of the supplied page-turn file, or None when the generated sound is used."""
+    supplied = Path(sfx_dir) / PAGE_TURN_FILE
+    return sha256_file(supplied) if supplied.exists() else None
+
+
+def _sfx_dir(sfx_dir: Path | None, assets_dir: Path) -> Path:
+    """The page-turn folder: `sfx_dir` when given, else `<assets_dir>/audio_sfx` (as before
+    spec 004, so the command line without `--sfx-dir` is unchanged)."""
+    return Path(sfx_dir) if sfx_dir is not None else Path(assets_dir) / "audio_sfx"
+
+
+def _generated_page_turn(cache_path: Path, sample_rate: int) -> np.ndarray:
+    """The generated page-turn sound exactly as `load_page_turn` would return it (read back from
+    a 16-bit WAV), without writing its cache file."""
+    if cache_path.exists():
+        cached = _read_cache(cache_path, sample_rate)
+        if cached is not None:
+            return cached
+    buffer = io.BytesIO()
+    sf.write(buffer, page_turn_sound(sample_rate), sample_rate, subtype="PCM_16", format="WAV")
+    buffer.seek(0)
+    audio, _rate = sf.read(buffer, dtype="float32", always_2d=False)
+    return audio
+
+
+def render_check(
+    book_path: Path,
+    episodes_dir: Path,
+    build_dir: Path,
+    config_dir: Path,
+    assets_dir: Path,
+    sfx_dir: Path | None = None,
+) -> str:
+    """Whether `render_video` would reuse the finished video, without rendering or writing:
+    "blocked" (audio not approved, missing or unusable inputs), "not_rendered" (no video or
+    record), "up_to_date" (the final key matches) or "out_of_date" (spec 004 AC-6.2)."""
+    return render_check_detail(book_path, episodes_dir, build_dir, config_dir, assets_dir, sfx_dir)[
+        0
+    ]
+
+
+def render_check_detail(
+    book_path: Path,
+    episodes_dir: Path,
+    build_dir: Path,
+    config_dir: Path,
+    assets_dir: Path,
+    sfx_dir: Path | None = None,
+) -> tuple[str, str]:
+    """`render_check`'s state and, when "blocked", why: "the audio is not approved: ..." for the
+    approval gate, else the missing or unusable input (a picture, a track, the book data).
+
+    A supplied page-turn file is never decoded here: its decoded hash is taken from the video
+    record when the file is the one that video was made with."""
     try:
-        page_turn = load_page_turn(
-            Path(assets_dir) / "audio_sfx", sample_rate, Path(build_dir) / "sfx" / "page_turn.wav"
-        )
-        final_key = _digest(
-            {
-                "render_version": timeline.RENDER_VERSION,
-                "sections": [[s.name, k] for s, k in zip(sections, keys, strict=True)],
-                "transitions": trans_keys,
-                "tracks": {name: sha256_file(audio.track(name)) for name in track_names},
-                "page_turn": hashlib.sha256(page_turn.tobytes()).hexdigest(),
-                "sample_rate": sample_rate,
-                "audio": asdict(cfg.audio),
-                "video": asdict(cfg.video),
-            }
-        )
+        inputs = _load_inputs(book_path, episodes_dir, build_dir, config_dir, assets_dir)
+    except AudioNotApproved as exc:
+        return "blocked", f"the audio is not approved: {exc}"
+    except (RenderError, PictureError, BookError, ConfigError) as exc:
+        return "blocked", str(exc)
+    final, record = inputs.paths.final(inputs.slug), _read_json(inputs.paths.record(inputs.slug))
+    if not final.exists() or record is None:
+        return "not_rendered", ""
+    file_sha = _supplied_page_turn_sha(_sfx_dir(sfx_dir, assets_dir))
+    if file_sha is None:
+        cache = Path(build_dir) / "sfx" / "page_turn.wav"
+        page_turn_sha = _page_turn_digest(_generated_page_turn(cache, inputs.sample_rate))
+    elif record.get("page_turn_file_sha256") == file_sha and record.get("page_turn_sha256"):
+        page_turn_sha = record["page_turn_sha256"]
+    else:
+        return "out_of_date", ""
+    if record.get("final_key") == _final_key(inputs, page_turn_sha):
+        return "up_to_date", ""
+    return "out_of_date", ""
+
+
+def render_video(
+    book_path: Path,
+    episodes_dir: Path,
+    build_dir: Path,
+    config_dir: Path,
+    assets_dir: Path,
+    force: bool = False,
+    run: Runner = run_ffmpeg,
+    on_progress: Progress | None = None,
+    sfx_dir: Path | None = None,
+) -> RenderResult:
+    """Render the approved episode of `book_path` to `build/<slug>/video/<slug>.mp4` (spec 003).
+
+    Sections and transitions are cached by key; the final video is reused when the ordered keys,
+    the tracks, the page-turn sound and the audio/encode settings are unchanged (AC-7.1, AC-7.2).
+    The page-turn sound comes from `sfx_dir` (default `<assets_dir>/audio_sfx`).
+    """
+    inputs = _load_inputs(book_path, episodes_dir, build_dir, config_dir, assets_dir)
+    slug, cfg = inputs.slug, inputs.cfg
+    sections, keys, trans_keys = inputs.sections, inputs.keys, inputs.trans_keys
+    pictures, tracks, sample_rate = inputs.pictures, inputs.tracks, inputs.sample_rate
+    pairs = list(zip(sections, sections[1:], strict=False))
+
+    paths = inputs.paths
+    try:
+        sfx = _sfx_dir(sfx_dir, assets_dir)
+        page_turn = load_page_turn(sfx, sample_rate, Path(build_dir) / "sfx" / "page_turn.wav")
+        page_turn_sha = _page_turn_digest(page_turn)
+        page_turn_fields = {
+            "page_turn_sha256": page_turn_sha,
+            "page_turn_file_sha256": _supplied_page_turn_sha(sfx),
+        }
+        final_key = _final_key(inputs, page_turn_sha)
         duration = total_frames(sections, cfg) / cfg.fps
         final, record_path = paths.final(slug), paths.record(slug)
         record = _read_json(record_path)
         if not force and final.exists() and record and record.get("final_key") == final_key:
+            stale = any(record.get(k) != v for k, v in page_turn_fields.items())
+            if stale and page_turn_fields["page_turn_file_sha256"] is not None:
+                # Records written before spec 004 lack these; render_check needs them.
+                write_atomic(record_path, {**record, **page_turn_fields})
             return RenderResult(final, duration, 0, len(sections), True)
         record_path.unlink(missing_ok=True)  # stale until the new video is complete
 
@@ -664,6 +811,7 @@ def render_video(
                     {"name": s.name, "key": k, "picture": str(pictures.files[s.picture])}
                     for s, k in zip(sections, keys, strict=True)
                 ],
+                **page_turn_fields,
                 "rendered_at": datetime.now(UTC).isoformat(timespec="seconds"),
             },
         )
@@ -693,6 +841,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build")
     parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
     parser.add_argument("--assets-dir", type=Path, default=ROOT / "assets")
+    parser.add_argument(
+        "--sfx-dir",
+        type=Path,
+        default=None,
+        help="folder with an optional page_turn.wav (default: <assets-dir>/audio_sfx)",
+    )
     parser.add_argument("--force", action="store_true", help="re-render every section")
     return parser.parse_args(argv)
 
@@ -709,6 +863,7 @@ def main(argv: list[str] | None = None, run: Runner | None = None) -> int:
             force=args.force,
             run=run or run_ffmpeg,
             on_progress=lambda name, action: print(f"  {name}: {action}", flush=True),
+            sfx_dir=args.sfx_dir,
         )
     except (RenderError, PictureError, SoundError, BookError, ConfigError) as exc:
         print(f"error: {exc}", file=sys.stderr)

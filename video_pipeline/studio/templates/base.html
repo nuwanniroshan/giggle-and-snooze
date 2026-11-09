@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Studio{% endblock %} · Episode studio</title>
+<link rel="stylesheet" href="/static/studio.css">
+</head>
+<body data-running-job="{{ running.id if running else '' }}">
+<header class="top">
+  <a class="brand" href="/">Episode studio</a>
+  <nav><a href="/">Books</a> <a href="/books/new">Add book</a></nav>
+</header>
+{% if running %}
+<div class="banner" id="running">
+  <span class="state">RUNNING</span>
+  <span>{{ running.label }} for <a href="/books/{{ running.book }}">{{ running.title }}</a></span>
+  <span class="muted" data-elapsed="{{ running.elapsed }}">{{ format_duration(running.elapsed) }}</span>
+  <form method="post" action="/jobs/stop" class="inline"><button class="secondary" type="submit">Stop</button></form>
+</div>
+{% endif %}
+<main>
+{% block content %}{% endblock %}
+</main>
+<script src="/static/studio.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge, book_links %}
+{% block title %}{{ book.title }}{% endblock %}
+{% block content %}
+<h1>{{ book.title }}</h1>
+{{ book_links(book) }}
+{% if book.error %}<p class="strong">{{ book.error }}</p>{% endif %}
+<p><span class="muted">Next</span> {{ status.next_action }}</p>
+
+{% for item in stages %}
+{% set key = 'video' if item.stage == 'render' else item.stage %}
+<section class="stage">
+  <h2>{{ stage_labels[item.stage]|capitalize }}</h2>
+  <p>{{ badge(status[key].state) }} <span class="muted">{{ status[key].detail }}</span></p>
+  <div class="controls">
+  {% if item.stage == 'script' and has_script %}
+    <form method="post" action="/books/{{ book.slug }}/run/script" class="inline">
+      <label class="check"><input type="checkbox" name="confirm" value="1" required{% if item.blocked %} disabled{% endif %}> Overwrite the hand-edited script</label>
+      <button class="secondary" type="submit"{% if item.blocked %} disabled{% endif %}>Regenerate script</button>
+    </form>
+    <a href="/books/{{ book.slug }}/script">Review script</a>
+  {% else %}
+    <form method="post" action="/books/{{ book.slug }}/run/{{ item.stage }}" class="inline">
+      <button type="submit"{% if item.blocked %} disabled{% endif %}>{{ item.button }}</button>
+    </form>
+    {% if item.stage != 'script' %}
+    <form method="post" action="/books/{{ book.slug }}/run/{{ item.stage }}" class="inline">
+      <input type="hidden" name="force" value="1">
+      <button class="secondary" type="submit"{% if item.blocked %} disabled{% endif %}>{{ 'Re-synthesize every line' if item.stage == 'voices' else 'Re-render everything' }} (force)</button>
+    </form>
+    {% endif %}
+  {% endif %}
+  {% if item.blocked %}<span class="reason">{{ item.blocked }}</span>{% endif %}
+  </div>
+</section>
+{% endfor %}
+
+<section class="stage">
+  <h2>Last run</h2>
+  {% if job %}
+  <p>{{ job.label|capitalize }} {{ badge(job.state) }}
+    <span class="muted"{% if job.live %} data-elapsed="{{ job.elapsed }}"{% endif %}>{{ format_duration(job.elapsed) }}</span>
+    {% if job.exit_code is not none %}<span class="muted">exit code {{ job.exit_code }}</span>{% endif %}</p>
+  <pre class="log" id="log" data-job-id="{{ job.id }}" data-offset="{{ job.offset }}"{% if job.live %} data-live="1"{% endif %}>{{ job.log }}</pre>
+  {% else %}
+  <p class="muted">No stage has run for this book in the studio yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

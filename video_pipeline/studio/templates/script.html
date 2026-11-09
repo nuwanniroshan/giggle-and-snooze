@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_macros.html" import problem_list, book_links %}
+{% block title %}Script: {{ book.title }}{% endblock %}
+{% macro line_fields(lines) %}
+{% for line in lines %}
+<div class="line" id="{{ line.id }}">
+  <p class="small">{{ line.id }} &middot; {{ line.speaker }}{% if line.role %} &middot; {{ line.role }}{% endif %}</p>
+  <textarea name="{{ line.id }}" rows="{{ [2, (line.text|length // 70) + 1]|max }}">{{ line.text }}</textarea>
+  {{ problem_list(line.problems, line.id) }}
+</div>
+{% endfor %}
+{% endmacro %}
+{% block content %}
+<h1>Script</h1>
+<p class="muted">{{ book.title }}</p>
+{{ book_links(book) }}
+{% if script is none %}
+<p>No episode script yet. <a href="/books/{{ book.slug }}">Generate script</a> first.</p>
+{% elif script.error %}
+<p class="strong">{{ script.error }}</p>
+{% else %}
+{% if script.problems %}
+<section class="notice">
+  <h2>Nothing was saved</h2>
+  <ul class="problems">{% for p in script.problems %}<li>{% if p.target %}<a href="#{{ p.target }}">{{ p.text }}</a>{% else %}{{ p.text }}{% endif %}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+<section class="stage">
+  {% if script.reviewed %}
+  <p><span class="state">REVIEWED</span> <span class="muted">at {{ script.reviewed.reviewed_at }}</span></p>
+  {% else %}
+  <p><span class="state">NOT REVIEWED</span> <span class="muted">Read every line, fix what is wrong, then mark it as reviewed. Saving an edit clears the mark.</span></p>
+  {% endif %}
+  <form method="post" action="/books/{{ book.slug }}/script/reviewed" class="inline">
+    <button type="submit">Mark as reviewed</button>
+  </form>
+</section>
+<form method="post" action="/books/{{ book.slug }}/script" id="script-form">
+  <section class="stage">
+    <h2>Intro</h2>
+    {{ line_fields(script.intro) }}
+  </section>
+  {% for page in script.pages %}
+  <section class="stage page" id="{{ page.anchor }}">
+    <h2>Page {{ page.number }}{% if page.title %} <span class="muted">{{ page.title }}</span>{% endif %}</h2>
+    <img class="thumb" src="/media/{{ book.slug }}/illustration/{{ page.picture }}" alt="Illustration for page {{ page.number }}" loading="lazy">
+    <p class="muted">{{ page.text }}</p>
+    {{ problem_list(page.problems, page.anchor) }}
+    {{ line_fields(page.lines) }}
+  </section>
+  {% endfor %}
+  <section class="stage">
+    <h2>Outro</h2>
+    {{ line_fields(script.outro) }}
+  </section>
+  <div class="stage"><button type="submit">Save edits</button></div>
+</form>
+{% endif %}
+{% endblock %}

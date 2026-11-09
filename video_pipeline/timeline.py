@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 from video_pipeline.contract import TAG_RE, ConfigError
+from video_pipeline.file_hash import sha256_file
 
 Point = tuple[float, float, float]  # (z, cx, cy)
 SectionKind = Literal["intro", "page", "beat", "outro"]
@@ -637,7 +638,7 @@ def _font_identity(path: str) -> str:
     """sha256 of a font file (so replacing the file re-renders captions), else its path."""
     font = Path(path)
     if font.is_file():
-        return hashlib.sha256(font.read_bytes()).hexdigest()
+        return sha256_file(font)
     return path
 
 

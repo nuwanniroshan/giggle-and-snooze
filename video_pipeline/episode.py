@@ -50,6 +50,41 @@ class EpisodePlan:
     motions: tuple[str, ...]
 
 
+def book_problems(book: object, where: str) -> list[str]:
+    """Every way `book` breaks the input rules (FR-1), each message prefixed with `where`."""
+    if not isinstance(book, dict):
+        return [f"{where}: book data must be a JSON object"]
+    problems: list[str] = []
+    metadata = book.get("metadata")
+    title = str(metadata.get("title", "") if isinstance(metadata, dict) else "").strip()
+    if not title:
+        problems.append(f"{where}: metadata.title is missing")
+    elif not slugify(title):
+        problems.append(f"{where}: title has no letters or digits to build a slug from")
+    pages = book.get("pages")
+    if not isinstance(pages, list) or not MIN_PAGES <= len(pages) <= MAX_PAGES:
+        count = len(pages) if isinstance(pages, list) else 0
+        problems.append(
+            f"{where}: book has {count} pages; supported range is {MIN_PAGES}-{MAX_PAGES}"
+        )
+    if not isinstance(pages, list):
+        return problems
+    for expected, page in enumerate(pages, start=1):
+        if not isinstance(page, dict):
+            problems.append(f"{where}: page {expected}: must be a JSON object")
+            continue
+        if page.get("page_number") != expected:
+            problems.append(
+                f"{where}: page {expected}: page_number must be {expected} "
+                "(pages must be numbered 1..N in order)"
+            )
+        for field in ("text", "prompt"):
+            value = page.get(field)
+            if not isinstance(value, str) or not value.strip():
+                problems.append(f"{where}: page {expected}: '{field}' is missing or empty")
+    return problems
+
+
 def load_book(path: Path) -> dict:
     try:
         book = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -57,27 +92,9 @@ def load_book(path: Path) -> dict:
         raise BookError(f"book data file not found: {path}") from None
     except json.JSONDecodeError as exc:
         raise BookError(f"book data file is not valid JSON: {path} ({exc})") from None
-    title = str(book.get("metadata", {}).get("title", "")).strip()
-    if not title:
-        raise BookError(f"{path}: metadata.title is missing")
-    if not slugify(title):
-        raise BookError(f"{path}: title has no letters or digits to build a slug from")
-    pages = book.get("pages")
-    if not isinstance(pages, list) or not MIN_PAGES <= len(pages) <= MAX_PAGES:
-        count = len(pages) if isinstance(pages, list) else 0
-        raise BookError(
-            f"{path}: book has {count} pages; supported range is {MIN_PAGES}-{MAX_PAGES}"
-        )
-    for expected, page in enumerate(pages, start=1):
-        if page.get("page_number") != expected:
-            raise BookError(
-                f"{path}: page {expected}: page_number must be {expected} "
-                "(pages must be numbered 1..N in order)"
-            )
-        for field in ("text", "prompt"):
-            value = page.get(field)
-            if not isinstance(value, str) or not value.strip():
-                raise BookError(f"{path}: page {expected}: '{field}' is missing or empty")
+    problems = book_problems(book, str(path))
+    if problems:
+        raise BookError(problems[0])
     return book
 
 

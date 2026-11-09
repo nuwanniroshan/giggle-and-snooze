@@ -44,6 +44,7 @@ from video_pipeline.contract import (
 )
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import CONFIG_DIR, ROOT, write_atomic
+from video_pipeline.file_hash import sha256_file
 from video_pipeline.tts import (
     ModelSettings,
     OrpheusVoice,
@@ -568,10 +569,6 @@ class ApproveError(Exception):
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
-
-
-def sha256_file(path: Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def settings_hash(cfg: VoiceConfig, script: dict, prons: dict[str, str]) -> str:
