@@ -7,12 +7,16 @@ Run: uv run python -m video_pipeline.synthesize_voices --reviewed      # synthes
 
 from __future__ import annotations
 
+import argparse
+import errno
 import hashlib
 import json
 import os
 import re
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -27,9 +31,26 @@ from video_pipeline.audio_checks import (
     stitch,
     trim_silence,
 )
-from video_pipeline.contract import ALLOWED_TAGS, SPEAKERS, TAG_RE, ConfigError, word_count
-from video_pipeline.episode_tools import write_atomic
-from video_pipeline.tts import ModelSettings, pitch_shift
+from video_pipeline.contract import (
+    ALLOWED_TAGS,
+    SPEAKERS,
+    TAG_RE,
+    ConfigError,
+    load_disallowed_terms,
+    slugify,
+    validate_script,
+    word_count,
+)
+from video_pipeline.episode import BookError, load_book
+from video_pipeline.episode_tools import CONFIG_DIR, ROOT, write_atomic
+from video_pipeline.tts import (
+    ModelSettings,
+    OrpheusVoice,
+    PitchShiftError,
+    VoiceUnavailable,
+    download_model,
+    pitch_shift,
+)
 
 VOICE_CONFIG_KEYS = (
     "model",
@@ -388,3 +409,239 @@ def build_preview(track_names: list[str], paths: AudioPaths, cfg: VoiceConfig) -
     gaps = [cfg.pauses["between_tracks"]] * max(0, len(tracks) - 1)
     audio, _ = stitch(tracks, gaps, cfg.sample_rate)
     write_wav_atomic(paths.preview, audio, cfg.sample_rate)
+
+
+REVIEW_NOTICE = (
+    "Listening review required: play {preview} (each track is in {tracks}). Listen for "
+    "robotic or garbled speech, mispronounced names and emotion tags read aloud, then approve "
+    "with: uv run python -m video_pipeline.synthesize_voices approve --book {book}"
+)
+
+
+class ApproveError(Exception):
+    """The audio cannot be approved yet."""
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def settings_hash(cfg: VoiceConfig, script: dict, prons: dict[str, str]) -> str:
+    payload = {"voices": cfg.raw, "cast": script["cast"], "pronunciations": prons}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def describe(job: LineJob) -> str:
+    """Human name of a line (AC-3.4): 'page 3 line 2 (kid_older)'."""
+    parts = job.line_id.split("-")
+    if parts[0] == "page":
+        return f"page {int(parts[1])} line {int(parts[2])} ({job.speaker})"
+    return f"{parts[0]} line {int(parts[1])} ({job.speaker})"
+
+
+def _cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def write_review(
+    paths: AudioPaths,
+    outcomes: list[ClipOutcome],
+    track_names: list[str],
+    title: str,
+    status: str,
+) -> None:
+    groups = _track_groups(outcomes)
+    lines = [
+        f"# Listening review: {title}",
+        "",
+        f"Status: **{status}**. Full episode: `preview.wav`. Tracks: `tracks/`.",
+        "",
+    ]
+    for name in track_names:
+        duration = json.loads(paths.track_timing(name).read_text(encoding="utf-8"))["duration"]
+        lines += [
+            f"## {name} ({duration:.1f} s)",
+            "",
+            "| Line | Speaker | Duration (s) | Peak | Longest silence (s) | Words/s | Attempts | Text |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+        for o in groups[name]:
+            m = o.measure
+            lines.append(
+                f"| {o.job.line_id} | {o.job.speaker} | {m.duration:.2f} | {m.peak:.2f} | "
+                f"{m.longest_silence:.2f} | {m.wps:.2f} | {o.attempts} | {_cell(o.job.text)} |"
+            )
+        lines.append("")
+    paths.review.parent.mkdir(parents=True, exist_ok=True)
+    tmp = paths.review.with_name(paths.review.name + ".tmp")
+    tmp.write_text("\n".join(lines), encoding="utf-8")
+    os.replace(tmp, paths.review)  # noqa: PTH105
+
+
+def update_status(
+    paths: AudioPaths, script_sha: str, settings_sha: str, any_synthesized: bool
+) -> dict:
+    previous = (
+        json.loads(paths.status.read_text(encoding="utf-8")) if paths.status.exists() else None
+    )
+    keep = (
+        previous is not None
+        and previous.get("status") == "approved"
+        and not any_synthesized
+        and previous.get("script_sha256") == script_sha
+        and previous.get("settings_sha256") == settings_sha
+    )
+    status = (
+        previous
+        if keep
+        else {
+            "status": "pending review",
+            "script_sha256": script_sha,
+            "settings_sha256": settings_sha,
+            "synthesized_at": _now(),
+            "approved_at": None,
+        }
+    )
+    write_atomic(paths.status, status)
+    return status
+
+
+def approve(paths: AudioPaths, script_path: Path) -> dict:
+    if not paths.status.exists():
+        raise ApproveError(f"no synthesized audio in {paths.root}; run synthesis first")
+    status = json.loads(paths.status.read_text(encoding="utf-8"))
+    if not script_path.exists() or sha256_file(script_path) != status["script_sha256"]:
+        raise ApproveError(
+            f"{script_path} changed since the audio was synthesized; re-run synthesis first"
+        )
+    status.update(status="approved", approved_at=_now())
+    write_atomic(paths.status, status)
+    return status
+
+
+def create_engine(cfg: VoiceConfig):
+    return OrpheusVoice(cfg.model)
+
+
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="python -m video_pipeline.synthesize_voices",
+        description="Speak a reviewed episode script with the local voice model (spec 002).",
+        allow_abbrev=False,
+    )
+    parser.add_argument(
+        "command", nargs="?", default="synthesize", choices=("synthesize", "approve", "download")
+    )
+    parser.add_argument("--book", type=Path, default=ROOT / "book_data.json")
+    parser.add_argument("--episodes-dir", type=Path, default=ROOT / "episodes")
+    parser.add_argument("--build-dir", type=Path, default=ROOT / "build")
+    parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
+    parser.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="confirm a person has reviewed the episode script (spec 001 AC-7.4)",
+    )
+    parser.add_argument("--force", action="store_true", help="re-synthesize every line")
+    return parser.parse_args(argv)
+
+
+def _synthesize(
+    args: argparse.Namespace,
+    cfg: VoiceConfig,
+    book: dict,
+    slug: str,
+    script_path: Path,
+    paths: AudioPaths,
+) -> int:
+    if not script_path.exists():
+        print(f"error: episode script not found: {script_path}", file=sys.stderr)
+        return 1
+    script = json.loads(script_path.read_text(encoding="utf-8"))
+    terms = load_disallowed_terms(args.config_dir / "disallowed_terms.txt")
+    errors = validate_script(script, book, terms)
+    if errors:
+        print(f"error: {script_path} fails validation:", file=sys.stderr)
+        for problem in errors:
+            print(f"  - {problem}", file=sys.stderr)
+        return 1
+    if not args.reviewed:
+        print(
+            "error: the episode script must be reviewed by a person before voice synthesis "
+            f"(spec 001 AC-7.4). After reviewing {script_path}, re-run with --reviewed.",
+            file=sys.stderr,
+        )
+        return 1
+    prons = load_pronunciations(book, args.book)
+    jobs = plan_jobs(script, cfg, prons)
+    print(f"synthesizing {len(jobs)} lines into {paths.root}")
+    outcomes = synthesize_clips(
+        jobs,
+        paths,
+        lambda: create_engine(cfg),
+        cfg,
+        force=args.force,
+        shift=lambda audio, sr, semitones: pitch_shift(audio, sr, semitones),
+        on_progress=lambda o: (
+            o.synthesized
+            and print(f"  {o.job.line_id}: {o.measure.duration:.1f} s, attempt {o.attempts}")
+        ),
+    )
+    names, rebuilt = build_tracks(outcomes, paths, cfg)
+    if rebuilt or not paths.preview.exists():
+        build_preview(names, paths, cfg)
+    any_synthesized = any(o.synthesized for o in outcomes)
+    status = update_status(
+        paths, sha256_file(script_path), settings_hash(cfg, script, prons), any_synthesized
+    )
+    write_review(paths, outcomes, names, script["title"], status["status"])
+    synthesized = sum(o.synthesized for o in outcomes)
+    print(
+        f"synthesized {synthesized}, reused {len(outcomes) - synthesized} clips; "
+        f"rebuilt {len(rebuilt)} of {len(names)} tracks; status: {status['status']}"
+    )
+    if status["status"] != "approved":
+        print(REVIEW_NOTICE.format(preview=paths.preview, tracks=paths.tracks, book=args.book))
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    paths: AudioPaths | None = None
+    try:
+        cfg = load_voice_config(args.config_dir / "voices.json")
+        if args.command == "download":
+            download_model(cfg.model)
+            create_engine(cfg)
+            print(f"voice model ready: {cfg.model.repo}@{cfg.model.revision[:8]}")
+            return 0
+        book = load_book(args.book)
+        slug = slugify(book["metadata"]["title"])
+        script_path = args.episodes_dir / slug / "episode_script.json"
+        paths = AudioPaths(args.build_dir / slug / "audio")
+        if args.command == "approve":
+            approve(paths, script_path)
+            print(f"approved the audio in {paths.root}")
+            return 0
+        return _synthesize(args, cfg, book, slug, script_path, paths)
+    except (BookError, ConfigError, VoiceUnavailable, PitchShiftError, ApproveError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except LineFailed as exc:
+        print(f"error: {exc}; nothing stitched:", file=sys.stderr)
+        for job, problems in exc.failures:
+            print(f"  - {describe(job)}: {'; '.join(problems)}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        if exc.errno == errno.ENOSPC:
+            where = paths.root if paths else args.build_dir
+            print(f"error: not enough disk space to write audio in {where}", file=sys.stderr)
+            return 1
+        raise
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
