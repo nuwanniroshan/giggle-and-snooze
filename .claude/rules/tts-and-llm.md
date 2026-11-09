@@ -1,7 +1,8 @@
 # mlx-audio TTS and provider (Codex/Gemini) text
 
 - ✓ Load the Orpheus model once per run and reuse it for every line.
-- ✓ Use the 4-bit model on 16 GB. Generate line by line and free MLX cache between lines (unverified for mlx-audio specifically: check its docs).
+- ✓ Use the 4-bit model with `max_tokens=3000` (the default 1200 cuts lines off at ~15 s). Generate line by line and call `mx.clear_cache()` between lines (verified 2026-11-09: ~6 GB peak).
+- ✓ The bf16 Orpheus repo is needed only for its tokenizer files; download it with `allow_patterns` (whole repo is ~6.5 GB).
 - ✓ Text generation runs through a provider CLI or API, not a local model, so voice synthesis has the full memory.
 - ✓ Cache audio by content hash (`sha256(text+voice+model)`) under `build/`, and skip synthesis when the file exists.
 - ✓ Request JSON from the Gemini API (`responseMimeType`) and validate every banter through `EpisodeTools.check` before writing.

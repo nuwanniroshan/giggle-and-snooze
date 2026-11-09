@@ -329,8 +329,11 @@ def pause_between(
 
 **Implements:** FR-2 (model loaded once, voices, pitch lift, tags), NFR Security (pinned, offline, no remote code), Error Scenario (model missing) | **Satisfies:** AC-2.2 (via the Phase 5 `ffmpeg` test), AC-2.3 (tags passed through)
 **Files:** `pyproject.toml`, `uv.lock`, `video_pipeline/tts.py`, `tests/test_tts.py`, `tests/test_tts_real.py`
+
+> **Corrected during Phase 5 verification (commit 6def1e8):** `support_repos` entries became 3-tuples `(repo, revision, allow_patterns | None)`, read from an optional `"files"` list per support repo in `config/voices.json`. The bf16 repo is needed only for its tokenizer files, and the whole repo is ~6.5 GB. The snippets below show the corrected shape.
+
 **Interfaces:** Produces:
-- the frozen dataclass `ModelSettings(repo, revision, temperature, top_p, max_tokens, support_repos: tuple[tuple[str, str], ...] = ())`;
+- the frozen dataclass `ModelSettings(repo, revision, temperature, top_p, max_tokens, support_repos: tuple[tuple[str, str, tuple[str, ...] | None], ...] = ())`, each support repo being `(repo, revision, allow_patterns | None)`;
 - `VoiceUnavailable`, `PitchShiftError` and `DOWNLOAD_HINT`;
 - `pitch_ratio(semitones)`, `pitch_filter(semitones, sample_rate) -> str` and `pitch_shift(audio, sample_rate, semitones) -> np.ndarray`;
 - `download_model(settings) -> None`;
@@ -569,7 +572,8 @@ class ModelSettings:
     temperature: float
     top_p: float
     max_tokens: int
-    support_repos: tuple[tuple[str, str], ...] = ()
+    # (repo, revision, allow_patterns): None fetches the whole repo, a tuple only those files.
+    support_repos: tuple[tuple[str, str, tuple[str, ...] | None], ...] = ()
 
 
 class VoiceUnavailable(Exception):
@@ -617,8 +621,12 @@ def download_model(settings: ModelSettings) -> None:
     """The only network use (spec 002 Cost): fetch the pinned model and its support files."""
     from huggingface_hub import snapshot_download
 
-    for repo, revision in ((settings.repo, settings.revision), *settings.support_repos):
-        snapshot_download(repo_id=repo, revision=revision)
+    snapshot_download(repo_id=settings.repo, revision=settings.revision)
+    for repo, revision, patterns in settings.support_repos:
+        if patterns is None:
+            snapshot_download(repo_id=repo, revision=revision)
+        else:
+            snapshot_download(repo_id=repo, revision=revision, allow_patterns=list(patterns))
 
 
 class OrpheusVoice:
@@ -691,7 +699,11 @@ class OrpheusVoice:
     "revision": "b30aed4ecfa03c0177a5419b51919d14a105f183",
     "support_repos": [
       {"repo": "mlx-community/snac_24khz", "revision": "556af1cd3b1c5f2d294f6aa9bb886245d7b716ac"},
-      {"repo": "mlx-community/orpheus-3b-0.1-ft-bf16", "revision": "3786aac51797181edddeb0d89a8253deaee99aab"}
+      {
+        "repo": "mlx-community/orpheus-3b-0.1-ft-bf16",
+        "revision": "3786aac51797181edddeb0d89a8253deaee99aab",
+        "files": ["config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"]
+      }
     ],
     "temperature": 0.6,
     "top_p": 0.8,
@@ -1103,7 +1115,12 @@ def load_voice_config(path: Path) -> VoiceConfig:
             top_p=float(model["top_p"]),
             max_tokens=int(model["max_tokens"]),
             support_repos=tuple(
-                (item["repo"], item["revision"]) for item in model.get("support_repos", [])
+                (
+                    item["repo"],
+                    item["revision"],
+                    tuple(item["files"]) if item.get("files") is not None else None,
+                )
+                for item in model.get("support_repos", [])
             ),
         ),
         seed=int(model["seed"]),

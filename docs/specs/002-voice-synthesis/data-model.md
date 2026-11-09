@@ -18,6 +18,6 @@
 
 | File | Content |
 |------|---------|
-| `config/voices.json` | `model {repo, revision, support_repos[], temperature, top_p, max_tokens, seed}`, `supported_voices`, `pitch_semitones {role: semitones}`, `pauses {same_speaker, speaker_change, narration_to_qa, between_tracks}`, `checks {…, max_attempts}`, `sample_rate` |
+| `config/voices.json` | `model {repo, revision, support_repos[{repo, revision, files?}], temperature, top_p, max_tokens, seed}`, `supported_voices`, `pitch_semitones {role: semitones}`, `pauses {same_speaker, speaker_change, narration_to_qa, between_tracks}`, `checks {…, max_attempts}`, `sample_rate` |
 | `config/cast.json` | Per-role `voice` (storyteller tara, kid_older zac, kid_younger zoe). It is copied into each episode script's `cast`, and synthesis reads the voice from the script |
 | `book_data.json` `metadata.pronunciations` | Optional `{word: spoken respelling}`. Applied whole word and case-insensitively to spoken text only |

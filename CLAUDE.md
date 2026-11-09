@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A pipeline for turning an illustrated children's book (pilot: *The Snail Mail Express: A Whisperwood Hollow Story*) into publishable outputs. Two parts:
 
 1. **Book production (exists):** Python scripts in `scripts/` that render print/digital editions from `book_data.json` + `assets/illustrations/`.
-2. **Storytime video factory (planned, see `PRD.md`):** a `video_pipeline/` package that turns the same book into a 16:9 1080p YouTube read-aloud video. None of this code exists yet — `PRD.md` is the spec.
+2. **Storytime video factory (in progress, see `PRD.md`):** a `video_pipeline/` package that turns the same book into a 16:9 1080p YouTube read-aloud video. Stages 1–2 (episode script, voices) exist; render and the one-command wrapper are still planned. Specs live in `docs/specs/`.
 
-Not a git repository.
+Git repository; feature work happens on `feat/NNN-*` branches.
 
 ## Commands
 
@@ -28,11 +28,17 @@ uv run pytest                          # unit tests (skips the real-provider tes
 uv run pytest -m codex                 # real ChatGPT run via Codex (uses ChatGPT plan quota)
 uv run python -m video_pipeline.generate_script [--book PATH] [--provider codex|gemini-api] [--seed N] [--force]
 uv run python -m video_pipeline.mcp_server --book PATH   # the episode tools, to add to the ChatGPT/Codex app as an MCP server
+
+# Video pipeline (stage 2: voices)
+uv run python -m video_pipeline.synthesize_voices download        # one-time: fetch the pinned voice model
+uv run python -m video_pipeline.synthesize_voices --reviewed [--force]   # stage 2: speak the reviewed script
+uv run python -m video_pipeline.synthesize_voices approve         # after listening to preview.wav
+uv run pytest -m "ffmpeg or tts"                                  # real FFmpeg pitch lift + real Orpheus
 ```
 
 `build_book.py` outputs (all in `build/`): front/back cover PNGs (300 DPI), KDP wrap cover PDF/PNG, 20-page digital PDF (8.5"×8.5"), complete reader PDF (covers + 20 pages), 24-page KDP print interior PDF (with bleed), EPUB 3, and `index.html` flipbook (references `../assets/illustrations/` by relative path, so open it from `build/`).
 
-`ffmpeg` (Homebrew) is installed on the host for the planned video pipeline. The Codex CLI ships inside the ChatGPT app (`/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`, logged in with ChatGPT).
+`ffmpeg` (Homebrew, no rubberband) is installed on the host for the video pipeline. The Codex CLI ships inside the ChatGPT app (`/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`, logged in with ChatGPT).
 
 ## Architecture
 
@@ -43,14 +49,14 @@ uv run python -m video_pipeline.mcp_server --book PATH   # the episode tools, to
 - **Hardcoded paths/book name:** both scripts set `ROOT = Path("/Users/swiveltech/Disk/Swivel/kiddo")`, and output filenames embed `The_Snail_Mail_Express`. Supporting another book means parameterizing these.
 - **Fonts:** reportlab registers macOS Georgia from `/System/Library/Fonts/Supplemental`, falling back to Times.
 
-## Planned video pipeline (from PRD.md)
+## Video pipeline (from PRD.md)
 
 Target: Apple Silicon M1 Pro, 16 GB — stages run sequentially to fit memory.
 
 - Cast: Storyteller, Kid 1 (~8yo, `kid_older`), Kid 2 (~5yo, `kid_younger`). Kid Q&A every 2–3 pages (~7–8 per book).
 - Stages / planned files:
   1. **Implemented:** `video_pipeline/` — deterministic core (`contract.py`, `episode.py`, `episode_tools.py`), model access (`llm.py` Gemini API + writing brief, `agents.py` Codex runner, `mcp_server.py` episode tools `get_episode_plan`/`validate_banter`/`save_episode_script`), CLI `generate_script.py`. Writes hand-editable `episodes/<slug>/episode_script.json` (intro, per-page `lines` with `speaker`/`role`/`text`, `ffmpeg_camera` zoom targets, outro; regenerate with `--force`). Default provider: Codex from the ChatGPT app, run headless with only the `kiddo` MCP tools (`KIDDO_CODEX_BIN` overrides the binary); agent run logs (raw JSONL + `.stderr.log`, gitignored) go to `episodes/<slug>/agent/`. Opt-in `--provider gemini-api` reads `GEMINI_API_KEY`. No fallback between providers. The seed alone decides the episode plan. Cast in `config/cast.json`, kid-safety terms in `config/disallowed_terms.txt`. Every generated script needs human review before voice synthesis.
-  2. `video_pipeline/synthesize_voices.py` — local TTS via `mlx-audio` + Orpheus `orpheus-3b-0.1-ft-4bit`; lines may carry inline tags `<giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>`.
-  3. `video_pipeline/render_episode.py` — Pillow + FFmpeg: `zoompan` Ken Burns, `xfade` page flips, `sidechaincompress` BGM ducking, page-turn SFX from `assets/audio_sfx/`, H.264/AAC 1920×1080.
+  2. **Implemented:** `video_pipeline/audio_checks.py` (numpy measurements, trim, stitch, pauses), `tts.py` (Orpheus via `mlx-audio` 0.6.4, pinned, offline with `HF_HUB_OFFLINE=1`; FFmpeg `asetrate`/`aresample`/`atempo` pitch lift because Homebrew FFmpeg lacks rubberband), CLI `synthesize_voices.py`. Voices per role in `config/cast.json` (tara / zac +2 st / zoe +3 st); model, pitch, pauses and checks in `config/voices.json`; optional `metadata.pronunciations` in book data (applied to spoken text only). Lines may carry inline tags `<giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>`. Outputs in `build/<slug>/audio/`: `clips/` (hash-keyed, reused), `tracks/` (intro, `page-PP`, outro WAV + timing JSON), `preview.wav`, `review.md`, `status.json` ("pending review" → "approved" via `approve`). Refuses to run without `--reviewed`.
+  3. `video_pipeline/render_episode.py` — must require voice `status.json` "approved". Pillow + FFmpeg: `zoompan` Ken Burns, `xfade` page flips, `sidechaincompress` BGM ducking, page-turn SFX from `assets/audio_sfx/`, H.264/AAC 1920×1080.
   4. One-command CLI/MCP wrapper for the whole pipeline for future books (`mcp_server.py` currently exposes only the stage-1 episode tools).
 - Act II (story pages) has no on-screen avatars or speech bubbles — visuals are the book pages only. Intro/outro use a single reading-nook keyframe each, animated by FFmpeg.
