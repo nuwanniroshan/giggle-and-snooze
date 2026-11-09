@@ -605,22 +605,54 @@ def next_status(
     return status
 
 
+APPROVE_COMMAND = "uv run python -m video_pipeline.synthesize_voices approve"
+
+
+def _validity_problems(
+    paths: AudioPaths, status: dict, script_path: Path, settings_sha: str | None, fix: str
+) -> list[str]:
+    """Why the synthesized audio no longer matches the script, voice settings or preview."""
+    if not script_path.exists():
+        return [f"episode script not found: {script_path}"]
+    problems: list[str] = []
+    if sha256_file(script_path) != status.get("script_sha256"):
+        problems.append(f"{script_path} changed since the audio was synthesized; {fix}")
+    if settings_sha != status.get("settings_sha256"):
+        problems.append(f"voice settings changed since the audio was synthesized; {fix}")
+    if current_preview_key(paths) != status.get("preview_key"):
+        problems.append(f"the preview changed since synthesis finished; {fix}")
+    return problems
+
+
+def approval_problems(
+    paths: AudioPaths, script_path: Path, settings_sha: str | None, book_path: Path | None = None
+) -> list[str]:
+    """Why the audio may not be used downstream (spec 003 AC-2.1, AC-2.2); empty when approved
+    and the approval still holds for the current script, voice settings and preview."""
+    if not paths.status.exists():
+        return [f"no synthesized audio in {paths.root}; run synthesis first"]
+    status = json.loads(paths.status.read_text(encoding="utf-8"))
+    problems = _validity_problems(
+        paths, status, script_path, settings_sha, "re-run synthesis and approve again"
+    )
+    if not problems and status.get("status") != "approved":
+        book = f" --book {book_path}" if book_path else ""
+        problems.append(
+            f"the audio in {paths.root} is not approved (status: {status.get('status')}); "
+            f"listen to it, then approve it with: {APPROVE_COMMAND}{book}"
+        )
+    return problems
+
+
 def approve(paths: AudioPaths, script_path: Path, settings_sha: str | None) -> dict:
     if not paths.status.exists():
         raise ApproveError(f"no synthesized audio in {paths.root}; run synthesis first")
     status = json.loads(paths.status.read_text(encoding="utf-8"))
-    if not script_path.exists():
-        raise ApproveError(f"episode script not found: {script_path}")
-    if sha256_file(script_path) != status["script_sha256"]:
-        raise ApproveError(
-            f"{script_path} changed since the audio was synthesized; re-run synthesis first"
-        )
-    if settings_sha != status["settings_sha256"]:
-        raise ApproveError(
-            "voice settings changed since the audio was synthesized; re-run synthesis first"
-        )
-    if current_preview_key(paths) != status.get("preview_key"):
-        raise ApproveError("the preview changed since synthesis finished; re-run synthesis first")
+    problems = _validity_problems(
+        paths, status, script_path, settings_sha, "re-run synthesis first"
+    )
+    if problems:
+        raise ApproveError(problems[0])
     status.update(status="approved", approved_at=_now())
     write_atomic(paths.status, status)
     return status
@@ -712,7 +744,7 @@ def _synthesize(
     return 0
 
 
-def _current_settings_sha(
+def current_settings_sha(
     cfg: VoiceConfig, book: dict, book_path: Path, script_path: Path
 ) -> str | None:
     try:
@@ -739,7 +771,7 @@ def main(argv: list[str] | None = None) -> int:
         script_path = args.episodes_dir / slug / "episode_script.json"
         paths = AudioPaths(args.build_dir / slug / "audio")
         if args.command == "approve":
-            approve(paths, script_path, _current_settings_sha(cfg, book, args.book, script_path))
+            approve(paths, script_path, current_settings_sha(cfg, book, args.book, script_path))
             print(f"approved the audio in {paths.root}")
             return 0
         return _synthesize(args, cfg, book, slug, script_path, paths)
