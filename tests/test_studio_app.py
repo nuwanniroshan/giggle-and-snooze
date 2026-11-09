@@ -157,7 +157,14 @@ def test_pages_use_only_local_assets_and_the_black_and_white_palette(bare):
     css = (STATIC / "studio.css").read_text(encoding="utf-8")
     colours = {c.lower() for c in re.findall(r"#[0-9a-fA-F]{3,6}\b", css)}
     assert colours <= {"#000", "#fff", "#6b6b6b", "#e5e5e5"}
-    assert "rgb" not in css and "box-shadow" not in css and "gradient" not in css
+    assert "gradient" not in css and "rgba" not in css and "hsl" not in css
+    # Spec 004 v1.1.0: subtle depth, black shadows only, at most 12% opacity, 2-4px radii.
+    alphas = re.findall(r"rgb\(\s*0\s+0\s+0\s*/\s*([0-9.]+)\s*\)", css)
+    assert len(alphas) == css.count("rgb(") and alphas
+    assert all(float(a) <= 0.12 for a in alphas)
+    assert "box-shadow" in css
+    radii = {int(r) for r in re.findall(r"radius[-a-z]*:\s*(\d+)px", css)}
+    assert radii and radii <= {0, 2, 3, 4}
     assert len(css.splitlines()) < 200
     assert bare.client.get("/static/studio.css").status_code == 200
     assert bare.client.get("/static/studio.js").status_code == 200

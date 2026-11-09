@@ -4,7 +4,7 @@
 {% macro line_fields(lines) %}
 {% for line in lines %}
 <div class="line" id="{{ line.id }}">
-  <p class="small">{{ line.id }} &middot; {{ line.speaker }}{% if line.role %} &middot; {{ line.role }}{% endif %}</p>
+  <p class="small meta"><span>{{ line.id }}</span> <span>{{ line.speaker }}</span>{% if line.role %} <span>{{ line.role }}</span>{% endif %}</p>
   <textarea name="{{ line.id }}" rows="{{ [2, (line.text|length // 70) + 1]|max }}">{{ line.text }}</textarea>
   {{ problem_list(line.problems, line.id) }}
 </div>

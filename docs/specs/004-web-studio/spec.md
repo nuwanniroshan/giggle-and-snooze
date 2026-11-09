@@ -1,6 +1,6 @@
 # Spec 004: Episode studio (local web interface)
 
-**Version:** 1.0.1 (1.0.1, 2026-11-09: NFR Look added at the producer's request, PATCH)
+**Version:** 1.1.0 (1.1.0, 2026-11-09: NFR Look allows subtle depth and small radii, MINOR; 1.0.1, 2026-11-09: NFR Look added at the producer's request, PATCH)
 **Status:** Approved
 **Created:** 2026-11-09
 **Depends on:** specs 001 (episode script), 002 (voice synthesis), 003 (render)
@@ -95,6 +95,7 @@ As the producer, I want to watch the finished video in the browser.
 - **Security:** listens only on the local loopback address; no remote access, no secrets in pages; uploads cannot write outside their book's folder.
 - **Responsiveness:** pages load in under 1 s while a stage is running; progress updates appear within 2 s of the tool printing them.
 - **Look:** ultra-minimalist and clean: black and white only (one grey for secondary text and hairlines), no decoration, generous spacing between elements.
+- **Depth (v1.1.0):** subtle depth on raised elements (sections, buttons, inputs, tables, the running banner): soft shadows in black at low opacity (at most 12%) and small corner radii (2 to 4px). Still black and white only: no other colours, no gradients, no icons.
 - **Simplicity:** no build step for the web pages; starts with one command from the project's environment.
 - **Reliability:** if the studio is restarted while a stage runs, the stage is reported as interrupted (not "running"), and nothing half-written is trusted (stage-level atomic writes).
 - **Compatibility:** the command-line tools keep working unchanged, and books added through the studio can also be run from the command line.

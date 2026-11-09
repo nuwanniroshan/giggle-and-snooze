@@ -1,4 +1,12 @@
-/* Episode studio: black on white, one grey, an 8px spacing scale (8/16/24/48/64). */
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: brand · redesign: restyle
+ * paper: #fff · accent: none (ink #000) · display: system sans · body: system sans
+ * nav: kept · signature: kept · states: hover, active, focus, disabled, running, failed
+ * axes: light/grotesk-sans/neutral · surface: absolute · posture: kept · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S3 R5 V3 · weakest: S, a plain tool screen; depth comes only from the work surfaces (stages, fields, log), never from chrome */
+/* Hallmark · waive 7b · pure ink #000 on paper #fff · spec 004 fixes the studio palette to black and white */
+/* Hallmark · waive 28b · the episode video has no poster frame · Render video writes the mp4 only, no still frame for a poster */
+/* Hallmark · answered F23 · the studio binds 127.0.0.1 only, so link previews never happen */
+/* Episode studio: black on white, one grey, an 8px spacing scale; depth = soft black shadows, 2-4px radii (spec 004 v1.1.0). */
 :root {
   --ink: #000;
   --paper: #fff;
@@ -6,11 +14,19 @@
   --rule: #e5e5e5;
   --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, Menlo, monospace;
+  --shadow-low: 0 1px 2px rgb(0 0 0 / 0.06);
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 16px rgb(0 0 0 / 0.05);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.08), 0 8px 24px rgb(0 0 0 / 0.08);
+  --shadow-well: inset 0 1px 3px rgb(0 0 0 / 0.07);
+  --radius-panel: 4px;
+  --radius-control: 3px;
+  --radius-field: 2px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 * { box-sizing: border-box; }
 
-html { background: var(--paper); color: var(--ink); }
+html { background: var(--paper); color: var(--ink); overflow-x: clip; }
 
 body {
   margin: 0 auto;
@@ -19,13 +35,15 @@ body {
   font: 16px/1.6 var(--sans);
   background: var(--paper);
   color: var(--ink);
+  overflow-x: clip;
 }
 
-a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
 
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-h1, h2, h3 { margin: 0 0 16px; line-height: 1.25; }
+h1, h2, h3 { margin: 0 0 16px; line-height: 1.25; overflow-wrap: break-word; min-width: 0; text-wrap: balance; }
 h1 { font-size: 32px; font-weight: 600; }
 h2 { font-size: 20px; font-weight: 600; }
 p { margin: 0 0 16px; }
@@ -49,27 +67,52 @@ nav.sub a { margin: 0 24px 0 0; }
   flex-wrap: wrap;
   align-items: center;
   gap: 16px;
-  padding: 16px 0;
+  padding: 16px 24px;
   margin: -24px 0 48px;
-  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-raised);
 }
 
 .muted, .small, .reason { color: var(--grey); }
 .small, .reason { font-size: 14px; }
 .small { display: block; margin: 0 0 8px; }
+.meta { display: flex; flex-wrap: wrap; gap: 0 16px; }
 .strong { font-weight: 700; }
 .mono, pre { font-family: var(--mono); font-size: 14px; }
 
 .state {
+  display: inline-block;
+  padding: 0 8px;
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  line-height: 20px;
   white-space: nowrap;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-field);
+  box-shadow: var(--shadow-low);
 }
-.state.strong { font-weight: 700; }
+.state.strong { font-weight: 700; border-color: var(--ink); }
 
-section.stage { margin: 0 0 48px; }
-.notice { margin: 0 0 48px; padding: 24px 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+section.stage {
+  margin: 0 0 24px;
+  padding: 24px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-raised);
+}
+section.stage > :last-child, .notice > :last-child { margin-bottom: 0; }
+form > section.stage:last-of-type { margin-bottom: 48px; }
+div.stage { margin: 0 0 48px; }
+.notice {
+  margin: 0 0 48px;
+  padding: 24px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-raised);
+}
 .notice h2 { margin-bottom: 8px; }
 
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
@@ -82,22 +125,28 @@ button {
   font: inherit;
   padding: 12px 24px;
   border: 1px solid var(--ink);
-  border-radius: 0;
+  border-radius: var(--radius-control);
   background: var(--ink);
   color: var(--paper);
   cursor: pointer;
+  box-shadow: var(--shadow-low);
+  transition: transform 120ms var(--ease), box-shadow 120ms var(--ease);
 }
+button:hover { transform: translateY(-1px); box-shadow: var(--shadow-lift); }
+button:active { transform: translateY(0); box-shadow: none; }
 button.secondary { background: var(--paper); color: var(--ink); }
-button:disabled { background: var(--paper); color: var(--grey); border-color: var(--rule); cursor: not-allowed; }
+button:disabled { background: var(--paper); color: var(--grey); border-color: var(--rule); cursor: not-allowed; box-shadow: none; transform: none; }
 
 input[type="file"], textarea {
   font: inherit;
   width: 100%;
-  border: 1px solid var(--ink);
-  border-radius: 0;
+  border: 1px solid var(--grey);
+  border-radius: var(--radius-field);
   background: var(--paper);
   color: var(--ink);
+  box-shadow: var(--shadow-well);
 }
+input[type="file"]:hover, textarea:hover { border-color: var(--ink); }
 input[type="file"] { padding: 8px; }
 textarea { padding: 8px 16px; resize: vertical; }
 input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--ink); }
@@ -106,25 +155,45 @@ table { width: 100%; border-collapse: collapse; margin: 0 0 24px; }
 th, td { padding: 16px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); }
 th { font-weight: 600; font-size: 14px; }
 th:first-child, td:first-child { padding-left: 0; }
+tbody tr:last-child > * { border-bottom: 0; }
+main > table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-raised);
+}
+main > table th:first-child, main > table td:first-child { padding-left: 24px; }
+main > table thead th { color: var(--grey); }
 
 .line { margin: 0 0 24px; }
 .problems { margin: 8px 0 0; padding-left: 16px; font-weight: 700; }
-.thumb { display: block; width: 240px; max-width: 100%; height: auto; margin: 0 0 16px; border: 1px solid var(--rule); }
+.thumb { display: block; width: 240px; max-width: 100%; height: auto; margin: 0 0 16px; border-radius: var(--radius-control); box-shadow: var(--shadow-raised); }
 
 audio, video { display: block; width: 100%; margin: 0 0 24px; }
+video { border-radius: var(--radius-panel); box-shadow: var(--shadow-raised); }
 
 pre.log {
   margin: 0;
-  padding: 16px 0;
+  padding: 16px;
   max-height: 480px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-field);
+  box-shadow: var(--shadow-well);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+  button:hover { transform: none; }
 }
 
 @media (max-width: 600px) {
   body { padding: 24px 24px 48px; }
+  section.stage, .notice { padding: 16px; }
   th, td { padding: 8px; }
+  section.stage table { display: block; overflow-x: auto; }
+  main > table th:first-child, main > table td:first-child { padding-left: 16px; }
 }
