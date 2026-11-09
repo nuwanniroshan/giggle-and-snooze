@@ -1,6 +1,6 @@
 # Spec 005: Book library and folder layout
 
-**Status:** Draft
+**Status:** Approved
 **Created:** 2026-11-09
 **Branch:** `feat/005-book-library`
 **Depends on:** specs 001 (episode script), 002 (voice synthesis), 003 (render), 004 (studio)

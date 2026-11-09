@@ -49,7 +49,7 @@ from starlette.templating import Jinja2Templates
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import ConfigError, slugify
 from video_pipeline.episode import BookError, load_book
-from video_pipeline.episode_tools import ROOT
+from video_pipeline.library import PROJECT_ROOT
 from video_pipeline.render_episode import VideoPaths
 from video_pipeline.studio import books as sb
 from video_pipeline.studio.jobs import Busy, JobRunner, StudioLocked, UnknownJob, stage_command
@@ -108,11 +108,11 @@ def _state_word(state: str | None) -> str:
 
 
 def _audio_paths(paths: sb.StudioPaths, book: sb.Book) -> sv.AudioPaths:
-    return sv.AudioPaths(paths.build_dir / book.slug / "audio")
+    return sv.AudioPaths(sb.folder_of(paths, book).build_dir / "audio")
 
 
 def _video_paths(paths: sb.StudioPaths, book: sb.Book) -> VideoPaths:
-    return VideoPaths(paths.build_dir / book.slug / "video")
+    return VideoPaths(sb.folder_of(paths, book).build_dir / "video")
 
 
 def _read_json(path: Path) -> dict | None:
@@ -613,16 +613,17 @@ class Studio:
     def media_path(self, book: sb.Book, kind: str, name: str) -> Path | None:
         """The file behind a media URL, only for names the book itself defines."""
         if kind == "illustration":
+            folder = sb.folder_of(self.paths, book)
             if name in sb.NOOK_FILES:
-                for folder in (self.paths.episodes_dir / book.slug, book.assets_dir / "nook"):
-                    if (folder / name).is_file():
-                        return folder / name
+                for nook_dir in (folder.nooks, self.paths.shared_nooks):
+                    if (nook_dir / name).is_file():
+                        return nook_dir / name
                 return None
             try:
                 required, _problems = sb.expected_files(load_book(book.book_path))
             except BookError:
                 return None
-            return book.assets_dir / "illustrations" / name if name in required else None
+            return folder.illustrations / name if name in required else None
         audio = _audio_paths(self.paths, book)
         if kind == "preview":
             return audio.preview if name == "preview.wav" else None
@@ -704,7 +705,7 @@ def create_app(
     """The studio app for `paths`; `runner` and `command_for` are injectable for tests. Without a
     `runner` one is created, which takes the studio lock (raises `StudioLocked` if it is held).
     Shutdown stops the running stage and releases the lock."""
-    runner = runner or JobRunner(paths.studio_dir, cwd=ROOT)
+    runner = runner or JobRunner(paths.studio_dir, cwd=PROJECT_ROOT)
     studio = Studio(paths, runner, command_for, port)
 
     @contextlib.asynccontextmanager

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from tests.helpers import MINI_BOOK, load_json, make_banter
+from tests.helpers import load_json, make_banter, make_root
 from video_pipeline import episode_tools
 from video_pipeline.contract import ConfigError, validate_script
 from video_pipeline.episode import BookError, plan_episode
@@ -10,23 +10,25 @@ from video_pipeline.episode_tools import (
     CONFIG_DIR,
     MAX_SAVES,
     EpisodeTools,
-    output_path,
     write_atomic,
 )
+from video_pipeline.library import BookFolder
 
 
 def make_tools(tmp_path, force=False, seed=7) -> EpisodeTools:
-    return EpisodeTools.load(MINI_BOOK, seed, tmp_path / "episodes", CONFIG_DIR, force)
+    folder = make_root(tmp_path)
+    return EpisodeTools.load(folder, seed, CONFIG_DIR, force)
 
 
 def valid_banter(tools: EpisodeTools) -> dict:
     return make_banter(tools.book, tools.plan).model_dump()
 
 
-def test_output_path_uses_slug(tmp_path):
-    book = load_json(MINI_BOOK)
+def test_script_is_written_in_the_book_episode_folder(tmp_path):  # AC-2.1
+    tools = make_tools(tmp_path)
     assert (
-        output_path(book, tmp_path) == tmp_path / "the-lantern-bug-parade" / "episode_script.json"
+        tools.out
+        == tmp_path / "books" / "the-lantern-bug-parade" / "episode" / "episode_script.json"
     )
 
 
@@ -103,13 +105,15 @@ def test_load_needs_terms_file(tmp_path):  # AC-7.2
     config = tmp_path / "config"
     config.mkdir()
     (config / "cast.json").write_text((CONFIG_DIR / "cast.json").read_text(), encoding="utf-8")
+    folder = make_root(tmp_path / "book-root")
+    (tmp_path / "book-root" / "config" / "disallowed_terms.txt").unlink()
     with pytest.raises(ConfigError, match="disallowed_terms.txt"):
-        EpisodeTools.load(MINI_BOOK, 7, tmp_path, config)
+        EpisodeTools.load(folder, 7, tmp_path / "book-root" / "config")
 
 
 def test_load_rejects_bad_book(tmp_path):
     with pytest.raises(BookError, match="not found"):
-        EpisodeTools.load(tmp_path / "nope.json", 7, tmp_path, CONFIG_DIR)
+        EpisodeTools.load(BookFolder("nope", tmp_path), 7, CONFIG_DIR)
 
 
 def test_interrupted_write_keeps_previous_file(monkeypatch, tmp_path):  # Reliability NFR

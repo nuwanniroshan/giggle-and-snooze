@@ -52,8 +52,9 @@ def make_script(book_path, seed=7):
     return assemble_script(book, load_json(CAST_PATH), plan, make_banter(book, plan))
 
 
-def write_script(script, episodes_dir, slug):
-    path = Path(episodes_dir) / slug / "episode_script.json"
+def write_script(script, folder):
+    """Write `script` where the book `folder` (a BookFolder) keeps its episode script."""
+    path = folder.script_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(script, indent=2, ensure_ascii=False), encoding="utf-8")
     return path

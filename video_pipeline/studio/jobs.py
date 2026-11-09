@@ -89,15 +89,19 @@ def stage_command(stage: str, book: Book, paths: StudioPaths, force: bool = Fals
     """The CLI argv that runs `stage` for `book`, as `python -m video_pipeline.<module> ...`."""
     if stage not in STAGE_MODULES:
         raise ValueError(f"unknown stage {stage!r}; expected one of {', '.join(STAGES)}")
-    cmd = [sys.executable, "-m", STAGE_MODULES[stage], "--book", str(book.book_path)]
-    cmd += ["--episodes-dir", str(paths.episodes_dir)]
-    if stage != "script":
-        cmd += ["--build-dir", str(paths.build_dir)]
-    cmd += ["--config-dir", str(paths.config_dir)]
+    cmd = [
+        sys.executable,
+        "-m",
+        STAGE_MODULES[stage],
+        "--book",
+        book.slug,
+        "--root",
+        str(paths.root),
+    ]
     if stage == "voices":
         cmd.append("--reviewed")
     if stage == "render":
-        cmd += ["--assets-dir", str(book.assets_dir), "--sfx-dir", str(paths.sfx_dir)]
+        cmd += ["--sfx-dir", str(paths.sfx_dir)]
     if force:
         cmd.append("--force")
     return cmd

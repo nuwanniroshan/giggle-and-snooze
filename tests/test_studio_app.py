@@ -7,26 +7,38 @@ programs run by a real JobRunner; FFmpeg and the voice model never run."""
 import io
 import json
 import re
-import shutil
 import socket
 import sys
 import time
+from pathlib import Path
 
 import pytest
 from PIL import Image
 from starlette.testclient import TestClient
 
-from tests.helpers import MINI_BOOK, load_json
+from tests.helpers import MINI_BOOK, load_json, make_root
 from tests.render_helpers import FakeRunner, cli_args, make_world, picture
 from tests.voice_helpers import make_script, write_script
 from video_pipeline import render_episode as re_
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import slugify
+from video_pipeline.library import BookFolder
 from video_pipeline.studio import app as sa
 from video_pipeline.studio import books as sb
 from video_pipeline.studio import jobs as sj
 
 PILOT_SLUG = slugify(load_json(MINI_BOOK)["metadata"]["title"])
+
+
+def pilot_folder(root) -> BookFolder:
+    """The pilot is an ordinary book now: books/<slug>/ under the studio root (spec 005)."""
+    return BookFolder(PILOT_SLUG, Path(root))
+
+
+def pilot_path(root) -> Path:
+    return pilot_folder(root).book_json
+
+
 PORT = 8765
 ORIGIN = f"http://127.0.0.1:{PORT}"
 STATIC = sa.STUDIO_DIR / "static"
@@ -85,8 +97,7 @@ class Studio:
 @pytest.fixture
 def bare(tmp_path):
     """A pilot with no episode script yet."""
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    make_root(tmp_path)
     s = Studio(tmp_path)
     yield s
     if s.runner.current():
@@ -94,8 +105,7 @@ def bare(tmp_path):
 
 
 def with_world(tmp_path, monkeypatch, approve=True, commands=None):
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    world = make_world(tmp_path, monkeypatch, tmp_path / "book_data.json", approve=approve)
+    world = make_world(tmp_path, monkeypatch, MINI_BOOK, approve=approve)
     return Studio(tmp_path, commands), world
 
 
@@ -116,7 +126,7 @@ def pending(tmp_path, monkeypatch):
 
 
 def scripted(s: Studio) -> None:
-    write_script(make_script(s.paths.pilot_book), s.paths.episodes_dir, PILOT_SLUG)
+    write_script(make_script(pilot_path(s.paths.root)), BookFolder(PILOT_SLUG, s.paths.root))
 
 
 def text_of(html: str) -> str:
@@ -192,9 +202,9 @@ def test_upload_valid_book_is_saved_and_listed(bare):
     slug = slugify(book["metadata"]["title"])
     assert r.status_code == 303
     assert r.headers["location"] == f"/books/{slug}"
-    assert (bare.paths.books_dir / slug / "book_data.json").is_file()
+    assert (bare.paths.books_dir / slug / "book.json").is_file()
     assert (bare.paths.books_dir / slug / "illustrations" / "page_01.png").is_file()
-    assert (bare.paths.episodes_dir / slug / "intro_nook.png").is_file()
+    assert (BookFolder(slug, bare.paths.root).nooks / "intro_nook.png").is_file()
     page = text_of(bare.client.get(f"/books/{slug}").text)
     assert "The Moon Kite Race" in page and "Generate script" in page
 
@@ -205,7 +215,7 @@ def test_upload_invalid_json_saves_nothing(bare):
     r = bare.client.post("/books", files=parts)
     assert r.status_code == 422
     assert "not valid JSON" in r.text
-    assert not bare.paths.books_dir.exists()
+    assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]
 
 
 def test_upload_lists_every_problem(bare):
@@ -214,7 +224,7 @@ def test_upload_lists_every_problem(bare):
     assert r.status_code == 422
     assert "page_03.png" in r.text
     assert "evil.png" in r.text
-    assert not bare.paths.books_dir.exists()
+    assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]
     assert not (bare.paths.root.parent / "evil.png").exists()
 
 
@@ -234,26 +244,24 @@ def test_duplicate_upload_refused_then_replaced_with_confirmation(bare):
     r = bare.client.post("/books", files=upload_parts(book))
     assert r.status_code == 409
     assert "already exists" in r.text and 'name="replace"' in r.text
-    assert load_json(bare.paths.books_dir / slug / "book_data.json")["metadata"]["author"] != (
+    assert load_json(bare.paths.books_dir / slug / "book.json")["metadata"]["author"] != (
         "Someone Else"
     )
     r = bare.client.post("/books", data={"replace": "1"}, files=upload_parts(book))
     assert r.status_code == 303
-    assert load_json(bare.paths.books_dir / slug / "book_data.json")["metadata"]["author"] == (
+    assert load_json(bare.paths.books_dir / slug / "book.json")["metadata"]["author"] == (
         "Someone Else"
     )
     assert marker.read_bytes() == before  # the same picture was uploaded again
 
 
-def test_upload_of_the_pilot_title_is_refused(bare):
+def test_upload_over_an_existing_book_needs_confirmation(bare):  # AC-2.4
     r = bare.client.post(
         "/books",
-        data={"replace": "1"},
         files=upload_parts(new_book(load_json(MINI_BOOK)["metadata"]["title"])),
     )
     assert r.status_code == 409
-    assert "pilot" in r.text
-    assert not (bare.paths.books_dir / PILOT_SLUG).exists()
+    assert "already exists" in r.text
 
 
 # --- running stages (AC-3.1-3.6, AC-4.4) --------------------------------------------------------
@@ -271,8 +279,7 @@ def test_generate_script_runs_the_stage_command(bare):
 
 
 def test_failed_stage_shows_failure_and_the_error(tmp_path):
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    make_root(tmp_path)
     s = Studio(tmp_path, Commands("import sys; sys.exit('error: the provider said no')"))
     assert s.client.post(f"/books/{PILOT_SLUG}/run/script").status_code == 303
     s.wait()
@@ -348,8 +355,7 @@ def test_unknown_stage_is_404(bare):
 
 
 def test_busy_refuses_other_stages_and_says_what_runs(tmp_path):
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    make_root(tmp_path)
     s = Studio(tmp_path, Commands("import time; print('busy', flush=True); time.sleep(30)"))
     try:
         assert s.client.post(f"/books/{PILOT_SLUG}/run/script").status_code == 303
@@ -523,7 +529,7 @@ def test_video_page_plays_and_flags_out_of_date(approved):
     duration = load_json(world["video"] / f"{PILOT_SLUG}.json")["duration"]
     assert sa.format_duration(duration) in text_of(r.text)
     assert "OUT OF DATE" not in text_of(r.text)
-    picture(world["assets"] / "illustrations" / "page_02.png", (9, 9, 9))
+    picture(world["folder"].illustrations / "page_02.png", (9, 9, 9))
     assert "OUT OF DATE" in text_of(s.client.get(f"/books/{PILOT_SLUG}/video").text)
 
 
@@ -564,7 +570,7 @@ def test_media_serves_whitelisted_files_only(approved):
 
 
 def test_media_nook_from_the_episode_folder(bare):
-    nook = bare.paths.episodes_dir / PILOT_SLUG / "intro_nook.png"
+    nook = BookFolder(PILOT_SLUG, bare.paths.root).nooks / "intro_nook.png"
     nook.parent.mkdir(parents=True)
     nook.write_bytes(png_bytes())
     assert bare.client.get(f"/media/{PILOT_SLUG}/illustration/intro_nook.png").status_code == 200
@@ -724,8 +730,7 @@ def test_loopback_host_headers_are_allowed(bare, host):
 
 
 def test_replace_upload_refused_while_that_book_runs(tmp_path):
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    make_root(tmp_path)
     s = Studio(tmp_path, Commands("import time; time.sleep(30)"))
     book = new_book()
     slug = slugify(book["metadata"]["title"])
@@ -736,7 +741,7 @@ def test_replace_upload_refused_while_that_book_runs(tmp_path):
         r = s.client.post("/books", data={"replace": "1"}, files=upload_parts(book))
         assert r.status_code == 409
         assert "running" in r.text
-        assert load_json(s.paths.books_dir / slug / "book_data.json")["metadata"]["author"] != (
+        assert load_json(s.paths.books_dir / slug / "book.json")["metadata"]["author"] != (
             "Someone Else"
         )
     finally:
@@ -746,8 +751,7 @@ def test_replace_upload_refused_while_that_book_runs(tmp_path):
 def test_stop_does_not_freeze_other_requests(tmp_path):
     import threading
 
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    make_root(tmp_path)
     code = (
         "import signal, time\n"
         "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
@@ -778,7 +782,7 @@ def test_stop_does_not_freeze_other_requests(tmp_path):
 def test_video_page_names_a_missing_picture_not_the_audio(approved):
     s, world = approved
     assert re_.main(cli_args(world), run=FakeRunner()) == 0
-    (world["assets"] / "illustrations" / "page_02.png").unlink()
+    (world["folder"].illustrations / "page_02.png").unlink()
     page = text_of(s.client.get(f"/books/{PILOT_SLUG}/video").text)
     assert "page_02.png" in page
     assert "no longer approved" not in page
@@ -880,8 +884,7 @@ def test_a_stage_does_not_start_while_a_script_save_is_writing(bare, monkeypatch
 def test_a_script_save_waits_for_a_starting_stage_and_is_refused(tmp_path, monkeypatch):
     import threading
 
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    make_root(tmp_path)
     s = Studio(tmp_path, Commands("import time; time.sleep(30)"))
     scripted(s)
     line_id, line = sb.script_lines(sb.load_script(s.paths, s.book()))[0]
@@ -905,8 +908,7 @@ def test_a_script_save_waits_for_a_starting_stage_and_is_refused(tmp_path, monke
 def test_mark_reviewed_waits_for_a_starting_stage_and_is_refused(tmp_path, monkeypatch):
     import threading
 
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    make_root(tmp_path)
     s = Studio(tmp_path, Commands("import time; time.sleep(30)"))
     scripted(s)
     events, started = [], threading.Event()

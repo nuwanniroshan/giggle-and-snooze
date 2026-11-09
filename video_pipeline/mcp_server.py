@@ -1,6 +1,6 @@
 """MCP server exposing the episode tools (FR-8) over stdio.
 
-Run: uv run python -m video_pipeline.mcp_server --book book_data.json [--seed N] [--force]
+Run: uv run python -m video_pipeline.mcp_server --book <slug> [--root PATH] [--seed N] [--force]
 The book, seed and force flag come from this command line, never from the model.
 """
 
@@ -14,7 +14,8 @@ from mcp.server.mcpserver import MCPServer
 
 from video_pipeline.contract import ConfigError
 from video_pipeline.episode import BookError
-from video_pipeline.episode_tools import CONFIG_DIR, DEFAULT_SEED, ROOT, EpisodeTools
+from video_pipeline.episode_tools import DEFAULT_SEED, EpisodeTools
+from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
 
 SERVER_NAME = "kiddo"
 TOOL_NAMES = ("get_episode_plan", "validate_banter", "save_episode_script")
@@ -22,11 +23,10 @@ TOOL_NAMES = ("get_episode_plan", "validate_banter", "save_episode_script")
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m video_pipeline.mcp_server")
-    parser.add_argument("--book", type=Path, default=ROOT / "book_data.json")
+    parser.add_argument("--book", required=True, help="book slug, e.g. the-snail-mail-express")
+    parser.add_argument("--root", type=Path, default=PROJECT_ROOT, help="project root")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--force", action="store_true")
-    parser.add_argument("--episodes-dir", type=Path, default=ROOT / "episodes")
-    parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
     return parser.parse_args(argv)
 
 
@@ -57,10 +57,9 @@ def create_server(tools: EpisodeTools) -> MCPServer:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        tools = EpisodeTools.load(
-            args.book, args.seed, args.episodes_dir, args.config_dir, args.force
-        )
-    except (BookError, ConfigError) as exc:
+        folder = book_folder(args.book, args.root)
+        tools = EpisodeTools.load(folder, args.seed, args.root / "config", args.force)
+    except (BookError, ConfigError, LibraryError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     create_server(tools).run()

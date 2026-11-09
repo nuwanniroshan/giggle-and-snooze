@@ -1,12 +1,10 @@
-"""Books, uploads, the script review mark, line edits and stage status (spec 004, Phase 1).
+"""Books, uploads, the script review mark, line edits and stage status (spec 004).
 
 No web code: the app layer calls these. State is derived from the files the pipeline already
-writes (FR-2); the only new file is `episodes/<slug>/reviewed.json`.
+writes (FR-2); the only new file is `books/<slug>/episode/reviewed.json`.
 
-Book layout: the pilot is `<root>/book_data.json` with pictures in `<root>/assets/illustrations/`.
-An added book is `<root>/books/<slug>/book_data.json` with pictures in
-`<root>/books/<slug>/illustrations/`, so its render assets folder is `books/<slug>`; its uploaded
-nooks go to `episodes/<slug>/`.
+Every book is one folder, `books/<slug>/` (spec 005): its source files, and `build/` for generated
+output. Shared settings (config, sound effects, the fallback nook) stay at the project root.
 """
 
 from __future__ import annotations
@@ -27,14 +25,16 @@ from PIL import Image, UnidentifiedImageError
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import ConfigError, load_disallowed_terms, slugify, validate_script
 from video_pipeline.episode import BookError, book_problems, load_book
-from video_pipeline.episode_tools import ROOT, write_atomic
+from video_pipeline.episode_tools import write_atomic
+from video_pipeline.library import BOOK_FILE, PROJECT_ROOT, BookFolder, list_book_slugs
 from video_pipeline.render_episode import VideoPaths, render_check_detail
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 MAX_UPLOAD_FILES = 100  # pictures per upload; the request is refused above (this + 1) x 25 MB
-BOOK_FILE = "book_data.json"
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
 NOOK_FILES = ("intro_nook.png", "outro_nook.png")
+# Parts of a book folder a replacement keeps: the script, its marks, nooks and generated output.
+CARRIED_ON_REPLACE = ("episode", "build", "nooks")
 # Slugs a book may not take because a studio route already uses that path (`/books/new`).
 RESERVED_SLUGS = frozenset({"new"})
 STAGES = ("script", "voices", "render")
@@ -55,20 +55,17 @@ class StudioError(Exception):
 
 @dataclass(frozen=True)
 class StudioPaths:
-    """Where the studio finds books and pipeline files; `root` is the project folder."""
+    """Where the studio finds books and shared files; `root` is the project folder."""
 
-    root: Path = ROOT
+    root: Path = PROJECT_ROOT
 
     @property
     def books_dir(self) -> Path:
         return Path(self.root) / "books"
 
     @property
-    def episodes_dir(self) -> Path:
-        return Path(self.root) / "episodes"
-
-    @property
     def build_dir(self) -> Path:
+        """Project-level output only (studio job records, the page-turn cache)."""
         return Path(self.root) / "build"
 
     @property
@@ -80,71 +77,47 @@ class StudioPaths:
         return self.build_dir / "studio"
 
     @property
-    def pilot_book(self) -> Path:
-        return Path(self.root) / BOOK_FILE
-
-    @property
-    def pilot_assets(self) -> Path:
-        return Path(self.root) / "assets"
-
-    @property
     def sfx_dir(self) -> Path:
-        return self.pilot_assets / "audio_sfx"
+        return Path(self.root) / "assets" / "audio_sfx"
+
+    @property
+    def shared_nooks(self) -> Path:
+        return Path(self.root) / "assets" / "nook"
 
 
 @dataclass(frozen=True)
 class Book:
-    """A book the studio knows. `error` is set (and the book not runnable) when its data is
-    broken; such a book is listed by its folder name."""
+    """A book the studio lists. `error` is set (and the book not runnable) when its data is
+    broken or its folder is not usable; such a book is listed by its folder name."""
 
     slug: str
     title: str
     book_path: Path
-    assets_dir: Path
-    is_pilot: bool
     error: str | None = None
 
 
-# --- the registry (FR-1) --------------------------------------------------------------------
+def folder_of(paths: StudioPaths, book: Book) -> BookFolder:
+    return BookFolder(book.slug, Path(paths.root))
 
 
-def _pilot_slug(paths: StudioPaths) -> str | None:
-    try:
-        return slugify(load_book(paths.pilot_book)["metadata"]["title"])
-    except BookError:
-        return None
+# --- the registry (FR-1, spec 005 FR-9) -----------------------------------------------------
 
 
 def list_books(paths: StudioPaths) -> list[Book]:
-    """The pilot (when its data file exists) and every `books/*/book_data.json`, by title."""
+    """Every usable `books/<slug>/` by title, then the folders that cannot be used, each with
+    the reason (spec 005 AC-5.2)."""
     found: list[Book] = []
-    pilot_slug = None
-    if paths.pilot_book.exists():
+    slugs, problems = list_book_slugs(paths.root)
+    for slug in slugs:
+        folder = BookFolder(slug, Path(paths.root))
         try:
-            title = load_book(paths.pilot_book)["metadata"]["title"].strip()
+            title = load_book(folder.book_json)["metadata"]["title"].strip()
         except BookError as exc:
-            found.append(
-                Book("pilot", "pilot", paths.pilot_book, paths.pilot_assets, True, str(exc))
-            )
+            found.append(Book(slug, slug, folder.book_json, str(exc)))
         else:
-            pilot_slug = slugify(title)
-            found.append(Book(pilot_slug, title, paths.pilot_book, paths.pilot_assets, True))
-    if paths.books_dir.is_dir():
-        for folder in sorted(paths.books_dir.iterdir()):
-            book_file = folder / BOOK_FILE
-            if folder.name.startswith(".") or not folder.is_dir() or not book_file.is_file():
-                continue
-            try:
-                title = load_book(book_file)["metadata"]["title"].strip()
-            except BookError as exc:
-                found.append(Book(folder.name, folder.name, book_file, folder, False, str(exc)))
-                continue
-            slug, error = slugify(title), None
-            if slug != folder.name:
-                error = f"folder {folder.name!r} does not match the book's title slug {slug!r}"
-            elif slug == pilot_slug:
-                error = f"{slug!r} is the pilot book's slug"
-            found.append(Book(folder.name, title, book_file, folder, False, error))
+            found.append(Book(slug, title, folder.book_json))
+    for name, reason in problems:
+        found.append(Book(name, name, paths.books_dir / name / BOOK_FILE, reason))
     return sorted(found, key=lambda b: (b.title.casefold(), b.slug))
 
 
@@ -266,26 +239,28 @@ def _write_bytes_atomic(path: Path, data: bytes) -> None:
 def save_book(
     paths: StudioPaths, book: dict, files: dict[str, bytes], replace: bool = False
 ) -> Book:
-    """Store a validated upload as `books/<slug>/` (AC-2.3) and its nooks in `episodes/<slug>/`
-    (AC-2.5). Refuses the pilot's slug, a reserved slug, and an existing slug unless `replace`
-    (AC-2.4). Replacing a book deletes its reviewed mark: the script was reviewed against the
-    old book.
+    """Store a validated upload as `books/<slug>/` (AC-2.3) with its nooks in `nooks/` (AC-2.5).
+    Refuses a reserved slug and an existing slug unless `replace` (AC-2.4). A replacement keeps
+    the book's episode script, nooks and generated output, and deletes its reviewed mark (the
+    script was reviewed against the old book).
 
-    The book is written to a temporary folder first, then swapped in: the old folder is moved
-    aside, the new one renamed into place, and the old one deleted."""
+    The new folder is assembled in a temporary place, the kept parts are moved into it, the old
+    folder is moved aside and the new one renamed into place. A failure puts the old book back."""
     _parsed, problems = validate_upload(json.dumps(book).encode("utf-8"), files)
     if problems:
         raise StudioError("; ".join(problems))
     title = book["metadata"]["title"].strip()
     slug = slugify(title)
-    if slug == _pilot_slug(paths):
-        raise StudioError(f"{slug!r} is the pilot book; it cannot be added or replaced here")
-    target = paths.books_dir / slug
+    if problem := slug_problem(slug):
+        raise StudioError(problem)
+    folder = BookFolder(slug, Path(paths.root))
+    target = folder.folder
     if target.exists() and not replace:
         raise StudioError(f"a book {slug!r} already exists; confirm to replace it")
     paths.books_dir.mkdir(parents=True, exist_ok=True)
     token = uuid4().hex[:8]
     new, old = paths.books_dir / f".{slug}.new-{token}", paths.books_dir / f".{slug}.old-{token}"
+    carried: list[str] = []
     try:
         (new / "illustrations").mkdir(parents=True)
         (new / BOOK_FILE).write_text(
@@ -295,33 +270,38 @@ def save_book(
             if name not in NOOK_FILES:
                 (new / "illustrations" / name).write_bytes(data)
         if target.exists():
+            for part in CARRIED_ON_REPLACE:
+                if (target / part).exists():
+                    os.replace(target / part, new / part)  # noqa: PTH105
+                    carried.append(part)
             os.replace(target, old)  # noqa: PTH105
         try:
             os.replace(new, target)  # noqa: PTH105
         except OSError:
             if old.exists():
                 os.replace(old, target)  # noqa: PTH105 - put the previous book back
+            for part in carried:
+                os.replace(new / part, target / part)  # noqa: PTH105
             raise
     finally:
         shutil.rmtree(new, ignore_errors=True)
         shutil.rmtree(old, ignore_errors=True)
-    saved = Book(slug, title, target / BOOK_FILE, target, False)
-    reviewed_path(paths, saved).unlink(missing_ok=True)
+    folder.reviewed_path.unlink(missing_ok=True)
     for name in NOOK_FILES:
         if name in files:
-            _write_bytes_atomic(paths.episodes_dir / slug / name, files[name])
-    return saved
+            _write_bytes_atomic(folder.nooks / name, files[name])
+    return Book(slug, title, folder.book_json)
 
 
 # --- the script and its reviewed mark (AC-4.2-4.4) ------------------------------------------
 
 
 def script_path(paths: StudioPaths, book: Book) -> Path:
-    return paths.episodes_dir / book.slug / "episode_script.json"
+    return folder_of(paths, book).script_path
 
 
 def reviewed_path(paths: StudioPaths, book: Book) -> Path:
-    return paths.episodes_dir / book.slug / "reviewed.json"
+    return folder_of(paths, book).reviewed_path
 
 
 def _read_dict(path: Path) -> dict | None:
@@ -439,7 +419,7 @@ def _state(state: str, detail: str = "") -> dict:
 
 
 def _audio_record(paths: StudioPaths, book: Book) -> dict | None:
-    return _read_dict(sv.AudioPaths(paths.build_dir / book.slug / "audio").status)
+    return _read_dict(sv.AudioPaths(folder_of(paths, book).build_dir / "audio").status)
 
 
 def _script_state(paths: StudioPaths, book: Book) -> dict:
@@ -459,7 +439,7 @@ def _script_state(paths: StudioPaths, book: Book) -> dict:
 
 
 def _voices_state(paths: StudioPaths, book: Book) -> dict:
-    audio = sv.AudioPaths(paths.build_dir / book.slug / "audio")
+    audio = sv.AudioPaths(folder_of(paths, book).build_dir / "audio")
     if not audio.status.exists():
         return _state("not_started", "no synthesized audio yet")
     try:
@@ -481,18 +461,11 @@ def _voices_state(paths: StudioPaths, book: Book) -> dict:
 def video_check(paths: StudioPaths, book: Book) -> tuple[str, str]:
     """`render_check_detail` for `book` with the studio's shared page-turn folder: the state and,
     when "blocked", why (an audio problem, or a missing or unreadable picture or input)."""
-    return render_check_detail(
-        book.book_path,
-        paths.episodes_dir,
-        paths.build_dir,
-        paths.config_dir,
-        book.assets_dir,
-        paths.sfx_dir,
-    )
+    return render_check_detail(folder_of(paths, book), paths.root, paths.sfx_dir)
 
 
 def _video_state(paths: StudioPaths, book: Book) -> dict:
-    final = paths.build_dir / book.slug / "video" / f"{book.slug}.mp4"
+    final = folder_of(paths, book).build_dir / "video" / f"{book.slug}.mp4"
     check, reason = video_check(paths, book)
     if check == "up_to_date":
         return _state("done", str(final))
@@ -511,8 +484,8 @@ def stage_output(paths: StudioPaths, book: Book, stage: str) -> Path:
     if stage == "script":
         return script_path(paths, book)
     if stage == "voices":
-        return sv.AudioPaths(paths.build_dir / book.slug / "audio").status
-    return VideoPaths(paths.build_dir / book.slug / "video").record(book.slug)
+        return sv.AudioPaths(folder_of(paths, book).build_dir / "audio").status
+    return VideoPaths(folder_of(paths, book).build_dir / "video").record(book.slug)
 
 
 def _job_overrides(paths: StudioPaths, book: Book, stage: str, job: dict | None) -> bool:

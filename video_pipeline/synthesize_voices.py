@@ -38,13 +38,13 @@ from video_pipeline.contract import (
     TAG_RE,
     ConfigError,
     load_disallowed_terms,
-    slugify,
     validate_script,
     word_count,
 )
 from video_pipeline.episode import BookError, load_book
-from video_pipeline.episode_tools import CONFIG_DIR, ROOT, write_atomic
+from video_pipeline.episode_tools import write_atomic
 from video_pipeline.file_hash import sha256_file
+from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
 from video_pipeline.tts import (
     ModelSettings,
     OrpheusVoice,
@@ -751,10 +751,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "command", nargs="?", default="synthesize", choices=("synthesize", "approve", "download")
     )
-    parser.add_argument("--book", type=Path, default=ROOT / "book_data.json")
-    parser.add_argument("--episodes-dir", type=Path, default=ROOT / "episodes")
-    parser.add_argument("--build-dir", type=Path, default=ROOT / "build")
-    parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
+    parser.add_argument("--book", required=True, help="book slug, e.g. the-snail-mail-express")
+    parser.add_argument("--root", type=Path, default=PROJECT_ROOT, help="project root")
     parser.add_argument(
         "--reviewed",
         action="store_true",
@@ -768,7 +766,6 @@ def _synthesize(
     args: argparse.Namespace,
     cfg: VoiceConfig,
     book: dict,
-    slug: str,
     script_path: Path,
     paths: AudioPaths,
 ) -> int:
@@ -776,7 +773,7 @@ def _synthesize(
         print(f"error: episode script not found: {script_path}", file=sys.stderr)
         return 1
     script = json.loads(script_path.read_text(encoding="utf-8"))
-    terms = load_disallowed_terms(args.config_dir / "disallowed_terms.txt")
+    terms = load_disallowed_terms(args.root / "config" / "disallowed_terms.txt")
     errors = validate_script(script, book, terms)
     if errors:
         print(f"error: {script_path} fails validation:", file=sys.stderr)
@@ -845,21 +842,23 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     paths: AudioPaths | None = None
     try:
-        cfg = load_voice_config(args.config_dir / "voices.json")
+        cfg = load_voice_config(args.root / "config" / "voices.json")
         if args.command == "download":
             download_model(cfg.model)
             create_engine(cfg)
             print(f"voice model ready: {cfg.model.repo}@{cfg.model.revision[:8]}")
             return 0
-        book = load_book(args.book)
-        slug = slugify(book["metadata"]["title"])
-        script_path = args.episodes_dir / slug / "episode_script.json"
-        paths = AudioPaths(args.build_dir / slug / "audio")
+        folder = book_folder(args.book, args.root)
+        book = load_book(folder.book_json)
+        script_path = folder.script_path
+        paths = AudioPaths(folder.build_dir / "audio")
         if args.command == "approve":
-            approve(paths, script_path, current_settings_sha(cfg, book, args.book, script_path))
+            approve(
+                paths, script_path, current_settings_sha(cfg, book, folder.book_json, script_path)
+            )
             print(f"approved the audio in {paths.root}")
             return 0
-        return _synthesize(args, cfg, book, slug, script_path, paths)
+        return _synthesize(args, cfg, book, script_path, paths)
     except (
         BookError,
         ConfigError,
@@ -867,6 +866,7 @@ def main(argv: list[str] | None = None) -> int:
         PitchShiftError,
         ApproveError,
         LineError,
+        LibraryError,
     ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -877,7 +877,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except OSError as exc:
         if exc.errno == errno.ENOSPC:
-            where = paths.root if paths else args.build_dir
+            where = paths.root if paths else args.root
             print(f"error: not enough disk space to write audio in {where}", file=sys.stderr)
             return 1
         raise

@@ -9,11 +9,11 @@ loaded-by: sdd-specify, sdd-plan, sdd-execute, sdd-review
 snake_case Python modules and functions; illustrations named `page_NN.png`, `cover_front.png`, `cover_back.png` — edit to match reality
 
 ## Directory Structure
-- `book_data.json` — source of truth (metadata, style_bible, 20 pages)
+- `books/<slug>/book.json` — source of truth per book (metadata, style_bible, pages); one folder per book (spec 005)
 - `assets/illustrations/`, `assets/references/` — art inputs; `assets/audio_sfx/` planned for music/SFX
 - `scripts/` — book-production scripts
 - `video_pipeline/` — planned video stages (generate_script, synthesize_voices, render_episode, mcp_server)
-- `build/` — generated deliverables; never hand-edit
+- `books/<slug>/build/` — generated deliverables per book; project-level tool output in `build/`; never hand-edit
 
 ## Code Style
 Ruff format + lint (`py312`, line length 100); see `.claude/rules/python-project.md`. Type hints on public functions; `pathlib.Path` everywhere.

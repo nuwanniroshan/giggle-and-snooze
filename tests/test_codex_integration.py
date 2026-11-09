@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from tests.helpers import PILOT_BOOK, load_json, plan_signature
+from tests.helpers import PILOT_BOOK, load_json, make_root, plan_signature
 from video_pipeline.agents import parse_codex_event
 from video_pipeline.contract import load_disallowed_terms, validate_script
 from video_pipeline.episode_tools import CONFIG_DIR
@@ -15,17 +15,18 @@ pytestmark = pytest.mark.codex
 
 
 def test_pilot_book_end_to_end_codex(tmp_path):
-    args = ["--book", str(PILOT_BOOK), "--episodes-dir", str(tmp_path)]
+    folder = make_root(tmp_path, PILOT_BOOK)
+    args = ["--book", folder.slug, "--root", str(tmp_path)]
     started = time.monotonic()
     assert main(args) == 0
     elapsed = time.monotonic() - started
-    out = tmp_path / "the-snail-mail-express" / "episode_script.json"
+    out = folder.script_path
     terms = load_disallowed_terms(CONFIG_DIR / "disallowed_terms.txt")
     first = load_json(out)
     assert validate_script(first, load_json(PILOT_BOOK), terms) == []
     assert elapsed < 600, f"took {elapsed:.0f} s"  # NFR Performance
 
-    [log] = (out.parent / "agent").glob("*-codex.jsonl")  # AC-6.8
+    [log] = (folder.build_dir / "agent").glob("*-codex.jsonl")  # AC-6.8
     text = log.read_text(encoding="utf-8")
     events = [e for line in text.splitlines() for e in parse_codex_event(line)]
     assert {e.tool for e in events if e.kind == "tool"} <= set(TOOL_NAMES)

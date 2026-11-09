@@ -5,7 +5,7 @@ import shutil
 import pytest
 import soundfile as sf
 
-from tests.helpers import MINI_BOOK, PILOT_BOOK, load_json
+from tests.helpers import MINI_BOOK, PILOT_BOOK, load_json, make_root
 from tests.voice_helpers import FakeEngine, identity_shift, make_script, write_script
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.tts import VoiceUnavailable
@@ -18,26 +18,26 @@ def env(tmp_path, monkeypatch):
     engine = FakeEngine()
     monkeypatch.setattr(sv, "create_engine", lambda cfg: engine)
     monkeypatch.setattr(sv, "pitch_shift", identity_shift)
+    folder = make_root(tmp_path)
     script = make_script(MINI_BOOK)
-    script_path = write_script(script, tmp_path / "episodes", SLUG)
+    script_path = write_script(script, folder)
     return {
         "tmp": tmp_path,
+        "folder": folder,
         "engine": engine,
         "script": script,
         "script_path": script_path,
-        "audio": tmp_path / "build" / SLUG / "audio",
+        "audio": folder.build_dir / "audio",
     }
 
 
-def run(env, *extra, book=MINI_BOOK, command=None):
+def run(env, *extra, slug=SLUG, command=None):
     args = [
         *([command] if command else []),
         "--book",
-        str(book),
-        "--episodes-dir",
-        str(env["tmp"] / "episodes"),
-        "--build-dir",
-        str(env["tmp"] / "build"),
+        slug,
+        "--root",
+        str(env["tmp"]),
         *extra,
     ]
     return sv.main(args)
@@ -60,9 +60,10 @@ def test_synthesizes_the_book(env, capsys):  # AC-1.1, AC-1.2, AC-4.1, AC-4.2
 
 
 def test_other_book_needs_no_changes(env, tmp_path):  # AC-1.5
-    write_script(make_script(PILOT_BOOK), tmp_path / "episodes", "the-snail-mail-express")
-    assert run(env, "--reviewed", book=PILOT_BOOK) == 0
-    assert (tmp_path / "build" / "the-snail-mail-express" / "audio" / "preview.wav").exists()
+    pilot = make_root(tmp_path, PILOT_BOOK, "the-snail-mail-express")
+    write_script(make_script(PILOT_BOOK), pilot)
+    assert run(env, "--reviewed", slug="the-snail-mail-express") == 0
+    assert (pilot.build_dir / "audio" / "preview.wav").exists()
 
 
 def test_missing_script(env, capsys):  # AC-7.3
@@ -87,7 +88,7 @@ def test_unreviewed_script_is_refused(env, capsys):  # AC-7.2
 
 def test_unsupported_voice_is_named(env, capsys):
     env["script"]["cast"]["kid_older"]["voice"] = "robot"
-    write_script(env["script"], env["tmp"] / "episodes", SLUG)
+    write_script(env["script"], env["folder"])
     assert run(env, "--reviewed") == 1
     assert "kid_older" in capsys.readouterr().err
 
@@ -146,7 +147,7 @@ def test_approval_flow(env, capsys):  # AC-4.3, AC-4.4, AC-4.5
 
     page = next(p for p in env["script"]["pages"] if p["has_qa"])
     page["lines"][-1]["text"] = "What a lovely page!"
-    write_script(env["script"], env["tmp"] / "episodes", SLUG)
+    write_script(env["script"], env["folder"])
     capsys.readouterr()
     assert run(env, command="approve") == 1  # AC-4.5
     assert "re-run synthesis" in capsys.readouterr().err
@@ -163,9 +164,8 @@ def test_approve_without_audio(env, capsys):
 def test_pronunciations_reach_the_voice_only(env, tmp_path):  # AC-5.1, AC-5.2
     book = load_json(MINI_BOOK)
     book["metadata"]["pronunciations"] = {"Tilly": "Til-ee"}
-    book_path = tmp_path / "book.json"
-    book_path.write_text(json.dumps(book), encoding="utf-8")
-    assert run(env, "--reviewed", book=book_path) == 0
+    env["folder"].book_json.write_text(json.dumps(book), encoding="utf-8")
+    assert run(env, "--reviewed") == 0
     spoken = " ".join(text for text, _, _ in env["engine"].calls)
     assert "Til-ee" in spoken and "Tilly" not in spoken
     review = (env["audio"] / "review.md").read_text()
@@ -177,11 +177,10 @@ def test_pronunciations_reach_the_voice_only(env, tmp_path):  # AC-5.1, AC-5.2
 def test_malformed_pronunciations_name_the_book(env, tmp_path, capsys):
     book = load_json(MINI_BOOK)
     book["metadata"]["pronunciations"] = {"Tilly": ""}
-    book_path = tmp_path / "book.json"
-    book_path.write_text(json.dumps(book), encoding="utf-8")
-    assert run(env, "--reviewed", book=book_path) == 1
+    env["folder"].book_json.write_text(json.dumps(book), encoding="utf-8")
+    assert run(env, "--reviewed") == 1
     err = capsys.readouterr().err
-    assert str(book_path) in err and "Tilly" in err
+    assert SLUG in err and "Tilly" in err  # names the book, not a file path
 
 
 def test_disk_full_names_the_folder(env, monkeypatch, capsys):
@@ -203,9 +202,9 @@ def test_download_command(env, monkeypatch, capsys):
 
 
 def test_defaults_resolve_from_the_project_root():
-    args = sv.parse_args([])
-    assert args.book == sv.ROOT / "book_data.json"
-    assert args.build_dir == sv.ROOT / "build"
+    args = sv.parse_args(["--book", "moon-kite-race"])
+    assert args.book == "moon-kite-race"
+    assert args.root == sv.PROJECT_ROOT
     assert args.command == "synthesize"
 
 
@@ -256,12 +255,11 @@ def test_engine_error_exits_naming_the_line(env, monkeypatch, capsys):  # review
 def test_approve_refuses_after_settings_change(env, capsys):  # review fix 10
     assert run(env, "--reviewed") == 0
     config = env["tmp"] / "config"
-    shutil.copytree(sv.CONFIG_DIR, config)
     voices = load_json(config / "voices.json")
     voices["pauses"]["same_speaker"] = 0.5
     (config / "voices.json").write_text(json.dumps(voices), encoding="utf-8")
     capsys.readouterr()
-    assert run(env, "--config-dir", str(config), command="approve") == 1
+    assert run(env, command="approve") == 1
     err = capsys.readouterr().err
     assert "voice settings changed since the audio was synthesized; re-run synthesis first" in err
     assert load_json(env["audio"] / "status.json")["status"] == "pending review"

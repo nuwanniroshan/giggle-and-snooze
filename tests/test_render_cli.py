@@ -199,7 +199,7 @@ def test_approval_problems_lists_each_problem(world):
 
 
 def test_missing_illustration_names_page_and_file(world, capsys):  # Error Scenarios
-    missing = world["assets"] / "illustrations" / "page_04.png"
+    missing = world["folder"].illustrations / "page_04.png"
     missing.unlink()
     code, runner = render(world)
     err = capsys.readouterr().err
@@ -208,14 +208,15 @@ def test_missing_illustration_names_page_and_file(world, capsys):  # Error Scena
 
 
 def test_missing_cover_is_named(world, capsys):
-    cover = world["assets"] / "illustrations" / "cover_back.png"
+    cover = world["folder"].illustrations / "cover_back.png"
     cover.unlink()
     code, _ = render(world)
     assert code == 1 and str(cover) in capsys.readouterr().err
 
 
 def test_unreadable_nook_is_named_not_skipped(world, capsys):  # Error Scenarios
-    nook = world["episodes"] / world["slug"] / "intro_nook.png"
+    nook = world["folder"].nooks / "intro_nook.png"
+    nook.parent.mkdir(parents=True, exist_ok=True)
     nook.write_bytes(b"not a png")
     code, _ = render(world)
     err = capsys.readouterr().err
@@ -225,9 +226,9 @@ def test_unreadable_nook_is_named_not_skipped(world, capsys):  # Error Scenarios
 
 def test_nook_precedence(world):  # AC-6.1, AC-6.3
     book = load_book(world["book"])
-    slug, episodes, assets = world["slug"], world["episodes"], world["assets"]
+    folder, assets = world["folder"], world["assets"]
 
-    resolved = re_.resolve_pictures(book, slug, episodes, assets)
+    resolved = re_.resolve_pictures(book, folder, assets / "nook")
     assert resolved.by_section["intro"] == "cover_front"
     assert resolved.by_section["outro"] == "cover_back"
     assert resolved.by_section["back-cover"] == "cover_back"
@@ -235,21 +236,21 @@ def test_nook_precedence(world):  # AC-6.1, AC-6.3
 
     shared_intro = picture(assets / "nook" / "intro_nook.png")
     shared_outro = picture(assets / "nook" / "outro_nook.png")
-    resolved = re_.resolve_pictures(book, slug, episodes, assets)
+    resolved = re_.resolve_pictures(book, folder, assets / "nook")
     assert resolved.by_section["intro"] == "intro_nook"
     assert resolved.files["intro_nook"] == shared_intro
     assert resolved.files["outro_nook"] == shared_outro
     assert resolved.by_section["back-cover"] == "cover_back"
 
-    own_intro = picture(episodes / slug / "intro_nook.png")
-    resolved = re_.resolve_pictures(book, slug, episodes, assets)
+    own_intro = picture(folder.nooks / "intro_nook.png")
+    resolved = re_.resolve_pictures(book, folder, assets / "nook")
     assert resolved.files["intro_nook"] == own_intro
     assert resolved.files["outro_nook"] == shared_outro
-    assert resolved.files["page_03"] == assets / "illustrations" / "page_03.png"
+    assert resolved.files["page_03"] == folder.illustrations / "page_03.png"
 
 
 def test_per_book_nook_is_used_in_the_render(world):  # AC-6.1
-    own = picture(world["episodes"] / world["slug"] / "outro_nook.png")
+    own = picture(world["folder"].nooks / "outro_nook.png")
     code, _ = render(world)
     assert code == 0
     record = load_json(world["video"] / f"{world['slug']}.json")
@@ -272,7 +273,7 @@ def test_unchanged_rerun_is_up_to_date(world, capsys):  # AC-7.1
 
 def test_changed_illustration_rerenders_only_that_page(world, capsys):  # AC-7.2
     assert render(world)[0] == 0
-    picture(world["assets"] / "illustrations" / "page_03.png", (1, 2, 3))
+    picture(world["folder"].illustrations / "page_03.png", (1, 2, 3))
     capsys.readouterr()
     code, runner = render(world)
     assert code == 0

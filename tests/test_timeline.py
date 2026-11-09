@@ -507,7 +507,7 @@ def test_shipped_outro_fade_fits_in_the_hold(cfg):  # review r1 #7
 
 # --- readable caption breaks (spec 003 v1.1.0: AC-4.5, AC-4.6) -----------------------------
 
-PILOT_SCRIPT = ROOT / "episodes" / "the-snail-mail-express" / "episode_script.json"
+PILOT_SCRIPT = ROOT / "books" / "the-snail-mail-express" / "episode" / "episode_script.json"
 SENTENCE_END_RE = re.compile(r"[.!?…][\"'”’)\]]*$")
 CLAUSE_END_RE = re.compile(r"[,;:—–-][\"'”’)\]]*$")
 WORDS_PER_SECOND = 2.5

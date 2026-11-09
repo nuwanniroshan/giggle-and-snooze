@@ -31,9 +31,9 @@ import soundfile as sf
 from PIL import Image, UnidentifiedImageError
 
 from video_pipeline import timeline
-from video_pipeline.contract import ConfigError, slugify
+from video_pipeline.contract import ConfigError
 from video_pipeline.episode import BookError, load_book
-from video_pipeline.episode_tools import CONFIG_DIR, ROOT, write_atomic
+from video_pipeline.episode_tools import write_atomic
 from video_pipeline.frames import (
     PAGE_TURN_FILE,
     PictureError,
@@ -45,6 +45,7 @@ from video_pipeline.frames import (
     page_turn_sound,
     render_caption,
 )
+from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
 from video_pipeline.synthesize_voices import (
     AudioPaths,
     approval_problems,
@@ -382,16 +383,14 @@ def _illustration_file(page: dict) -> str:
     return page.get("illustration_file") or f"page_{int(page['page_number']):02d}.png"
 
 
-def resolve_pictures(
-    book: dict, slug: str, episodes_dir: Path, assets_dir: Path
-) -> ResolvedPictures:
+def resolve_pictures(book: dict, folder: BookFolder, shared_nooks: Path) -> ResolvedPictures:
     """Every picture the episode shows (FR-1, AC-6.1, AC-6.3).
 
-    Pages and covers come from `<assets>/illustrations/` (missing → RenderError naming the page
-    and file). A nook image is taken from `episodes/<slug>/` first, then `<assets>/nook/`; with
+    Pages and covers come from the book's `illustrations/` (missing → RenderError naming the page
+    and file). A nook image is taken from the book's `nooks/` first, then `shared_nooks`; with
     neither, the intro shows the front cover and the outro the back cover.
     """
-    illustrations = Path(assets_dir) / "illustrations"
+    illustrations = folder.illustrations
     files: dict[str, Path] = {}
     for page in book["pages"]:
         number = int(page["page_number"])
@@ -406,8 +405,8 @@ def resolve_pictures(
         files[cover] = path
     by_section = {"intro": "cover_front", "back-cover": "cover_back", "outro": "cover_back"}
     for nook in NOOKS:
-        for folder in (Path(episodes_dir) / slug, Path(assets_dir) / "nook"):
-            path = folder / f"{nook}.png"
+        for nook_dir in (folder.nooks, Path(shared_nooks)):
+            path = nook_dir / f"{nook}.png"
             if path.exists():
                 files[nook] = path
                 by_section[nook.removesuffix("_nook")] = nook
@@ -560,25 +559,23 @@ class _Inputs:
     paths: VideoPaths
 
 
-def _load_inputs(
-    book_path: Path, episodes_dir: Path, build_dir: Path, config_dir: Path, assets_dir: Path
-) -> _Inputs:
+def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
     """Gate on approved audio, then load the script, tracks and pictures and key every section
     and transition. Reads only; raises RenderError (or PictureError) on anything missing."""
-    book = load_book(book_path)
-    slug = slugify(book["metadata"]["title"])
-    script_path = Path(episodes_dir) / slug / "episode_script.json"
-    audio = AudioPaths(Path(build_dir) / slug / "audio")
-    voice_cfg = load_voice_config(Path(config_dir) / "voices.json")
-    settings_sha = current_settings_sha(voice_cfg, book, Path(book_path), script_path)
-    problems = approval_problems(audio, script_path, settings_sha, Path(book_path))
+    book = load_book(folder.book_json)
+    slug = folder.slug
+    script_path = folder.script_path
+    audio = AudioPaths(folder.build_dir / "audio")
+    voice_cfg = load_voice_config(Path(root) / "config" / "voices.json")
+    settings_sha = current_settings_sha(voice_cfg, book, folder.book_json, script_path)
+    problems = approval_problems(audio, script_path, settings_sha, folder.book_json)
     if problems:
         raise AudioNotApproved("; ".join(problems))
     try:
         script = json.loads(script_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise RenderError(f"episode script is not valid JSON: {script_path} ({exc})") from None
-    cfg = load_render_config(Path(config_dir) / "render.json")
+    cfg = load_render_config(Path(root) / "config" / "render.json")
 
     track_names = [
         "intro",
@@ -586,7 +583,7 @@ def _load_inputs(
         "outro",
     ]
     timings, tracks, sample_rate = _load_tracks(audio, track_names)
-    pictures = resolve_pictures(book, slug, Path(episodes_dir), Path(assets_dir))
+    pictures = resolve_pictures(book, folder, Path(root) / "assets" / "nook")
     for path in pictures.files.values():
         _check_picture(path)
     picture_sha = {pid: sha256_file(path) for pid, path in pictures.files.items()}
@@ -596,7 +593,7 @@ def _load_inputs(
         raise RenderError(str(exc)) from None
     keys = [section_key(s, picture_sha[s.picture], cfg) for s in sections]
     trans_keys = [transition_key(a, b, cfg) for a, b in zip(keys, keys[1:], strict=False)]
-    paths = VideoPaths(Path(build_dir) / slug / "video")
+    paths = VideoPaths(folder.build_dir / "video")
     return _Inputs(
         slug,
         cfg,
@@ -639,10 +636,10 @@ def _supplied_page_turn_sha(sfx_dir: Path) -> str | None:
     return sha256_file(supplied) if supplied.exists() else None
 
 
-def _sfx_dir(sfx_dir: Path | None, assets_dir: Path) -> Path:
-    """The page-turn folder: `sfx_dir` when given, else `<assets_dir>/audio_sfx` (as before
-    spec 004, so the command line without `--sfx-dir` is unchanged)."""
-    return Path(sfx_dir) if sfx_dir is not None else Path(assets_dir) / "audio_sfx"
+def _sfx_dir(sfx_dir: Path | None, root: Path) -> Path:
+    """The page-turn folder: `sfx_dir` when given, else `<root>/assets/audio_sfx` (shared by every
+    book, spec 005 FR-3)."""
+    return Path(sfx_dir) if sfx_dir is not None else Path(root) / "assets" / "audio_sfx"
 
 
 def _generated_page_turn(cache_path: Path, sample_rate: int) -> np.ndarray:
@@ -659,29 +656,15 @@ def _generated_page_turn(cache_path: Path, sample_rate: int) -> np.ndarray:
     return audio
 
 
-def render_check(
-    book_path: Path,
-    episodes_dir: Path,
-    build_dir: Path,
-    config_dir: Path,
-    assets_dir: Path,
-    sfx_dir: Path | None = None,
-) -> str:
+def render_check(folder: BookFolder, root: Path, sfx_dir: Path | None = None) -> str:
     """Whether `render_video` would reuse the finished video, without rendering or writing:
     "blocked" (audio not approved, missing or unusable inputs), "not_rendered" (no video or
     record), "up_to_date" (the final key matches) or "out_of_date" (spec 004 AC-6.2)."""
-    return render_check_detail(book_path, episodes_dir, build_dir, config_dir, assets_dir, sfx_dir)[
-        0
-    ]
+    return render_check_detail(folder, root, sfx_dir)[0]
 
 
 def render_check_detail(
-    book_path: Path,
-    episodes_dir: Path,
-    build_dir: Path,
-    config_dir: Path,
-    assets_dir: Path,
-    sfx_dir: Path | None = None,
+    folder: BookFolder, root: Path, sfx_dir: Path | None = None
 ) -> tuple[str, str]:
     """`render_check`'s state and, when "blocked", why: "the audio is not approved: ..." for the
     approval gate, else the missing or unusable input (a picture, a track, the book data).
@@ -689,7 +672,7 @@ def render_check_detail(
     A supplied page-turn file is never decoded here: its decoded hash is taken from the video
     record when the file is the one that video was made with."""
     try:
-        inputs = _load_inputs(book_path, episodes_dir, build_dir, config_dir, assets_dir)
+        inputs = _load_inputs(folder, root)
     except AudioNotApproved as exc:
         return "blocked", f"the audio is not approved: {exc}"
     except (RenderError, PictureError, BookError, ConfigError) as exc:
@@ -697,9 +680,9 @@ def render_check_detail(
     final, record = inputs.paths.final(inputs.slug), _read_json(inputs.paths.record(inputs.slug))
     if not final.exists() or record is None:
         return "not_rendered", ""
-    file_sha = _supplied_page_turn_sha(_sfx_dir(sfx_dir, assets_dir))
+    file_sha = _supplied_page_turn_sha(_sfx_dir(sfx_dir, root))
     if file_sha is None:
-        cache = Path(build_dir) / "sfx" / "page_turn.wav"
+        cache = Path(root) / "build" / "sfx" / "page_turn.wav"
         page_turn_sha = _page_turn_digest(_generated_page_turn(cache, inputs.sample_rate))
     elif record.get("page_turn_file_sha256") == file_sha and record.get("page_turn_sha256"):
         page_turn_sha = record["page_turn_sha256"]
@@ -711,23 +694,20 @@ def render_check_detail(
 
 
 def render_video(
-    book_path: Path,
-    episodes_dir: Path,
-    build_dir: Path,
-    config_dir: Path,
-    assets_dir: Path,
+    folder: BookFolder,
+    root: Path,
     force: bool = False,
     run: Runner = run_ffmpeg,
     on_progress: Progress | None = None,
     sfx_dir: Path | None = None,
 ) -> RenderResult:
-    """Render the approved episode of `book_path` to `build/<slug>/video/<slug>.mp4` (spec 003).
+    """Render the approved episode of one book to `books/<slug>/build/video/<slug>.mp4` (spec 003).
 
     Sections and transitions are cached by key; the final video is reused when the ordered keys,
     the tracks, the page-turn sound and the audio/encode settings are unchanged (AC-7.1, AC-7.2).
-    The page-turn sound comes from `sfx_dir` (default `<assets_dir>/audio_sfx`).
+    The page-turn sound comes from `sfx_dir` (default `<root>/assets/audio_sfx`).
     """
-    inputs = _load_inputs(book_path, episodes_dir, build_dir, config_dir, assets_dir)
+    inputs = _load_inputs(folder, root)
     slug, cfg = inputs.slug, inputs.cfg
     sections, keys, trans_keys = inputs.sections, inputs.keys, inputs.trans_keys
     pictures, tracks, sample_rate = inputs.pictures, inputs.tracks, inputs.sample_rate
@@ -735,8 +715,8 @@ def render_video(
 
     paths = inputs.paths
     try:
-        sfx = _sfx_dir(sfx_dir, assets_dir)
-        page_turn = load_page_turn(sfx, sample_rate, Path(build_dir) / "sfx" / "page_turn.wav")
+        sfx = _sfx_dir(sfx_dir, root)
+        page_turn = load_page_turn(sfx, sample_rate, Path(root) / "build" / "sfx" / "page_turn.wav")
         page_turn_sha = _page_turn_digest(page_turn)
         page_turn_fields = {
             "page_turn_sha256": page_turn_sha,
@@ -836,16 +816,13 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         description="Render the approved episode into a 1920x1080 video (spec 003).",
         allow_abbrev=False,
     )
-    parser.add_argument("--book", type=Path, default=ROOT / "book_data.json")
-    parser.add_argument("--episodes-dir", type=Path, default=ROOT / "episodes")
-    parser.add_argument("--build-dir", type=Path, default=ROOT / "build")
-    parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
-    parser.add_argument("--assets-dir", type=Path, default=ROOT / "assets")
+    parser.add_argument("--book", required=True, help="book slug, e.g. the-snail-mail-express")
+    parser.add_argument("--root", type=Path, default=PROJECT_ROOT, help="project root")
     parser.add_argument(
         "--sfx-dir",
         type=Path,
         default=None,
-        help="folder with an optional page_turn.wav (default: <assets-dir>/audio_sfx)",
+        help="folder with an optional page_turn.wav (default: <root>/assets/audio_sfx)",
     )
     parser.add_argument("--force", action="store_true", help="re-render every section")
     return parser.parse_args(argv)
@@ -854,18 +831,16 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
 def main(argv: list[str] | None = None, run: Runner | None = None) -> int:
     args = parse_args(argv)
     try:
+        folder = book_folder(args.book, args.root)
         result = render_video(
-            args.book,
-            args.episodes_dir,
-            args.build_dir,
-            args.config_dir,
-            args.assets_dir,
+            folder,
+            args.root,
             force=args.force,
             run=run or run_ffmpeg,
             on_progress=lambda name, action: print(f"  {name}: {action}", flush=True),
             sfx_dir=args.sfx_dir,
         )
-    except (RenderError, PictureError, SoundError, BookError, ConfigError) as exc:
+    except (RenderError, PictureError, SoundError, BookError, ConfigError, LibraryError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except OSError as exc:

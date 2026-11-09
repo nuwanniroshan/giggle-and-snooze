@@ -12,6 +12,8 @@ from tests.helpers import load_json
 from tests.voice_helpers import FakeEngine, identity_shift, make_script, write_script
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import slugify
+from video_pipeline.episode_tools import CONFIG_DIR
+from video_pipeline.library import BookFolder
 
 
 def picture(path: Path, colour=(120, 60, 30)) -> Path:
@@ -36,54 +38,46 @@ def _shrink_render_config(path: Path) -> None:
 
 
 def make_world(tmp_path: Path, monkeypatch, book_path: Path, approve: bool = True) -> dict:
-    """Synthesize (fake voice) and optionally approve audio for `book_path` under `tmp_path`."""
+    """A project root under tmp_path with one book folder (books/<slug>/) whose audio is
+    synthesized (fake voice) and optionally approved. Shared config and assets sit at the root."""
     book = load_json(book_path)
     slug = slugify(book["metadata"]["title"])
-    episodes, build = tmp_path / "episodes", tmp_path / "build"
-    config, assets = tmp_path / "config", tmp_path / "assets"
+    root = tmp_path
+    folder = BookFolder(slug, root)
+    config, assets = root / "config", root / "assets"
     if not config.exists():
-        shutil.copytree(sv.CONFIG_DIR, config)
+        shutil.copytree(CONFIG_DIR, config)
         _shrink_render_config(config / "render.json")
+    folder.folder.mkdir(parents=True, exist_ok=True)
+    shutil.copy(book_path, folder.book_json)
     for index, page in enumerate(book["pages"]):
-        picture(assets / "illustrations" / illustration_name(page), (40 + 9 * index, 80, 120))
-    picture(assets / "illustrations" / "cover_front.png", (200, 40, 40))
-    picture(assets / "illustrations" / "cover_back.png", (40, 200, 40))
-    script_path = write_script(make_script(book_path), episodes, slug)
+        picture(folder.illustrations / illustration_name(page), (40 + 9 * index, 80, 120))
+    picture(folder.illustrations / "cover_front.png", (200, 40, 40))
+    picture(folder.illustrations / "cover_back.png", (40, 200, 40))
+    script_path = write_script(make_script(book_path), folder)
     monkeypatch.setattr(sv, "create_engine", lambda cfg: FakeEngine())
     monkeypatch.setattr(sv, "pitch_shift", identity_shift)
-    common = ["--book", str(book_path), "--episodes-dir", str(episodes)]
-    common += ["--build-dir", str(build), "--config-dir", str(config)]
+    common = ["--book", slug, "--root", str(root)]
     assert sv.main(["--reviewed", *common]) == 0
     if approve:
         assert sv.main(["approve", *common]) == 0
     return {
-        "book": book_path,
+        "book": folder.book_json,
         "slug": slug,
-        "episodes": episodes,
-        "build": build,
+        "root": root,
+        "folder": folder,
         "config": config,
         "assets": assets,
+        "build": root / "build",
         "script_path": script_path,
-        "audio": build / slug / "audio",
-        "video": build / slug / "video",
-        "final": build / slug / "video" / f"{slug}.mp4",
+        "audio": folder.build_dir / "audio",
+        "video": folder.build_dir / "video",
+        "final": folder.build_dir / "video" / f"{slug}.mp4",
     }
 
 
 def cli_args(world: dict, *extra: str) -> list[str]:
-    return [
-        "--book",
-        str(world["book"]),
-        "--episodes-dir",
-        str(world["episodes"]),
-        "--build-dir",
-        str(world["build"]),
-        "--config-dir",
-        str(world["config"]),
-        "--assets-dir",
-        str(world["assets"]),
-        *extra,
-    ]
+    return ["--book", world["slug"], "--root", str(world["root"]), *extra]
 
 
 class FakeRunner:

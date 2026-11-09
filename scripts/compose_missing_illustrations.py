@@ -5,13 +5,15 @@ by compositing, color-grading, and blending hand-painted elements from our gener
 and reference artwork so every page of the 20-page book has a unique, cohesive illustration.
 """
 
+import argparse
 import math
+import sys
 from pathlib import Path
+
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter
 
-ROOT = Path("/Users/swiveltech/Disk/Swivel/kiddo")
-ILL_DIR = ROOT / "assets" / "illustrations"
-REF_DIR = ROOT / "assets" / "references"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder  # noqa: E402
 
 
 def soft_rect_mask(size: tuple[int, int], feather: int = 35) -> Image.Image:
@@ -53,16 +55,16 @@ def draw_glow_orbs(img: Image.Image, points: list[tuple[int, int, int]]) -> Imag
     return Image.alpha_composite(base, glow).convert("RGB")
 
 
-def make_page_03():
+def make_page_03(paths: BookFolder):
     """
     Page 3: Three Mysterious Parcels
     Close-up of the mossy acorn mailbox at the post office, Clara & Barnaby, and the three glowing treasures:
     silver dewdrop thimble, brass acorn pocket-watch, and star-punched birch-bark scroll.
     """
-    p1 = Image.open(ILL_DIR / "page_01.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    back = Image.open(ILL_DIR / "cover_back.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p9 = Image.open(ILL_DIR / "page_09.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p12 = Image.open(ILL_DIR / "page_12.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p1 = Image.open(paths.illustrations / "page_01.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    back = Image.open(paths.illustrations / "cover_back.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p9 = Image.open(paths.illustrations / "page_09.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p12 = Image.open(paths.illustrations / "page_12.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
 
     # Start with warm zoomed view of the acorn mailbox and ferns from cover_back + page_01
     canvas = back.copy()
@@ -105,21 +107,21 @@ def make_page_03():
 
     canvas = draw_glow_orbs(canvas, [(170, 170, 6), (370, 145, 6), (260, 350, 6), (310, 620, 8)])
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "page_03.png", quality=96)
+    canvas.save(paths.illustrations / "page_03.png", quality=96)
 
 
 def ImageOps_mirror(img: Image.Image) -> Image.Image:
     return img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
 
 
-def make_page_06():
+def make_page_06(paths: BookFolder):
     """
     Page 6: Millie the Seamstress Ant
     Millie the black ant in her red white-polka-dot dress on a mossy stone by Bramble Pond,
     while Clara and Barnaby approach along the bank.
     """
-    p5 = Image.open(ILL_DIR / "page_05.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p18 = Image.open(ILL_DIR / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p5 = Image.open(paths.illustrations / "page_05.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p18 = Image.open(paths.illustrations / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
 
     # Base: sunlit pond and ferns from page_05, slightly zoomed & warm-graded
     canvas = p5.crop((30, 30, 994, 994)).resize((1024, 1024), Image.Resampling.LANCZOS)
@@ -134,17 +136,17 @@ def make_page_06():
     canvas.paste(ant_crop, (640, 520), ant_mask)
     canvas = draw_glow_orbs(canvas, [(760, 660, 7), (720, 620, 5), (520, 480, 6)])
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "page_06.png", quality=96)
+    canvas.save(paths.illustrations / "page_06.png", quality=96)
 
 
-def make_page_07():
+def make_page_07(paths: BookFolder):
     """
     Page 7: The Silver Dewdrop Thimble
     Close-up warm sunlit scene where Clara kneels by the mossy pondside beside Barnaby
     and gifts the sparkling silver thimble to Millie the Ant in her polka-dot dress.
     """
-    p2 = Image.open(ILL_DIR / "page_02.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p18 = Image.open(ILL_DIR / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p2 = Image.open(paths.illustrations / "page_02.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p18 = Image.open(paths.illustrations / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
 
     # Crop lower sunlit meadow + Barnaby + kneeling Clara from page_02
     canvas = p2.crop((80, 380, 944, 1024)).resize((1024, 1024), Image.Resampling.LANCZOS)
@@ -158,17 +160,17 @@ def make_page_07():
     # Draw sparkling silver thimble & golden honey glow between Clara and Millie
     canvas = draw_glow_orbs(canvas, [(690, 580, 12), (670, 560, 7), (720, 550, 8), (540, 620, 6)])
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "page_07.png", quality=96)
+    canvas.save(paths.illustrations / "page_07.png", quality=96)
 
 
-def make_page_10():
+def make_page_10(paths: BookFolder):
     """
     Page 10: Bramwell the Truffle Boar's Dilemma
     Bramwell the round bristly brown wild boar with white tusks on a sunlit woodland hill
     beside his basket of tarts, with Clara & Barnaby arriving in the background.
     """
-    p4 = Image.open(ILL_DIR / "page_04.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p18 = Image.open(ILL_DIR / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p4 = Image.open(paths.illustrations / "page_04.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p18 = Image.open(paths.illustrations / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
 
     # Start with lush woodland path & Clara/Barnaby from page_04 shifted to upper-left
     canvas = Image.new("RGB", (1024, 1024), (251, 244, 226))
@@ -184,18 +186,18 @@ def make_page_10():
 
     canvas = draw_glow_orbs(canvas, [(520, 520, 8), (680, 480, 6), (390, 380, 7)])
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "page_10.png", quality=96)
+    canvas.save(paths.illustrations / "page_10.png", quality=96)
 
 
-def make_page_11():
+def make_page_11(paths: BookFolder):
     """
     Page 11: Right on Snail Time
     Clara handing the polished golden acorn pocket-watch to happy Bramwell the Boar,
     who shares warm cinnamon-acorn scones while Barnaby looks on.
     """
-    p8 = Image.open(ILL_DIR / "page_08.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p18 = Image.open(ILL_DIR / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p9 = Image.open(ILL_DIR / "page_09.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p8 = Image.open(paths.illustrations / "page_08.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p18 = Image.open(paths.illustrations / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p9 = Image.open(paths.illustrations / "page_09.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
 
     # Warm golden-toned version of page_08 (Clara standing beside Barnaby in the birch grove after the rain)
     canvas = ImageEnhance.Color(p8).enhance(1.25)
@@ -214,17 +216,17 @@ def make_page_11():
 
     canvas = draw_glow_orbs(canvas, [(603, 698, 14), (580, 670, 7), (635, 680, 7)])
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "page_11.png", quality=96)
+    canvas.save(paths.illustrations / "page_11.png", quality=96)
 
 
-def make_page_14():
+def make_page_14(paths: BookFolder):
     """
     Page 14: Listening to the Quiet Forest
     Under the golden weeping willow at twilight, Clara and Barnaby look up at Fleet the Falcon
     sitting sadly on a branch above.
     """
-    p13 = Image.open(ILL_DIR / "page_13.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p16 = Image.open(ILL_DIR / "page_16.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p13 = Image.open(paths.illustrations / "page_13.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p16 = Image.open(paths.illustrations / "page_16.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
 
     # Focus on the upper weeping willow and Clara/Barnaby from page_13, graded to warm golden twilight
     canvas = p13.crop((120, 0, 1024, 904)).resize((1024, 1024), Image.Resampling.LANCZOS)
@@ -239,16 +241,16 @@ def make_page_14():
 
     canvas = draw_glow_orbs(canvas, [(760, 320, 8), (620, 280, 6), (480, 190, 7), (860, 480, 6)])
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "page_14.png", quality=96)
+    canvas.save(paths.illustrations / "page_14.png", quality=96)
 
 
-def make_page_15():
+def make_page_15(paths: BookFolder):
     """
     Page 15: The Speedy Bird's Lost Lullaby
     Fleet the Falcon perched humbly on a mossy log talking to Clara and Barnaby at twilight.
     """
-    p16 = Image.open(ILL_DIR / "page_16.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p18 = Image.open(ILL_DIR / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p16 = Image.open(paths.illustrations / "page_16.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p18 = Image.open(paths.illustrations / "page_18.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
 
     # Base: twilight scene of Barnaby & Clara from page_16
     canvas = p16.crop((60, 80, 964, 984)).resize((1024, 1024), Image.Resampling.LANCZOS)
@@ -260,17 +262,17 @@ def make_page_15():
 
     canvas = draw_glow_orbs(canvas, [(750, 660, 8), (520, 440, 9), (320, 300, 7), (840, 520, 6)])
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "page_15.png", quality=96)
+    canvas.save(paths.illustrations / "page_15.png", quality=96)
 
 
-def make_page_19():
+def make_page_19(paths: BookFolder):
     """
     Page 19: Homeward Under the Moon
     Clara sitting atop Barnaby writing in her teal logbook by warm lantern light as they glide
     homeward under a glowing silver-gold crescent moon and starry night sky.
     """
-    p17 = Image.open(ILL_DIR / "page_17.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
-    p20 = Image.open(ILL_DIR / "page_20.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p17 = Image.open(paths.illustrations / "page_17.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    p20 = Image.open(paths.illustrations / "page_20.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
 
     # Combine starry sky from page_20 in top 35% with Clara reading/writing in her teal book on Barnaby from page_17
     canvas = ImageOps_mirror(p17.copy())
@@ -298,15 +300,15 @@ def make_page_19():
 
     canvas = draw_glow_orbs(canvas, [(190, 130, 18), (480, 140, 6), (780, 190, 7), (610, 440, 10)])
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "page_19.png", quality=96)
+    canvas.save(paths.illustrations / "page_19.png", quality=96)
 
 
-def make_whisperwood_map():
+def make_whisperwood_map(paths: BookFolder):
     """
     Creates the illustrated bird's-eye storybook map of Whisperwood Hollow (`map_whisperwood.png`)
     on the hand-painted cream watercolor paper with 6 painted landmark medallions and a winding dotted trail.
     """
-    back = Image.open(ILL_DIR / "cover_back.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+    back = Image.open(paths.illustrations / "cover_back.png").convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
     canvas = back.copy()
     draw = ImageDraw.Draw(canvas)
 
@@ -338,7 +340,7 @@ def make_whisperwood_map():
     # Paste circular landmark medallions
     rad = 95
     for idx, (fname, (cx, cy), crop_box) in enumerate(landmarks, start=1):
-        src = Image.open(ILL_DIR / fname).convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
+        src = Image.open(paths.illustrations / fname).convert("RGB").resize((1024, 1024), Image.Resampling.LANCZOS)
         sub = src.crop(crop_box).resize((rad * 2, rad * 2), Image.Resampling.LANCZOS)
         mask = Image.new("L", (rad * 2, rad * 2), 0)
         ImageDraw.Draw(mask).ellipse([4, 4, rad * 2 - 4, rad * 2 - 4], fill=255)
@@ -366,21 +368,38 @@ def make_whisperwood_map():
     draw.polygon([(rx - 36, ry), (rx, ry - 8), (rx + 36, ry), (rx, ry + 8)], fill=(200, 138, 50))
 
     canvas = add_gouache_vignette_frame(canvas)
-    canvas.save(ILL_DIR / "map_whisperwood.png", quality=96)
+    canvas.save(paths.illustrations / "map_whisperwood.png", quality=96)
 
 
-def main():
-    make_page_03()
-    make_page_06()
-    make_page_07()
-    make_page_10()
-    make_page_11()
-    make_page_14()
-    make_page_15()
-    make_page_19()
-    make_whisperwood_map()
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Compose the remaining illustrations of one book.")
+    parser.add_argument("--book", required=True, help="book slug, e.g. the-snail-mail-express")
+    parser.add_argument("--root", type=Path, default=PROJECT_ROOT, help="project root")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        paths = book_folder(args.book, args.root)
+    except LibraryError as exc:
+        print(f"compose stopped: {exc}", file=sys.stderr)
+        return 2
+    for compose in (
+        make_page_03,
+        make_page_06,
+        make_page_07,
+        make_page_10,
+        make_page_11,
+        make_page_14,
+        make_page_15,
+        make_page_19,
+        make_whisperwood_map,
+    ):
+        compose(paths)
     print("Successfully composed all remaining illustrations and Whisperwood map!")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

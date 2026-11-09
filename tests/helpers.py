@@ -1,20 +1,34 @@
 """Shared test helpers: fixture paths and a valid stub of the model's banter."""
 
 import json
+import shutil
 from pathlib import Path
 
-from video_pipeline.contract import Banter
+from video_pipeline.contract import Banter, slugify
 from video_pipeline.episode import EpisodePlan
+from video_pipeline.episode_tools import CONFIG_DIR
+from video_pipeline.library import BookFolder
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 MINI_BOOK = FIXTURES / "mini_book.json"
-PILOT_BOOK = ROOT / "book_data.json"
+PILOT_BOOK = ROOT / "books" / "the-snail-mail-express" / "book.json"
 CAST_PATH = ROOT / "config" / "cast.json"
 
 
 def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def make_root(root: Path, book_path: Path = MINI_BOOK, slug: str | None = None) -> BookFolder:
+    """A project root with the shared config and one book folder at books/<slug>/ (book.json)."""
+    if not (root / "config").exists():
+        shutil.copytree(CONFIG_DIR, root / "config")
+    slug = slug or slugify(load_json(book_path)["metadata"]["title"])
+    folder = BookFolder(slug, root)
+    folder.folder.mkdir(parents=True, exist_ok=True)
+    shutil.copy(book_path, folder.book_json)
+    return folder
 
 
 def make_banter(book: dict, plan: EpisodePlan) -> Banter:

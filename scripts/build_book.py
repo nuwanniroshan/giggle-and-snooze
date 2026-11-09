@@ -2,34 +2,40 @@
 """
 Production Book Builder for "The Snail Mail Express"
 Generates:
-1. The_Snail_Mail_Express_20Page_Digital_Edition.pdf (Strict 20-page story edition, 8.5" x 8.5")
-2. The_Snail_Mail_Express_Complete_Reader.pdf (Front Cover + 20 Story Pages + Back Cover)
-3. The_Snail_Mail_Express_KDP_24Page_Print_Interior.pdf (Amazon KDP Print-Ready 24-page interior with bleed: 8.625" x 8.75")
-4. The_Snail_Mail_Express_KDP_Print_Wrap_Cover.pdf & .png (Amazon KDP Paperback Wrap Cover with bleed & barcode zone)
-5. The_Snail_Mail_Express_Front_Cover.png & Back_Cover.png (300 DPI standalone covers)
-6. The_Snail_Mail_Express.epub (EPUB 3 for Amazon Kindle KDP, Apple Books, Kobo)
+1. <Title>_20Page_Digital_Edition.pdf (Strict 20-page story edition, 8.5" x 8.5")
+2. <Title>_Complete_Reader.pdf (Front Cover + 20 Story Pages + Back Cover)
+3. <Title>_KDP_24Page_Print_Interior.pdf (Amazon KDP Print-Ready 24-page interior with bleed: 8.625" x 8.75")
+4. <Title>_KDP_Print_Wrap_Cover.pdf & .png (Amazon KDP Paperback Wrap Cover with bleed & barcode zone)
+5. <Title>_Front_Cover.png & Back_Cover.png (300 DPI standalone covers)
+6. <Title>.epub (EPUB 3 for Amazon Kindle KDP, Apple Books, Kobo)
 7. build/index.html (Interactive HTML5 Flipbook Preview)
 """
 
+import argparse
 import json
 import math
 import os
 import shutil
+import sys
 import uuid
 import zipfile
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from reportlab.lib.colors import Color, HexColor
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-ROOT = Path("/Users/swiveltech/Disk/Swivel/kiddo")
-ILLUSTRATIONS_DIR = ROOT / "assets" / "illustrations"
-BUILD_DIR = ROOT / "build"
-BOOK_DATA_PATH = ROOT / "book_data.json"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from video_pipeline.library import (  # noqa: E402
+    PROJECT_ROOT,
+    BookFolder,
+    LibraryError,
+    book_folder,
+    file_stem,
+)
 
 # Color Palette (Cozy Whimsical Gouache)
 CREAM_BG = HexColor("#FDF8EE")
@@ -247,6 +253,8 @@ def render_story_page(
     bleed_top: float,
     bleed_bottom: float,
     fonts: dict,
+    *,
+    paths: BookFolder,
 ):
     """
     Renders a single story page onto the ReportLab canvas.
@@ -264,7 +272,7 @@ def render_story_page(
     c.rect(0, 0, page_w, page_h, stroke=0, fill=1)
     c.restoreState()
 
-    img_path = ILLUSTRATIONS_DIR / page_data["illustration_file"]
+    img_path = paths.illustrations / page_data["illustration_file"]
     layout = page_data.get("layout", "image_top_text_bottom")
     pnum = page_data["page_number"]
 
@@ -334,7 +342,7 @@ def render_story_page(
     draw_page_number_badge(c, trim_x + trim_w / 2.0, safe_y - 2, pnum, fonts)
 
 
-def render_front_matter_pages(c: canvas.Canvas, book_data: dict, page_w: float, page_h: float, bleed_left: float, bleed_right: float, bleed_top: float, bleed_bottom: float, fonts: dict):
+def render_front_matter_pages(c: canvas.Canvas, book_data: dict, page_w: float, page_h: float, bleed_left: float, bleed_right: float, bleed_top: float, bleed_bottom: float, fonts: dict, *, paths: BookFolder):
     """Renders the 3 Front Matter pages for the 24-page KDP Print-Ready Interior."""
     trim_w = page_w - bleed_left - bleed_right
     trim_h = page_h - bleed_top - bleed_bottom
@@ -365,7 +373,7 @@ def render_front_matter_pages(c: canvas.Canvas, book_data: dict, page_w: float, 
     c.setLineWidth(1.5)
     c.roundRect(box_x, box_y, box_w, box_h, 12, stroke=1, fill=1)
 
-    p1_img = ILLUSTRATIONS_DIR / "page_01.png"
+    p1_img = paths.illustrations / "page_01.png"
     if p1_img.exists():
         c.drawImage(str(p1_img), cx - 65, box_y + 95, width=130, height=130, preserveAspectRatio=True, mask="auto")
         c.setStrokeColor(GOLD_ACCENT)
@@ -444,7 +452,7 @@ def render_front_matter_pages(c: canvas.Canvas, book_data: dict, page_w: float, 
     c.drawCentredString(cx, trim_y + trim_h - 90, "The Daily Route of Clara & Barnaby's Snail Mail Express")
     draw_ornamental_divider(c, cx, trim_y + trim_h - 104, width=180)
 
-    map_img = ILLUSTRATIONS_DIR / "map_whisperwood.png"
+    map_img = paths.illustrations / "map_whisperwood.png"
     map_size = 360
     if map_img.exists():
         c.drawImage(str(map_img), cx - map_size / 2.0, trim_y + 125, width=map_size, height=map_size, preserveAspectRatio=True, mask="auto")
@@ -467,7 +475,7 @@ def render_front_matter_pages(c: canvas.Canvas, book_data: dict, page_w: float, 
     c.showPage()
 
 
-def render_back_matter_page(c: canvas.Canvas, book_data: dict, page_w: float, page_h: float, bleed_left: float, bleed_right: float, bleed_top: float, bleed_bottom: float, fonts: dict):
+def render_back_matter_page(c: canvas.Canvas, book_data: dict, page_w: float, page_h: float, bleed_left: float, bleed_right: float, bleed_top: float, bleed_bottom: float, fonts: dict, *, paths: BookFolder):
     """Renders Page 24: Postmaster's Field Guide & Activity Page for KDP 24-page compliance."""
     trim_w = page_w - bleed_left - bleed_right
     trim_h = page_h - bleed_top - bleed_bottom
@@ -540,11 +548,11 @@ def render_back_matter_page(c: canvas.Canvas, book_data: dict, page_w: float, pa
     c.showPage()
 
 
-def create_front_cover_image(book_data: dict, out_png: Path, size_px: int = 2550):
+def create_front_cover_image(book_data: dict, out_png: Path, size_px: int = 2550, *, paths: BookFolder):
     """Creates a 300 DPI Front Cover PNG (2550x2550 for 8.5x8.5in) with rich storybook typography."""
-    raw_cover = ILLUSTRATIONS_DIR / "cover_front.png"
+    raw_cover = paths.illustrations / "cover_front.png"
     if not raw_cover.exists():
-        raw_cover = ILLUSTRATIONS_DIR / "page_04.png"
+        raw_cover = paths.illustrations / "page_04.png"
 
     raw_Img = Image.open(raw_cover).convert("RGBA")
     # Shift artwork down slightly on warm cream background so top 20% is open above Clara's head
@@ -642,11 +650,11 @@ def create_front_cover_image(book_data: dict, out_png: Path, size_px: int = 2550
     return final_img
 
 
-def create_back_cover_image(book_data: dict, out_png: Path, size_px: int = 2550):
+def create_back_cover_image(book_data: dict, out_png: Path, size_px: int = 2550, *, paths: BookFolder):
     """Creates a 300 DPI Back Cover PNG with story blurb, age badge, and KDP barcode zone."""
-    raw_back = ILLUSTRATIONS_DIR / "cover_back.png"
+    raw_back = paths.illustrations / "cover_back.png"
     if not raw_back.exists():
-        raw_back = ILLUSTRATIONS_DIR / "page_20.png"
+        raw_back = paths.illustrations / "page_20.png"
 
     base = Image.open(raw_back).convert("RGBA").resize((size_px, size_px), Image.Resampling.LANCZOS)
     overlay = Image.new("RGBA", (size_px, size_px), (0, 0, 0, 0))
@@ -774,34 +782,35 @@ def create_kdp_wrap_cover(front_img: Image.Image, back_img: Image.Image, out_png
     c.save()
 
 
-def build_pdfs(book_data: dict, fonts: dict):
+def build_pdfs(book_data: dict, fonts: dict, *, paths: BookFolder):
     """Builds all PDF editions (20-Page Digital, Complete Reader, and 24-Page KDP Print Interior)."""
+    stem = file_stem(book_data["metadata"]["title"])
     trim_w = 8.5 * inch
     trim_h = 8.5 * inch
 
     # 1. Strict 20-Page Digital Edition (8.5" x 8.5", zero bleed)
-    pdf_20_path = BUILD_DIR / "The_Snail_Mail_Express_20Page_Digital_Edition.pdf"
+    pdf_20_path = paths.build_dir / f"{stem}_20Page_Digital_Edition.pdf"
     c20 = canvas.Canvas(str(pdf_20_path), pagesize=(trim_w, trim_h))
     c20.setTitle(book_data["metadata"]["title"])
     c20.setAuthor(book_data["metadata"]["author"])
     for page in book_data["pages"]:
-        render_story_page(c20, page, trim_w, trim_h, 0, 0, 0, 0, fonts)
+        render_story_page(c20, page, trim_w, trim_h, 0, 0, 0, 0, fonts, paths=paths)
         c20.showPage()
     c20.save()
 
     # 2. Complete Reader Edition (Front Cover + 20 Story Pages + Back Cover)
-    pdf_reader_path = BUILD_DIR / "The_Snail_Mail_Express_Complete_Reader.pdf"
+    pdf_reader_path = paths.build_dir / f"{stem}_Complete_Reader.pdf"
     creader = canvas.Canvas(str(pdf_reader_path), pagesize=(trim_w, trim_h))
     creader.setTitle(book_data["metadata"]["title"] + " (Complete Reader Edition)")
     creader.setAuthor(book_data["metadata"]["author"])
-    front_png = BUILD_DIR / "The_Snail_Mail_Express_Front_Cover.png"
-    back_png = BUILD_DIR / "The_Snail_Mail_Express_Back_Cover.png"
+    front_png = paths.build_dir / f"{stem}_Front_Cover.png"
+    back_png = paths.build_dir / f"{stem}_Back_Cover.png"
 
     if front_png.exists():
         creader.drawImage(str(front_png), 0, 0, width=trim_w, height=trim_h)
         creader.showPage()
     for page in book_data["pages"]:
-        render_story_page(creader, page, trim_w, trim_h, 0, 0, 0, 0, fonts)
+        render_story_page(creader, page, trim_w, trim_h, 0, 0, 0, 0, fonts, paths=paths)
         creader.showPage()
     if back_png.exists():
         creader.drawImage(str(back_png), 0, 0, width=trim_w, height=trim_h)
@@ -812,29 +821,30 @@ def build_pdfs(book_data: dict, fonts: dict):
     bleed = 0.125 * inch
     kdp_w = 8.625 * inch
     kdp_h = 8.75 * inch
-    pdf_kdp_path = BUILD_DIR / "The_Snail_Mail_Express_KDP_24Page_Print_Interior.pdf"
+    pdf_kdp_path = paths.build_dir / f"{stem}_KDP_24Page_Print_Interior.pdf"
     ckdp = canvas.Canvas(str(pdf_kdp_path), pagesize=(kdp_w, kdp_h))
     ckdp.setTitle(book_data["metadata"]["title"] + " (KDP Print Interior)")
     ckdp.setAuthor(book_data["metadata"]["author"])
 
     # Pages 1-3: Front Matter
-    render_front_matter_pages(ckdp, book_data, kdp_w, kdp_h, bleed / 2, bleed / 2, bleed, bleed, fonts)
+    render_front_matter_pages(ckdp, book_data, kdp_w, kdp_h, bleed / 2, bleed / 2, bleed, bleed, fonts, paths=paths)
     # Pages 4-23: 20 Story Pages
     for idx, page in enumerate(book_data["pages"]):
         # Right-hand (odd KDP page) has bleed on right; left-hand (even KDP page) has bleed on left
         kdp_page_num = idx + 4
         b_left = bleed if (kdp_page_num % 2 == 0) else 0.0
         b_right = bleed if (kdp_page_num % 2 == 1) else 0.0
-        render_story_page(ckdp, page, kdp_w, kdp_h, b_left, b_right, bleed, bleed, fonts)
+        render_story_page(ckdp, page, kdp_w, kdp_h, b_left, b_right, bleed, bleed, fonts, paths=paths)
         ckdp.showPage()
     # Page 24: Back Matter Activity & Field Guide Page
-    render_back_matter_page(ckdp, book_data, kdp_w, kdp_h, bleed, 0.0, bleed, bleed, fonts)
+    render_back_matter_page(ckdp, book_data, kdp_w, kdp_h, bleed, 0.0, bleed, bleed, fonts, paths=paths)
     ckdp.save()
 
 
-def build_epub(book_data: dict):
+def build_epub(book_data: dict, *, paths: BookFolder):
     """Builds a valid, standards-compliant EPUB 3 file for Amazon Kindle KDP & Apple Books."""
-    epub_path = BUILD_DIR / "The_Snail_Mail_Express.epub"
+    stem = file_stem(book_data["metadata"]["title"])
+    epub_path = paths.build_dir / f"{stem}.epub"
     book_uuid = str(uuid.uuid4())
 
     with zipfile.ZipFile(epub_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -923,10 +933,10 @@ p {
         spine_items = []
 
         # Cover image & XHTML
-        front_png = BUILD_DIR / "The_Snail_Mail_Express_Front_Cover.png"
+        front_png = paths.build_dir / f"{stem}_Front_Cover.png"
         if front_png.exists():
             im = Image.open(front_png).convert("RGB").resize((1400, 1400), Image.Resampling.LANCZOS)
-            tmp_cov = BUILD_DIR / "_tmp_cov.jpg"
+            tmp_cov = paths.build_dir / "_tmp_cov.jpg"
             im.save(tmp_cov, "JPEG", quality=92)
             zf.write(tmp_cov, "OEBPS/images/cover.jpg")
             tmp_cov.unlink()
@@ -952,11 +962,11 @@ p {
         ncx_navpoints = []
         for page in book_data["pages"]:
             pnum = page["page_number"]
-            img_file = ILLUSTRATIONS_DIR / page["illustration_file"]
+            img_file = paths.illustrations / page["illustration_file"]
             jpg_name = f"page_{pnum:02d}.jpg"
             if img_file.exists():
                 im = Image.open(img_file).convert("RGB").resize((1400, 1400), Image.Resampling.LANCZOS)
-                tmp_jpg = BUILD_DIR / f"_tmp_{pnum}.jpg"
+                tmp_jpg = paths.build_dir / f"_tmp_{pnum}.jpg"
                 im.save(tmp_jpg, "JPEG", quality=90)
                 zf.write(tmp_jpg, f"OEBPS/images/{jpg_name}")
                 tmp_jpg.unlink()
@@ -1053,8 +1063,9 @@ p {
         zf.writestr("OEBPS/content.opf", content_opf)
 
 
-def build_interactive_flipbook(book_data: dict):
+def build_interactive_flipbook(book_data: dict, *, paths: BookFolder):
     """Builds a standalone interactive HTML5 Flipbook in build/index.html."""
+    stem = file_stem(book_data["metadata"]["title"])
     slides_json = json.dumps(book_data["pages"], indent=2)
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1219,10 +1230,10 @@ def build_interactive_flipbook(book_data: dict):
     <button onclick="prevSlide()">◀ Previous Page</button>
     <span id="pageIndicator" style="color:#FDF8EE; align-self:center; font-weight:bold; min-width:150px; text-align:center;">Cover</span>
     <button onclick="nextSlide()">Next Page ▶</button>
-    <a class="btn" href="The_Snail_Mail_Express_20Page_Digital_Edition.pdf" target="_blank">📄 20-Page PDF</a>
-    <a class="btn" href="The_Snail_Mail_Express_KDP_24Page_Print_Interior.pdf" target="_blank">🖨️ KDP 24-Page Print PDF</a>
-    <a class="btn" href="The_Snail_Mail_Express_KDP_Print_Wrap_Cover.pdf" target="_blank">📕 KDP Wrap Cover</a>
-    <a class="btn" href="The_Snail_Mail_Express.epub" target="_blank">📱 Kindle EPUB</a>
+    <a class="btn" href="{stem}_20Page_Digital_Edition.pdf" target="_blank">📄 20-Page PDF</a>
+    <a class="btn" href="{stem}_KDP_24Page_Print_Interior.pdf" target="_blank">🖨️ KDP 24-Page Print PDF</a>
+    <a class="btn" href="{stem}_KDP_Print_Wrap_Cover.pdf" target="_blank">📕 KDP Wrap Cover</a>
+    <a class="btn" href="{stem}.epub" target="_blank">📱 Kindle EPUB</a>
   </div>
 
   <div class="book-stage">
@@ -1238,10 +1249,10 @@ def build_interactive_flipbook(book_data: dict):
       const ind = document.getElementById('pageIndicator');
       if (idx === 0) {{
         ind.textContent = 'Front Cover';
-        el.innerHTML = `<div class="art-box cover-mode"><img src="The_Snail_Mail_Express_Front_Cover.png" alt="Front Cover"/></div>`;
+        el.innerHTML = `<div class="art-box cover-mode"><img src="{stem}_Front_Cover.png" alt="Front Cover"/></div>`;
       }} else if (idx === 21) {{
         ind.textContent = 'Back Cover';
-        el.innerHTML = `<div class="art-box cover-mode"><img src="The_Snail_Mail_Express_Back_Cover.png" alt="Back Cover"/></div>`;
+        el.innerHTML = `<div class="art-box cover-mode"><img src="{stem}_Back_Cover.png" alt="Back Cover"/></div>`;
       }} else {{
         const p = pages[idx - 1];
         ind.textContent = `Page ${{p.page_number}} of 20`;
@@ -1268,36 +1279,51 @@ def build_interactive_flipbook(book_data: dict):
   </script>
 </body>
 </html>"""
-    (BUILD_DIR / "index.html").write_text(html, encoding="utf-8")
+    (paths.build_dir / "index.html").write_text(html, encoding="utf-8")
 
 
-def main():
-    BUILD_DIR.mkdir(parents=True, exist_ok=True)
-    book_data = json.loads(BOOK_DATA_PATH.read_text(encoding="utf-8"))
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build the print and digital editions of one book.")
+    parser.add_argument("--book", required=True, help="book slug, e.g. the-snail-mail-express")
+    parser.add_argument("--root", type=Path, default=PROJECT_ROOT, help="project root")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        paths = book_folder(args.book, args.root)
+    except LibraryError as exc:
+        print(f"build stopped: {exc}", file=sys.stderr)
+        return 2
+    paths.build_dir.mkdir(parents=True, exist_ok=True)
+    book_data = json.loads(paths.book_json.read_text(encoding="utf-8"))
+    stem = file_stem(book_data["metadata"]["title"])
     fonts = register_fonts()
 
     print("1. Compositing 300 DPI Front & Back Covers...")
-    front_png = BUILD_DIR / "The_Snail_Mail_Express_Front_Cover.png"
-    back_png = BUILD_DIR / "The_Snail_Mail_Express_Back_Cover.png"
-    front_img = create_front_cover_image(book_data, front_png)
-    back_img = create_back_cover_image(book_data, back_png)
+    front_png = paths.build_dir / f"{stem}_Front_Cover.png"
+    back_png = paths.build_dir / f"{stem}_Back_Cover.png"
+    front_img = create_front_cover_image(book_data, front_png, paths=paths)
+    back_img = create_back_cover_image(book_data, back_png, paths=paths)
 
     print("2. Building Amazon KDP Print Wrap Cover (PDF & PNG)...")
-    wrap_png = BUILD_DIR / "The_Snail_Mail_Express_KDP_Print_Wrap_Cover.png"
-    wrap_pdf = BUILD_DIR / "The_Snail_Mail_Express_KDP_Print_Wrap_Cover.pdf"
+    wrap_png = paths.build_dir / f"{stem}_KDP_Print_Wrap_Cover.png"
+    wrap_pdf = paths.build_dir / f"{stem}_KDP_Print_Wrap_Cover.pdf"
     create_kdp_wrap_cover(front_img, back_img, wrap_png, wrap_pdf)
 
     print("3. Building 20-Page Digital PDF, Complete Reader PDF, and 24-Page KDP Print Interior PDF...")
-    build_pdfs(book_data, fonts)
+    build_pdfs(book_data, fonts, paths=paths)
 
     print("4. Building Kindle / Universal EPUB 3 package...")
-    build_epub(book_data)
+    build_epub(book_data, paths=paths)
 
     print("5. Building Interactive HTML5 Flipbook...")
-    build_interactive_flipbook(book_data)
+    build_interactive_flipbook(book_data, paths=paths)
 
-    print("Done! All production deliverables written to:", BUILD_DIR)
+    print("Done! All production deliverables written to:", paths.build_dir)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

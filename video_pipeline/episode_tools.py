@@ -17,7 +17,6 @@ from video_pipeline.contract import (
     ConfigError,
     load_disallowed_terms,
     parse_banter,
-    slugify,
     validate_script,
 )
 from video_pipeline.episode import (
@@ -27,6 +26,7 @@ from video_pipeline.episode import (
     load_book,
     plan_episode,
 )
+from video_pipeline.library import BookFolder
 from video_pipeline.llm import build_brief
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,10 +34,6 @@ CONFIG_DIR = ROOT / "config"
 DEFAULT_SEED = 7
 MAX_SAVES = 5
 SAVE_LIMIT_ERROR = f"save limit reached ({MAX_SAVES} saves); stop"
-
-
-def output_path(book: dict, episodes_dir: Path) -> Path:
-    return Path(episodes_dir) / slugify(book["metadata"]["title"]) / "episode_script.json"
 
 
 def load_cast(path: Path) -> dict:
@@ -76,16 +72,15 @@ class EpisodeTools:
     @classmethod
     def load(
         cls,
-        book_path: Path,
+        folder: BookFolder,
         seed: int,
-        episodes_dir: Path,
         config_dir: Path,
         force: bool = False,
     ) -> EpisodeTools:
-        book = load_book(Path(book_path))
+        book = load_book(folder.book_json)
         terms = load_disallowed_terms(Path(config_dir) / "disallowed_terms.txt")
         cast = load_cast(Path(config_dir) / "cast.json")
-        return cls(book, cast, terms, seed, output_path(book, episodes_dir), force)
+        return cls(book, cast, terms, seed, folder.script_path, force)
 
     def check(self, banter: dict | str) -> tuple[dict | None, list[str]]:
         """Assemble and validate; returns (script, []) when valid, else (None, errors)."""

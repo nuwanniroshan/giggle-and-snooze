@@ -1,15 +1,22 @@
 import json
-import shutil
 from pathlib import Path
 
 import pytest
 
-from tests.helpers import CAST_PATH, MINI_BOOK, PILOT_BOOK, load_json, make_banter, plan_signature
+from tests.helpers import (
+    MINI_BOOK,
+    PILOT_BOOK,
+    load_json,
+    make_banter,
+    make_root,
+    plan_signature,
+)
 from video_pipeline import generate_script, mcp_server
 from video_pipeline.agents import AgentEvent, AgentResult, AgentUnavailable
 from video_pipeline.contract import load_disallowed_terms, validate_script
 from video_pipeline.episode import plan_episode
-from video_pipeline.episode_tools import CONFIG_DIR, ROOT, EpisodeTools
+from video_pipeline.episode_tools import CONFIG_DIR, EpisodeTools
+from video_pipeline.library import PROJECT_ROOT, BookFolder, book_folder
 from video_pipeline.llm import LLMUnavailable
 
 TERMS = load_disallowed_terms(CONFIG_DIR / "disallowed_terms.txt")
@@ -32,9 +39,8 @@ class FakeAgent:
     def __call__(self, command, log_path, timeout_s=600, on_event=None):
         self.commands.append(command)
         args = mcp_server.parse_args(server_args_from(command))
-        tools = EpisodeTools.load(
-            args.book, args.seed, args.episodes_dir, args.config_dir, args.force
-        )
+        folder = book_folder(args.book, args.root)
+        tools = EpisodeTools.load(folder, args.seed, args.root / "config", args.force)
         banter = self.banter(tools) if callable(self.banter) else self.banter
         if banter is None:
             banter = make_banter(tools.book, tools.plan).model_dump()
@@ -57,12 +63,13 @@ def run(monkeypatch, tmp_path, book_path=MINI_BOOK, extra=(), agent=None, cloud=
     monkeypatch.setattr(generate_script, "codex_status", status or (lambda: FAKE_CODEX))
     monkeypatch.setattr(generate_script, "run_codex", agent or never_called)
     monkeypatch.setattr(generate_script, "generate_cloud", cloud or never_called)
-    args = ["--book", str(book_path), "--episodes-dir", str(tmp_path / "episodes"), *extra]
+    folder = make_root(tmp_path, book_path)
+    args = ["--book", folder.slug, "--root", str(tmp_path), *extra]
     return generate_script.main(args)
 
 
 def out_path(tmp_path, slug="the-lantern-bug-parade"):
-    return tmp_path / "episodes" / slug / "episode_script.json"
+    return BookFolder(slug, tmp_path).script_path
 
 
 def test_default_provider_writes_valid_script(monkeypatch, tmp_path):  # AC-1.1, AC-1.2
@@ -76,7 +83,9 @@ def test_default_provider_writes_valid_script(monkeypatch, tmp_path):  # AC-1.1,
 
 def test_agent_log_goes_under_the_episode(monkeypatch, tmp_path):  # AC-6.8
     assert run(monkeypatch, tmp_path, agent=FakeAgent()) == 0
-    logs = list((out_path(tmp_path).parent / "agent").glob("*-codex.jsonl"))
+    logs = list(
+        (BookFolder("the-lantern-bug-parade", tmp_path).build_dir / "agent").glob("*-codex.jsonl")
+    )
     assert len(logs) == 1
 
 
@@ -219,20 +228,18 @@ def test_mode_flag_is_gone(monkeypatch, tmp_path):
 
 
 def test_missing_terms_file_stops_before_any_request(monkeypatch, tmp_path, capsys):  # AC-7.2
-    config = tmp_path / "config"
-    config.mkdir()
-    shutil.copy(CAST_PATH, config / "cast.json")
-    assert run(monkeypatch, tmp_path, extra=["--config-dir", str(config)], status=never_called) == 1
-    assert str(config / "disallowed_terms.txt") in capsys.readouterr().err
+    folder = make_root(tmp_path)
+    (tmp_path / "config" / "disallowed_terms.txt").unlink()
+    assert run(monkeypatch, tmp_path, status=never_called) == 1
+    assert str(tmp_path / "config" / "disallowed_terms.txt") in capsys.readouterr().err
+    assert folder.folder.exists()
     assert not out_path(tmp_path).exists()
 
 
 def test_empty_terms_file_warns(monkeypatch, tmp_path, capsys):  # AC-7.3
-    config = tmp_path / "config"
-    config.mkdir()
-    shutil.copy(CAST_PATH, config / "cast.json")
-    (config / "disallowed_terms.txt").write_text("# nothing yet\n", encoding="utf-8")
-    assert run(monkeypatch, tmp_path, extra=["--config-dir", str(config)], agent=FakeAgent()) == 0
+    make_root(tmp_path)
+    (tmp_path / "config" / "disallowed_terms.txt").write_text("# nothing yet\n", encoding="utf-8")
+    assert run(monkeypatch, tmp_path, agent=FakeAgent()) == 0
     assert "disallowed-terms list is empty" in capsys.readouterr().out
 
 
@@ -260,11 +267,16 @@ def test_invalid_book_writes_nothing(monkeypatch, tmp_path, capsys, mutate, mess
 
 
 def test_missing_book_file(monkeypatch, tmp_path, capsys):
-    assert run(monkeypatch, tmp_path, tmp_path / "nope.json", status=never_called) == 1
-    assert "book data file not found" in capsys.readouterr().err
+    (tmp_path / "books" / "empty-book").mkdir(parents=True)
+    monkeypatch.setattr(generate_script, "run_codex", never_called)
+    assert generate_script.main(["--book", "empty-book", "--root", str(tmp_path)]) == 1
+    assert "has no book.json" in capsys.readouterr().err
 
 
 def test_default_paths_resolve_from_the_project_root():  # FR-1
-    for args in (generate_script._parse_args([]), mcp_server.parse_args([])):
-        assert args.book == ROOT / "book_data.json"
-        assert args.episodes_dir == ROOT / "episodes"
+    for args in (
+        generate_script._parse_args(["--book", "moon-kite-race"]),
+        mcp_server.parse_args(["--book", "moon-kite-race"]),
+    ):
+        assert args.book == "moon-kite-race"
+        assert args.root == PROJECT_ROOT

@@ -283,63 +283,52 @@ def test_clean_log_text_is_pure():
 # --- stage commands -------------------------------------------------------------------------------
 
 
-def pilot_and_added(tmp_path):
+def book_and_added(tmp_path):
     paths = sb.StudioPaths(tmp_path)
-    pilot = sb.Book("pilot-book", "Pilot", paths.pilot_book, paths.pilot_assets, True)
-    folder = paths.books_dir / "moon-kite"
-    added = sb.Book("moon-kite", "Moon Kite", folder / "book_data.json", folder, False)
+    pilot = sb.Book(
+        "the-lantern-bug-parade",
+        "The Lantern Bug Parade",
+        paths.books_dir / "the-lantern-bug-parade" / "book.json",
+    )
+    added = sb.Book("moon-kite", "Moon Kite", paths.books_dir / "moon-kite" / "book.json")
     return paths, pilot, added
 
 
 def test_stage_command_script(tmp_path):
-    paths, pilot, _ = pilot_and_added(tmp_path)
+    paths, pilot, _ = book_and_added(tmp_path)
     cmd = sj.stage_command("script", pilot, paths)
     assert cmd[:3] == [sys.executable, "-m", "video_pipeline.generate_script"]
-    assert cmd[3:] == [
-        "--book",
-        str(paths.pilot_book),
-        "--episodes-dir",
-        str(paths.episodes_dir),
-        "--config-dir",
-        str(paths.config_dir),
-    ]
+    assert cmd[3:] == ["--book", pilot.slug, "--root", str(paths.root)]
     assert sj.stage_command("script", pilot, paths, force=True)[-1] == "--force"
 
 
 def test_stage_command_voices_parses_with_the_real_cli(tmp_path):
-    paths, _, added = pilot_and_added(tmp_path)
+    paths, _, added = book_and_added(tmp_path)
     cmd = sj.stage_command("voices", added, paths, force=True)
     assert cmd[:3] == [sys.executable, "-m", "video_pipeline.synthesize_voices"]
     args = sv.parse_args(cmd[3:])
     assert args.command == "synthesize"
-    assert args.book == added.book_path
-    assert args.episodes_dir == paths.episodes_dir
-    assert args.build_dir == paths.build_dir
-    assert args.config_dir == paths.config_dir
+    assert args.book == added.slug
+    assert args.root == paths.root
     assert args.reviewed is True and args.force is True
     assert "--force" not in sj.stage_command("voices", added, paths)
 
 
 def test_stage_command_render_for_pilot_and_added_book(tmp_path):
-    paths, pilot, added = pilot_and_added(tmp_path)
+    paths, pilot, added = book_and_added(tmp_path)
     for book in (pilot, added):
         cmd = sj.stage_command("render", book, paths)
         assert cmd[:3] == [sys.executable, "-m", "video_pipeline.render_episode"]
         args = re_.parse_args(cmd[3:])
-        assert args.book == book.book_path
-        assert args.assets_dir == book.assets_dir
+        assert args.book == book.slug
+        assert args.root == paths.root
         assert args.sfx_dir == paths.sfx_dir
-        assert args.build_dir == paths.build_dir
-        assert args.config_dir == paths.config_dir
         assert args.force is False
     assert re_.parse_args(sj.stage_command("render", added, paths, force=True)[3:]).force
-    assert sj.stage_command("render", added, paths)[cmd.index("--assets-dir") + 1] == str(
-        paths.books_dir / "moon-kite"
-    )
 
 
 def test_stage_command_unknown_stage(tmp_path):
-    paths, pilot, _ = pilot_and_added(tmp_path)
+    paths, pilot, _ = book_and_added(tmp_path)
     with pytest.raises(ValueError):
         sj.stage_command("upload", pilot, paths)
 

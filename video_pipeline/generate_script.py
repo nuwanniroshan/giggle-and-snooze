@@ -1,4 +1,4 @@
-"""CLI: generate episodes/<slug>/episode_script.json from a book data file (spec 001 v2.0.0).
+"""CLI: generate books/<slug>/episode/episode_script.json for one book (spec 001 v2.0.0).
 
 Default provider: the Codex agent on the producer's ChatGPT login, using only the episode tools.
 Opt-in: --provider gemini-api (GEMINI_API_KEY).
@@ -23,13 +23,13 @@ from video_pipeline.agents import (
 from video_pipeline.contract import ConfigError, validate_script
 from video_pipeline.episode import BookError
 from video_pipeline.episode_tools import (
-    CONFIG_DIR,
     DEFAULT_SEED,
     ROOT,
     SAVE_LIMIT_ERROR,
     EpisodeTools,
     write_atomic,
 )
+from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
 from video_pipeline.llm import (
     CLOUD_MODEL,
     LLMError,
@@ -72,13 +72,11 @@ def mcp_server_args(args: argparse.Namespace) -> list[str]:
         "-m",
         "video_pipeline.mcp_server",
         "--book",
-        str(args.book.resolve()),
+        args.book,
+        "--root",
+        str(args.root.resolve()),
         "--seed",
         str(args.seed),
-        "--episodes-dir",
-        str(args.episodes_dir.resolve()),
-        "--config-dir",
-        str(args.config_dir.resolve()),
     ]
     return [*server, "--force"] if args.force else server
 
@@ -92,12 +90,12 @@ def _print_event(event: AgentEvent) -> None:
         print(f"  ! {event.text}")
 
 
-def run_agent(args: argparse.Namespace, tools: EpisodeTools) -> None:
+def run_agent(args: argparse.Namespace, tools: EpisodeTools, folder: BookFolder) -> None:
     binary = codex_status()
     command = build_codex_command(
         binary, sys.executable, mcp_server_args(args), {"PYTHONPATH": str(ROOT)}, args.model
     )
-    log_path = tools.out.parent / "agent" / f"{time.strftime('%Y%m%d-%H%M%S')}-codex.jsonl"
+    log_path = folder.build_dir / "agent" / f"{time.strftime('%Y%m%d-%H%M%S')}-codex.jsonl"
     print(f"running the Codex (ChatGPT) agent; log: {log_path}")
     result = run_codex(command, log_path, on_event=_print_event)
     if any(save.get("saved") for save in result.save_results) and tools.out.exists():
@@ -126,12 +124,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         description="Generate episode_script.json for a book (ChatGPT via Codex by default).",
         allow_abbrev=False,  # otherwise the removed --mode would silently mean --model
     )
-    parser.add_argument("--book", type=Path, default=ROOT / "book_data.json")
+    parser.add_argument("--book", required=True, help="book slug, e.g. the-snail-mail-express")
+    parser.add_argument("--root", type=Path, default=PROJECT_ROOT, help="project root")
     parser.add_argument("--provider", choices=PROVIDERS, default="codex")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--force", action="store_true", help="overwrite an existing script")
-    parser.add_argument("--episodes-dir", type=Path, default=ROOT / "episodes")
-    parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
     parser.add_argument("--model", default=None, help="override the provider's model")
     return parser.parse_args(argv)
 
@@ -139,9 +136,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
-        tools = EpisodeTools.load(
-            args.book, args.seed, args.episodes_dir, args.config_dir, args.force
-        )
+        folder = book_folder(args.book, args.root)
+        tools = EpisodeTools.load(folder, args.seed, args.root / "config", args.force)
         if tools.out.exists() and not args.force:
             print(
                 f"error: {tools.out} already exists; re-run with --force to overwrite it",
@@ -157,8 +153,15 @@ def main(argv: list[str] | None = None) -> int:
             )
             write_atomic(tools.out, script)
         else:
-            run_agent(args, tools)
-    except (BookError, ConfigError, LLMUnavailable, LLMError, AgentUnavailable) as exc:
+            run_agent(args, tools, folder)
+    except (
+        BookError,
+        ConfigError,
+        LLMUnavailable,
+        LLMError,
+        AgentUnavailable,
+        LibraryError,
+    ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except GenerationFailed as exc:

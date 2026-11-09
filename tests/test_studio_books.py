@@ -6,21 +6,32 @@ mini book), `assets/`, `books/`, `episodes/`, `build/` and `config/`. FFmpeg is 
 import io
 import json
 import shutil
+from pathlib import Path
 
 import numpy as np
 import pytest
 from PIL import Image
 
-from tests.helpers import MINI_BOOK, load_json
+from tests.helpers import MINI_BOOK, load_json, make_root
 from tests.render_helpers import FakeRunner, cli_args, make_world, picture
 from tests.voice_helpers import make_script, write_script
 from video_pipeline import frames
 from video_pipeline import render_episode as re_
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import slugify
+from video_pipeline.library import BookFolder
 from video_pipeline.studio import books as sb
 
 PILOT_SLUG = slugify(load_json(MINI_BOOK)["metadata"]["title"])
+
+
+def pilot_folder(root) -> BookFolder:
+    """The pilot is an ordinary book now: books/<slug>/ under the studio root (spec 005)."""
+    return BookFolder(PILOT_SLUG, Path(root))
+
+
+def pilot_path(root) -> Path:
+    return pilot_folder(root).book_json
 
 
 def png_bytes(colour=(10, 120, 200)) -> bytes:
@@ -54,8 +65,7 @@ def as_bytes(book: dict) -> bytes:
 
 @pytest.fixture
 def studio(tmp_path):
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    make_root(tmp_path)
     return sb.StudioPaths(tmp_path)
 
 
@@ -67,16 +77,14 @@ def tree(root):
 # --- paths and the book registry (FR-1) -------------------------------------------------------
 
 
-def test_studio_paths_layout(tmp_path):
+def test_studio_paths_layout(tmp_path):  # spec 005 FR-3, FR-4
     paths = sb.StudioPaths(tmp_path)
     assert paths.books_dir == tmp_path / "books"
-    assert paths.episodes_dir == tmp_path / "episodes"
-    assert paths.build_dir == tmp_path / "build"
+    assert paths.build_dir == tmp_path / "build"  # project-level output only
     assert paths.config_dir == tmp_path / "config"
     assert paths.studio_dir == tmp_path / "build" / "studio"
-    assert paths.pilot_book == tmp_path / "book_data.json"
-    assert paths.pilot_assets == tmp_path / "assets"
     assert paths.sfx_dir == tmp_path / "assets" / "audio_sfx"
+    assert paths.shared_nooks == tmp_path / "assets" / "nook"
 
 
 def test_list_books_pilot_added_and_broken(studio):  # AC-1.2, FR-1
@@ -84,21 +92,18 @@ def test_list_books_pilot_added_and_broken(studio):  # AC-1.2, FR-1
     sb.save_book(studio, added, upload_files(added))
     broken = studio.books_dir / "broken-book"
     broken.mkdir(parents=True)
-    (broken / "book_data.json").write_text("{not json", encoding="utf-8")
+    (broken / "book.json").write_text("{not json", encoding="utf-8")
     (studio.books_dir / ".half-written.tmp").mkdir()  # a temp folder is never a book
 
     listed = sb.list_books(studio)
 
     assert [b.slug for b in listed] == ["a-zebra-named-quill", "broken-book", PILOT_SLUG]
     zebra, bad, pilot = listed
-    assert pilot.is_pilot and pilot.error is None
-    assert pilot.book_path == studio.pilot_book and pilot.assets_dir == studio.pilot_assets
-    assert pilot.title == "The Lantern Bug Parade"
-    assert not zebra.is_pilot and zebra.error is None
-    assert zebra.title == "A Zebra Named Quill"
-    assert zebra.book_path == studio.books_dir / "a-zebra-named-quill" / "book_data.json"
-    assert zebra.assets_dir == studio.books_dir / "a-zebra-named-quill"
-    assert bad.error and "not valid JSON" in bad.error
+    assert pilot.error is None and pilot.title == "The Lantern Bug Parade"
+    assert pilot.book_path == pilot_path(studio.root)
+    assert zebra.error is None and zebra.title == "A Zebra Named Quill"
+    assert zebra.book_path == studio.books_dir / "a-zebra-named-quill" / "book.json"
+    assert bad.title == "broken-book" and bad.error and "not valid JSON" in bad.error
     assert sb.get_book(studio, "a-zebra-named-quill") == zebra
     assert sb.get_book(studio, "nope") is None
 
@@ -107,13 +112,12 @@ def test_list_books_without_a_pilot(tmp_path):
     assert sb.list_books(sb.StudioPaths(tmp_path)) == []
 
 
-def test_added_book_whose_folder_does_not_match_its_title_is_flagged(studio):
+def test_folder_name_need_not_match_the_title(studio):  # spec 005 FR-2: the folder is the slug
     folder = studio.books_dir / "wrong-name"
     folder.mkdir(parents=True)
-    shutil.copy(MINI_BOOK, folder / "book_data.json")
-    (only,) = [b for b in sb.list_books(studio) if not b.is_pilot]
-    assert only.slug == "wrong-name"
-    assert only.error and PILOT_SLUG in only.error
+    shutil.copy(MINI_BOOK, folder / "book.json")
+    (only,) = [b for b in sb.list_books(studio) if b.slug == "wrong-name"]
+    assert only.error is None and only.title == "The Lantern Bug Parade"
 
 
 # --- upload validation (AC-2.1, AC-2.2, FR-6) -----------------------------------------------
@@ -225,28 +229,26 @@ def test_save_new_book(studio):  # AC-2.3
     book = new_book()
     saved = sb.save_book(studio, book, upload_files(book))
     folder = studio.books_dir / "the-moon-kite-race"
-    assert saved == sb.Book(
-        "the-moon-kite-race", book["metadata"]["title"], folder / "book_data.json", folder, False
-    )
-    assert load_json(folder / "book_data.json") == book
+    assert saved == sb.Book("the-moon-kite-race", book["metadata"]["title"], folder / "book.json")
+    assert load_json(folder / "book.json") == book
     names = sorted(p.name for p in (folder / "illustrations").iterdir())
     assert names == sorted(
         [f"page_{n:02d}.png" for n in range(1, 9)] + ["cover_back.png", "cover_front.png"]
     )
-    assert [p.name for p in studio.books_dir.iterdir()] == ["the-moon-kite-race"]
+    assert sorted(p.name for p in studio.books_dir.iterdir()) == [PILOT_SLUG, "the-moon-kite-race"]
     # The saved layout is exactly what render's resolve_pictures expects.
-    re_.resolve_pictures(book, saved.slug, studio.episodes_dir, saved.assets_dir)
+    re_.resolve_pictures(book, BookFolder(saved.slug, studio.root), studio.shared_nooks)
 
 
 def test_save_places_nooks_in_the_episode_folder(studio):  # AC-2.5
     book = new_book()
     files = upload_files(book, nooks=True)
     saved = sb.save_book(studio, book, files)
-    episode = studio.episodes_dir / saved.slug
-    assert (episode / "intro_nook.png").read_bytes() == files["intro_nook.png"]
-    assert (episode / "outro_nook.png").read_bytes() == files["outro_nook.png"]
-    assert not (saved.assets_dir / "illustrations" / "intro_nook.png").exists()
-    pictures = re_.resolve_pictures(book, saved.slug, studio.episodes_dir, saved.assets_dir)
+    folder = BookFolder(saved.slug, studio.root)
+    assert (folder.nooks / "intro_nook.png").read_bytes() == files["intro_nook.png"]
+    assert (folder.nooks / "outro_nook.png").read_bytes() == files["outro_nook.png"]
+    assert not (folder.illustrations / "intro_nook.png").exists()
+    pictures = re_.resolve_pictures(book, BookFolder(saved.slug, studio.root), studio.shared_nooks)
     assert pictures.by_section["intro"] == "intro_nook"
 
 
@@ -272,21 +274,22 @@ def test_replace_swaps_only_that_book(studio):  # AC-2.4
     sb.save_book(studio, second, upload_files(second), replace=True)
 
     folder = studio.books_dir / "the-moon-kite-race"
-    assert load_json(folder / "book_data.json")["metadata"]["blurb"] == "replaced"
+    assert load_json(folder / "book.json")["metadata"]["blurb"] == "replaced"
     assert not (folder / "illustrations" / "old_name.png").exists()
     assert (folder / "illustrations" / "page_01.png").exists()
     assert tree(studio.books_dir / "another-tale-entirely") == other_before
     assert sorted(p.name for p in studio.books_dir.iterdir()) == [
         "another-tale-entirely",
+        PILOT_SLUG,
         "the-moon-kite-race",
     ]
 
 
-def test_pilot_slug_is_refused_even_with_replace(studio):
-    book = load_json(MINI_BOOK)
-    with pytest.raises(sb.StudioError, match="pilot"):
-        sb.save_book(studio, book, upload_files(book), replace=True)
-    assert not studio.books_dir.exists() or not any(studio.books_dir.iterdir())
+def test_existing_book_needs_replace_to_be_overwritten(studio):  # AC-2.4
+    book = new_book()
+    sb.save_book(studio, book, upload_files(book))
+    with pytest.raises(sb.StudioError, match="already exists"):
+        sb.save_book(studio, book, upload_files(book))
 
 
 def test_save_refuses_an_invalid_upload(studio):
@@ -310,7 +313,7 @@ def test_failed_save_leaves_no_partial_book(studio, monkeypatch):
     monkeypatch.setattr(sb.os, "replace", boom)
     with pytest.raises(OSError):
         sb.save_book(studio, book, upload_files(book))
-    assert not studio.books_dir.exists() or list(studio.books_dir.iterdir()) == []
+    assert sorted(p.name for p in studio.books_dir.iterdir()) == [PILOT_SLUG]
 
 
 # --- the script, the reviewed mark and line edits (AC-4.2-4.4) ------------------------------
@@ -319,15 +322,13 @@ def test_failed_save_leaves_no_partial_book(studio, monkeypatch):
 @pytest.fixture
 def scripted(studio):
     pilot = sb.get_book(studio, PILOT_SLUG)
-    write_script(make_script(studio.pilot_book), studio.episodes_dir, PILOT_SLUG)
+    write_script(make_script(pilot_path(studio.root)), BookFolder(PILOT_SLUG, studio.root))
     return pilot
 
 
 def test_script_paths(studio, scripted):
-    assert sb.script_path(studio, scripted) == (
-        studio.episodes_dir / PILOT_SLUG / "episode_script.json"
-    )
-    assert sb.reviewed_path(studio, scripted) == studio.episodes_dir / PILOT_SLUG / "reviewed.json"
+    assert sb.script_path(studio, scripted) == (BookFolder(PILOT_SLUG, studio.root).script_path)
+    assert sb.reviewed_path(studio, scripted) == BookFolder(PILOT_SLUG, studio.root).reviewed_path
     assert sb.load_script(studio, scripted)["title"] == scripted.title
 
 
@@ -408,19 +409,14 @@ def test_edit_without_a_script_is_a_problem(studio):
 
 @pytest.fixture
 def world(tmp_path, monkeypatch):
-    book_path = tmp_path / "book_data.json"
-    shutil.copy(MINI_BOOK, book_path)
-    return make_world(tmp_path, monkeypatch, book_path)
+    return make_world(tmp_path, monkeypatch, MINI_BOOK)
 
 
 def check(world, sfx_dir=None):
     return re_.render_check(
-        world["book"],
-        world["episodes"],
-        world["build"],
-        world["config"],
-        world["assets"],
-        sfx_dir if sfx_dir is not None else world["assets"] / "audio_sfx",
+        world["folder"],
+        world["root"],
+        sfx_dir if sfx_dir is not None else world["root"] / "assets" / "audio_sfx",
     )
 
 
@@ -440,9 +436,7 @@ def test_render_check_not_rendered(world, no_subprocess):
 
 
 def test_render_check_blocked_without_approval(tmp_path, monkeypatch, no_subprocess):
-    book_path = tmp_path / "book_data.json"
-    shutil.copy(MINI_BOOK, book_path)
-    world = make_world(tmp_path, monkeypatch, book_path, approve=False)
+    world = make_world(tmp_path, monkeypatch, MINI_BOOK, approve=False)
     assert check(world) == "blocked"
 
 
@@ -458,13 +452,13 @@ def test_render_check_up_to_date_then_out_of_date(world, monkeypatch):
     before = tree(world["book"].parent)
     assert check(world) == "up_to_date"
     assert tree(world["book"].parent) == before
-    picture(world["assets"] / "illustrations" / "page_03.png", (1, 1, 1))
+    picture(world["folder"].illustrations / "page_03.png", (1, 1, 1))
     assert check(world) == "out_of_date"
 
 
 def test_render_check_with_a_fresh_build_writes_no_sound_cache(world, no_subprocess):
     assert re_.main(cli_args(world), run=FakeRunner()) == 0
-    (world["build"] / "sfx" / "page_turn.wav").unlink()
+    (world["root"] / "build" / "sfx" / "page_turn.wav").unlink()
     before = tree(world["book"].parent)
     assert check(world) == "up_to_date"
     assert tree(world["book"].parent) == before
@@ -540,14 +534,11 @@ def test_render_video_programmatic_default_sfx_dir(world, monkeypatch):
 
     monkeypatch.setattr(re_, "load_page_turn", spy)
     re_.render_video(
-        world["book"],
-        world["episodes"],
-        world["build"],
-        world["config"],
-        world["assets"],
+        world["folder"],
+        world["root"],
         run=FakeRunner(),
     )
-    assert seen == [world["assets"] / "audio_sfx"]
+    assert seen == [world["root"] / "assets" / "audio_sfx"]
 
 
 # --- stage status and the next action (AC-1.2, AC-1.3, AC-5.3, AC-6.2) ----------------------
@@ -584,8 +575,7 @@ def test_status_script_needs_review_then_reviewed(studio, scripted):
 
 
 def pilot_world(tmp_path, monkeypatch, approve=True):
-    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
-    world = make_world(tmp_path, monkeypatch, tmp_path / "book_data.json", approve=approve)
+    world = make_world(tmp_path, monkeypatch, MINI_BOOK, approve=approve)
     paths = sb.StudioPaths(tmp_path)
     return paths, sb.get_book(paths, PILOT_SLUG), world
 
@@ -612,7 +602,7 @@ def test_status_approved_then_rendered_then_out_of_date(tmp_path, monkeypatch):
     assert states(status) == ("done", "approved", "done")
     assert status["next_action"] == "Watch video"
 
-    picture(world["assets"] / "illustrations" / "page_02.png", (9, 9, 9))
+    picture(world["folder"].illustrations / "page_02.png", (9, 9, 9))
     status = status_of(paths, book)
     assert status["video"]["state"] == "out_of_date"  # AC-6.2
     assert status["next_action"] == "Render video"
@@ -685,8 +675,8 @@ def test_stage_names():
 def test_status_of_a_broken_book_is_not_started(studio):
     broken = studio.books_dir / "broken-book"
     broken.mkdir(parents=True)
-    (broken / "book_data.json").write_text("{", encoding="utf-8")
-    (book,) = [b for b in sb.list_books(studio) if not b.is_pilot]
+    (broken / "book.json").write_text("{", encoding="utf-8")
+    (book,) = [b for b in sb.list_books(studio) if b.slug == "broken-book"]
     status = status_of(studio, book)
     assert states(status) == ("not_started", "not_started", "not_started")
     assert status["script"]["detail"] == book.error
@@ -744,7 +734,7 @@ def test_oversize_book_data_is_reported_as_too_large():
 def test_reviewed_mark_is_bound_to_the_book_file(studio):
     book = new_book()
     saved = sb.save_book(studio, book, upload_files(book))
-    write_script(make_script(saved.book_path), studio.episodes_dir, saved.slug)
+    write_script(make_script(saved.book_path), BookFolder(saved.slug, studio.root))
     mark = sb.mark_reviewed(studio, saved)
     assert mark["book_sha256"] == sv.sha256_file(saved.book_path)
     assert sb.reviewed_ok(studio, saved)
@@ -765,7 +755,7 @@ def test_reviewed_mark_without_book_hash_is_not_reviewed(studio, scripted):
 def test_replacing_a_book_deletes_its_reviewed_mark(studio):
     book = new_book()
     saved = sb.save_book(studio, book, upload_files(book))
-    write_script(make_script(saved.book_path), studio.episodes_dir, saved.slug)
+    write_script(make_script(saved.book_path), BookFolder(saved.slug, studio.root))
     sb.mark_reviewed(studio, saved)
     book["metadata"]["author"] = "Someone Else"
     sb.save_book(studio, book, upload_files(book), replace=True)
@@ -809,7 +799,7 @@ def test_stale_failed_voices_and_render_jobs_do_not_override(tmp_path, monkeypat
 
 
 def test_sfx_cli_default_is_the_assets_dir(world, monkeypatch):
-    assert re_.parse_args([]).sfx_dir is None
+    assert re_.parse_args(["--book", PILOT_SLUG]).sfx_dir is None
     seen = []
     real = re_.load_page_turn
 
@@ -820,23 +810,20 @@ def test_sfx_cli_default_is_the_assets_dir(world, monkeypatch):
     monkeypatch.setattr(re_, "load_page_turn", spy)
     assert "--sfx-dir" not in cli_args(world)
     assert re_.main(cli_args(world), run=FakeRunner()) == 0
-    assert seen == [world["assets"] / "audio_sfx"]
+    assert seen == [world["root"] / "assets" / "audio_sfx"]
 
 
 def test_render_check_detail_names_a_missing_picture(world):
     assert re_.main(cli_args(world), run=FakeRunner()) == 0
-    (world["assets"] / "illustrations" / "page_02.png").unlink()
+    (world["folder"].illustrations / "page_02.png").unlink()
     state, reason = re_.render_check_detail(
-        world["book"],
-        world["episodes"],
-        world["build"],
-        world["config"],
-        world["assets"],
-        world["assets"] / "audio_sfx",
+        world["folder"],
+        world["root"],
+        world["root"] / "assets" / "audio_sfx",
     )
     assert state == "blocked"
     assert "page_02.png" in reason
-    paths = sb.StudioPaths(world["book"].parent)
+    paths = sb.StudioPaths(world["root"])
     video = status_of(paths, sb.get_book(paths, PILOT_SLUG))["video"]
     assert "audio" not in video["detail"]
     assert "page_02.png" in video["detail"]

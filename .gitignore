@@ -6,5 +6,5 @@ __pycache__/
 .env.*
 !.env.example
 build/
+books/*/build/
 .claude/settings.local.json
-episodes/*/agent/

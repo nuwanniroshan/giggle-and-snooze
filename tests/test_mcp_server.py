@@ -4,7 +4,7 @@ import json
 import subprocess
 import sys
 
-from tests.helpers import MINI_BOOK, ROOT, load_json, make_banter
+from tests.helpers import MINI_BOOK, ROOT, load_json, make_banter, make_root
 from video_pipeline import mcp_server
 from video_pipeline.contract import load_disallowed_terms, validate_script
 from video_pipeline.episode import plan_episode
@@ -71,7 +71,8 @@ def tool_payload(reply: dict) -> object:
 
 
 def server_args(tmp_path, *extra: str) -> list[str]:
-    return ["--book", str(MINI_BOOK), "--episodes-dir", str(tmp_path), *extra]
+    folder = make_root(tmp_path)
+    return ["--book", folder.slug, "--root", str(tmp_path), *extra]
 
 
 def test_lists_exactly_the_episode_tools(tmp_path):
@@ -101,11 +102,11 @@ def test_save_over_mcp_refuses_invalid_then_saves_valid(tmp_path):  # AC-6.7
     )
     assert tool_payload(refused)["saved"] is False and tool_payload(refused)["errors"]
     assert tool_payload(saved)["saved"] is True
-    out = tmp_path / "the-lantern-bug-parade" / "episode_script.json"
+    out = tmp_path / "books" / "the-lantern-bug-parade" / "episode" / "episode_script.json"
     terms = load_disallowed_terms(CONFIG_DIR / "disallowed_terms.txt")
     assert validate_script(load_json(out), book, terms) == []
 
 
 def test_bad_book_exits_before_serving(tmp_path, capsys):
-    assert mcp_server.main(["--book", str(tmp_path / "nope.json")]) == 1
-    assert "book data file not found" in capsys.readouterr().err
+    assert mcp_server.main(["--book", "nope", "--root", str(tmp_path)]) == 1
+    assert "nope" in capsys.readouterr().err
