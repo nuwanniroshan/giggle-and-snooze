@@ -28,12 +28,15 @@ from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import ConfigError, load_disallowed_terms, slugify, validate_script
 from video_pipeline.episode import BookError, book_problems, load_book
 from video_pipeline.episode_tools import ROOT, write_atomic
-from video_pipeline.render_episode import render_check
+from video_pipeline.render_episode import VideoPaths, render_check_detail
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_UPLOAD_FILES = 100  # pictures per upload; the request is refused above (this + 1) x 25 MB
 BOOK_FILE = "book_data.json"
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
 NOOK_FILES = ("intro_nook.png", "outro_nook.png")
+# Slugs a book may not take because a studio route already uses that path (`/books/new`).
+RESERVED_SLUGS = frozenset({"new"})
 STAGES = ("script", "voices", "render")
 STATUS_KEYS = {"script": "script", "voices": "voices", "render": "video"}
 STAGE_LABELS = {
@@ -163,9 +166,13 @@ def _plain_name(name: str) -> bool:
 
 def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
     """Required upload names (name → what it is) for `book`, and problems with the names the book
-    data gives. A page without `illustration_file` expects `page_PP.png`, as render does."""
+    data gives. A page without `illustration_file` expects `page_PP.png`, as render does.
+
+    A page may not use a cover or nook name (those files are stored elsewhere or mean something
+    else), and no two names may differ only by case (the Mac's file system would merge them)."""
     required: dict[str, str] = {}
     problems: list[str] = []
+    reserved = {*COVER_FILES, *NOOK_FILES}
     pages = book.get("pages")
     for index, page in enumerate(pages if isinstance(pages, list) else [], start=1):
         if not isinstance(page, dict):
@@ -175,10 +182,30 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
         if not isinstance(name, str) or not _plain_name(name):
             problems.append(f"page {number}: illustration_file {name!r} must be a plain file name")
             continue
+        if name in reserved:
+            problems.append(
+                f"page {number}: illustration_file {name!r} is reserved for the cover or nook"
+                " pictures; give the page its own file name"
+            )
+            continue
         required.setdefault(name, f"illustration for page {number}")
     for name, label in COVER_FILES.items():
         required.setdefault(name, label)
+    seen: dict[str, str] = {name.casefold(): name for name in NOOK_FILES}
+    for name in required:
+        other = seen.setdefault(name.casefold(), name)
+        if other != name:
+            problems.append(
+                f"file names {other!r} and {name!r} differ only by case; rename one of them"
+            )
     return required, problems
+
+
+def slug_problem(slug: str) -> str | None:
+    """Why `slug` cannot name an added book (it is a studio route), or None."""
+    if slug in RESERVED_SLUGS:
+        return f"the slug {slug!r} is reserved by the studio (it comes from the title); change the title"
+    return None
 
 
 def _image_problem(name: str, data: bytes) -> str | None:
@@ -198,6 +225,8 @@ def validate_upload(book_json: bytes, files: dict[str, bytes]) -> tuple[dict | N
     `episode.load_book`), every expected illustration and both covers present and readable, no
     unexpected or path-like names, no file over `MAX_UPLOAD_BYTES`. Returns the parsed book (None
     when it is not a JSON object) and every problem found."""
+    if len(book_json) > MAX_UPLOAD_BYTES:
+        return None, [f"book data is larger than {MAX_UPLOAD_BYTES / (1024 * 1024):g} MB"]
     try:
         book = json.loads(book_json.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -205,6 +234,10 @@ def validate_upload(book_json: bytes, files: dict[str, bytes]) -> tuple[dict | N
     problems = book_problems(book, "book data")
     if not isinstance(book, dict):
         return None, problems
+    metadata = book.get("metadata")
+    title = metadata.get("title") if isinstance(metadata, dict) else None
+    if isinstance(title, str) and (problem := slug_problem(slugify(title.strip()))):
+        problems.append(problem)
     required, name_problems = expected_files(book)
     problems += name_problems
     for name, data in files.items():
@@ -234,7 +267,9 @@ def save_book(
     paths: StudioPaths, book: dict, files: dict[str, bytes], replace: bool = False
 ) -> Book:
     """Store a validated upload as `books/<slug>/` (AC-2.3) and its nooks in `episodes/<slug>/`
-    (AC-2.5). Refuses the pilot's slug, and an existing slug unless `replace` (AC-2.4).
+    (AC-2.5). Refuses the pilot's slug, a reserved slug, and an existing slug unless `replace`
+    (AC-2.4). Replacing a book deletes its reviewed mark: the script was reviewed against the
+    old book.
 
     The book is written to a temporary folder first, then swapped in: the old folder is moved
     aside, the new one renamed into place, and the old one deleted."""
@@ -270,10 +305,12 @@ def save_book(
     finally:
         shutil.rmtree(new, ignore_errors=True)
         shutil.rmtree(old, ignore_errors=True)
+    saved = Book(slug, title, target / BOOK_FILE, target, False)
+    reviewed_path(paths, saved).unlink(missing_ok=True)
     for name in NOOK_FILES:
         if name in files:
             _write_bytes_atomic(paths.episodes_dir / slug / name, files[name])
-    return Book(slug, title, target / BOOK_FILE, target, False)
+    return saved
 
 
 # --- the script and its reviewed mark (AC-4.2-4.4) ------------------------------------------
@@ -311,12 +348,13 @@ def _no_script(book: Book) -> str:
 
 
 def mark_reviewed(paths: StudioPaths, book: Book) -> dict:
-    """Record that this exact script was reviewed (AC-4.3)."""
+    """Record that this exact script was reviewed against this exact book file (AC-4.3)."""
     path = script_path(paths, book)
     if not path.exists():
         raise StudioError(_no_script(book))
     mark = {
         "script_sha256": sv.sha256_file(path),
+        "book_sha256": sv.sha256_file(book.book_path),
         "reviewed_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
     write_atomic(reviewed_path(paths, book), mark)
@@ -324,10 +362,13 @@ def mark_reviewed(paths: StudioPaths, book: Book) -> dict:
 
 
 def reviewed_mark(paths: StudioPaths, book: Book) -> dict | None:
-    """The reviewed mark when it still matches the script on disk, else None."""
+    """The reviewed mark when it still matches the script and the book file on disk, else None
+    (a mark without `book_sha256` predates that check and does not count)."""
     path = script_path(paths, book)
     mark = _read_dict(reviewed_path(paths, book))
-    if mark is None or not path.exists():
+    if mark is None or not path.exists() or not book.book_path.is_file():
+        return None
+    if mark.get("book_sha256") != sv.sha256_file(book.book_path):
         return None
     return mark if mark.get("script_sha256") == sv.sha256_file(path) else None
 
@@ -437,9 +478,10 @@ def _voices_state(paths: StudioPaths, book: Book) -> dict:
     return _state("needs_review", f"synthesized at {record.get('synthesized_at')}; listen to it")
 
 
-def _video_state(paths: StudioPaths, book: Book) -> dict:
-    final = paths.build_dir / book.slug / "video" / f"{book.slug}.mp4"
-    check = render_check(
+def video_check(paths: StudioPaths, book: Book) -> tuple[str, str]:
+    """`render_check_detail` for `book` with the studio's shared page-turn folder: the state and,
+    when "blocked", why (an audio problem, or a missing or unreadable picture or input)."""
+    return render_check_detail(
         book.book_path,
         paths.episodes_dir,
         paths.build_dir,
@@ -447,15 +489,49 @@ def _video_state(paths: StudioPaths, book: Book) -> dict:
         book.assets_dir,
         paths.sfx_dir,
     )
+
+
+def _video_state(paths: StudioPaths, book: Book) -> dict:
+    final = paths.build_dir / book.slug / "video" / f"{book.slug}.mp4"
+    check, reason = video_check(paths, book)
     if check == "up_to_date":
         return _state("done", str(final))
     if check == "out_of_date":
         return _state("out_of_date", "the inputs changed since the video was rendered")
     if check == "blocked" and final.exists():
-        return _state("out_of_date", "the audio is no longer approved")
+        return _state("out_of_date", f"the video cannot be checked: {reason}")
     if check == "blocked":
-        return _state("not_started", "waiting for approved audio")
+        return _state("not_started", f"cannot render yet: {reason}")
     return _state("not_started", "not rendered yet")
+
+
+def stage_output(paths: StudioPaths, book: Book, stage: str) -> Path:
+    """The file a successful run of `stage` writes last; a failed or interrupted job only says
+    something about the stage when it ended after this file was last written (FR-2)."""
+    if stage == "script":
+        return script_path(paths, book)
+    if stage == "voices":
+        return sv.AudioPaths(paths.build_dir / book.slug / "audio").status
+    return VideoPaths(paths.build_dir / book.slug / "video").record(book.slug)
+
+
+def _job_overrides(paths: StudioPaths, book: Book, stage: str, job: dict | None) -> bool:
+    """A running job always shows; a failed or interrupted one only when it is newer than the
+    stage's output file (or there is none), so files written later (say by the CLI) win."""
+    state = job.get("state") if job else None
+    if state == "running":
+        return True
+    if state not in JOB_OVERRIDES:
+        return False
+    try:
+        mtime = stage_output(paths, book, stage).stat().st_mtime
+    except OSError:
+        return True
+    try:
+        ended = datetime.fromisoformat(str(job.get("ended_at"))).timestamp()
+    except ValueError:
+        return False
+    return ended > mtime
 
 
 def _job_state(job: dict) -> dict:
@@ -488,7 +564,7 @@ def stage_status(paths: StudioPaths, book: Book, latest_job: LatestJob) -> dict:
 
     States come from the pipeline's own files; the latest job of a stage (`latest_job(slug,
     stage)` with stage in `STAGES`) overrides them while it is running, or when it failed or was
-    interrupted."""
+    interrupted after the stage's output file was last written."""
     if book.error:
         status = {key: _state("not_started") for key in ("script", "voices", "video")}
         status["script"] = _state("not_started", book.error)
@@ -500,7 +576,7 @@ def stage_status(paths: StudioPaths, book: Book, latest_job: LatestJob) -> dict:
         }
     for stage in STAGES:
         job = latest_job(book.slug, stage)
-        if job and job.get("state") in JOB_OVERRIDES:
+        if job and _job_overrides(paths, book, stage, job):
             status[STATUS_KEYS[stage]] = _job_state(job)
     status["next_action"] = "Fix the book data" if book.error else _next_action(status)
     return status

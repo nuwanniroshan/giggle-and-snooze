@@ -340,3 +340,70 @@ def test_stage_command_unknown_stage(tmp_path):
     paths, pilot, _ = pilot_and_added(tmp_path)
     with pytest.raises(ValueError):
         sj.stage_command("upload", pilot, paths)
+
+
+# --- review fixes (round 1) -------------------------------------------------------------------
+
+
+def _stale_record(jobs: Path, pid: int | None) -> dict:
+    jobs.mkdir(parents=True, exist_ok=True)
+    stale = {
+        "id": "20261109T100000-moon-render-beef",
+        "book": "moon",
+        "stage": "render",
+        "cmd": ["x"],
+        "started_at": "2026-11-09T10:00:00+00:00",
+        "ended_at": None,
+        "state": "running",
+        "exit_code": None,
+        "pid": pid,
+    }
+    (jobs / f"{stale['id']}.json").write_text(json.dumps(stale), encoding="utf-8")
+    return stale
+
+
+def test_orphaned_stage_is_killed_on_restart(studio, tmp_path):
+    import subprocess
+    import threading
+
+    code = "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)"
+    orphan = subprocess.Popen(py(code), start_new_session=True)
+    reaper = threading.Thread(target=orphan.wait, daemon=True)
+    reaper.start()
+    try:
+        time.sleep(0.3)  # let it install the SIGTERM handler
+        stale = _stale_record(studio / "jobs", orphan.pid)
+        started = time.monotonic()
+        r = sj.JobRunner(studio, cwd=tmp_path, stop_grace=0.5)
+        assert time.monotonic() - started < 5
+        reaper.join(5)
+        assert orphan.returncode == -9  # TERM ignored, so killed after the grace period
+        record = read_record(studio, stale["id"])
+        assert record["state"] == "interrupted"
+        assert f"process group {orphan.pid}" in full_log(r, stale["id"])
+    finally:
+        if orphan.poll() is None:
+            orphan.kill()
+
+
+def test_stale_record_with_a_dead_pid_is_only_marked(studio, tmp_path):
+    import subprocess
+
+    gone = subprocess.Popen(py("pass"), start_new_session=True)
+    gone.wait()
+    stale = _stale_record(studio / "jobs", gone.pid)
+    r = sj.JobRunner(studio, cwd=tmp_path, stop_grace=0.5)
+    assert read_record(studio, stale["id"])["state"] == "interrupted"
+    assert "process group" not in full_log(r, stale["id"])
+
+
+def test_interrupted_record_ends_when_its_log_last_changed(studio, tmp_path):
+    stale = _stale_record(studio / "jobs", None)
+    log = studio / "jobs" / f"{stale['id']}.log"
+    log.write_text("working\n", encoding="utf-8")
+    os.utime(log, (1_700_000_000, 1_700_000_000))
+    sj.JobRunner(studio, cwd=tmp_path)
+    from datetime import datetime
+
+    ended = datetime.fromisoformat(read_record(studio, stale["id"])["ended_at"])
+    assert abs(ended.timestamp() - 1_700_000_000) < 1

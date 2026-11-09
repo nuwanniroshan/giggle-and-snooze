@@ -657,3 +657,121 @@ def test_module_entry_point_exists():
 
     module = importlib.import_module("video_pipeline.studio.__main__")
     assert module.main is sa.main
+
+
+# --- review fixes (round 1) -----------------------------------------------------------------------
+
+
+def test_upload_titled_new_is_refused_and_the_form_still_shows(bare):
+    r = bare.client.post("/books", files=upload_parts(new_book("New")))
+    assert r.status_code == 422
+    assert "reserved" in r.text
+    assert not (bare.paths.books_dir / "new").exists()
+    assert 'name="book_data"' in bare.client.get("/books/new").text
+
+
+def test_upload_with_a_page_named_like_a_nook_is_refused(bare):
+    book = new_book("Nook Book")
+    book["pages"][0]["illustration_file"] = "intro_nook.png"
+    r = bare.client.post("/books", files=upload_parts(book, extra={"intro_nook.png": png_bytes()}))
+    assert r.status_code == 422
+    assert "reserved" in r.text
+    assert not (bare.paths.books_dir / "nook-book").exists()
+
+
+def test_oversize_request_is_refused_before_parsing(bare, monkeypatch):
+    monkeypatch.setattr(sb, "validate_upload", lambda *a: pytest.fail("the form was parsed"))
+    limit = (sb.MAX_UPLOAD_FILES + 1) * sb.MAX_UPLOAD_BYTES
+    r = bare.client.post(
+        "/books",
+        content=b"x",
+        headers={
+            "content-type": "multipart/form-data; boundary=b",
+            "content-length": str(limit + 1),
+        },
+    )
+    assert r.status_code == 413
+    assert "too large" in r.text
+
+
+def test_oversize_book_data_upload_says_so(bare):
+    parts = upload_parts(new_book())
+    parts[0] = (
+        "book_data",
+        ("book_data.json", b" " * (sb.MAX_UPLOAD_BYTES + 1), "application/json"),
+    )
+    r = bare.client.post("/books", files=parts)
+    assert r.status_code == 422
+    assert "book data is larger than 25 MB" in r.text
+    assert "not valid JSON" not in r.text
+
+
+@pytest.mark.parametrize("host", ["attacker.example:8765", "attacker.example", "127.0.0.2:8765"])
+def test_unknown_host_header_is_refused(bare, host):
+    assert bare.client.get("/", headers={"host": host}).status_code == 400
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1:8765", "localhost:8765"])
+def test_loopback_host_headers_are_allowed(bare, host):
+    assert bare.client.get("/", headers={"host": host}).status_code == 200
+
+
+def test_replace_upload_refused_while_that_book_runs(tmp_path):
+    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
+    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    s = Studio(tmp_path, Commands("import time; time.sleep(30)"))
+    book = new_book()
+    slug = slugify(book["metadata"]["title"])
+    assert s.client.post("/books", files=upload_parts(book)).status_code == 303
+    try:
+        assert s.client.post(f"/books/{slug}/run/script").status_code == 303
+        book["metadata"]["author"] = "Someone Else"
+        r = s.client.post("/books", data={"replace": "1"}, files=upload_parts(book))
+        assert r.status_code == 409
+        assert "running" in r.text
+        assert load_json(s.paths.books_dir / slug / "book_data.json")["metadata"]["author"] != (
+            "Someone Else"
+        )
+    finally:
+        s.runner.stop()
+
+
+def test_stop_does_not_freeze_other_requests(tmp_path):
+    import threading
+
+    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
+    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    code = (
+        "import signal, time\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "print('ignoring', flush=True)\n"
+        "time.sleep(60)\n"
+    )
+    s = Studio(tmp_path, Commands(code))
+    s.runner.stop_grace = 3
+    # One shared event loop (as under uvicorn), unlike a TestClient used without `with`.
+    with TestClient(s.app, base_url=ORIGIN, follow_redirects=False) as client:
+        assert client.post(f"/books/{PILOT_SLUG}/run/script").status_code == 303
+        job_id = s.runner.current()["id"]
+        deadline = time.monotonic() + 10
+        while "ignoring" not in s.runner.log(job_id)[0]:
+            assert time.monotonic() < deadline
+            time.sleep(0.05)
+        stopper = threading.Thread(target=lambda: client.post("/jobs/stop"))
+        stopper.start()
+        time.sleep(0.3)  # the stop is now waiting out its grace period
+        started = time.monotonic()
+        r = client.get("/api/jobs/current")
+        took = time.monotonic() - started
+        stopper.join(10)
+    assert r.status_code == 200
+    assert took < 1.0, f"GET /api/jobs/current took {took:.2f}s while a stop was in progress"
+
+
+def test_video_page_names_a_missing_picture_not_the_audio(approved):
+    s, world = approved
+    assert re_.main(cli_args(world), run=FakeRunner()) == 0
+    (world["assets"] / "illustrations" / "page_02.png").unlink()
+    page = text_of(s.client.get(f"/books/{PILOT_SLUG}/video").text)
+    assert "page_02.png" in page
+    assert "no longer approved" not in page

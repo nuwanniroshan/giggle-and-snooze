@@ -18,7 +18,6 @@ from video_pipeline import frames
 from video_pipeline import render_episode as re_
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import slugify
-from video_pipeline.episode_tools import ROOT
 from video_pipeline.studio import books as sb
 
 PILOT_SLUG = slugify(load_json(MINI_BOOK)["metadata"]["title"])
@@ -205,9 +204,14 @@ def test_illustration_file_with_a_path_in_the_book_data_is_rejected():
 def test_oversize_file_is_rejected(monkeypatch):
     book = new_book()
     files = upload_files(book)
-    monkeypatch.setattr(sb, "MAX_UPLOAD_BYTES", len(files["page_01.png"]) - 1)
+    noise = np.random.default_rng(1).integers(0, 255, (256, 256, 3), dtype=np.uint8)
+    buf = io.BytesIO()
+    Image.fromarray(noise).save(buf, format="PNG")
+    files["page_01.png"] = buf.getvalue()
+    monkeypatch.setattr(sb, "MAX_UPLOAD_BYTES", len(as_bytes(book)) + 1)
+    assert len(files["page_01.png"]) > sb.MAX_UPLOAD_BYTES
     problems = sb.validate_upload(as_bytes(book), files)[1]
-    assert problems and all("too large" in p for p in problems)
+    assert problems and all("page_01.png" in p and "too large" in p for p in problems)
 
 
 def test_default_upload_limit_is_25_mb():
@@ -429,10 +433,6 @@ def no_subprocess(monkeypatch):
     monkeypatch.setattr(frames.subprocess, "run", refuse)
 
 
-def test_sfx_dir_defaults_to_the_shared_assets_folder():
-    assert re_.parse_args([]).sfx_dir == ROOT / "assets" / "audio_sfx"
-
-
 def test_render_check_not_rendered(world, no_subprocess):
     before = tree(world["book"].parent)
     assert check(world) == "not_rendered"
@@ -547,7 +547,7 @@ def test_render_video_programmatic_default_sfx_dir(world, monkeypatch):
         world["assets"],
         run=FakeRunner(),
     )
-    assert seen == [ROOT / "assets" / "audio_sfx"]
+    assert seen == [world["assets"] / "audio_sfx"]
 
 
 # --- stage status and the next action (AC-1.2, AC-1.3, AC-5.3, AC-6.2) ----------------------
@@ -690,3 +690,153 @@ def test_status_of_a_broken_book_is_not_started(studio):
     status = status_of(studio, book)
     assert states(status) == ("not_started", "not_started", "not_started")
     assert status["script"]["detail"] == book.error
+
+
+# --- review fixes (round 1) -------------------------------------------------------------------
+
+
+def test_reserved_slug_is_refused(studio):
+    book = new_book("New")
+    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
+    assert any("'new' is reserved" in p for p in problems)
+    assert "new" in sb.RESERVED_SLUGS
+    with pytest.raises(sb.StudioError, match="reserved"):
+        sb.save_book(studio, book, upload_files(book))
+    assert not (studio.books_dir / "new").exists()
+
+
+@pytest.mark.parametrize(
+    "name", ["intro_nook.png", "outro_nook.png", "cover_front.png", "cover_back.png"]
+)
+def test_page_illustration_named_like_a_nook_or_cover_is_refused(name):
+    book = new_book()
+    book["pages"][0]["illustration_file"] = name
+    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book, nooks=True))
+    assert any(f"page 1: illustration_file {name!r}" in p and "reserved" in p for p in problems)
+
+
+def test_illustration_names_differing_only_by_case_are_refused():
+    book = new_book()
+    book["pages"][0]["illustration_file"] = "Picture.png"
+    book["pages"][1]["illustration_file"] = "picture.png"
+    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
+    assert any("differ only by case" in p and "picture.png" in p for p in problems)
+    book["pages"][1]["illustration_file"] = "Cover_Front.png"
+    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
+    assert any("differ only by case" in p and "cover_front.png" in p for p in problems)
+
+
+def test_the_same_illustration_on_two_pages_is_allowed():
+    book = new_book()
+    book["pages"][0]["illustration_file"] = "shared.png"
+    book["pages"][1]["illustration_file"] = "shared.png"
+    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
+    assert problems == []
+
+
+def test_oversize_book_data_is_reported_as_too_large():
+    data = b" " * (sb.MAX_UPLOAD_BYTES + 1)
+    book, problems = sb.validate_upload(data, {})
+    assert book is None
+    assert problems == ["book data is larger than 25 MB"]
+
+
+def test_reviewed_mark_is_bound_to_the_book_file(studio):
+    book = new_book()
+    saved = sb.save_book(studio, book, upload_files(book))
+    write_script(make_script(saved.book_path), studio.episodes_dir, saved.slug)
+    mark = sb.mark_reviewed(studio, saved)
+    assert mark["book_sha256"] == sv.sha256_file(saved.book_path)
+    assert sb.reviewed_ok(studio, saved)
+    data = load_json(saved.book_path)
+    data["metadata"]["author"] = "Someone Else"
+    saved.book_path.write_text(json.dumps(data), encoding="utf-8")
+    assert not sb.reviewed_ok(studio, saved)
+    assert sb.reviewed_mark(studio, saved) is None
+
+
+def test_reviewed_mark_without_book_hash_is_not_reviewed(studio, scripted):
+    mark = sb.mark_reviewed(studio, scripted)
+    mark.pop("book_sha256")
+    sb.reviewed_path(studio, scripted).write_text(json.dumps(mark), encoding="utf-8")
+    assert not sb.reviewed_ok(studio, scripted)
+
+
+def test_replacing_a_book_deletes_its_reviewed_mark(studio):
+    book = new_book()
+    saved = sb.save_book(studio, book, upload_files(book))
+    write_script(make_script(saved.book_path), studio.episodes_dir, saved.slug)
+    sb.mark_reviewed(studio, saved)
+    book["metadata"]["author"] = "Someone Else"
+    sb.save_book(studio, book, upload_files(book), replace=True)
+    assert not sb.reviewed_path(studio, saved).exists()
+    assert not sb.reviewed_ok(studio, saved)
+    assert status_of(studio, saved)["script"]["state"] == "needs_review"
+
+
+def _iso(ts: float) -> str:
+    from datetime import UTC, datetime
+
+    return datetime.fromtimestamp(ts, UTC).isoformat()
+
+
+def test_stale_failed_job_does_not_override_newer_files(studio, scripted):
+    sb.mark_reviewed(studio, scripted)
+    script_mtime = sb.script_path(studio, scripted).stat().st_mtime
+    old = {"state": "failed", "exit_code": 1, "ended_at": _iso(script_mtime - 60)}
+    status = status_of(studio, scripted, jobs_with(script=old))
+    assert status["script"]["state"] == "done"
+    new = dict(old, ended_at=_iso(script_mtime + 60))
+    assert status_of(studio, scripted, jobs_with(script=new))["script"]["state"] == "failed"
+    interrupted = dict(old, state="interrupted")
+    status = status_of(studio, scripted, jobs_with(script=interrupted))
+    assert status["script"]["state"] == "done"
+
+
+def test_stale_failed_voices_and_render_jobs_do_not_override(tmp_path, monkeypatch):
+    paths, book, world = pilot_world(tmp_path, monkeypatch)
+    assert re_.main(cli_args(world), run=FakeRunner()) == 0
+    audio_mtime = (world["audio"] / "status.json").stat().st_mtime
+    video_mtime = (world["video"] / f"{world['slug']}.json").stat().st_mtime
+    old = {"state": "failed", "exit_code": 1, "ended_at": _iso(min(audio_mtime, video_mtime) - 60)}
+    status = status_of(paths, book, jobs_with(voices=old, render=old))
+    assert states(status) == ("done", "approved", "done")
+    new = dict(old, ended_at=_iso(max(audio_mtime, video_mtime) + 60))
+    status = status_of(paths, book, jobs_with(voices=new, render=new))
+    assert (status["voices"]["state"], status["video"]["state"]) == ("failed", "failed")
+    running = {"state": "running", "ended_at": None}
+    assert status_of(paths, book, jobs_with(render=running))["video"]["state"] == "running"
+
+
+def test_sfx_cli_default_is_the_assets_dir(world, monkeypatch):
+    assert re_.parse_args([]).sfx_dir is None
+    seen = []
+    real = re_.load_page_turn
+
+    def spy(folder, rate, cache):
+        seen.append(folder)
+        return real(folder, rate, cache)
+
+    monkeypatch.setattr(re_, "load_page_turn", spy)
+    assert "--sfx-dir" not in cli_args(world)
+    assert re_.main(cli_args(world), run=FakeRunner()) == 0
+    assert seen == [world["assets"] / "audio_sfx"]
+
+
+def test_render_check_detail_names_a_missing_picture(world):
+    assert re_.main(cli_args(world), run=FakeRunner()) == 0
+    (world["assets"] / "illustrations" / "page_02.png").unlink()
+    state, reason = re_.render_check_detail(
+        world["book"],
+        world["episodes"],
+        world["build"],
+        world["config"],
+        world["assets"],
+        world["assets"] / "audio_sfx",
+    )
+    assert state == "blocked"
+    assert "page_02.png" in reason
+    paths = sb.StudioPaths(world["book"].parent)
+    video = status_of(paths, sb.get_book(paths, PILOT_SLUG))["video"]
+    assert "audio" not in video["detail"]
+    assert "page_02.png" in video["detail"]

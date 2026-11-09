@@ -124,6 +124,19 @@ The three stages already exist as CLIs: `video_pipeline.generate_script`, `video
 - No Host-header (DNS-rebinding) check; POSTs are still protected by the Origin check.
 - The script stage counts as done when the audio status matches the script (CLI `--reviewed` path).
 
+## Review fixes (round 1)
+
+1. Reserved slugs (`books.RESERVED_SLUGS`, at least `new`, which is the `/books/new` route) are refused by `validate_upload` and so by `save_book`.
+2. A page `illustration_file` may not be a cover or nook name. Upload names (pages, covers, nooks) may not differ only by case, because APFS would merge them. Two pages may still share one file.
+3. `reviewed.json` stores `book_sha256`. The mark only counts while both the script and the book file match, so an old mark without that field no longer counts. Replacing a book deletes the mark.
+4. Handlers that read files or wait on a job are plain `def` (Starlette runs them in its thread pool). Handlers that await the form hand the rest to `run_in_threadpool`. `video_pipeline/file_hash.sha256_file` caches hashes by (path, inode, size, mtime_ns); voices, render and timeline all use it.
+5. A failed or interrupted job overrides the files only when its `ended_at` is later than the stage's output file (`episode_script.json`, audio `status.json`, video record JSON). A running job always overrides. An interrupted record ends when its log last changed.
+6. When `JobRunner` starts and finds a stale `running` record whose process group is still alive, it stops that group (SIGTERM, then SIGKILL after the grace period). It notes this in the job's log, then marks the record interrupted.
+7. `POST /books` is refused before the form is parsed: 413 when Content-Length is over (`MAX_UPLOAD_FILES` + 1) × 25 MB (`MAX_UPLOAD_FILES` = 100), 411 when Content-Length is missing. Book data over 25 MB is reported as "book data is larger than 25 MB".
+8. `TrustedHostMiddleware(allowed_hosts=["127.0.0.1", "localhost"])`. The tests already use `base_url=http://127.0.0.1:8765`.
+9. `render_episode` without `--sfx-dir` uses `<assets-dir>/audio_sfx` again, as before spec 004. The studio passes `paths.sfx_dir` explicitly in `stage_command` and in `books.video_check`, and `tests/render_helpers.cli_args` no longer forces `--sfx-dir`.
+10. `render_check_detail` returns (state, reason). The approval gate raises `AudioNotApproved` (a `RenderError`), so a missing picture is reported as itself, not as an audio problem, in the status detail and on the video page. A replace upload gets 409 while a stage runs for that book.
+
 ## Spec coverage
 
 | Spec item | Phase |

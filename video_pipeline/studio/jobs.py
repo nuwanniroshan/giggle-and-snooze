@@ -5,7 +5,8 @@ its own process group so it can be stopped as a whole. Output (stdout and stderr
 appended raw to `<studio_dir>/jobs/<id>.log`, flushed per line; the job record
 `<studio_dir>/jobs/<id>.json` is written atomically when the job starts and when it ends, so the
 last run per book and stage survives a restart. A record still `running` when a runner is created
-belonged to a studio that died, and becomes `interrupted`.
+belonged to a studio that died, and becomes `interrupted`; if its process group is still alive
+(the studio was killed hard), that orphaned stage is stopped first.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -141,11 +143,27 @@ class JobRunner:
         return found
 
     def _mark_interrupted(self) -> None:
+        """Mark stale `running` records `interrupted`, ending when their log last changed (the
+        last sign of life). A stage still running in its own process group is stopped first
+        (SIGTERM, SIGKILL after the grace period) and that is noted in its log."""
         for record in self._records():
-            if record.get("state") == "running":
-                record["state"] = "interrupted"
-                record["ended_at"] = _now().isoformat()
-                write_atomic(self._record_path(record["id"]), record)
+            if record.get("state") != "running":
+                continue
+            log = self._log_path(record["id"]) if _SAFE_ID.fullmatch(record["id"]) else None
+            pgid = record.get("pid")
+            if log is not None and isinstance(pgid, int) and _group_alive(pgid):
+                how = _stop_group(pgid, self.stop_grace)
+                with log.open("ab") as fh:
+                    fh.write(
+                        f"\nstudio restarted: stopped the orphaned stage (process group {pgid},"
+                        f" {how})\n".encode()
+                    )
+            ended = _now()
+            if log is not None and log.is_file():
+                ended = datetime.fromtimestamp(log.stat().st_mtime, UTC)
+            record["state"] = "interrupted"
+            record["ended_at"] = ended.isoformat()
+            write_atomic(self._record_path(record["id"]), record)
 
     # --- running --------------------------------------------------------------------------------
 
@@ -270,3 +288,34 @@ class JobRunner:
 def _signal_group(pgid: int, sig: signal.Signals) -> None:
     with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(pgid, sig)
+
+
+def _group_alive(pgid: int) -> bool:
+    """Whether process group `pgid` still has a process we may signal. A stage is started with
+    `start_new_session`, so its pid is its group id; a pid reused by an unrelated process that is
+    not a group leader is left alone."""
+    if pgid <= 1 or pgid == os.getpgrp():
+        return False
+    try:
+        if os.getpgid(pgid) != pgid:
+            return False
+        os.killpg(pgid, 0)
+    except (ProcessLookupError, PermissionError):
+        return False
+    return True
+
+
+def _stop_group(pgid: int, grace: float) -> str:
+    """SIGTERM process group `pgid`, then SIGKILL if it is still alive after `grace` seconds.
+    Returns how it ended ("terminated" or "killed")."""
+    _signal_group(pgid, signal.SIGTERM)
+    deadline = time.monotonic() + grace
+    while time.monotonic() < deadline:
+        if not _group_alive(pgid):
+            return "terminated"
+        time.sleep(0.05)
+    _signal_group(pgid, signal.SIGKILL)
+    deadline = time.monotonic() + grace
+    while _group_alive(pgid) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return "killed"

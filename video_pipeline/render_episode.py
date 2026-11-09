@@ -66,7 +66,6 @@ from video_pipeline.timeline import (
     zoompan_expr,
 )
 
-DEFAULT_SFX_DIR = ROOT / "assets" / "audio_sfx"
 VIDEO_TIMESCALE = 15360  # shared by every clip so concat `-c copy` keeps exact timing
 _STDERR_TAIL = 600
 # FFmpeg 8 encodes the frames' colour properties over the -color_* options, so every graph tags
@@ -77,6 +76,10 @@ _OUTPUT_FORMAT = f"{_BT709_TAGS},format=yuv420p"
 
 class RenderError(Exception):
     """A render step failed; the message names the step and the tool's error."""
+
+
+class AudioNotApproved(RenderError):
+    """The audio gate refused: the audio is missing, unapproved or changed since approval."""
 
 
 def _sec(value: float) -> str:
@@ -570,7 +573,7 @@ def _load_inputs(
     settings_sha = current_settings_sha(voice_cfg, book, Path(book_path), script_path)
     problems = approval_problems(audio, script_path, settings_sha, Path(book_path))
     if problems:
-        raise RenderError("; ".join(problems))
+        raise AudioNotApproved("; ".join(problems))
     try:
         script = json.loads(script_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -636,8 +639,10 @@ def _supplied_page_turn_sha(sfx_dir: Path) -> str | None:
     return sha256_file(supplied) if supplied.exists() else None
 
 
-def _sfx_dir(sfx_dir: Path | None) -> Path:
-    return Path(sfx_dir) if sfx_dir is not None else DEFAULT_SFX_DIR
+def _sfx_dir(sfx_dir: Path | None, assets_dir: Path) -> Path:
+    """The page-turn folder: `sfx_dir` when given, else `<assets_dir>/audio_sfx` (as before
+    spec 004, so the command line without `--sfx-dir` is unchanged)."""
+    return Path(sfx_dir) if sfx_dir is not None else Path(assets_dir) / "audio_sfx"
 
 
 def _generated_page_turn(cache_path: Path, sample_rate: int) -> np.ndarray:
@@ -664,28 +669,45 @@ def render_check(
 ) -> str:
     """Whether `render_video` would reuse the finished video, without rendering or writing:
     "blocked" (audio not approved, missing or unusable inputs), "not_rendered" (no video or
-    record), "up_to_date" (the final key matches) or "out_of_date" (spec 004 AC-6.2).
+    record), "up_to_date" (the final key matches) or "out_of_date" (spec 004 AC-6.2)."""
+    return render_check_detail(book_path, episodes_dir, build_dir, config_dir, assets_dir, sfx_dir)[
+        0
+    ]
+
+
+def render_check_detail(
+    book_path: Path,
+    episodes_dir: Path,
+    build_dir: Path,
+    config_dir: Path,
+    assets_dir: Path,
+    sfx_dir: Path | None = None,
+) -> tuple[str, str]:
+    """`render_check`'s state and, when "blocked", why: "the audio is not approved: ..." for the
+    approval gate, else the missing or unusable input (a picture, a track, the book data).
 
     A supplied page-turn file is never decoded here: its decoded hash is taken from the video
     record when the file is the one that video was made with."""
     try:
         inputs = _load_inputs(book_path, episodes_dir, build_dir, config_dir, assets_dir)
-    except (RenderError, PictureError, BookError, ConfigError):
-        return "blocked"
+    except AudioNotApproved as exc:
+        return "blocked", f"the audio is not approved: {exc}"
+    except (RenderError, PictureError, BookError, ConfigError) as exc:
+        return "blocked", str(exc)
     final, record = inputs.paths.final(inputs.slug), _read_json(inputs.paths.record(inputs.slug))
     if not final.exists() or record is None:
-        return "not_rendered"
-    file_sha = _supplied_page_turn_sha(_sfx_dir(sfx_dir))
+        return "not_rendered", ""
+    file_sha = _supplied_page_turn_sha(_sfx_dir(sfx_dir, assets_dir))
     if file_sha is None:
         cache = Path(build_dir) / "sfx" / "page_turn.wav"
         page_turn_sha = _page_turn_digest(_generated_page_turn(cache, inputs.sample_rate))
     elif record.get("page_turn_file_sha256") == file_sha and record.get("page_turn_sha256"):
         page_turn_sha = record["page_turn_sha256"]
     else:
-        return "out_of_date"
+        return "out_of_date", ""
     if record.get("final_key") == _final_key(inputs, page_turn_sha):
-        return "up_to_date"
-    return "out_of_date"
+        return "up_to_date", ""
+    return "out_of_date", ""
 
 
 def render_video(
@@ -703,7 +725,7 @@ def render_video(
 
     Sections and transitions are cached by key; the final video is reused when the ordered keys,
     the tracks, the page-turn sound and the audio/encode settings are unchanged (AC-7.1, AC-7.2).
-    The page-turn sound comes from `sfx_dir` (default `<ROOT>/assets/audio_sfx`).
+    The page-turn sound comes from `sfx_dir` (default `<assets_dir>/audio_sfx`).
     """
     inputs = _load_inputs(book_path, episodes_dir, build_dir, config_dir, assets_dir)
     slug, cfg = inputs.slug, inputs.cfg
@@ -713,7 +735,7 @@ def render_video(
 
     paths = inputs.paths
     try:
-        sfx = _sfx_dir(sfx_dir)
+        sfx = _sfx_dir(sfx_dir, assets_dir)
         page_turn = load_page_turn(sfx, sample_rate, Path(build_dir) / "sfx" / "page_turn.wav")
         page_turn_sha = _page_turn_digest(page_turn)
         page_turn_fields = {
@@ -822,8 +844,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--sfx-dir",
         type=Path,
-        default=DEFAULT_SFX_DIR,
-        help="folder with an optional page_turn.wav, shared by every book",
+        default=None,
+        help="folder with an optional page_turn.wav (default: <assets-dir>/audio_sfx)",
     )
     parser.add_argument("--force", action="store_true", help="re-render every section")
     return parser.parse_args(argv)

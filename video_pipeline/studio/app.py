@@ -2,8 +2,13 @@
 
 Server-rendered Jinja pages (autoescaped) plus a small script that polls the job endpoints for
 live progress; everything except live updating works without JavaScript. The app only binds the
-loopback address. POSTs carrying an Origin or Referer from another site are refused, so a page on
-the web cannot drive the studio through the browser.
+loopback address and answers only requests addressed to it by a loopback name (Host header), so a
+DNS-rebinding page cannot read it. POSTs carrying an Origin or Referer from another site are
+refused, so a page on the web cannot drive the studio through the browser.
+
+Handlers that touch files or wait on a job are plain functions, which Starlette runs in its
+thread pool; the few that must await the request body hand the rest to the pool too, so a slow
+stop or a page full of file hashing never holds up the polling endpoints.
 
 All state comes from `books` (pipeline files) and the `JobRunner`; the gates are the pipeline's
 own: voices need the reviewed script, render needs approved audio (FR-4).
@@ -23,8 +28,10 @@ from pathlib import Path
 
 import uvicorn
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.middleware import Middleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
@@ -35,12 +42,13 @@ from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import ConfigError, slugify
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import ROOT
-from video_pipeline.render_episode import VideoPaths, render_check
+from video_pipeline.render_episode import VideoPaths
 from video_pipeline.studio import books as sb
 from video_pipeline.studio.jobs import Busy, JobRunner, UnknownJob, stage_command
 
 STUDIO_DIR = Path(__file__).resolve().parent
 HOST = "127.0.0.1"
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 DEFAULT_PORT = 8765
 LOG_TAIL_CHARS = 20_000
 STATE_WORDS = {
@@ -263,11 +271,11 @@ class Studio:
 
     # --- pages ----------------------------------------------------------------------------------
 
-    async def home(self, request: Request) -> Response:
+    def home(self, request: Request) -> Response:
         rows = [{"book": b, "status": self.status_of(b)} for b in sb.list_books(self.paths)]
         return self.render(request, "home.html", {"rows": rows})
 
-    async def book_page(self, request: Request) -> Response:
+    def book_page(self, request: Request) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return self.not_found(request)
@@ -291,11 +299,14 @@ class Studio:
         return self.render(request, "book.html", context)
 
     async def run_stage(self, request: Request) -> Response:
+        form = await request.form()
+        return await run_in_threadpool(self._run_stage, request, form)
+
+    def _run_stage(self, request: Request, form) -> Response:
         book = self.book_or_none(request)
         stage = request.path_params["stage"]
         if book is None or stage not in sb.STAGES:
             return self.not_found(request)
-        form = await request.form()
         back = f"/books/{book.slug}"
         if busy := self.busy_reason():
             return self.message(request, "Busy", [f"Refused: {busy}."], 409, back)
@@ -319,7 +330,7 @@ class Studio:
             return self.message(request, "Busy", [f"Refused: {self.busy_reason()}."], 409, back)
         return RedirectResponse(back, status_code=303)
 
-    async def stop_job(self, request: Request) -> Response:
+    def stop_job(self, request: Request) -> Response:
         job = self.runner.current()
         self.runner.stop()
         target = f"/books/{job['book']}" if job else "/"
@@ -327,12 +338,26 @@ class Studio:
 
     # --- uploads --------------------------------------------------------------------------------
 
-    async def new_book(self, request: Request) -> Response:
+    def new_book(self, request: Request) -> Response:
         return self.render(request, "upload.html", {"problems": [], "duplicate": None})
 
     async def add_book(self, request: Request) -> Response:
+        cap = (sb.MAX_UPLOAD_FILES + 1) * sb.MAX_UPLOAD_BYTES
+        length = request.headers.get("content-length")
+        if length is None or not length.isdigit():
+            lines = ["The upload must say how large it is (Content-Length)."]
+            return await run_in_threadpool(self.message, request, "Upload refused", lines, 411, "/")
+        if int(length) > cap:
+            lines = [
+                f"The upload is too large ({int(length) / (1024 * 1024):.0f} MB; at most"
+                f" {sb.MAX_UPLOAD_FILES} pictures of up to {sb.MAX_UPLOAD_BYTES // (1024 * 1024)}"
+                " MB each plus the book data)."
+            ]
+            return await run_in_threadpool(
+                self.message, request, "Upload refused", lines, 413, "/books/new"
+            )
         limit = sb.MAX_UPLOAD_BYTES + 1
-        async with request.form(max_files=500) as form:
+        async with request.form(max_files=sb.MAX_UPLOAD_FILES + 1) as form:
             book_part = form.get("book_data")
             book_json = None
             if isinstance(book_part, UploadFile) and book_part.filename:
@@ -346,7 +371,9 @@ class Studio:
                     problems.append(f"file uploaded twice: {part.filename!r}")
                 files[part.filename] = await part.read(limit)
             replace = form.get("replace") == "1"
+        return await run_in_threadpool(self._add_book, request, book_json, files, problems, replace)
 
+    def _add_book(self, request, book_json, files, problems, replace) -> Response:
         def refuse(problems, status=422, duplicate=None):
             context = {"problems": problems, "duplicate": duplicate}
             return self.render(request, "upload.html", context, status)
@@ -358,8 +385,13 @@ class Studio:
         if problems or book is None:
             return refuse(problems)
         slug = slugify(book["metadata"]["title"].strip())
-        if (self.paths.books_dir / slug).exists() and not replace:
+        exists = (self.paths.books_dir / slug).exists()
+        if exists and not replace:
             return refuse([], 409, duplicate=slug)
+        job = self.runner.current()
+        if exists and job and job["book"] == slug:
+            label = sb.STAGE_LABELS.get(job["stage"], job["stage"])
+            return refuse([f"{label} is running for {slug!r}; wait for it before replacing"], 409)
         try:
             saved = sb.save_book(self.paths, book, files, replace=replace)
         except sb.StudioError as exc:
@@ -431,7 +463,7 @@ class Studio:
             "reviewed": sb.reviewed_mark(self.paths, book),
         }
 
-    async def script_page(self, request: Request) -> Response:
+    def script_page(self, request: Request) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return self.not_found(request)
@@ -445,21 +477,24 @@ class Studio:
         return None
 
     async def save_script(self, request: Request) -> Response:
+        form = await request.form()
+        edits = {k: v for k, v in form.items() if isinstance(v, str)}
+        return await run_in_threadpool(self._save_script, request, edits)
+
+    def _save_script(self, request: Request, edits: dict[str, str]) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return self.not_found(request)
         back = f"/books/{book.slug}/script"
         if reason := self.script_job_running(book):
             return self.message(request, "Busy", [reason], 409, back)
-        form = await request.form()
-        edits = {k: v for k, v in form.items() if isinstance(v, str)}
         problems = sb.save_line_edits(self.paths, book, edits)
         if problems:
             context = {"book": book, "script": self.script_context(book, edits, problems)}
             return self.render(request, "script.html", context, 422)
         return RedirectResponse(back, status_code=303)
 
-    async def mark_reviewed(self, request: Request) -> Response:
+    def mark_reviewed(self, request: Request) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return self.not_found(request)
@@ -474,7 +509,7 @@ class Studio:
 
     # --- audio ----------------------------------------------------------------------------------
 
-    async def audio_page(self, request: Request, error: str | None = None, status=200):
+    def audio_page(self, request: Request, error: str | None = None, status=200):
         book = self.book_or_none(request)
         if book is None:
             return self.not_found(request)
@@ -501,13 +536,13 @@ class Studio:
         }
         return self.render(request, "audio.html", context, status)
 
-    async def approve_audio(self, request: Request) -> Response:
+    def approve_audio(self, request: Request) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return self.not_found(request)
         job = self.runner.current()
         if job and job["book"] == book.slug and job["stage"] == "voices":
-            return await self.audio_page(request, "voice synthesis is still running", 409)
+            return self.audio_page(request, "voice synthesis is still running", 409)
         try:
             cfg = sv.load_voice_config(self.paths.config_dir / "voices.json")
             book_data = load_book(book.book_path)
@@ -515,33 +550,25 @@ class Studio:
             settings_sha = sv.current_settings_sha(cfg, book_data, book.book_path, script)
             sv.approve(_audio_paths(self.paths, book), script, settings_sha)
         except (sv.ApproveError, ConfigError, BookError) as exc:
-            return await self.audio_page(request, str(exc), 409)
+            return self.audio_page(request, str(exc), 409)
         return RedirectResponse(f"/books/{book.slug}/audio", status_code=303)
 
     # --- video ----------------------------------------------------------------------------------
 
-    async def video_page(self, request: Request) -> Response:
+    def video_page(self, request: Request) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return self.not_found(request)
         video = _video_paths(self.paths, book)
         final = video.final(book.slug)
         record = _read_json(video.record(book.slug)) if final.is_file() else None
-        check = None
-        if final.is_file():
-            check = render_check(
-                book.book_path,
-                self.paths.episodes_dir,
-                self.paths.build_dir,
-                self.paths.config_dir,
-                book.assets_dir,
-                self.paths.sfx_dir,
-            )
+        check, reason = sb.video_check(self.paths, book) if final.is_file() else (None, "")
         context = {
             "book": book,
             "final": final if final.is_file() else None,
             "record": record,
             "check": check,
+            "reason": reason,
         }
         return self.render(request, "video.html", context)
 
@@ -578,7 +605,7 @@ class Studio:
             )
         return None
 
-    async def media(self, request: Request) -> Response:
+    def media(self, request: Request) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return Response("not found", status_code=404)
@@ -589,7 +616,7 @@ class Studio:
 
     # --- JSON for live progress -----------------------------------------------------------------
 
-    async def api_current(self, request: Request) -> Response:
+    def api_current(self, request: Request) -> Response:
         job = self.running()
         if job is None:
             return JSONResponse({"job": None, "elapsed_seconds": None})
@@ -598,7 +625,7 @@ class Studio:
         }
         return JSONResponse({"job": record, "elapsed_seconds": round(job["elapsed"], 1)})
 
-    async def api_log(self, request: Request) -> Response:
+    def api_log(self, request: Request) -> Response:
         job_id = request.path_params["job_id"]
         try:
             offset = max(int(request.query_params.get("offset", "0")), 0)
@@ -665,7 +692,10 @@ def create_app(
         Route("/media/{slug}/{kind}/{name}", studio.media),
         Mount("/static", StaticFiles(directory=STUDIO_DIR / "static"), name="static"),
     ]
-    middleware = [Middleware(SameSiteGuard, studio=studio)]
+    middleware = [
+        Middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS),
+        Middleware(SameSiteGuard, studio=studio),
+    ]
     app = Starlette(routes=routes, middleware=middleware, lifespan=lifespan)
     app.state.studio = studio
     return app

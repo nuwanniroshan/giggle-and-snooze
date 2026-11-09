@@ -9,7 +9,7 @@
 {% if check == 'out_of_date' %}
 <section class="notice"><p>{{ badge('out_of_date') }} The inputs changed since this video was rendered; a re-render would change it.</p></section>
 {% elif check == 'blocked' %}
-<section class="notice"><p>{{ badge('out_of_date') }} The audio is no longer approved; this video may not match it.</p></section>
+<section class="notice"><p>{{ badge('out_of_date') }} This video cannot be checked against its inputs, so it may not match them: {{ reason }}</p></section>
 {% endif %}
 <section class="stage">
   <video controls preload="metadata" src="/media/{{ book.slug }}/video/{{ book.slug }}.mp4"></video>
