@@ -1,6 +1,7 @@
 """Phase 1 of spec 003: render config, captions, sections and camera math (pure)."""
 
 import dataclasses
+import functools
 import json
 import math
 import re
@@ -477,10 +478,10 @@ def test_section_key_hashes_the_caption_font_file(cfg, script, timings, tmp_path
 
 
 def test_render_version_invalidates_every_key(cfg, script, timings, monkeypatch):  # review r1 #6
-    assert timeline.RENDER_VERSION == 2
+    assert timeline.RENDER_VERSION == 3
     page = {s.name: s for s in build_sections(script, timings, cfg)}["page-01"]
     section, trans = section_key(page, "abc", cfg), transition_key("a" * 32, "b" * 32, cfg)
-    monkeypatch.setattr(timeline, "RENDER_VERSION", 3)
+    monkeypatch.setattr(timeline, "RENDER_VERSION", 4)
     assert section_key(page, "abc", cfg) != section
     assert transition_key("a" * 32, "b" * 32, cfg) != trans
 
@@ -693,3 +694,101 @@ def test_caption_cards_over_pilot_episode(cfg):
     # fewest-cards split reaches on this script (greedy packing managed 5.9%).
     assert punctuated >= 0.6
     assert shortest >= cfg.captions.min_card_seconds - 1e-9
+
+
+# --- sentence ends always win; breaks after dashes (spec 003 v1.1.0 AC-4.5, review r2) -------
+
+PAGE_14_03 = (
+    "Clara peered up through the golden willow fronds. Huddled on a crooked branch, with his "
+    "slate-blue wings drooped low and his leather mailbag empty, sat Fleet the Falcon—the very "
+    "bird who had zoomed past them that morning!"
+)
+
+
+def rejoin(cards):
+    """Card texts joined back into the line: no space after a card that ends in a dash."""
+    text = ""
+    for card in cards:
+        sep = "" if not text or text.endswith(("—", "–")) else " "
+        text += sep + card.text
+    return text
+
+
+def test_render_version_bumped_for_sentence_first_breaks():
+    assert timeline.RENDER_VERSION >= 3
+
+
+def test_caption_cards_sentence_end_beats_two_clause_breaks(cfg):
+    cards = synthetic_cards(PAGE_14_03, cfg)
+    assert cards[0].text == "Clara peered up through the golden willow fronds."
+    assert rejoin(cards) == PAGE_14_03
+    for card in cards:
+        assert fits_card(card.text, cfg), card.text
+        assert len(card.text.split()) > 1, card.text
+
+
+def test_wrap_lines_breaks_after_a_dash_without_adding_a_space():
+    assert wrap_lines("sat Fleet the Falcon—the very bird", 21) == [
+        "sat Fleet the Falcon—",
+        "the very bird",
+    ]
+    assert wrap_lines("a Falcon—the b", 44) == ["a Falcon—the b"]
+    assert wrap_lines("pages 3–4 and Barnaby—a snail", 44) == ["pages 3–4 and Barnaby—a snail"]
+
+
+def test_caption_cards_break_after_a_dash(cfg):
+    text = (
+        "Fleet the falcon sat alone on the crooked branch—the very bird who had zoomed past "
+        "them that morning"
+    )
+    cards = synthetic_cards(text, cfg)
+    assert [card.text for card in cards] == [
+        "Fleet the falcon sat alone on the crooked branch—",
+        "the very bird who had zoomed past them that morning",
+    ]
+    assert rejoin(cards) == text
+    # Word-share timing counts "branch—the" as one word: each half gets half a word.
+    words = len(text.split())
+    assert cards[0].end == pytest.approx(words / WORDS_PER_SECOND * 8.5 / words)
+
+
+def _fewest_mid_sentence_breaks(words, span, count, cfg):
+    """Oracle: fewest breaks not after a sentence end over every readable split into `count`
+    cards (whitespace words only, so the real splitter, which may also break after dashes, can
+    only do as well or better)."""
+    n = len(words)
+    max_chars, max_lines = cfg.captions.max_chars, cfg.captions.max_lines
+
+    def ok(i, j):
+        return (
+            j - i > 1
+            and span * (j - i) / n >= cfg.captions.min_card_seconds - 1e-9
+            and len(wrap_lines(" ".join(words[i:j]), max_chars)) <= max_lines
+        )
+
+    @functools.cache
+    def best(i, cards):
+        if cards == 1:
+            return 0 if ok(i, n) else math.inf
+        result = math.inf
+        for j in range(i + 2, n):
+            if ok(i, j):
+                cost = break_kind(words[j - 1]) != "sentence"
+                result = min(result, cost + best(j, cards - 1))
+        return result
+
+    return best(0, count)
+
+
+def test_caption_cards_pilot_never_ends_mid_sentence_needlessly(cfg):
+    needless = 0
+    for text in _pilot_lines():
+        cards = synthetic_cards(text, cfg) if text else []
+        if len(cards) < 2:
+            continue
+        chosen = sum(break_kind(card.text) != "sentence" for card in cards[:-1])
+        words = text.split()
+        oracle = _fewest_mid_sentence_breaks(words, len(words) / WORDS_PER_SECOND, len(cards), cfg)
+        needless += chosen > oracle
+    print(f"\npilot captions: needless mid-sentence card ends={needless}")
+    assert needless == 0

@@ -216,6 +216,8 @@ AC-4.5 and AC-4.6 replace the greedy two-lines-per-card packing in `caption_card
 - `RENDER_VERSION = 2` so cached sections re-render.
 - Pilot script (synthetic 2.5 words/s): 0 single-word cards (greedy: 10), 61.8% of breaks at sentence/clause punctuation (greedy: 5.9%), shortest card in a multi-card line 1.6 s (greedy: 0.4 s). The rest of the breaks fall between words because many narration sentences exceed one 88-character card with no punctuation in reach at the fewest cards.
 
+Follow-up (review r2, `RENDER_VERSION = 3`): summed break costs let two clause breaks (10 + 10) beat a sentence end plus a word gap (0 + 100), so pilot line page-14-03 ran "…fronds. Huddled on a crooked branch," across one card. The DP now compares splits of the fewest cards lexicographically by (breaks not after a sentence end, bare word breaks, imbalance), so a card ends mid-sentence only when no same-count split with more sentence-end breaks exists, and balance only ranks splits with identical break kinds. A dash joining two words with no spaces ("Falcon—the") is split after the dash into two break units; both a card break and a line wrap may fall there, and the halves rejoin with no space. For timing and the one-word rule the halves share one word (½ each), so timing of dash-free lines is unchanged. Pilot (synthetic 2.5 words/s): 102 breaks, 63.7% at punctuation (30 sentence, 35 clause, 37 word), 0 cards ending mid-sentence where a same-count sentence-end split existed (checked against a brute-force oracle in `tests/test_timeline.py`), 0 single-word cards, shortest card in a multi-card line 1.6 s.
+
 ## Spec coverage
 
 | Spec item | Phase(s) |

@@ -24,7 +24,7 @@ SectionKind = Literal["intro", "page", "beat", "outro"]
 CENTRE: Point = (1.0, 0.5, 0.5)
 # Part of every section, transition and final-video cache key: bump it when a code change alters
 # the rendered pixels or sound, so stale clips are re-rendered.
-RENDER_VERSION = 2  # 2: readable caption breaks (spec 003 v1.1.0)
+RENDER_VERSION = 3  # 2: readable caption breaks (spec 003 v1.1.0); 3: sentence ends win, dashes
 _SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([.,!?;:…)\]’”])")
 
 
@@ -156,17 +156,41 @@ def strip_tags(text: str) -> str:
     return _SPACE_BEFORE_PUNCT_RE.sub(r"\1", plain)
 
 
+# A dash joining two words with no spaces ("Falcon—the") may end a line or a card: the token
+# splits right after the dash, and the halves rejoin with no space when they stay together.
+_DASH_SPLIT_RE = re.compile(r"(?<=[^\s—–][—–])(?=[^\s—–])")
+
+
+def _tokens(text: str) -> list[tuple[str, bool]]:
+    """Break units of `text`: (token, attached), where `attached` marks the part after a dash
+    inside a word, which joins the previous token without a space."""
+    tokens: list[tuple[str, bool]] = []
+    for word in text.split():
+        for index, part in enumerate(_DASH_SPLIT_RE.split(word)):
+            tokens.append((part, index > 0))
+    return tokens
+
+
+def _join(tokens: list[tuple[str, bool]]) -> str:
+    """Text of consecutive tokens; a leading attached token starts the text with no space."""
+    return "".join(
+        part if attached or index == 0 else f" {part}"
+        for index, (part, attached) in enumerate(tokens)
+    )
+
+
 def wrap_lines(text: str, max_chars: int) -> list[str]:
-    """Greedy word wrap into lines of at most `max_chars`; an over-long word gets its own line."""
+    """Greedy word wrap into lines of at most `max_chars`; an over-long word gets its own line.
+    A line may also end right after a dash inside a word ("Falcon—" / "the")."""
     lines: list[str] = []
     current = ""
-    for word in text.split():
-        candidate = f"{current} {word}" if current else word
+    for part, attached in _tokens(text):
+        candidate = f"{current}{'' if attached else ' '}{part}" if current else part
         if len(candidate) <= max_chars or not current:
             current = candidate
         else:
             lines.append(current)
-            current = word
+            current = part
     if current:
         lines.append(current)
     return lines
@@ -183,11 +207,10 @@ _SENTENCE_END_RE = re.compile(r"[.!?…][\"'”’)\]]*$")
 _CLAUSE_END_RE = re.compile(r"[,;:—–-][\"'”’)\]]*$")
 # Title abbreviations end in a full stop but never end a sentence ("Mrs. Hedgehog").
 _ABBREVIATIONS = frozenset({"mr.", "mrs.", "ms.", "dr.", "st.", "mt.", "prof.", "sr.", "jr."})
-# Caption break costs (AC-4.5): the fewest cards always win; among those, the kind of break
-# dominates (a sentence end beats a clause, which beats a bare word gap) and the squared
-# imbalance of card lengths (≲ 2 per card) only chooses between breaks of the same kind.
-_BREAK_COST = {"sentence": 0.0, "clause": 10.0, "word": 100.0}
-_BALANCE_WEIGHT = 2.0
+# Caption break order (AC-4.5): the fewest cards always win; among those, splits compare
+# lexicographically by (breaks not after a sentence end, bare word breaks, imbalance), so one
+# more sentence-end break always beats any number of clause breaks and any balance gain, and the
+# squared imbalance of card lengths only chooses between splits with the same kinds of break.
 
 
 def _break_kind(word: str) -> str:
@@ -200,17 +223,20 @@ def _break_kind(word: str) -> str:
 
 
 def _partition(
-    words: list[str], max_chars: int, max_lines: int, allowed: Callable[[int, int], bool]
+    tokens: list[tuple[str, bool]],
+    max_chars: int,
+    max_lines: int,
+    allowed: Callable[[int, int], bool],
 ) -> list[tuple[int, int]] | None:
-    """Best split of `words` into contiguous cards [i, j) that each wrap into ≤ `max_lines`
-    lines and pass `allowed(i, j)`: fewest cards, then breaks after sentence ends, then after
-    clause punctuation, then card lengths closest to even. None when no split exists."""
-    n = len(words)
-    # fits[i] = largest j such that words[i:j] fits one card (wrapping is monotone in j).
+    """Best split of `tokens` into contiguous cards [i, j) that each wrap into ≤ `max_lines`
+    lines and pass `allowed(i, j)`: fewest cards, then fewest breaks that are not sentence ends,
+    then fewest bare word breaks, then card lengths closest to even. None when no split exists."""
+    n = len(tokens)
+    # fits[i] = largest j such that tokens[i:j] fits one card (wrapping is monotone in j).
     fits = []
     for i in range(n):
         j = i + 1
-        while j < n and len(wrap_lines(" ".join(words[i : j + 1]), max_chars)) <= max_lines:
+        while j < n and len(wrap_lines(_join(tokens[i : j + 1]), max_chars)) <= max_lines:
             j += 1
         fits.append(j)
     # Fewest cards first: the card count is what fixes the even length every card aims for.
@@ -222,19 +248,23 @@ def _partition(
     if math.isinf(fewest[n]):
         return None
     count = int(fewest[n])
-    ideal = len(" ".join(words)) / count
-    best: list[list[float]] = [[math.inf] * (n + 1) for _ in range(count + 1)]
+    ideal = len(_join(tokens)) / count
+    worst = (math.inf, math.inf, math.inf)
+    best: list[list[tuple[float, float, float]]] = [[worst] * (n + 1) for _ in range(count + 1)]
     back: list[list[int]] = [[-1] * (n + 1) for _ in range(count + 1)]
-    best[0][0] = 0.0
+    best[0][0] = (0.0, 0.0, 0.0)
     for cards in range(1, count + 1):
         for j in range(1, n + 1):
             for i in range(j):
-                if math.isinf(best[cards - 1][i]) or j > fits[i] or not allowed(i, j):
+                if math.isinf(best[cards - 1][i][0]) or j > fits[i] or not allowed(i, j):
                     continue
-                length = len(" ".join(words[i:j]))
-                cost = best[cards - 1][i] + _BALANCE_WEIGHT * ((length - ideal) / max_chars) ** 2
+                mid_sentence, word, balance = best[cards - 1][i]
+                balance += ((len(_join(tokens[i:j])) - ideal) / max_chars) ** 2
                 if j < n:
-                    cost += _BREAK_COST[_break_kind(words[j - 1])]
+                    kind = _break_kind(tokens[j - 1][0])
+                    mid_sentence += kind != "sentence"
+                    word += kind == "word"
+                cost = (mid_sentence, word, balance)
                 if cost < best[cards][j]:
                     best[cards][j], back[cards][j] = cost, i
     spans: list[tuple[int, int]] = []
@@ -257,35 +287,48 @@ def caption_cards(
 ) -> list[CaptionCard]:
     """Split `text` into cards of ≤ `max_lines` wrapped lines, timed by word share (AC-4.3).
 
-    A line that fits one card stays whole. Otherwise the fewest cards are used, breaking after
-    sentence ends where possible, else after clause punctuation, else between words, with card
-    lengths kept even (AC-4.5). No card is a single word or shorter than `min_seconds` (AC-4.6);
+    A line that fits one card stays whole. Otherwise the fewest cards are used; among those, a
+    card ends mid-sentence only when no split with more sentence-end breaks exists, then clause
+    punctuation (a dash inside "Falcon—the" included) beats a bare word gap, and card lengths
+    are kept even (AC-4.5). No card is a single word or shorter than `min_seconds` (AC-4.6);
     when the line is too fast for that, the duration rule is relaxed first, then the one-word
     rule, but a card never exceeds `max_lines`.
     """
-    words = text.split()
-    if not words:
+    tokens = _tokens(text)
+    if not tokens:
         return []
-    n = len(words)
+    # Word share of each token: the halves of a dash-joined word ("Falcon—", "the") split one
+    # word between them, so timing and the one-word rule count real words.
+    parts = [len(_DASH_SPLIT_RE.split(word)) for word in text.split()]
+    weights = [1 / count for count in parts for _ in range(count)]
+    cumulative = [0.0]
+    for weight in weights:
+        cumulative.append(cumulative[-1] + weight)
+    n = len(tokens)
+    total = cumulative[n]
     span = end - start
     if len(wrap_lines(text, max_chars)) <= max_lines:
         spans = [(0, n)]
     else:
 
+        def several_words(i: int, j: int) -> bool:
+            return cumulative[j] - cumulative[i] > 1 + 1e-9
+
         def readable(i: int, j: int) -> bool:
-            return j - i > 1 and span * (j - i) / n >= min_seconds - 1e-9
+            share = (cumulative[j] - cumulative[i]) / total
+            return several_words(i, j) and span * share >= min_seconds - 1e-9
 
         spans = (
-            _partition(words, max_chars, max_lines, readable)
-            or _partition(words, max_chars, max_lines, lambda i, j: j - i > 1)
-            or _partition(words, max_chars, max_lines, lambda i, j: True)
+            _partition(tokens, max_chars, max_lines, readable)
+            or _partition(tokens, max_chars, max_lines, several_words)
+            or _partition(tokens, max_chars, max_lines, lambda i, j: True)
         )
-        assert spans is not None  # one word per card always fits
+        assert spans is not None  # one token per card always fits
     cards: list[CaptionCard] = []
     card_start = start
     for index, (i, j) in enumerate(spans):
-        card_end = end if index == len(spans) - 1 else start + span * j / n
-        cards.append(CaptionCard(" ".join(words[i:j]), card_start, card_end))
+        card_end = end if index == len(spans) - 1 else start + span * cumulative[j] / total
+        cards.append(CaptionCard(_join(tokens[i:j]), card_start, card_end))
         card_start = card_end
     return cards
 
