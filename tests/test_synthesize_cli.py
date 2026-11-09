@@ -1,7 +1,9 @@
 import errno
 import json
+import shutil
 
 import pytest
+import soundfile as sf
 
 from tests.helpers import MINI_BOOK, PILOT_BOOK, load_json
 from tests.voice_helpers import FakeEngine, identity_shift, make_script, write_script
@@ -205,3 +207,71 @@ def test_defaults_resolve_from_the_project_root():
     assert args.book == sv.ROOT / "book_data.json"
     assert args.build_dir == sv.ROOT / "build"
     assert args.command == "synthesize"
+
+
+# --- Review fixes -------------------------------------------------------------------------
+
+
+def test_libsndfile_disk_full_names_the_folder(env, monkeypatch, capsys):  # review fix 4
+    def full(*args, **kwargs):
+        raise sf.LibsndfileError(0, "Error writing file: ")
+
+    monkeypatch.setattr(sv.sf, "write", full)
+    monkeypatch.setattr(
+        sv.shutil, "disk_usage", lambda path: shutil._ntuple_diskusage(10**9, 10**9, 1000)
+    )
+    assert run(env, "--reviewed") == 1
+    err = capsys.readouterr().err
+    assert "disk space" in err and str(env["audio"]) in err
+
+
+def test_other_libsndfile_errors_are_not_disk_full(env, monkeypatch):  # review fix 4
+    def broken(*args, **kwargs):
+        raise sf.LibsndfileError(0, "Format not recognised: ")
+
+    monkeypatch.setattr(sv.sf, "write", broken)
+    monkeypatch.setattr(
+        sv.shutil, "disk_usage", lambda path: shutil._ntuple_diskusage(10**12, 0, 10**12)
+    )
+    with pytest.raises(sf.LibsndfileError):
+        run(env, "--reviewed")
+
+
+def test_engine_error_exits_naming_the_line(env, monkeypatch, capsys):  # review fix 6
+    target = env["script"]["pages"][1]["lines"][0]["text"]
+
+    class Broken(FakeEngine):
+        def synthesize(self, text, voice, seed):
+            if text == target:
+                raise RuntimeError("model exploded")
+            return super().synthesize(text, voice, seed)
+
+    monkeypatch.setattr(sv, "create_engine", lambda cfg: Broken())
+    assert run(env, "--reviewed") == 1
+    err = capsys.readouterr().err
+    page = env["script"]["pages"][1]["page_number"]
+    assert f"error: page {page} line 1 (storyteller): RuntimeError: model exploded" in err
+
+
+def test_approve_refuses_after_settings_change(env, capsys):  # review fix 10
+    assert run(env, "--reviewed") == 0
+    config = env["tmp"] / "config"
+    shutil.copytree(sv.CONFIG_DIR, config)
+    voices = load_json(config / "voices.json")
+    voices["pauses"]["same_speaker"] = 0.5
+    (config / "voices.json").write_text(json.dumps(voices), encoding="utf-8")
+    capsys.readouterr()
+    assert run(env, "--config-dir", str(config), command="approve") == 1
+    err = capsys.readouterr().err
+    assert "voice settings changed since the audio was synthesized; re-run synthesis first" in err
+    assert load_json(env["audio"] / "status.json")["status"] == "pending review"
+
+
+def test_review_sheet_is_written_before_status(env, monkeypatch):  # review fix 10
+    def boom(*args, **kwargs):
+        raise OSError("interrupted")
+
+    monkeypatch.setattr(sv, "write_review", boom)
+    with pytest.raises(OSError):
+        run(env, "--reviewed")
+    assert not (env["audio"] / "status.json").exists()

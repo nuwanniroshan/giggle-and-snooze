@@ -1867,6 +1867,21 @@ if __name__ == "__main__":
 - [ ] `.claude/memory/steering/tech-stack.md`: add mlx-audio 0.6.4 with Orpheus 4-bit (pinned revisions in `config/voices.json`), soundfile, and the FFmpeg `asetrate/aresample/atempo` pitch lift.
 - [ ] Commit (docs and config only; never `build/` or `episodes/`): `feat(voice): Phase 5: real voice verification and docs` with the measured run time and memory.
 
+## Review fixes (after Phase 5)
+
+An implementation review found ten defects; each was fixed test-first.
+
+1. `build_tracks`: `track_key` now hashes, per line, the clip key, the sha256 of the clip WAV bytes, `line_id`, `speaker`, `role`, `text`, the `measure` dict and `attempts`, plus the gaps and sample rate. `--force` or a re-synthesized clip now rebuilds its tracks.
+2. `build_preview(track_names, paths, cfg) -> bool` keeps a `preview.json` sidecar (`preview_key` over the ordered `[track, track_key]` list, `between_tracks` and the sample rate), written after `preview.wav`; it rebuilds whenever the key differs or a file is missing. `_synthesize` always calls it.
+3. The timing JSON follows markup-only or role-only edits (covered by 1).
+4. `write_wav_atomic` turns a `soundfile.LibsndfileError` into `OSError(ENOSPC)` when the error mentions space or less than 50 MB is free, so the disk-full message names the audio folder.
+5. `tts.download_model` writes each support repo's pinned revision into the HF cache's `refs/main`; `OrpheusVoice` checks `refs/main` and the cached pinned snapshot before loading and sets `huggingface_hub.constants.HF_HUB_OFFLINE = True`.
+6. `LineError`: any engine or pitch-shift error in `make_clip` is re-raised as `"<page N line M (speaker)>: <Type>: <message>"`; `main` prints it and exits 1.
+7. A line sharing a clip key with an earlier failed line is also listed in `LineFailed`.
+8. Reused clips are re-checked with `clip_problems(stored measure, cfg.checks)`; failing ones are re-synthesized. Ruling: `model.seed` stays out of clip identity.
+9. `plan_jobs` rejects two roles sharing a voice (AC-2.4).
+10. `approve(paths, script_path, settings_sha)` also refuses when the voice settings changed since synthesis. `_synthesize` computes the status with `next_status`, writes `review.md`, then `status.json` last.
+
 ---
 
 ## Quickstart Validation
@@ -1890,7 +1905,7 @@ uv run pytest -v && uv run pytest -m "ffmpeg or tts" -v
 | FR-3 Checks and retries | 1 (measures), 3 (`make_clip`, recorded results) |
 | FR-4 Tracks, timing, preview | 1 (`stitch`, pauses), 3 (`build_tracks`, `build_preview`), 4 (preview on rebuild) |
 | FR-5 Pronunciation | 3 (`load_pronunciations`, `spoken_text`), 4 (end to end) |
-| FR-6 Review status | 4 (`update_status`, `approve`, review sheet) |
+| FR-6 Review status | 4 (`update_status`, renamed `next_status` in the review fixes; `approve`, review sheet) |
 | FR-7 Reuse and re-runs | 3 (`clip_key`, cache, track keys, force, atomic) |
 | NFR Performance | 3 (lazy engine), 5 (timed runs) |
 | NFR Quality / Security / Reliability / Cost | 5 (listening gate), 2 (pinned, offline), 3+4 (atomic, named errors), 2+4 (`download` only) |

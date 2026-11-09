@@ -85,9 +85,12 @@ class FakeModel:
         yield FakeResult(np.zeros(2, dtype=np.float32))
 
 
-def install_fakes(monkeypatch, snapshot=None, model=None):
+def install_fakes(monkeypatch, snapshot=None, model=None, cache=None):
     monkeypatch.setenv("HF_HUB_OFFLINE", "0")  # restored after each test
     calls = {"seed": [], "clear": 0, "snapshot": []}
+    constants = types.ModuleType("huggingface_hub.constants")
+    constants.HF_HUB_CACHE = str(cache or "/nonexistent-hf-cache")
+    constants.HF_HUB_OFFLINE = False
     core = types.SimpleNamespace(
         random=types.SimpleNamespace(seed=lambda s: calls["seed"].append(s)),
         clear_cache=lambda: calls.__setitem__("clear", calls["clear"] + 1),
@@ -101,12 +104,14 @@ def install_fakes(monkeypatch, snapshot=None, model=None):
         return "/models/orpheus"
 
     hub.snapshot_download = snapshot or default_snapshot
+    hub.constants = constants
     utils = types.ModuleType("mlx_audio.tts.utils")
     utils.load_model = lambda path: model or FakeModel()
     for name, module in {
         "mlx": mlx,
         "mlx.core": core,
         "huggingface_hub": hub,
+        "huggingface_hub.constants": constants,
         "mlx_audio": types.ModuleType("mlx_audio"),
         "mlx_audio.tts": types.ModuleType("mlx_audio.tts"),
         "mlx_audio.tts.utils": utils,
@@ -115,8 +120,8 @@ def install_fakes(monkeypatch, snapshot=None, model=None):
     return calls
 
 
-def test_download_fetches_only_listed_files_from_support_repos(monkeypatch):
-    calls = install_fakes(monkeypatch)
+def test_download_fetches_only_listed_files_from_support_repos(monkeypatch, tmp_path):
+    calls = install_fakes(monkeypatch, cache=tmp_path)
     settings = ModelSettings(
         "org/model",
         "abc12345def",
@@ -184,3 +189,71 @@ def test_engine_reports_missing_package(monkeypatch):
     monkeypatch.setitem(sys.modules, "mlx_audio", None)
     with pytest.raises(VoiceUnavailable, match="uv sync"):
         OrpheusVoice(SETTINGS)
+
+
+SUPPORT = ModelSettings(
+    "org/model",
+    "abc12345def",
+    0.6,
+    0.8,
+    3000,
+    support_repos=(("org/codec", "rev1", None), ("org/full", "rev2", ("config.json",))),
+)
+
+
+def ref_file(cache, repo):
+    return cache / f"models--{repo.replace('/', '--')}" / "refs" / "main"
+
+
+def test_download_pins_support_repo_refs(monkeypatch, tmp_path):  # review fix 5
+    install_fakes(monkeypatch, cache=tmp_path)
+    download_model(SUPPORT)
+    assert ref_file(tmp_path, "org/codec").read_text() == "rev1"
+    assert ref_file(tmp_path, "org/full").read_text() == "rev2"
+    assert not ref_file(tmp_path, "org/model").exists()  # loaded by path, not by name
+
+
+def pin_refs(cache, refs):
+    for repo, revision in refs.items():
+        ref_file(cache, repo).parent.mkdir(parents=True, exist_ok=True)
+        ref_file(cache, repo).write_text(revision)
+
+
+def test_engine_checks_pinned_support_repos(monkeypatch, tmp_path):  # review fix 5
+    calls = install_fakes(monkeypatch, cache=tmp_path)
+    pin_refs(tmp_path, {"org/codec": "rev1", "org/full": "rev2"})
+    OrpheusVoice(SUPPORT)
+    assert {
+        "repo_id": "org/codec",
+        "revision": "rev1",
+        "local_files_only": True,
+    } in calls["snapshot"]
+    assert {
+        "repo_id": "org/full",
+        "revision": "rev2",
+        "local_files_only": True,
+        "allow_patterns": ["config.json"],
+    } in calls["snapshot"]
+    assert sys.modules["huggingface_hub.constants"].HF_HUB_OFFLINE is True
+
+
+@pytest.mark.parametrize("refs", [{"org/full": "rev2"}, {"org/codec": "other", "org/full": "rev2"}])
+def test_engine_refuses_unpinned_support_repo(monkeypatch, tmp_path, refs):  # review fix 5
+    install_fakes(monkeypatch, cache=tmp_path)
+    pin_refs(tmp_path, refs)
+    with pytest.raises(VoiceUnavailable, match="org/codec") as excinfo:
+        OrpheusVoice(SUPPORT)
+    assert DOWNLOAD_HINT in str(excinfo.value)
+
+
+def test_engine_refuses_missing_support_snapshot(monkeypatch, tmp_path):  # review fix 5
+    def snapshot(**kwargs):
+        if kwargs["repo_id"] == "org/full":
+            raise FileNotFoundError("not cached")
+        return "/models/x"
+
+    install_fakes(monkeypatch, snapshot=snapshot, cache=tmp_path)
+    pin_refs(tmp_path, {"org/codec": "rev1", "org/full": "rev2"})
+    with pytest.raises(VoiceUnavailable, match="org/full") as excinfo:
+        OrpheusVoice(SUPPORT)
+    assert DOWNLOAD_HINT in str(excinfo.value)

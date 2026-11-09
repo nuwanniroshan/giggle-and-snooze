@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -82,16 +83,63 @@ def pitch_shift(audio: np.ndarray, sample_rate: int, semitones: float) -> np.nda
     return np.frombuffer(result.stdout, dtype="<f4").astype(np.float32)
 
 
+def _support_kwargs(repo: str, revision: str, patterns: tuple[str, ...] | None) -> dict:
+    kwargs: dict = {"repo_id": repo, "revision": revision}
+    if patterns is not None:
+        kwargs["allow_patterns"] = list(patterns)
+    return kwargs
+
+
+def _main_ref(repo: str) -> Path:
+    """The HF cache's refs/main file, which mlx-audio resolves when it loads a repo by name."""
+    from huggingface_hub import constants
+
+    try:
+        from huggingface_hub.file_download import repo_folder_name
+
+        folder = repo_folder_name(repo_id=repo, repo_type="model")
+    except ImportError:
+        folder = "models--" + repo.replace("/", "--")
+    return Path(constants.HF_HUB_CACHE) / folder / "refs" / "main"
+
+
+def _pin_main_ref(repo: str, revision: str) -> None:
+    ref = _main_ref(repo)
+    ref.parent.mkdir(parents=True, exist_ok=True)
+    tmp = ref.with_name(ref.name + ".tmp")
+    tmp.write_text(revision, encoding="utf-8")
+    os.replace(tmp, ref)  # noqa: PTH105
+
+
 def download_model(settings: ModelSettings) -> None:
-    """The only network use (spec 002 Cost): fetch the pinned model and its support files."""
+    """The only network use (spec 002 Cost): fetch the pinned model and its support files.
+
+    mlx-audio loads the support repos by name (refs/main), so refs/main is pointed at the pin.
+    """
     from huggingface_hub import snapshot_download
 
     snapshot_download(repo_id=settings.repo, revision=settings.revision)
     for repo, revision, patterns in settings.support_repos:
-        if patterns is None:
-            snapshot_download(repo_id=repo, revision=revision)
-        else:
-            snapshot_download(repo_id=repo, revision=revision, allow_patterns=list(patterns))
+        snapshot_download(**_support_kwargs(repo, revision, patterns))
+        _pin_main_ref(repo, revision)
+
+
+def _check_support_repos(settings: ModelSettings, snapshot_download) -> None:
+    for repo, revision, patterns in settings.support_repos:
+        ref = _main_ref(repo)
+        current = ref.read_text(encoding="utf-8").strip() if ref.exists() else None
+        if current != revision:
+            raise VoiceUnavailable(
+                f"voice support files {repo} are not pinned to {revision[:8]} "
+                f"(cache refs/main is {current[:8] if current else 'missing'}); {DOWNLOAD_HINT}"
+            )
+        try:
+            snapshot_download(**_support_kwargs(repo, revision, patterns), local_files_only=True)
+        except Exception as exc:  # noqa: BLE001 - any lookup failure means "not downloaded"
+            raise VoiceUnavailable(
+                f"voice support files {repo}@{revision[:8]} are not downloaded "
+                f"({type(exc).__name__}); {DOWNLOAD_HINT}"
+            ) from None
 
 
 class OrpheusVoice:
@@ -105,6 +153,14 @@ class OrpheusVoice:
             raise VoiceUnavailable(
                 f"voice engine not installed ({exc.name}); run: uv sync --inexact"
             ) from None
+        try:  # huggingface_hub may have read HF_HUB_OFFLINE at import, before it was set above
+            from huggingface_hub import constants
+
+            if hasattr(constants, "HF_HUB_OFFLINE"):
+                constants.HF_HUB_OFFLINE = True
+        except ImportError:
+            pass
+        _check_support_repos(settings, snapshot_download)
         try:
             path = snapshot_download(
                 repo_id=settings.repo, revision=settings.revision, local_files_only=True

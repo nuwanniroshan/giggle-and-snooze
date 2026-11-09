@@ -264,3 +264,149 @@ def test_stitched_audio_matches_clips(script, tmp_path):
     clip, _ = sf.read(paths.clip(jobs[0].key), dtype="float32")
     start = int(round(first["start"] * sr))
     assert np.allclose(track[start : start + len(clip)], clip, atol=1e-4)
+
+
+# --- Review fixes -------------------------------------------------------------------------
+
+
+class Quieter(FakeEngine):
+    """Same timing as FakeEngine, different audio content."""
+
+    def synthesize(self, text, voice, seed):
+        return super().synthesize(text, voice, seed) * 0.5
+
+
+def test_force_with_new_audio_rebuilds_every_track(script, tmp_path):  # review fix 1
+    jobs, paths, _, names, _, _ = run(script, tmp_path)
+    *_, rebuilt, _ = run(script, tmp_path, engine=Quieter(), force=True)
+    assert rebuilt == names
+    timing = load_json(paths.track_timing("intro"))
+    track, sr = sf.read(paths.track("intro"), dtype="float32")
+    clip, _ = sf.read(paths.clip(jobs[0].key), dtype="float32")
+    start = int(round(timing["lines"][0]["start"] * sr))
+    assert np.allclose(track[start : start + len(clip)], clip, atol=1e-4)
+    assert np.abs(clip).max() < 0.2  # the new, quieter clip
+
+
+def test_deleted_clip_resynthesized_rebuilds_its_track(script, tmp_path):  # review fix 1
+    jobs, paths, *_ = run(script, tmp_path)
+    paths.clip(jobs[0].key).unlink()
+    *_, rebuilt, _ = run(script, tmp_path, engine=Quieter())
+    assert rebuilt == ["intro"]
+
+
+def test_case_only_edit_mapped_by_pronunciation_updates_timing(script, tmp_path):  # fix 3
+    prons = {"Tilly": "Til-ee"}
+    run(script, tmp_path, prons=prons)
+    page = next(p for p in script["pages"] if any("Tilly" in x["text"] for x in p["lines"]))
+    index = next(i for i, x in enumerate(page["lines"]) if "Tilly" in x["text"])
+    page["lines"][index]["text"] = page["lines"][index]["text"].replace("Tilly", "TILLY")
+    engine = FakeEngine()
+    *_, rebuilt, _ = run(script, tmp_path, engine=engine, prons=prons)
+    assert engine.calls == []  # same spoken text: clip reused
+    name = f"page-{page['page_number']:02d}"
+    assert rebuilt == [name]
+    timing = load_json(AudioPaths(tmp_path / "audio").track_timing(name))
+    assert "TILLY" in timing["lines"][index]["text"]
+
+
+def test_role_change_with_same_pause_updates_timing(script, tmp_path):  # review fix 3
+    run(script, tmp_path)
+    page = next(p for p in script["pages"] if any(x["role"] == "reaction" for x in p["lines"]))
+    index = next(i for i, x in enumerate(page["lines"]) if x["role"] == "reaction")
+    page["lines"][index]["role"] = "question"
+    *_, rebuilt, _ = run(script, tmp_path)
+    name = f"page-{page['page_number']:02d}"
+    assert rebuilt == [name]
+    timing = load_json(AudioPaths(tmp_path / "audio").track_timing(name))
+    assert timing["lines"][index]["role"] == "question"
+
+
+def test_preview_rebuilt_after_interrupted_run(script, tmp_path):  # review fix 2
+    _, paths, _, names, _, _ = run(script, tmp_path)
+    assert build_preview(names, paths, CFG) is True
+    assert build_preview(names, paths, CFG) is False
+    old = paths.preview.read_bytes()
+    run(script, tmp_path, engine=Quieter(), force=True)  # tracks rebuilt, preview not
+    _, _, _, names, rebuilt, _ = run(script, tmp_path)
+    assert rebuilt == []
+    assert build_preview(names, paths, CFG) is True
+    assert paths.preview.read_bytes() != old
+
+
+def test_preview_without_sidecar_is_rebuilt(script, tmp_path):  # review fix 2
+    _, paths, _, names, _, _ = run(script, tmp_path)
+    build_preview(names, paths, CFG)
+    (paths.root / "preview.json").unlink()
+    assert build_preview(names, paths, CFG) is True
+    assert (paths.root / "preview.json").exists()
+
+
+def test_between_tracks_change_rebuilds_only_the_preview(script, tmp_path):  # review fix 2
+    _, paths, _, names, _, _ = run(script, tmp_path)
+    build_preview(names, paths, CFG)
+    cfg = dataclasses.replace(CFG, pauses={**CFG.pauses, "between_tracks": 2.0})
+    *_, rebuilt, _ = run(script, tmp_path, cfg=cfg)
+    assert rebuilt == []
+    assert build_preview(names, paths, cfg) is True
+    total = sum(load_json(paths.track_timing(n))["duration"] for n in names)
+    audio, sr = sf.read(paths.preview)
+    assert len(audio) / sr == pytest.approx(total + 2.0 * (len(names) - 1), abs=0.05)
+
+
+def test_engine_error_names_the_line(script, tmp_path):  # review fix 6
+    target = script["pages"][0]["lines"][0]["text"]
+
+    class Broken(FakeEngine):
+        def synthesize(self, text, voice, seed):
+            if text == target:
+                raise RuntimeError("metal out of memory")
+            return super().synthesize(text, voice, seed)
+
+    with pytest.raises(sv.LineError, match=r"page 1 line 1 \(storyteller\): RuntimeError: metal"):
+        run(script, tmp_path, engine=Broken())
+
+
+def test_pitch_shift_error_names_the_line(script, tmp_path):  # review fix 6
+    def failing(audio, sample_rate, semitones):
+        if semitones == 3.0:
+            raise sv.PitchShiftError("ffmpeg pitch shift failed: bad")
+        return audio
+
+    jobs = plan_jobs(script, CFG, {})
+    with pytest.raises(sv.LineError, match=r"\(kid_younger\): PitchShiftError: ffmpeg"):
+        synthesize_clips(jobs, AudioPaths(tmp_path / "a"), FakeEngine, CFG, shift=failing)
+
+
+def test_lines_sharing_a_failing_clip_are_all_named(script, tmp_path):  # review fix 7
+    text = "The very same words."
+    script["intro"]["lines"][0]["text"] = text
+    script["outro"]["lines"][0]["text"] = text
+    script["outro"]["lines"][0]["speaker"] = script["intro"]["lines"][0]["speaker"]
+    with pytest.raises(LineFailed) as excinfo:
+        run(script, tmp_path, engine=FakeEngine(bad={text: 99}))
+    assert {job.line_id for job, _ in excinfo.value.failures} == {"intro-01", "outro-01"}
+
+
+def test_reused_clip_failing_current_checks_is_resynthesized(script, tmp_path):  # fix 8
+    jobs, paths, *_ = run(script, tmp_path)
+    meta = load_json(paths.clip_meta(jobs[0].key))
+    meta["measure"]["peak"] = 1.0  # out of range for today's checks
+    paths.clip_meta(jobs[0].key).write_text(sv.json.dumps(meta), encoding="utf-8")
+    engine = FakeEngine()
+    run(script, tmp_path, engine=engine)
+    assert [text for text, *_ in engine.calls] == [jobs[0].spoken]
+    assert load_json(paths.clip_meta(jobs[0].key))["measure"]["peak"] < 1.0
+
+
+def test_plan_jobs_rejects_two_roles_sharing_a_voice(script):  # AC-2.4
+    script["cast"]["kid_younger"]["voice"] = "zac"
+    with pytest.raises(ConfigError, match="kid_older.*kid_younger.*zac"):
+        plan_jobs(script, CFG, {})
+
+
+def test_seed_is_not_part_of_clip_identity(script):  # ruling: seed change keeps clips
+    other = dataclasses.replace(CFG, seed=99)
+    assert [j.key for j in plan_jobs(script, CFG, {})] == [
+        j.key for j in plan_jobs(script, other, {})
+    ]
