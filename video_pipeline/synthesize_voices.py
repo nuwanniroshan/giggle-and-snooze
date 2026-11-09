@@ -1,0 +1,770 @@
+"""Stage 2: speak a reviewed episode script (spec 002).
+
+Run: uv run python -m video_pipeline.synthesize_voices --reviewed      # synthesize
+     uv run python -m video_pipeline.synthesize_voices approve         # after listening
+     uv run python -m video_pipeline.synthesize_voices download        # one-time model fetch
+"""
+
+from __future__ import annotations
+
+import argparse
+import errno
+import hashlib
+import json
+import os
+import re
+import shutil
+import sys
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+
+import numpy as np
+import soundfile as sf
+
+from video_pipeline.audio_checks import (
+    CheckSettings,
+    ClipMeasure,
+    clip_problems,
+    measure_clip,
+    pause_between,
+    stitch,
+    trim_silence,
+)
+from video_pipeline.contract import (
+    ALLOWED_TAGS,
+    SPEAKERS,
+    TAG_RE,
+    ConfigError,
+    load_disallowed_terms,
+    slugify,
+    validate_script,
+    word_count,
+)
+from video_pipeline.episode import BookError, load_book
+from video_pipeline.episode_tools import CONFIG_DIR, ROOT, write_atomic
+from video_pipeline.tts import (
+    ModelSettings,
+    OrpheusVoice,
+    PitchShiftError,
+    VoiceUnavailable,
+    download_model,
+    pitch_shift,
+)
+
+VOICE_CONFIG_KEYS = (
+    "model",
+    "supported_voices",
+    "pitch_semitones",
+    "pauses",
+    "checks",
+    "sample_rate",
+)
+
+
+@dataclass(frozen=True)
+class VoiceConfig:
+    model: ModelSettings
+    seed: int
+    supported_voices: tuple[str, ...]
+    pitch_semitones: dict[str, float]
+    pauses: dict[str, float]
+    checks: CheckSettings
+    max_attempts: int
+    sample_rate: int
+    raw: dict = field(compare=False, repr=False)
+
+
+def load_voice_config(path: Path) -> VoiceConfig:
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ConfigError(f"voice configuration not found: {path}") from None
+    except json.JSONDecodeError as exc:
+        raise ConfigError(f"voice configuration is not valid JSON: {path} ({exc})") from None
+    missing = [key for key in VOICE_CONFIG_KEYS if key not in data]
+    if missing:
+        raise ConfigError(f"{path}: missing {', '.join(missing)}")
+    model = data["model"]
+    checks = dict(data["checks"])
+    max_attempts = int(checks.pop("max_attempts", 3))
+    return VoiceConfig(
+        model=ModelSettings(
+            repo=model["repo"],
+            revision=model["revision"],
+            temperature=float(model["temperature"]),
+            top_p=float(model["top_p"]),
+            max_tokens=int(model["max_tokens"]),
+            support_repos=tuple(
+                (
+                    item["repo"],
+                    item["revision"],
+                    tuple(item["files"]) if item.get("files") is not None else None,
+                )
+                for item in model.get("support_repos", [])
+            ),
+        ),
+        seed=int(model["seed"]),
+        supported_voices=tuple(data["supported_voices"]),
+        pitch_semitones={k: float(v) for k, v in data["pitch_semitones"].items()},
+        pauses={k: float(v) for k, v in data["pauses"].items()},
+        checks=CheckSettings(**{k: float(v) for k, v in checks.items()}),
+        max_attempts=max_attempts,
+        sample_rate=int(data["sample_rate"]),
+        raw=data,
+    )
+
+
+def load_pronunciations(book: dict, book_path: Path) -> dict[str, str]:
+    prons = book.get("metadata", {}).get("pronunciations", {})
+    if not isinstance(prons, dict):
+        raise ConfigError(
+            f"{book_path}: metadata.pronunciations must map each word to a spoken respelling"
+        )
+    for word, spoken in prons.items():
+        if not word.strip() or not isinstance(spoken, str) or not spoken.strip():
+            raise ConfigError(
+                f"{book_path}: metadata.pronunciations entry {word!r} must map a word to a "
+                "non-empty spoken respelling"
+            )
+    return prons
+
+
+def spoken_text(text: str, prons: dict[str, str]) -> str:
+    """What the voice model hears: allowed tags kept, other markup dropped, respellings applied."""
+    cleaned = TAG_RE.sub(lambda m: m.group(0) if m.group(0)[1:-1] in ALLOWED_TAGS else " ", text)
+    for word, spoken in prons.items():
+        cleaned = re.sub(rf"(?<!\w){re.escape(word)}(?!\w)", spoken, cleaned, flags=re.IGNORECASE)
+    return " ".join(cleaned.split())
+
+
+def clip_key(spoken: str, voice: str, semitones: float, cfg: VoiceConfig) -> str:
+    # model.seed is deliberately left out: a seed change must not discard passing clips.
+    identity = {
+        "text": spoken,
+        "voice": voice,
+        "semitones": semitones,
+        "repo": cfg.model.repo,
+        "revision": cfg.model.revision,
+        "temperature": cfg.model.temperature,
+        "top_p": cfg.model.top_p,
+        "max_tokens": cfg.model.max_tokens,
+        "sample_rate": cfg.sample_rate,
+    }
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:32]
+
+
+@dataclass(frozen=True)
+class LineJob:
+    line_id: str
+    track: str
+    speaker: str
+    role: str | None
+    text: str
+    spoken: str
+    words: int
+    voice: str
+    semitones: float
+    key: str
+
+
+def plan_jobs(script: dict, cfg: VoiceConfig, prons: dict[str, str]) -> list[LineJob]:
+    cast = script["cast"]
+    for role in SPEAKERS:
+        voice = cast.get(role, {}).get("voice")
+        if voice not in cfg.supported_voices:
+            raise ConfigError(
+                f"cast role {role!r}: voice {voice!r} is not supported by the voice model "
+                f"(supported: {', '.join(cfg.supported_voices)})"
+            )
+    seen: dict[str, str] = {}
+    for role in SPEAKERS:
+        voice = cast[role]["voice"]
+        if voice in seen:
+            raise ConfigError(
+                f"cast roles {seen[voice]!r} and {role!r} share the voice {voice!r}; "
+                "each role needs its own voice (AC-2.4)"
+            )
+        seen[voice] = role
+    jobs: list[LineJob] = []
+
+    def add(line_id: str, track: str, line: dict) -> None:
+        speaker = line["speaker"]
+        voice = cast[speaker]["voice"]
+        semitones = cfg.pitch_semitones.get(speaker, 0.0)
+        spoken = spoken_text(line["text"], prons)
+        jobs.append(
+            LineJob(
+                line_id,
+                track,
+                speaker,
+                line.get("role"),
+                line["text"],
+                spoken,
+                word_count(line["text"]),
+                voice,
+                semitones,
+                clip_key(spoken, voice, semitones, cfg),
+            )
+        )
+
+    for index, line in enumerate(script["intro"]["lines"], start=1):
+        add(f"intro-{index:02d}", "intro", line)
+    for page in script["pages"]:
+        number = page["page_number"]
+        for index, line in enumerate(page["lines"], start=1):
+            add(f"page-{number:02d}-{index:02d}", f"page-{number:02d}", line)
+    for index, line in enumerate(script["outro"]["lines"], start=1):
+        add(f"outro-{index:02d}", "outro", line)
+    return jobs
+
+
+@dataclass(frozen=True)
+class AudioPaths:
+    root: Path
+
+    @property
+    def clips(self) -> Path:
+        return self.root / "clips"
+
+    @property
+    def tracks(self) -> Path:
+        return self.root / "tracks"
+
+    @property
+    def preview(self) -> Path:
+        return self.root / "preview.wav"
+
+    @property
+    def preview_meta(self) -> Path:
+        return self.root / "preview.json"
+
+    @property
+    def review(self) -> Path:
+        return self.root / "review.md"
+
+    @property
+    def status(self) -> Path:
+        return self.root / "status.json"
+
+    def clip(self, key: str) -> Path:
+        return self.clips / f"{key}.wav"
+
+    def clip_meta(self, key: str) -> Path:
+        return self.clips / f"{key}.json"
+
+    def track(self, name: str) -> Path:
+        return self.tracks / f"{name}.wav"
+
+    def track_timing(self, name: str) -> Path:
+        return self.tracks / f"{name}.json"
+
+
+LOW_DISK_BYTES = 50 * 1024 * 1024
+
+
+def write_wav_atomic(path: Path, audio: np.ndarray, sample_rate: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.stem + ".tmp.wav")
+    try:
+        try:
+            sf.write(tmp, audio, sample_rate, subtype="PCM_16")
+        except sf.LibsndfileError as exc:
+            # libsndfile reports a full disk as a RuntimeError, not OSError(ENOSPC).
+            if "space" in str(exc).lower() or shutil.disk_usage(path.parent).free < LOW_DISK_BYTES:
+                raise OSError(errno.ENOSPC, f"No space left on device: {path}") from exc
+            raise
+        os.replace(tmp, path)  # noqa: PTH105 - tests patch synthesize_voices.os.replace
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+@dataclass
+class ClipOutcome:
+    job: LineJob
+    measure: ClipMeasure | None
+    attempts: int
+    synthesized: bool
+    problems: list[str]
+
+
+class LineError(Exception):
+    """The voice engine or the pitch lift failed on one line."""
+
+
+def describe(job: LineJob) -> str:
+    """Human name of a line (AC-3.4): 'page 3 line 2 (kid_older)'."""
+    parts = job.line_id.split("-")
+    if parts[0] == "page":
+        return f"page {int(parts[1])} line {int(parts[2])} ({job.speaker})"
+    return f"{parts[0]} line {int(parts[1])} ({job.speaker})"
+
+
+class LineFailed(Exception):
+    def __init__(self, failures: list[tuple[LineJob, list[str]]]) -> None:
+        super().__init__(f"{len(failures)} line(s) failed the quality checks")
+        self.failures = failures
+
+
+Shift = Callable[[np.ndarray, int, float], np.ndarray]
+
+
+def make_clip(
+    job: LineJob, engine, cfg: VoiceConfig, shift: Shift
+) -> tuple[np.ndarray | None, ClipMeasure, int, list[str]]:
+    """Synthesize, lift, trim and check; up to cfg.max_attempts with a new seed each (AC-3.3)."""
+    measure: ClipMeasure | None = None
+    problems: list[str] = []
+    for attempt in range(1, cfg.max_attempts + 1):
+        raw = shift(
+            engine.synthesize(job.spoken, job.voice, cfg.seed + attempt - 1),
+            cfg.sample_rate,
+            job.semitones,
+        )
+        trimmed = trim_silence(raw, cfg.sample_rate, cfg.checks.silence_db, cfg.checks.edge_silence)
+        measure = measure_clip(raw, trimmed, cfg.sample_rate, job.words, cfg.checks)
+        problems = clip_problems(measure, cfg.checks)
+        if not problems:
+            return trimmed, measure, attempt, []
+    return None, measure, cfg.max_attempts, problems
+
+
+def synthesize_clips(
+    jobs: list[LineJob],
+    paths: AudioPaths,
+    engine_factory: Callable[[], object],
+    cfg: VoiceConfig,
+    force: bool = False,
+    shift: Shift | None = None,
+    on_progress: Callable[[ClipOutcome], None] | None = None,
+) -> list[ClipOutcome]:
+    shift = shift or pitch_shift
+    engine = None
+    done: dict[str, ClipOutcome] = {}
+    outcomes: list[ClipOutcome] = []
+    failures: list[tuple[LineJob, list[str]]] = []
+    for job in jobs:
+        if job.key in done:
+            first = done[job.key]
+            outcomes.append(ClipOutcome(job, first.measure, first.attempts, False, first.problems))
+            if first.problems:
+                failures.append((job, first.problems))
+            continue
+        meta_path = paths.clip_meta(job.key)
+        outcome = None
+        if not force and paths.clip(job.key).exists() and meta_path.exists():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            stored = ClipMeasure(**meta["measure"])
+            # Re-check against today's thresholds; a clip that no longer passes is redone.
+            if not clip_problems(stored, cfg.checks):
+                outcome = ClipOutcome(job, stored, meta["attempts"], False, [])
+        if outcome is None:
+            if engine is None:
+                engine = engine_factory()
+                if engine.sample_rate != cfg.sample_rate:
+                    raise ConfigError(
+                        f"voice model sample rate {engine.sample_rate} does not match the "
+                        f"configured sample rate {cfg.sample_rate}"
+                    )
+            try:
+                audio, measure, attempts, problems = make_clip(job, engine, cfg, shift)
+            except (LineFailed, ConfigError):
+                raise
+            except Exception as exc:  # noqa: BLE001 - name the line for any engine/pitch error
+                raise LineError(f"{describe(job)}: {type(exc).__name__}: {exc}") from exc
+            if audio is None:
+                failures.append((job, problems))
+            else:
+                write_wav_atomic(paths.clip(job.key), audio, cfg.sample_rate)
+                write_atomic(
+                    meta_path,
+                    {
+                        "line_id": job.line_id,
+                        "speaker": job.speaker,
+                        "voice": job.voice,
+                        "semitones": job.semitones,
+                        "spoken": job.spoken,
+                        "measure": measure.to_dict(),
+                        "attempts": attempts,
+                    },
+                )
+            outcome = ClipOutcome(job, measure, attempts, True, problems)
+        done[job.key] = outcome
+        outcomes.append(outcome)
+        if on_progress:
+            on_progress(outcome)
+    if failures:
+        raise LineFailed(failures)
+    return outcomes
+
+
+def _track_groups(outcomes: list[ClipOutcome]) -> dict[str, list[ClipOutcome]]:
+    groups: dict[str, list[ClipOutcome]] = {}
+    for outcome in outcomes:
+        groups.setdefault(outcome.job.track, []).append(outcome)
+    return groups
+
+
+def build_tracks(
+    outcomes: list[ClipOutcome], paths: AudioPaths, cfg: VoiceConfig
+) -> tuple[list[str], list[str]]:
+    """Stitch each track; rebuild only tracks whose clips or pauses changed (AC-6.2)."""
+    groups = _track_groups(outcomes)
+    rebuilt: list[str] = []
+    for name, items in groups.items():
+        gaps = [
+            pause_between(a.job.speaker, a.job.role, b.job.speaker, b.job.role, cfg.pauses)
+            for a, b in zip(items, items[1:], strict=False)
+        ]
+        # Audio content, timing and the text/role written to the timing JSON all feed the key,
+        # so a re-synthesized clip or a markup/role-only edit rebuilds the track.
+        payload = {
+            "lines": [
+                {
+                    "key": o.job.key,
+                    "audio_sha256": sha256_file(paths.clip(o.job.key)),
+                    "line_id": o.job.line_id,
+                    "speaker": o.job.speaker,
+                    "role": o.job.role,
+                    "text": o.job.text,
+                    "measure": o.measure.to_dict(),
+                    "attempts": o.attempts,
+                }
+                for o in items
+            ],
+            "gaps": gaps,
+            "sample_rate": cfg.sample_rate,
+        }
+        track_key = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:32]
+        timing_path = paths.track_timing(name)
+        if (
+            paths.track(name).exists()
+            and timing_path.exists()
+            and json.loads(timing_path.read_text(encoding="utf-8")).get("track_key") == track_key
+        ):
+            continue
+        clips = [sf.read(paths.clip(o.job.key), dtype="float32")[0] for o in items]
+        audio, spans = stitch(clips, gaps, cfg.sample_rate)
+        write_wav_atomic(paths.track(name), audio, cfg.sample_rate)
+        write_atomic(
+            timing_path,
+            {
+                "track": name,
+                "track_key": track_key,
+                "duration": round(len(audio) / cfg.sample_rate, 3),
+                "lines": [
+                    {
+                        "line_id": o.job.line_id,
+                        "speaker": o.job.speaker,
+                        "role": o.job.role,
+                        "text": o.job.text,
+                        "start": start,
+                        "end": end,
+                        "clip": f"clips/{o.job.key}.wav",
+                        "quality": o.measure.to_dict(),
+                        "attempts": o.attempts,
+                    }
+                    for o, (start, end) in zip(items, spans, strict=True)
+                ],
+            },
+        )
+        rebuilt.append(name)
+    return list(groups), rebuilt
+
+
+def build_preview(track_names: list[str], paths: AudioPaths, cfg: VoiceConfig) -> bool:
+    """Join the tracks; rebuild only when a track key, the order or the gap changed."""
+    keyed = [
+        [name, json.loads(paths.track_timing(name).read_text(encoding="utf-8"))["track_key"]]
+        for name in track_names
+    ]
+    payload = [keyed, cfg.pauses["between_tracks"], cfg.sample_rate]
+    preview_key = hashlib.sha256(json.dumps(payload).encode()).hexdigest()[:32]
+    if (
+        paths.preview.exists()
+        and paths.preview_meta.exists()
+        and json.loads(paths.preview_meta.read_text(encoding="utf-8")).get("preview_key")
+        == preview_key
+    ):
+        return False
+    tracks = [sf.read(paths.track(name), dtype="float32")[0] for name in track_names]
+    gaps = [cfg.pauses["between_tracks"]] * max(0, len(tracks) - 1)
+    audio, _ = stitch(tracks, gaps, cfg.sample_rate)
+    write_wav_atomic(paths.preview, audio, cfg.sample_rate)
+    write_atomic(paths.preview_meta, {"preview_key": preview_key, "tracks": keyed})  # after wav
+    return True
+
+
+def current_preview_key(paths: AudioPaths) -> str | None:
+    """The key of the preview on disk, or None when there is no preview."""
+    if not (paths.preview.exists() and paths.preview_meta.exists()):
+        return None
+    return json.loads(paths.preview_meta.read_text(encoding="utf-8")).get("preview_key")
+
+
+REVIEW_NOTICE = (
+    "Listening review required: play {preview} (each track is in {tracks}). Listen for "
+    "robotic or garbled speech, mispronounced names and emotion tags read aloud, then approve "
+    "with: uv run python -m video_pipeline.synthesize_voices approve --book {book}"
+)
+
+
+class ApproveError(Exception):
+    """The audio cannot be approved yet."""
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def settings_hash(cfg: VoiceConfig, script: dict, prons: dict[str, str]) -> str:
+    payload = {"voices": cfg.raw, "cast": script["cast"], "pronunciations": prons}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def _cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def write_review(
+    paths: AudioPaths,
+    outcomes: list[ClipOutcome],
+    track_names: list[str],
+    title: str,
+    status: str,
+) -> None:
+    groups = _track_groups(outcomes)
+    lines = [
+        f"# Listening review: {title}",
+        "",
+        f"Status: **{status}**. Full episode: `preview.wav`. Tracks: `tracks/`.",
+        "",
+    ]
+    for name in track_names:
+        duration = json.loads(paths.track_timing(name).read_text(encoding="utf-8"))["duration"]
+        lines += [
+            f"## {name} ({duration:.1f} s)",
+            "",
+            "| Line | Speaker | Duration (s) | Peak | Longest silence (s) | Words/s | Attempts | Text |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+        for o in groups[name]:
+            m = o.measure
+            lines.append(
+                f"| {o.job.line_id} | {o.job.speaker} | {m.duration:.2f} | {m.peak:.2f} | "
+                f"{m.longest_silence:.2f} | {m.wps:.2f} | {o.attempts} | {_cell(o.job.text)} |"
+            )
+        lines.append("")
+    paths.review.parent.mkdir(parents=True, exist_ok=True)
+    tmp = paths.review.with_name(paths.review.name + ".tmp")
+    tmp.write_text("\n".join(lines), encoding="utf-8")
+    os.replace(tmp, paths.review)  # noqa: PTH105
+
+
+def next_status(
+    paths: AudioPaths,
+    script_sha: str,
+    settings_sha: str,
+    preview_key: str | None,
+    any_synthesized: bool,
+) -> dict:
+    """The status this run will commit; keeps an approval only if nothing changed.
+
+    The approval belongs to the preview that was listened to: clips re-synthesized by an
+    earlier interrupted run change the preview key even when this run synthesizes nothing.
+    """
+    previous = (
+        json.loads(paths.status.read_text(encoding="utf-8")) if paths.status.exists() else None
+    )
+    keep = (
+        previous is not None
+        and previous.get("status") == "approved"
+        and not any_synthesized
+        and preview_key is not None
+        and previous.get("preview_key") == preview_key
+        and previous.get("script_sha256") == script_sha
+        and previous.get("settings_sha256") == settings_sha
+    )
+    status = (
+        previous
+        if keep
+        else {
+            "status": "pending review",
+            "script_sha256": script_sha,
+            "settings_sha256": settings_sha,
+            "preview_key": preview_key,
+            "synthesized_at": _now(),
+            "approved_at": None,
+        }
+    )
+    return status
+
+
+def approve(paths: AudioPaths, script_path: Path, settings_sha: str | None) -> dict:
+    if not paths.status.exists():
+        raise ApproveError(f"no synthesized audio in {paths.root}; run synthesis first")
+    status = json.loads(paths.status.read_text(encoding="utf-8"))
+    if not script_path.exists():
+        raise ApproveError(f"episode script not found: {script_path}")
+    if sha256_file(script_path) != status["script_sha256"]:
+        raise ApproveError(
+            f"{script_path} changed since the audio was synthesized; re-run synthesis first"
+        )
+    if settings_sha != status["settings_sha256"]:
+        raise ApproveError(
+            "voice settings changed since the audio was synthesized; re-run synthesis first"
+        )
+    if current_preview_key(paths) != status.get("preview_key"):
+        raise ApproveError("the preview changed since synthesis finished; re-run synthesis first")
+    status.update(status="approved", approved_at=_now())
+    write_atomic(paths.status, status)
+    return status
+
+
+def create_engine(cfg: VoiceConfig):
+    return OrpheusVoice(cfg.model)
+
+
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="python -m video_pipeline.synthesize_voices",
+        description="Speak a reviewed episode script with the local voice model (spec 002).",
+        allow_abbrev=False,
+    )
+    parser.add_argument(
+        "command", nargs="?", default="synthesize", choices=("synthesize", "approve", "download")
+    )
+    parser.add_argument("--book", type=Path, default=ROOT / "book_data.json")
+    parser.add_argument("--episodes-dir", type=Path, default=ROOT / "episodes")
+    parser.add_argument("--build-dir", type=Path, default=ROOT / "build")
+    parser.add_argument("--config-dir", type=Path, default=CONFIG_DIR)
+    parser.add_argument(
+        "--reviewed",
+        action="store_true",
+        help="confirm a person has reviewed the episode script (spec 001 AC-7.4)",
+    )
+    parser.add_argument("--force", action="store_true", help="re-synthesize every line")
+    return parser.parse_args(argv)
+
+
+def _synthesize(
+    args: argparse.Namespace,
+    cfg: VoiceConfig,
+    book: dict,
+    slug: str,
+    script_path: Path,
+    paths: AudioPaths,
+) -> int:
+    if not script_path.exists():
+        print(f"error: episode script not found: {script_path}", file=sys.stderr)
+        return 1
+    script = json.loads(script_path.read_text(encoding="utf-8"))
+    terms = load_disallowed_terms(args.config_dir / "disallowed_terms.txt")
+    errors = validate_script(script, book, terms)
+    if errors:
+        print(f"error: {script_path} fails validation:", file=sys.stderr)
+        for problem in errors:
+            print(f"  - {problem}", file=sys.stderr)
+        return 1
+    if not args.reviewed:
+        print(
+            "error: the episode script must be reviewed by a person before voice synthesis "
+            f"(spec 001 AC-7.4). After reviewing {script_path}, re-run with --reviewed.",
+            file=sys.stderr,
+        )
+        return 1
+    prons = load_pronunciations(book, args.book)
+    jobs = plan_jobs(script, cfg, prons)
+    print(f"synthesizing {len(jobs)} lines into {paths.root}")
+    outcomes = synthesize_clips(
+        jobs,
+        paths,
+        lambda: create_engine(cfg),
+        cfg,
+        force=args.force,
+        shift=lambda audio, sr, semitones: pitch_shift(audio, sr, semitones),
+        on_progress=lambda o: (
+            o.synthesized
+            and print(f"  {o.job.line_id}: {o.measure.duration:.1f} s, attempt {o.attempts}")
+        ),
+    )
+    names, rebuilt = build_tracks(outcomes, paths, cfg)
+    build_preview(names, paths, cfg)
+    any_synthesized = any(o.synthesized for o in outcomes)
+    script_sha, settings_sha = sha256_file(script_path), settings_hash(cfg, script, prons)
+    status = next_status(
+        paths, script_sha, settings_sha, current_preview_key(paths), any_synthesized
+    )
+    write_review(paths, outcomes, names, script["title"], status["status"])
+    write_atomic(paths.status, status)  # status.json is the commit point: written last
+    synthesized = sum(o.synthesized for o in outcomes)
+    print(
+        f"synthesized {synthesized}, reused {len(outcomes) - synthesized} clips; "
+        f"rebuilt {len(rebuilt)} of {len(names)} tracks; status: {status['status']}"
+    )
+    if status["status"] != "approved":
+        print(REVIEW_NOTICE.format(preview=paths.preview, tracks=paths.tracks, book=args.book))
+    return 0
+
+
+def _current_settings_sha(
+    cfg: VoiceConfig, book: dict, book_path: Path, script_path: Path
+) -> str | None:
+    try:
+        script = json.loads(script_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None  # approve then reports the changed or missing script
+    if not isinstance(script, dict) or not isinstance(script.get("cast"), dict):
+        return None
+    return settings_hash(cfg, script, load_pronunciations(book, book_path))
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    paths: AudioPaths | None = None
+    try:
+        cfg = load_voice_config(args.config_dir / "voices.json")
+        if args.command == "download":
+            download_model(cfg.model)
+            create_engine(cfg)
+            print(f"voice model ready: {cfg.model.repo}@{cfg.model.revision[:8]}")
+            return 0
+        book = load_book(args.book)
+        slug = slugify(book["metadata"]["title"])
+        script_path = args.episodes_dir / slug / "episode_script.json"
+        paths = AudioPaths(args.build_dir / slug / "audio")
+        if args.command == "approve":
+            approve(paths, script_path, _current_settings_sha(cfg, book, args.book, script_path))
+            print(f"approved the audio in {paths.root}")
+            return 0
+        return _synthesize(args, cfg, book, slug, script_path, paths)
+    except (
+        BookError,
+        ConfigError,
+        VoiceUnavailable,
+        PitchShiftError,
+        ApproveError,
+        LineError,
+    ) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except LineFailed as exc:
+        print(f"error: {exc}; nothing stitched:", file=sys.stderr)
+        for job, problems in exc.failures:
+            print(f"  - {describe(job)}: {'; '.join(problems)}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        if exc.errno == errno.ENOSPC:
+            where = paths.root if paths else args.build_dir
+            print(f"error: not enough disk space to write audio in {where}", file=sys.stderr)
+            return 1
+        raise
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

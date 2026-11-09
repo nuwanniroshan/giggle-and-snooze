@@ -8,13 +8,13 @@
   "kid_older": {
     "name": "Leo (Age 8)",
     "engine": "orpheus",
-    "voice": "leo",
+    "voice": "zac",
     "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
   },
   "kid_younger": {
     "name": "Mia (Age 5)",
     "engine": "orpheus",
-    "voice": "mia",
+    "voice": "zoe",
     "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
   }
 }
