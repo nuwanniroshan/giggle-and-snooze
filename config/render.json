@@ -22,6 +22,7 @@
     "font_size": 48,
     "max_chars": 44,
     "max_lines": 2,
+    "min_card_seconds": 1.2,
     "band_opacity": 0.6,
     "margin": 48,
     "padding": 24,

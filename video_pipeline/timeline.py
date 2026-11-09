@@ -11,7 +11,8 @@ import hashlib
 import json
 import math
 import re
-from dataclasses import asdict, dataclass, field, fields
+from collections.abc import Callable
+from dataclasses import MISSING, asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Literal
 
@@ -23,7 +24,7 @@ SectionKind = Literal["intro", "page", "beat", "outro"]
 CENTRE: Point = (1.0, 0.5, 0.5)
 # Part of every section, transition and final-video cache key: bump it when a code change alters
 # the rendered pixels or sound, so stale clips are re-rendered.
-RENDER_VERSION = 1
+RENDER_VERSION = 2  # 2: readable caption breaks (spec 003 v1.1.0)
 _SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([.,!?;:…)\]’”])")
 
 
@@ -57,6 +58,7 @@ class CaptionStyle:
     padding: int
     font: str
     fallback_font: str
+    min_card_seconds: float = 1.2  # AC-4.6; optional in render.json
 
 
 @dataclass(frozen=True)
@@ -104,6 +106,8 @@ def _typed(cls: type, data: dict) -> object:
     values = {}
     for f in fields(cls):
         caster = {"int": int, "float": float, "str": str}.get(str(f.type))
+        if f.name not in data:
+            continue  # optional field: the dataclass default applies
         values[f.name] = caster(data[f.name]) if caster else data[f.name]
     return cls(**values)
 
@@ -127,12 +131,20 @@ def load_render_config(path: Path) -> RenderConfig:
                 missing.append(f.name)
                 continue
             missing += [
-                f"{f.name}.{g.name}" for g in fields(_NESTED[f.name]) if g.name not in block
+                f"{f.name}.{g.name}"
+                for g in fields(_NESTED[f.name])
+                if g.name not in block and g.default is MISSING
             ]
     if missing:
         raise ConfigError(f"{path}: missing {', '.join(missing)}")
     nested = {name: _typed(cls, data[name]) for name, cls in _NESTED.items()}
-    return _typed(RenderConfig, data | nested)
+    config = _typed(RenderConfig, data | nested)
+    min_card = config.captions.min_card_seconds
+    if not math.isfinite(min_card) or min_card < 0:
+        raise ConfigError(
+            f"{path}: captions.min_card_seconds must be a number ≥ 0, got {min_card!r}"
+        )
+    return config
 
 
 # --- captions -------------------------------------------------------------------------------
@@ -167,24 +179,113 @@ class CaptionCard:
     end: float
 
 
+_SENTENCE_END_RE = re.compile(r"[.!?…][\"'”’)\]]*$")
+_CLAUSE_END_RE = re.compile(r"[,;:—–-][\"'”’)\]]*$")
+# Title abbreviations end in a full stop but never end a sentence ("Mrs. Hedgehog").
+_ABBREVIATIONS = frozenset({"mr.", "mrs.", "ms.", "dr.", "st.", "mt.", "prof.", "sr.", "jr."})
+# Caption break costs (AC-4.5): the fewest cards always win; among those, the kind of break
+# dominates (a sentence end beats a clause, which beats a bare word gap) and the squared
+# imbalance of card lengths (≲ 2 per card) only chooses between breaks of the same kind.
+_BREAK_COST = {"sentence": 0.0, "clause": 10.0, "word": 100.0}
+_BALANCE_WEIGHT = 2.0
+
+
+def _break_kind(word: str) -> str:
+    """How good a card break after `word` is: a sentence end, clause punctuation, or neither."""
+    if _SENTENCE_END_RE.search(word) and word.lower() not in _ABBREVIATIONS:
+        return "sentence"
+    if _CLAUSE_END_RE.search(word):
+        return "clause"
+    return "word"
+
+
+def _partition(
+    words: list[str], max_chars: int, max_lines: int, allowed: Callable[[int, int], bool]
+) -> list[tuple[int, int]] | None:
+    """Best split of `words` into contiguous cards [i, j) that each wrap into ≤ `max_lines`
+    lines and pass `allowed(i, j)`: fewest cards, then breaks after sentence ends, then after
+    clause punctuation, then card lengths closest to even. None when no split exists."""
+    n = len(words)
+    # fits[i] = largest j such that words[i:j] fits one card (wrapping is monotone in j).
+    fits = []
+    for i in range(n):
+        j = i + 1
+        while j < n and len(wrap_lines(" ".join(words[i : j + 1]), max_chars)) <= max_lines:
+            j += 1
+        fits.append(j)
+    # Fewest cards first: the card count is what fixes the even length every card aims for.
+    fewest: list[float] = [0.0] + [math.inf] * n
+    for j in range(1, n + 1):
+        for i in range(j):
+            if j <= fits[i] and allowed(i, j) and fewest[i] + 1 < fewest[j]:
+                fewest[j] = fewest[i] + 1
+    if math.isinf(fewest[n]):
+        return None
+    count = int(fewest[n])
+    ideal = len(" ".join(words)) / count
+    best: list[list[float]] = [[math.inf] * (n + 1) for _ in range(count + 1)]
+    back: list[list[int]] = [[-1] * (n + 1) for _ in range(count + 1)]
+    best[0][0] = 0.0
+    for cards in range(1, count + 1):
+        for j in range(1, n + 1):
+            for i in range(j):
+                if math.isinf(best[cards - 1][i]) or j > fits[i] or not allowed(i, j):
+                    continue
+                length = len(" ".join(words[i:j]))
+                cost = best[cards - 1][i] + _BALANCE_WEIGHT * ((length - ideal) / max_chars) ** 2
+                if j < n:
+                    cost += _BREAK_COST[_break_kind(words[j - 1])]
+                if cost < best[cards][j]:
+                    best[cards][j], back[cards][j] = cost, i
+    spans: list[tuple[int, int]] = []
+    j = n
+    for cards in range(count, 0, -1):
+        i = back[cards][j]
+        spans.append((i, j))
+        j = i
+    return spans[::-1]
+
+
 def caption_cards(
-    text: str, start: float, end: float, max_chars: int, max_lines: int
+    text: str,
+    start: float,
+    end: float,
+    max_chars: int,
+    max_lines: int,
+    *,
+    min_seconds: float = 1.2,
 ) -> list[CaptionCard]:
-    """Split `text` into cards of ≤ `max_lines` wrapped lines, timed by word share (AC-4.3)."""
-    lines = wrap_lines(text, max_chars)
-    if not lines:
+    """Split `text` into cards of ≤ `max_lines` wrapped lines, timed by word share (AC-4.3).
+
+    A line that fits one card stays whole. Otherwise the fewest cards are used, breaking after
+    sentence ends where possible, else after clause punctuation, else between words, with card
+    lengths kept even (AC-4.5). No card is a single word or shorter than `min_seconds` (AC-4.6);
+    when the line is too fast for that, the duration rule is relaxed first, then the one-word
+    rule, but a card never exceeds `max_lines`.
+    """
+    words = text.split()
+    if not words:
         return []
-    groups = [" ".join(lines[i : i + max_lines]) for i in range(0, len(lines), max_lines)]
-    counts = [len(group.split()) for group in groups]
-    total = sum(counts)
+    n = len(words)
     span = end - start
+    if len(wrap_lines(text, max_chars)) <= max_lines:
+        spans = [(0, n)]
+    else:
+
+        def readable(i: int, j: int) -> bool:
+            return j - i > 1 and span * (j - i) / n >= min_seconds - 1e-9
+
+        spans = (
+            _partition(words, max_chars, max_lines, readable)
+            or _partition(words, max_chars, max_lines, lambda i, j: j - i > 1)
+            or _partition(words, max_chars, max_lines, lambda i, j: True)
+        )
+        assert spans is not None  # one word per card always fits
     cards: list[CaptionCard] = []
-    done = 0
     card_start = start
-    for index, (group, count) in enumerate(zip(groups, counts, strict=True)):
-        done += count
-        card_end = end if index == len(groups) - 1 else start + span * done / total
-        cards.append(CaptionCard(group, card_start, card_end))
+    for index, (i, j) in enumerate(spans):
+        card_end = end if index == len(spans) - 1 else start + span * j / n
+        cards.append(CaptionCard(" ".join(words[i:j]), card_start, card_end))
         card_start = card_end
     return cards
 
@@ -348,6 +449,7 @@ def _section_captions(timing: dict, cfg: RenderConfig) -> list[CaptionCard]:
             cfg.lead_in + float(line["end"]),
             style.max_chars,
             style.max_lines,
+            min_seconds=style.min_card_seconds,
         )
     return cards
 

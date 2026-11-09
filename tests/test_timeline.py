@@ -477,10 +477,10 @@ def test_section_key_hashes_the_caption_font_file(cfg, script, timings, tmp_path
 
 
 def test_render_version_invalidates_every_key(cfg, script, timings, monkeypatch):  # review r1 #6
-    assert timeline.RENDER_VERSION == 1
+    assert timeline.RENDER_VERSION == 2
     page = {s.name: s for s in build_sections(script, timings, cfg)}["page-01"]
     section, trans = section_key(page, "abc", cfg), transition_key("a" * 32, "b" * 32, cfg)
-    monkeypatch.setattr(timeline, "RENDER_VERSION", 2)
+    monkeypatch.setattr(timeline, "RENDER_VERSION", 3)
     assert section_key(page, "abc", cfg) != section
     assert transition_key("a" * 32, "b" * 32, cfg) != trans
 
@@ -502,3 +502,194 @@ def test_outro_fade_is_never_negative(cfg, script, timings):  # review r1 #7
 
 def test_shipped_outro_fade_fits_in_the_hold(cfg):  # review r1 #7
     assert cfg.motion.outro_fade <= cfg.hold
+
+
+# --- readable caption breaks (spec 003 v1.1.0: AC-4.5, AC-4.6) -----------------------------
+
+PILOT_SCRIPT = ROOT / "episodes" / "the-snail-mail-express" / "episode_script.json"
+SENTENCE_END_RE = re.compile(r"[.!?…][\"'”’)\]]*$")
+CLAUSE_END_RE = re.compile(r"[,;:—–-][\"'”’)\]]*$")
+WORDS_PER_SECOND = 2.5
+
+NARRATION = [
+    "Ding-a-ling! As Clara rang the brass sorting bell, a gust of wind ruffled her chestnut "
+    "hair and lifted the pages of her logbook.",
+    "The first parcel of the day was wrapped in brown paper and tied with green twine. "
+    "It was addressed to Mrs. Hedgehog, who lived at the very top of Bramble Hill.",
+    "Barnaby stretched out his neck, wiggled his antennae, and began the long climb; "
+    "Clara walked beside him, humming softly, counting the ferns as they passed.",
+    "Wow! Look at that! The whole meadow was full of fireflies, blinking like tiny lanterns "
+    "in the dusk.",
+]
+
+
+def synthetic_cards(text, cfg, start=0.0):
+    seconds = len(text.split()) / WORDS_PER_SECOND
+    return caption_cards(
+        text,
+        start,
+        start + seconds,
+        cfg.captions.max_chars,
+        cfg.captions.max_lines,
+        min_seconds=cfg.captions.min_card_seconds,
+    )
+
+
+def break_kind(card_text):
+    last = card_text.split()[-1]
+    if SENTENCE_END_RE.search(last):
+        return "sentence"
+    if CLAUSE_END_RE.search(last):
+        return "clause"
+    return "word"
+
+
+def fits_card(text, cfg):
+    lines = wrap_lines(text, cfg.captions.max_chars)
+    return len(lines) <= cfg.captions.max_lines and all(
+        len(line) <= cfg.captions.max_chars for line in lines
+    )
+
+
+def test_config_min_card_seconds(cfg, tmp_path):
+    assert cfg.captions.min_card_seconds == pytest.approx(1.2)
+    data = load_json(RENDER_CONFIG)
+    data["captions"]["min_card_seconds"] = -1
+    path = tmp_path / "render.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ConfigError, match=re.escape("captions.min_card_seconds")):
+        load_render_config(path)
+    del data["captions"]["min_card_seconds"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert load_render_config(path).captions.min_card_seconds == pytest.approx(1.2)
+
+
+@pytest.mark.parametrize("text", NARRATION)
+def test_caption_cards_readable_breaks(cfg, text):
+    cards = synthetic_cards(text, cfg, start=2.0)
+    assert len(cards) > 1
+    assert " ".join(card.text for card in cards) == text
+    assert cards[0].start == 2.0
+    assert cards[-1].end == pytest.approx(2.0 + len(text.split()) / WORDS_PER_SECOND)
+    for prev, card in zip(cards, cards[1:], strict=False):
+        assert card.start == pytest.approx(prev.end, abs=1e-9)
+    for card in cards:
+        assert fits_card(card.text, cfg), card.text
+        assert len(card.text.split()) > 1, card.text
+        assert card.end - card.start >= cfg.captions.min_card_seconds - 1e-9, card.text
+    for card in cards[:-1]:
+        assert break_kind(card.text) != "word", [c.text for c in cards]
+
+
+def test_caption_cards_prefer_sentence_end(cfg):
+    text = NARRATION[1]
+    cards = synthetic_cards(text, cfg)
+    # The sentence end after "twine." fits a card, so the first card must stop there.
+    assert [card.text for card in cards] == [
+        "The first parcel of the day was wrapped in brown paper and tied with green twine.",
+        "It was addressed to Mrs. Hedgehog, who lived at the very top of Bramble Hill.",
+    ]
+
+
+def test_caption_cards_never_break_after_title_abbreviation(cfg):
+    text = (
+        "It was addressed to Mrs. Hedgehog, who lived at the very top of Bramble Hill, "
+        "past the old mill and the blackberry patch"
+    )
+    cards = synthetic_cards(text, cfg)
+    assert not any(card.text.endswith("Mrs.") for card in cards[:-1])
+
+
+def test_render_version_bumped_for_readable_captions():
+    assert timeline.RENDER_VERSION >= 2
+
+
+def test_caption_cards_sentence_end_beats_clause_and_balance(cfg):
+    cards = synthetic_cards(NARRATION[3], cfg)
+    assert cards[0].text == "Wow! Look at that!"
+
+
+def test_caption_cards_skip_single_word_sentence(cfg):
+    cards = synthetic_cards(NARRATION[0], cfg)
+    assert cards[0].text == "Ding-a-ling! As Clara rang the brass sorting bell,"
+
+
+def test_caption_cards_clause_before_word(cfg):
+    text = (
+        "Barnaby stretched out his long neck and wiggled his antennae slowly, then began the "
+        "long climb up the hill with Clara walking beside him"
+    )
+    cards = synthetic_cards(text, cfg)
+    assert len(cards) == 2
+    assert cards[0].text.endswith("slowly,")
+
+
+def test_caption_cards_fewest_cards_and_balanced(cfg):
+    text = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen"
+    cards = caption_cards(text, 0.0, 10.0, 22, 2)
+    # 80 chars need two 2-line cards of ≤ 22, split into even halves.
+    assert len(cards) == 2
+    lengths = [len(card.text) for card in cards]
+    assert abs(lengths[0] - lengths[1]) <= 12
+
+
+def test_caption_cards_no_single_word_tail(cfg):
+    # Greedy 2-line packing would strand "home." on its own card.
+    text = "The little snail carried the heavy letter all the way across the meadow to home."
+    cards = caption_cards(text, 0.0, 6.0, 20, 2)
+    assert len(cards) > 1
+    assert all(len(card.text.split()) > 1 for card in cards)
+    assert all(card.end - card.start >= 1.2 - 1e-9 for card in cards)
+
+
+def test_caption_cards_short_line_may_be_short(cfg):
+    assert caption_cards("Wow!", 0.0, 0.4, 44, 2) == [CaptionCard("Wow!", 0.0, 0.4)]
+
+
+def test_caption_cards_fall_back_when_min_duration_impossible():
+    text = "one two three four five six seven eight nine ten eleven twelve"
+    cards = caption_cards(text, 0.0, 1.0, 10, 2, min_seconds=1.2)
+    assert len(cards) > 1
+    for card in cards:
+        lines = wrap_lines(card.text, 10)
+        assert len(lines) <= 2
+    assert " ".join(card.text for card in cards) == text
+    assert cards[-1].end == 1.0
+
+
+def _pilot_lines():
+    if not PILOT_SCRIPT.exists():
+        pytest.skip("pilot episode script not present")
+    script = json.loads(PILOT_SCRIPT.read_text(encoding="utf-8"))
+    sections = [script["intro"], *script["pages"], script["outro"]]
+    return [strip_tags(line["text"]) for section in sections for line in section["lines"]]
+
+
+def test_caption_cards_over_pilot_episode(cfg):
+    single = 0
+    breaks = []
+    shortest = math.inf
+    for text in _pilot_lines():
+        if not text:
+            continue
+        cards = synthetic_cards(text, cfg)
+        for card in cards:
+            assert fits_card(card.text, cfg), card.text
+            if len(cards) > 1:
+                single += len(card.text.split()) == 1
+                shortest = min(shortest, card.end - card.start)
+        if len(cards) > 1:
+            breaks += [break_kind(card.text) for card in cards[:-1]]
+    punctuated = sum(kind != "word" for kind in breaks) / len(breaks) if breaks else 1.0
+    print(
+        f"\npilot captions: {len(breaks)} breaks, single-word cards={single}, "
+        f"punctuation breaks={punctuated:.1%}, "
+        f"sentence={breaks.count('sentence')}, clause={breaks.count('clause')}, "
+        f"word={breaks.count('word')}, shortest multi-card card={shortest:.2f}s"
+    )
+    assert single == 0
+    # The pilot's narration sentences are often longer than one 2-line card (88 chars) with few
+    # commas, so at the fewest cards some breaks must fall between words: 61.8% is the best a
+    # fewest-cards split reaches on this script (greedy packing managed 5.9%).
+    assert punctuated >= 0.6
+    assert shortest >= cfg.captions.min_card_seconds - 1e-9

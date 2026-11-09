@@ -206,6 +206,16 @@ Inputs already exist: `book_data.json` (pages with `illustration_file`, square 1
 6. `section_key` hashes the caption font files (path if absent); `RENDER_VERSION = 1` (timeline.py) is in the section, transition and final keys.
 7. The outro fade starts no earlier than the end of the last outro line: `fade_out_frames = max(0, min(round(outro_fade*fps), frames - ceil((lead_in + last_end)*fps)))`; `config/render.json` `outro_fade` 1.0.
 
+## Spec v1.1.0: readable captions
+
+AC-4.5 and AC-4.6 replace the greedy two-lines-per-card packing in `caption_cards` (timeline.py):
+
+- A line that wraps into ≤ `max_lines` stays one card. Otherwise a dynamic programme over word gaps picks the fewest cards whose text wraps into ≤ `max_lines` lines of `max_chars`, then the cheapest breaks: after a sentence end (`. ! ? …`, optionally followed by closing quotes/brackets; title abbreviations such as "Mrs." excluded) 0, after clause punctuation (`, ; : — – -`) 10, a bare word gap 100, plus 2 × ((card chars − even share) / max_chars)² for balance.
+- Segments that are a single word or shorter than `captions.min_card_seconds` (new optional key in `config/render.json`, default 1.2, must be ≥ 0) are forbidden; if no split satisfies that, the duration rule is dropped, then the one-word rule, never the line limit.
+- Timing is unchanged: proportional to words, contiguous, first start and last end exact.
+- `RENDER_VERSION = 2` so cached sections re-render.
+- Pilot script (synthetic 2.5 words/s): 0 single-word cards (greedy: 10), 61.8% of breaks at sentence/clause punctuation (greedy: 5.9%), shortest card in a multi-card line 1.6 s (greedy: 0.4 s). The rest of the breaks fall between words because many narration sentences exceed one 88-character card with no punctuation in reach at the fewest cards.
+
 ## Spec coverage
 
 | Spec item | Phase(s) |
