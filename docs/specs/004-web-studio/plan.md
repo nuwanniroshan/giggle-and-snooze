@@ -137,6 +137,13 @@ The three stages already exist as CLIs: `video_pipeline.generate_script`, `video
 9. `render_episode` without `--sfx-dir` uses `<assets-dir>/audio_sfx` again, as before spec 004. The studio passes `paths.sfx_dir` explicitly in `stage_command` and in `books.video_check`, and `tests/render_helpers.cli_args` no longer forces `--sfx-dir`.
 10. `render_check_detail` returns (state, reason). The approval gate raises `AudioNotApproved` (a `RenderError`), so a missing picture is reported as itself, not as an audio problem, in the status detail and on the video page. A replace upload gets 409 while a stage runs for that book.
 
+## Review fixes (round 2)
+
+1. Single instance: `JobRunner` takes an exclusive non-blocking `flock` on `<studio_dir>/studio.lock` when it is created and holds it until `close()` (or garbage collection). A second runner, in another process or the same one (each opens the file itself, so the locks conflict), raises `StudioLocked` before it looks at any record. `app.main` prints "error: another studio is already running on this project" and exits 1 before uvicorn binds the port. App shutdown (lifespan) and `main` stop the running job and release the lock.
+2. Safer orphan kill: a job record stores `proc_started` (`ps -o lstart`) when it starts. A stale record's process group is stopped only when its leader's command line contains `video_pipeline` and its start time matches the record. Otherwise the record is only marked interrupted (this includes records written before round 2, which have no start time).
+3. Serialized check-and-write: `Studio.write_lock` (one `threading.Lock`) covers busy/gate check → `runner.start`, running-job check → `save_book`, → `save_line_edits`, → `mark_reviewed`, and voices-running check → `approve`. Only the check and that one write run inside it; stop and page views don't take it.
+4. `file_hash.sha256_file` re-stats after hashing and caches only when the stat is unchanged. A test now covers the 411 (missing Content-Length) branch.
+
 ## Spec coverage
 
 | Spec item | Phase |

@@ -775,3 +775,186 @@ def test_video_page_names_a_missing_picture_not_the_audio(approved):
     page = text_of(s.client.get(f"/books/{PILOT_SLUG}/video").text)
     assert "page_02.png" in page
     assert "no longer approved" not in page
+
+
+# --- review fixes (round 2) -----------------------------------------------------------------------
+
+
+def test_main_refuses_a_second_studio_on_the_same_project(tmp_path, monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(sa.uvicorn, "run", lambda app, **kw: calls.append(kw))
+    paths = sb.StudioPaths(tmp_path)
+    holder = sj.JobRunner(paths.studio_dir, cwd=tmp_path)
+    try:
+        assert sa.main(["--port", str(free_port())], paths=paths) == 1
+    finally:
+        holder.close()
+    assert calls == []
+    assert "error: another studio is already running on this project" in capsys.readouterr().err
+
+
+def test_main_releases_the_studio_lock_when_it_ends(tmp_path, monkeypatch):
+    monkeypatch.setattr(sa.uvicorn, "run", lambda app, **kw: None)
+    paths = sb.StudioPaths(tmp_path)
+    assert sa.main(["--port", str(free_port())], paths=paths) == 0
+    sj.JobRunner(paths.studio_dir, cwd=tmp_path).close()  # free again
+
+
+def test_app_shutdown_releases_the_studio_lock(bare):
+    with TestClient(bare.app, base_url=ORIGIN), pytest.raises(sj.StudioLocked):
+        sj.JobRunner(bare.paths.studio_dir, cwd=bare.paths.root)
+    sj.JobRunner(bare.paths.studio_dir, cwd=bare.paths.root).close()
+
+
+def test_upload_without_a_content_length_is_refused(bare, monkeypatch):
+    monkeypatch.setattr(sb, "validate_upload", lambda *a: pytest.fail("the form was parsed"))
+    r = bare.client.post(
+        "/books",
+        content=iter([b"x"]),  # streamed: chunked, no Content-Length
+        headers={"content-type": "multipart/form-data; boundary=b"},
+    )
+    assert r.status_code == 411
+    assert "Content-Length" in r.text
+
+
+def _slow(events: list, name: str, real, seconds: float = 0.5, started=None):
+    def wrapper(*args, **kwargs):
+        events.append(f"{name}-begin")
+        if started is not None:
+            started.set()
+        time.sleep(seconds)
+        try:
+            return real(*args, **kwargs)
+        finally:
+            events.append(f"{name}-end")
+
+    return wrapper
+
+
+def _concurrently(client, first: tuple, second: tuple, started) -> tuple:
+    """POST `first` in a thread, wait until its slow part has begun, then POST `second`."""
+    import threading
+
+    results = {}
+    thread = threading.Thread(
+        target=lambda: results.update(first=client.post(*first[:1], **first[1]))
+    )
+    thread.start()
+    assert started.wait(5)
+    second_response = client.post(*second[:1], **second[1])
+    thread.join(10)
+    return results["first"], second_response
+
+
+def test_a_stage_does_not_start_while_a_script_save_is_writing(bare, monkeypatch):
+    import threading
+
+    scripted(bare)
+    line_id, line = sb.script_lines(sb.load_script(bare.paths, bare.book()))[0]
+    events, started = [], threading.Event()
+    monkeypatch.setattr(
+        sb, "save_line_edits", _slow(events, "save", sb.save_line_edits, started=started)
+    )
+    real_start = bare.runner.start
+    monkeypatch.setattr(
+        bare.runner, "start", lambda *a, **k: (events.append("start"), real_start(*a, **k))[1]
+    )
+    with TestClient(bare.app, base_url=ORIGIN, follow_redirects=False) as client:
+        saved, ran = _concurrently(
+            client,
+            (f"/books/{PILOT_SLUG}/script", {"data": {line_id: line["text"] + " Hello!"}}),
+            (f"/books/{PILOT_SLUG}/run/script", {"data": {"confirm": "1"}}),
+            started,
+        )
+    assert saved.status_code == 303 and ran.status_code == 303
+    assert events == ["save-begin", "save-end", "start"]
+
+
+def test_a_script_save_waits_for_a_starting_stage_and_is_refused(tmp_path, monkeypatch):
+    import threading
+
+    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
+    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    s = Studio(tmp_path, Commands("import time; time.sleep(30)"))
+    scripted(s)
+    line_id, line = sb.script_lines(sb.load_script(s.paths, s.book()))[0]
+    before = sb.script_path(s.paths, s.book()).read_bytes()
+    events, started = [], threading.Event()
+    monkeypatch.setattr(s.runner, "start", _slow(events, "start", s.runner.start, started=started))
+    with TestClient(s.app, base_url=ORIGIN, follow_redirects=False) as client:
+        ran, saved = _concurrently(
+            client,
+            (f"/books/{PILOT_SLUG}/run/script", {"data": {"confirm": "1"}}),
+            (f"/books/{PILOT_SLUG}/script", {"data": {line_id: line["text"] + " Hello!"}}),
+            started,
+        )
+        reviewed = client.post(f"/books/{PILOT_SLUG}/script/reviewed")
+    assert ran.status_code == 303
+    assert saved.status_code == 409 and "running for this book" in saved.text
+    assert reviewed.status_code == 409
+    assert sb.script_path(s.paths, s.book()).read_bytes() == before
+
+
+def test_mark_reviewed_waits_for_a_starting_stage_and_is_refused(tmp_path, monkeypatch):
+    import threading
+
+    shutil.copy(MINI_BOOK, tmp_path / "book_data.json")
+    shutil.copytree(sv.CONFIG_DIR, tmp_path / "config")
+    s = Studio(tmp_path, Commands("import time; time.sleep(30)"))
+    scripted(s)
+    events, started = [], threading.Event()
+    monkeypatch.setattr(s.runner, "start", _slow(events, "start", s.runner.start, started=started))
+    with TestClient(s.app, base_url=ORIGIN, follow_redirects=False) as client:
+        ran, reviewed = _concurrently(
+            client,
+            (f"/books/{PILOT_SLUG}/run/script", {"data": {"confirm": "1"}}),
+            (f"/books/{PILOT_SLUG}/script/reviewed", {}),
+            started,
+        )
+    assert ran.status_code == 303
+    assert reviewed.status_code == 409
+    assert not sb.reviewed_ok(s.paths, s.book())
+
+
+def test_a_stage_does_not_start_while_its_book_is_being_replaced(bare, monkeypatch):
+    import threading
+
+    book = new_book()
+    slug = slugify(book["metadata"]["title"])
+    assert bare.client.post("/books", files=upload_parts(book)).status_code == 303
+    events, started = [], threading.Event()
+    monkeypatch.setattr(sb, "save_book", _slow(events, "save", sb.save_book, started=started))
+    real_start = bare.runner.start
+    monkeypatch.setattr(
+        bare.runner, "start", lambda *a, **k: (events.append("start"), real_start(*a, **k))[1]
+    )
+    book["metadata"]["author"] = "Someone Else"
+    with TestClient(bare.app, base_url=ORIGIN, follow_redirects=False) as client:
+        replaced, ran = _concurrently(
+            client,
+            ("/books", {"data": {"replace": "1"}, "files": upload_parts(book)}),
+            (f"/books/{slug}/run/script", {}),
+            started,
+        )
+    assert replaced.status_code == 303 and ran.status_code == 303
+    assert events == ["save-begin", "save-end", "start"]
+
+
+def test_approve_waits_for_a_starting_voices_stage_and_is_refused(tmp_path, monkeypatch):
+    import threading
+
+    s, world = with_world(
+        tmp_path, monkeypatch, approve=False, commands=Commands("import time; time.sleep(30)")
+    )
+    events, started = [], threading.Event()
+    monkeypatch.setattr(s.runner, "start", _slow(events, "start", s.runner.start, started=started))
+    with TestClient(s.app, base_url=ORIGIN, follow_redirects=False) as client:
+        ran, approved = _concurrently(
+            client,
+            (f"/books/{PILOT_SLUG}/run/voices", {}),
+            (f"/books/{PILOT_SLUG}/audio/approve", {}),
+            started,
+        )
+    assert ran.status_code == 303, ran.text
+    assert approved.status_code == 409 and "still running" in approved.text
+    assert load_json(world["audio"] / "status.json")["status"] == "pending review"

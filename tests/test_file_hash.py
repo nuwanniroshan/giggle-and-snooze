@@ -64,3 +64,21 @@ def test_missing_file_raises(tmp_path):
 
 def test_pipeline_uses_the_cached_hash():
     assert sv.sha256_file is fh.sha256_file
+
+
+def test_file_written_while_it_is_hashed_is_not_cached(tmp_path, monkeypatch):
+    path = tmp_path / "busy.bin"
+    path.write_bytes(b"aaaa")
+    real = fh._digest
+
+    def digest_during_a_write(p):
+        result = real(p)
+        path.write_bytes(b"bbbb")  # a writer lands after the bytes were read
+        return result
+
+    monkeypatch.setattr(fh, "_digest", digest_during_a_write)
+    fh.sha256_file(path)
+    key = os.fspath(path.absolute())
+    assert not [k for k in fh._cache if k[0] == key]  # neither the old nor the new stat cached
+    monkeypatch.setattr(fh, "_digest", real)
+    assert fh.sha256_file(path) == hashlib.sha256(b"bbbb").hexdigest()

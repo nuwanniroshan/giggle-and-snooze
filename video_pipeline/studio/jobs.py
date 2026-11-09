@@ -6,12 +6,21 @@ appended raw to `<studio_dir>/jobs/<id>.log`, flushed per line; the job record
 `<studio_dir>/jobs/<id>.json` is written atomically when the job starts and when it ends, so the
 last run per book and stage survives a restart. A record still `running` when a runner is created
 belonged to a studio that died, and becomes `interrupted`; if its process group is still alive
-(the studio was killed hard), that orphaned stage is stopped first.
+(the studio was killed hard), that orphaned stage is stopped first, but only when the process is
+recognisably that stage: its command line names `video_pipeline` and its start time matches the
+one recorded when the job started (a reused pid is left alone).
+
+Only one runner may own a studio directory (review fixes, round 2). A runner holds an exclusive
+`flock` on `<studio_dir>/studio.lock` from creation until `close()` (or garbage collection), and a
+second runner, in another process or in the same one (each runner opens the file itself, and flock
+locks belong to the open file, so two opens conflict even within a process), gets `StudioLocked`
+before it touches any record.
 """
 
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import json
 import os
 import re
@@ -29,6 +38,8 @@ from video_pipeline.episode_tools import write_atomic
 from video_pipeline.studio.books import STAGES, Book, StudioPaths
 
 STOP_GRACE_SECONDS = 5.0
+LOCK_FILE = "studio.lock"
+STAGE_MARKER = "video_pipeline"
 STAGE_MODULES = {
     "script": "video_pipeline.generate_script",
     "voices": "video_pipeline.synthesize_voices",
@@ -46,6 +57,10 @@ class Busy(Exception):
         self.current = current
 
 
+class StudioLocked(RuntimeError):
+    """Another studio (job runner) already owns this studio directory."""
+
+
 class UnknownJob(LookupError):
     """No job with that id (or the id is not a safe file name)."""
 
@@ -61,6 +76,7 @@ class Job:
     state: str = "running"
     exit_code: int | None = None
     pid: int | None = None
+    proc_started: str | None = None
     _stopping: bool = field(default=False, repr=False)
 
     def to_dict(self) -> dict:
@@ -109,6 +125,8 @@ class JobRunner:
         stop_grace: float = STOP_GRACE_SECONDS,
     ) -> None:
         self.jobs_dir = Path(studio_dir) / "jobs"
+        self._lock_fd: int | None = None
+        self._take_studio_lock(Path(studio_dir))
         self.env = dict(env or {})
         self.cwd = cwd
         self.stop_grace = stop_grace
@@ -117,6 +135,26 @@ class JobRunner:
         self._proc: subprocess.Popen | None = None
         self._thread: threading.Thread | None = None
         self._mark_interrupted()
+
+    def _take_studio_lock(self, studio_dir: Path) -> None:
+        studio_dir.mkdir(parents=True, exist_ok=True)
+        fd = os.open(studio_dir / LOCK_FILE, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            os.close(fd)
+            raise StudioLocked("another studio is already running on this project") from exc
+        self._lock_fd = fd
+
+    def close(self) -> None:
+        """Release the studio lock (a running job is not stopped; see `stop`). Idempotent."""
+        fd, self._lock_fd = self._lock_fd, None
+        if fd is not None:
+            os.close(fd)  # closing the only descriptor releases the flock
+
+    def __del__(self) -> None:
+        with contextlib.suppress(Exception):
+            self.close()
 
     # --- paths and records --------------------------------------------------------------------
 
@@ -145,13 +183,19 @@ class JobRunner:
     def _mark_interrupted(self) -> None:
         """Mark stale `running` records `interrupted`, ending when their log last changed (the
         last sign of life). A stage still running in its own process group is stopped first
-        (SIGTERM, SIGKILL after the grace period) and that is noted in its log."""
+        (SIGTERM, SIGKILL after the grace period) and that is noted in its log, but only when it
+        is recognisably the recorded stage (`_is_recorded_stage`)."""
         for record in self._records():
             if record.get("state") != "running":
                 continue
             log = self._log_path(record["id"]) if _SAFE_ID.fullmatch(record["id"]) else None
             pgid = record.get("pid")
-            if log is not None and isinstance(pgid, int) and _group_alive(pgid):
+            if (
+                log is not None
+                and isinstance(pgid, int)
+                and _group_alive(pgid)
+                and _is_recorded_stage(pgid, record.get("proc_started"))
+            ):
                 how = _stop_group(pgid, self.stop_grace)
                 with log.open("ab") as fh:
                     fh.write(
@@ -198,6 +242,7 @@ class JobRunner:
                 self._write(job)
                 return Job(**asdict(job))
             job.pid = proc.pid
+            job.proc_started = _process_started(proc.pid)
             self._write(job)
             self._job, self._proc = job, proc
             self._thread = threading.Thread(
@@ -303,6 +348,39 @@ def _group_alive(pgid: int) -> bool:
     except (ProcessLookupError, PermissionError):
         return False
     return True
+
+
+def _ps(field_name: str, pid: int) -> str | None:
+    """One `ps` column for `pid`, whitespace-normalised; None when there is no such process."""
+    try:
+        out = subprocess.run(  # noqa: S603 - fixed argv
+            ["ps", "-o", f"{field_name}=", "-p", str(pid)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = " ".join(out.stdout.split())
+    return value if out.returncode == 0 and value else None
+
+
+def _process_started(pid: int) -> str | None:
+    """When process `pid` started, as `ps -o lstart` prints it (None if it is gone)."""
+    return _ps("lstart", pid)
+
+
+def _is_recorded_stage(pid: int, proc_started: object) -> bool:
+    """Whether `pid` is still the stage a job record names: a `video_pipeline` command that
+    started exactly when the record says. Anything else (an old record with no start time, a
+    reused pid) is not ours to kill."""
+    if not isinstance(proc_started, str) or not proc_started:
+        return False
+    command = _ps("command", pid)
+    if command is None or STAGE_MARKER not in command:
+        return False
+    return _process_started(pid) == proc_started
 
 
 def _stop_group(pgid: int, grace: float) -> str:

@@ -34,6 +34,7 @@ def runner(studio, tmp_path):
     yield r
     if r.current():
         r.stop()
+    r.close()
 
 
 def read_record(studio: Path, job_id: str) -> dict:
@@ -203,6 +204,7 @@ def test_latest_survives_restart_and_picks_newest(studio, tmp_path):
     assert r.wait(10)
     r.start("moon", "voices", py("print('c')"))
     assert r.wait(10)
+    r.close()  # the studio shuts down; a new one starts on the same directory
     again = sj.JobRunner(studio, cwd=tmp_path)
     assert again.latest("moon", "script")["id"] == second.id
     assert again.latest("moon", "render") is None
@@ -345,7 +347,7 @@ def test_stage_command_unknown_stage(tmp_path):
 # --- review fixes (round 1) -------------------------------------------------------------------
 
 
-def _stale_record(jobs: Path, pid: int | None) -> dict:
+def _stale_record(jobs: Path, pid: int | None, proc_started: str | None = None) -> dict:
     jobs.mkdir(parents=True, exist_ok=True)
     stale = {
         "id": "20261109T100000-moon-render-beef",
@@ -357,6 +359,7 @@ def _stale_record(jobs: Path, pid: int | None) -> dict:
         "state": "running",
         "exit_code": None,
         "pid": pid,
+        "proc_started": proc_started,
     }
     (jobs / f"{stale['id']}.json").write_text(json.dumps(stale), encoding="utf-8")
     return stale
@@ -367,12 +370,12 @@ def test_orphaned_stage_is_killed_on_restart(studio, tmp_path):
     import threading
 
     code = "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)"
-    orphan = subprocess.Popen(py(code), start_new_session=True)
+    orphan = subprocess.Popen([*py(code), "video_pipeline.render_episode"], start_new_session=True)
     reaper = threading.Thread(target=orphan.wait, daemon=True)
     reaper.start()
     try:
         time.sleep(0.3)  # let it install the SIGTERM handler
-        stale = _stale_record(studio / "jobs", orphan.pid)
+        stale = _stale_record(studio / "jobs", orphan.pid, sj._process_started(orphan.pid))
         started = time.monotonic()
         r = sj.JobRunner(studio, cwd=tmp_path, stop_grace=0.5)
         assert time.monotonic() - started < 5
@@ -407,3 +410,113 @@ def test_interrupted_record_ends_when_its_log_last_changed(studio, tmp_path):
 
     ended = datetime.fromisoformat(read_record(studio, stale["id"])["ended_at"])
     assert abs(ended.timestamp() - 1_700_000_000) < 1
+
+
+# --- review fixes (round 2) -------------------------------------------------------------------
+
+LOCK_PROBE = """
+import sys
+from pathlib import Path
+from video_pipeline.studio import jobs as sj
+try:
+    sj.JobRunner(Path(sys.argv[1]), stop_grace=0.5)
+except sj.StudioLocked as exc:
+    print("locked:", exc)
+else:
+    print("started")
+"""
+
+
+def _probe_lock(studio: Path) -> str:
+    import subprocess
+
+    out = subprocess.run(
+        [PY, "-c", LOCK_PROBE, str(studio)], capture_output=True, text=True, timeout=30
+    )
+    assert out.returncode == 0, out.stderr
+    return out.stdout.strip()
+
+
+def test_second_studio_process_is_locked_out_and_leaves_the_live_stage_alone(runner, studio):
+    job = runner.start("moon", "script", py("import time; time.sleep(30)"))
+    time.sleep(0.3)
+    assert _probe_lock(studio) == "locked: another studio is already running on this project"
+    current = runner.current()
+    assert current is not None and current["id"] == job.id
+    assert read_record(studio, job.id)["state"] == "running"
+    os.killpg(job.pid, 0)  # still alive
+
+
+def test_second_runner_in_the_same_process_is_locked(runner, studio, tmp_path):
+    with pytest.raises(sj.StudioLocked, match="another studio is already running"):
+        sj.JobRunner(studio, cwd=tmp_path)
+
+
+def test_close_releases_the_lock(studio, tmp_path):
+    first = sj.JobRunner(studio, cwd=tmp_path)
+    first.close()
+    first.close()  # closing twice is harmless
+    assert _probe_lock(studio) == "started"
+    second = sj.JobRunner(studio, cwd=tmp_path)
+    second.close()
+
+
+def test_locked_runner_does_not_touch_stale_records(runner, studio, tmp_path):
+    stale = _stale_record(studio / "jobs", None)
+    with pytest.raises(sj.StudioLocked):
+        sj.JobRunner(studio, cwd=tmp_path)
+    assert read_record(studio, stale["id"])["state"] == "running"
+
+
+def test_start_records_the_process_start_time(runner, studio):
+    job = runner.start("moon", "script", py("import time; time.sleep(30)"))
+    record = read_record(studio, job.id)
+    assert record["proc_started"]
+    assert record["proc_started"] == sj._process_started(job.pid)
+
+
+def _sleeper(*extra: str):
+    import subprocess
+
+    proc = subprocess.Popen([*py("import time; time.sleep(60)"), *extra], start_new_session=True)
+    time.sleep(0.2)
+    return proc
+
+
+def test_orphan_that_is_not_a_pipeline_stage_is_only_marked(studio, tmp_path):
+    other = _sleeper()
+    try:
+        stale = _stale_record(studio / "jobs", other.pid, sj._process_started(other.pid))
+        r = sj.JobRunner(studio, cwd=tmp_path, stop_grace=0.5)
+        assert other.poll() is None
+        assert read_record(studio, stale["id"])["state"] == "interrupted"
+        assert "process group" not in full_log(r, stale["id"])
+        r.close()
+    finally:
+        other.kill()
+        other.wait()
+
+
+def test_orphan_with_another_start_time_is_only_marked(studio, tmp_path):
+    reused = _sleeper("video_pipeline.render_episode")
+    try:
+        stale = _stale_record(studio / "jobs", reused.pid, "Mon Jan  1 00:00:00 2001")
+        r = sj.JobRunner(studio, cwd=tmp_path, stop_grace=0.5)
+        assert reused.poll() is None
+        assert read_record(studio, stale["id"])["state"] == "interrupted"
+        r.close()
+    finally:
+        reused.kill()
+        reused.wait()
+
+
+def test_orphan_without_a_recorded_start_time_is_only_marked(studio, tmp_path):
+    old = _sleeper("video_pipeline.render_episode")
+    try:
+        _stale_record(studio / "jobs", old.pid)
+        r = sj.JobRunner(studio, cwd=tmp_path, stop_grace=0.5)
+        assert old.poll() is None
+        r.close()
+    finally:
+        old.kill()
+        old.wait()

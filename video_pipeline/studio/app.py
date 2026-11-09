@@ -10,6 +10,13 @@ Handlers that touch files or wait on a job are plain functions, which Starlette 
 thread pool; the few that must await the request body hand the rest to the pool too, so a slow
 stop or a page full of file hashing never holds up the polling endpoints.
 
+Because handlers run concurrently in that pool, every check-then-act (busy or gate check, then
+start a stage; no job running, then write the book, the script, the reviewed mark or the audio
+approval) happens under one `Studio.write_lock`, so a stage cannot start between a handler's check
+and its write, and no write can land between a stage's gate check and its start (review fixes,
+round 2). Only the check and that one write sit inside the lock; stopping a job and page views do
+not take it.
+
 All state comes from `books` (pipeline files) and the `JobRunner`; the gates are the pipeline's
 own: voices need the reviewed script, render needs approved audio (FR-4).
 """
@@ -22,6 +29,7 @@ import json
 import re
 import socket
 import sys
+import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,7 +52,7 @@ from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import ROOT
 from video_pipeline.render_episode import VideoPaths
 from video_pipeline.studio import books as sb
-from video_pipeline.studio.jobs import Busy, JobRunner, UnknownJob, stage_command
+from video_pipeline.studio.jobs import Busy, JobRunner, StudioLocked, UnknownJob, stage_command
 
 STUDIO_DIR = Path(__file__).resolve().parent
 HOST = "127.0.0.1"
@@ -178,6 +186,7 @@ class Studio:
         self.paths = paths
         self.runner = runner
         self.command_for = command_for
+        self.write_lock = threading.Lock()  # serialises every check-then-act (module docstring)
         self.allowed_origins = {f"http://{HOST}:{port}", f"http://localhost:{port}"}
         self.templates = Jinja2Templates(directory=STUDIO_DIR / "templates")
         self.templates.env.autoescape = True
@@ -308,12 +317,20 @@ class Studio:
         if book is None or stage not in sb.STAGES:
             return self.not_found(request)
         back = f"/books/{book.slug}"
+        with self.write_lock:
+            refused = self._start_stage(book, stage, form)
+        if refused is not None:
+            title, lines = refused
+            return self.message(request, title, lines, 409, back)
+        return RedirectResponse(back, status_code=303)
+
+    def _start_stage(self, book: sb.Book, stage: str, form) -> tuple[str, list[str]] | None:
+        """Check and start `stage` (call under `write_lock`); the refusal's title and lines, or
+        None when it started."""
         if busy := self.busy_reason():
-            return self.message(request, "Busy", [f"Refused: {busy}."], 409, back)
+            return "Busy", [f"Refused: {busy}."]
         if reason := self.gate(book, stage):
-            return self.message(
-                request, f"Cannot start {sb.STAGE_LABELS[stage]}", [reason], 409, back
-            )
+            return f"Cannot start {sb.STAGE_LABELS[stage]}", [reason]
         force = form.get("force") == "1"
         if stage == "script" and sb.script_path(self.paths, book).exists():
             if form.get("confirm") != "1":
@@ -321,14 +338,14 @@ class Studio:
                     "An episode script already exists and may have been edited by hand.",
                     "Regenerating overwrites it; confirm to regenerate.",
                 ]
-                return self.message(request, "Confirm regenerating the script", lines, 409, back)
+                return "Confirm regenerating the script", lines
             force = True
         cmd = self.command_for(stage, book, self.paths, force=force)
         try:
             self.runner.start(book.slug, stage, cmd)
         except Busy:
-            return self.message(request, "Busy", [f"Refused: {self.busy_reason()}."], 409, back)
-        return RedirectResponse(back, status_code=303)
+            return "Busy", [f"Refused: {self.busy_reason()}."]
+        return None
 
     def stop_job(self, request: Request) -> Response:
         job = self.runner.current()
@@ -388,14 +405,19 @@ class Studio:
         exists = (self.paths.books_dir / slug).exists()
         if exists and not replace:
             return refuse([], 409, duplicate=slug)
-        job = self.runner.current()
-        if exists and job and job["book"] == slug:
-            label = sb.STAGE_LABELS.get(job["stage"], job["stage"])
-            return refuse([f"{label} is running for {slug!r}; wait for it before replacing"], 409)
-        try:
-            saved = sb.save_book(self.paths, book, files, replace=replace)
-        except sb.StudioError as exc:
-            return refuse([str(exc)], 409)
+        with self.write_lock:
+            job = self.runner.current()
+            if exists and job and job["book"] == slug:
+                label = sb.STAGE_LABELS.get(job["stage"], job["stage"])
+                reason = f"{label} is running for {slug!r}; wait for it before replacing"
+                saved, error = None, reason
+            else:
+                try:
+                    saved, error = sb.save_book(self.paths, book, files, replace=replace), None
+                except sb.StudioError as exc:
+                    saved, error = None, str(exc)
+        if saved is None:
+            return refuse([error], 409)
         return RedirectResponse(f"/books/{saved.slug}", status_code=303)
 
     # --- the script -----------------------------------------------------------------------------
@@ -486,9 +508,13 @@ class Studio:
         if book is None:
             return self.not_found(request)
         back = f"/books/{book.slug}/script"
-        if reason := self.script_job_running(book):
+        with self.write_lock:
+            if reason := self.script_job_running(book):
+                problems = None
+            else:
+                problems = sb.save_line_edits(self.paths, book, edits)
+        if problems is None:
             return self.message(request, "Busy", [reason], 409, back)
-        problems = sb.save_line_edits(self.paths, book, edits)
         if problems:
             context = {"book": book, "script": self.script_context(book, edits, problems)}
             return self.render(request, "script.html", context, 422)
@@ -499,12 +525,17 @@ class Studio:
         if book is None:
             return self.not_found(request)
         back = f"/books/{book.slug}/script"
-        if reason := self.script_job_running(book):
-            return self.message(request, "Busy", [reason], 409, back)
-        try:
-            sb.mark_reviewed(self.paths, book)
-        except sb.StudioError as exc:
-            return self.message(request, "Cannot mark as reviewed", [str(exc)], 409, back)
+        with self.write_lock:
+            if reason := self.script_job_running(book):
+                refused = ("Busy", reason)
+            else:
+                try:
+                    sb.mark_reviewed(self.paths, book)
+                    refused = None
+                except sb.StudioError as exc:
+                    refused = ("Cannot mark as reviewed", str(exc))
+        if refused is not None:
+            return self.message(request, refused[0], [refused[1]], 409, back)
         return RedirectResponse(back, status_code=303)
 
     # --- audio ----------------------------------------------------------------------------------
@@ -540,17 +571,22 @@ class Studio:
         book = self.book_or_none(request)
         if book is None:
             return self.not_found(request)
-        job = self.runner.current()
-        if job and job["book"] == book.slug and job["stage"] == "voices":
-            return self.audio_page(request, "voice synthesis is still running", 409)
-        try:
-            cfg = sv.load_voice_config(self.paths.config_dir / "voices.json")
-            book_data = load_book(book.book_path)
-            script = sb.script_path(self.paths, book)
-            settings_sha = sv.current_settings_sha(cfg, book_data, book.book_path, script)
-            sv.approve(_audio_paths(self.paths, book), script, settings_sha)
-        except (sv.ApproveError, ConfigError, BookError) as exc:
-            return self.audio_page(request, str(exc), 409)
+        with self.write_lock:
+            job = self.runner.current()
+            if job and job["book"] == book.slug and job["stage"] == "voices":
+                error = "voice synthesis is still running"
+            else:
+                try:
+                    cfg = sv.load_voice_config(self.paths.config_dir / "voices.json")
+                    book_data = load_book(book.book_path)
+                    script = sb.script_path(self.paths, book)
+                    settings_sha = sv.current_settings_sha(cfg, book_data, book.book_path, script)
+                    sv.approve(_audio_paths(self.paths, book), script, settings_sha)
+                    error = None
+                except (sv.ApproveError, ConfigError, BookError) as exc:
+                    error = str(exc)
+        if error is not None:
+            return self.audio_page(request, error, 409)
         return RedirectResponse(f"/books/{book.slug}/audio", status_code=303)
 
     # --- video ----------------------------------------------------------------------------------
@@ -665,14 +701,19 @@ def create_app(
     command_for: CommandFor = stage_command,
     port: int = DEFAULT_PORT,
 ) -> Starlette:
-    """The studio app for `paths`; `runner` and `command_for` are injectable for tests."""
+    """The studio app for `paths`; `runner` and `command_for` are injectable for tests. Without a
+    `runner` one is created, which takes the studio lock (raises `StudioLocked` if it is held).
+    Shutdown stops the running stage and releases the lock."""
     runner = runner or JobRunner(paths.studio_dir, cwd=ROOT)
     studio = Studio(paths, runner, command_for, port)
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
-        yield
-        studio.runner.stop()  # a stage must not outlive the studio that shows it
+        try:
+            yield
+        finally:
+            studio.runner.stop()  # a stage must not outlive the studio that shows it
+            studio.runner.close()
 
     routes = [
         Route("/", studio.home),
@@ -728,7 +769,16 @@ def main(argv: list[str] | None = None, paths: sb.StudioPaths | None = None) -> 
     if not _port_free(args.port):
         print(f"error: port {args.port} is already in use", file=sys.stderr)
         return 1
-    app = create_app(paths or sb.StudioPaths(), port=args.port)
-    print(f"Studio running at http://{HOST}:{args.port}", flush=True)
-    uvicorn.run(app, host=HOST, port=args.port, log_level="warning")
+    try:
+        app = create_app(paths or sb.StudioPaths(), port=args.port)
+    except StudioLocked:
+        print("error: another studio is already running on this project", file=sys.stderr)
+        return 1
+    runner = app.state.studio.runner
+    try:
+        print(f"Studio running at http://{HOST}:{args.port}", flush=True)
+        uvicorn.run(app, host=HOST, port=args.port, log_level="warning")
+    finally:
+        runner.stop()
+        runner.close()
     return 0
