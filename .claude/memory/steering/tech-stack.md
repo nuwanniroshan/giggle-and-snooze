@@ -12,7 +12,8 @@ Python 3.12 (CPython via uv) — edit to match reality
 - Book production: Pillow, reportlab (PDF), hand-built EPUB 3 (zipfile), static HTML flipbook
 - Episode script generator (`video_pipeline/`, spec 001 v2.0.0): pydantic (banter/script models and validation), `mcp` (stdio MCP server exposing the episode tools). Default text provider: the Codex CLI bundled with the ChatGPT desktop app, run headless on the producer's ChatGPT login and limited to the episode tools. Opt-in: Gemini API (`--provider gemini-api`, `GEMINI_API_KEY`, `gemini-2.5-flash`). No local text model.
 - Voice synthesis (`video_pipeline/`, spec 002): `mlx-audio` 0.6.4 with Orpheus 3B 4-bit (`mlx-community/orpheus-3b-0.1-ft-4bit`; pinned revisions of it, SNAC and the bf16 tokenizer files in `config/voices.json`), run offline; `soundfile` for WAV I/O; numpy audio checks. Kid voices are pitch-lifted with FFmpeg `asetrate`/`aresample`/`atempo` (Homebrew FFmpeg has no rubberband).
-- Planned later stages (PRD.md): FFmpeg (zoompan, xfade, sidechaincompress, H.264/AAC)
+- Render (`video_pipeline/`, spec 003): Pillow canvas (illustration over a blurred darkened copy) and caption PNGs; numpy master audio mix; FFmpeg `zoompan`, `xfade`, concat `-c copy`, H.264/AAC mux. No background music yet (separate spec).
+- Planned later stages (PRD.md): background music with `sidechaincompress` ducking; one-command wrapper
 - Venv also contains pymupdf/pymupdf4llm, numpy, onnxruntime, PyYAML
 
 ## Infrastructure

@@ -316,3 +316,64 @@ def test_approve_with_missing_script_names_it(env, capsys):
     capsys.readouterr()
     assert run(env, command="approve") == 1
     assert f"episode script not found: {env['script_path']}" in capsys.readouterr().err
+
+
+def test_synthesis_records_track_hashes(env):  # review r1 #1
+    assert run(env, "--reviewed") == 0
+    status = load_json(env["audio"] / "status.json")
+    tracks = env["audio"] / "tracks"
+    names = sorted(p.stem for p in tracks.glob("*.wav"))
+    assert sorted(status["track_sha256"]) == names
+    for name in names:
+        assert status["track_sha256"][name] == {
+            "wav": sv.sha256_file(tracks / f"{name}.wav"),
+            "json": sv.sha256_file(tracks / f"{name}.json"),
+        }
+
+
+@pytest.mark.parametrize("suffix", ["wav", "json"])
+def test_approve_refuses_an_edited_track(env, capsys, suffix):  # AC-2.2, review r1 #1
+    assert run(env, "--reviewed") == 0
+    path = env["audio"] / "tracks" / f"intro.{suffix}"
+    if suffix == "wav":
+        samples, rate = sf.read(path, dtype="float32")
+        sf.write(path, samples * 0.5, rate)
+    else:
+        data = load_json(path)
+        data["lines"][0]["text"] = "Unreviewed words"
+        path.write_text(json.dumps(data), encoding="utf-8")
+    capsys.readouterr()
+    assert run(env, command="approve") == 1
+    assert "audio track intro changed since synthesis; re-run synthesis first" in (
+        capsys.readouterr().err
+    )
+    assert load_json(env["audio"] / "status.json")["status"] == "pending review"
+
+
+def test_approval_is_dropped_when_a_track_changed(env, monkeypatch):  # review r1 #1
+    assert run(env, "--reviewed") == 0
+    assert run(env, command="approve") == 0
+    status = load_json(env["audio"] / "status.json")
+    status["track_sha256"]["intro"]["wav"] = "0" * 64
+    (env["audio"] / "status.json").write_text(json.dumps(status), encoding="utf-8")
+    assert run(env, "--reviewed") == 0
+    assert load_json(env["audio"] / "status.json")["status"] == "pending review"
+
+
+@pytest.mark.parametrize("name", ["status.json", "preview.json"])
+def test_approve_with_corrupt_record_is_readable(env, capsys, name):  # review r1 #3
+    assert run(env, "--reviewed") == 0
+    path = env["audio"] / name
+    path.write_text("{not json", encoding="utf-8")
+    capsys.readouterr()
+    assert run(env, command="approve") == 1
+    assert f"error: {path} is unreadable; re-run synthesis" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name", ["status.json", "preview.json"])
+def test_synthesis_recovers_from_a_corrupt_record(env, name):  # review r1 #3
+    assert run(env, "--reviewed") == 0
+    (env["audio"] / name).write_text("{not json", encoding="utf-8")
+    assert run(env, "--reviewed") == 0
+    assert load_json(env["audio"] / "status.json")["status"] == "pending review"
+    assert run(env, command="approve") == 0
