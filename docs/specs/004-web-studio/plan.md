@@ -105,6 +105,25 @@ The three stages already exist as CLIs: `video_pipeline.generate_script`, `video
 - Docs: `CLAUDE.md` (studio command, book layout, `--sfx-dir`), steering tech-stack, `.claude/rules` note if useful.
 - **Commit:** `feat(studio): Phase 4: real run and docs`
 
+### Results (2026-11-09)
+
+- 555 unit tests + 10 ffmpeg tests pass.
+- Studio started on the real project: home lists the pilot as script DONE / voices APPROVED / video DONE / next "Watch video".
+- Script, audio (preview 14:40, per-track players, review table) and video (15:15) pages render.
+- Media 200, Range 206, traversal 404, cross-origin POST 403.
+- A real render stage run from the UI finished "up to date" in 0:01 with exit 0 and its log shown.
+- Real upload through the running server was not exercised against the repo (covered by TestClient tests).
+
+### Deviations during execution
+
+- Jobs read the subprocess with `Popen` in binary mode and collapse `\r` progress lines.
+- `log()` returns complete lines only while the job is running.
+- Overwriting an existing book needs a required overwrite checkbox instead of a JS confirm.
+- The app lifespan stops a running job on shutdown.
+- Script edits and approve are refused while that book's job runs.
+- No Host-header (DNS-rebinding) check; POSTs are still protected by the Origin check.
+- The script stage counts as done when the audio status matches the script (CLI `--reviewed` path).
+
 ## Spec coverage
 
 | Spec item | Phase |
