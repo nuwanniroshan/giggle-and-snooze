@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block title %}Books{% endblock %}
+{% block content %}
+<h1>Books</h1>
+{% if rows %}
+<table>
+  <thead><tr><th>Book</th><th>Script</th><th>Voices</th><th>Video</th><th>Next</th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+  {% set s = row.status %}
+  {% set next = s.next_action %}
+  {% set slug = row.book.slug %}
+  <tr>
+    <td><a href="/books/{{ slug }}">{{ row.book.title }}</a>{% if row.book.is_pilot %} <span class="muted">pilot</span>{% endif %}
+      {% if row.book.error %}<p class="small">{{ row.book.error }}</p>{% endif %}</td>
+    {% for key in ('script', 'voices', 'video') %}
+    <td>{{ badge(s[key].state) }}</td>
+    {% endfor %}
+    <td>
+      {% if next == 'Review script' %}<a href="/books/{{ slug }}/script">{{ next }}</a>
+      {% elif next == 'Listen and approve' %}<a href="/books/{{ slug }}/audio">{{ next }}</a>
+      {% elif next == 'Watch video' %}<a href="/books/{{ slug }}/video">{{ next }}</a>
+      {% else %}<a href="/books/{{ slug }}">{{ next }}</a>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No books yet. <a href="/books/new">Add a book</a>.</p>
+{% endif %}
+{% endblock %}
