@@ -1,0 +1,272 @@
+"""The one-at-a-time background job runner (spec 004, Phase 2, FR-3).
+
+Each stage runs as a subprocess of its existing CLI (the same code path as the command line), in
+its own process group so it can be stopped as a whole. Output (stdout and stderr merged) is
+appended raw to `<studio_dir>/jobs/<id>.log`, flushed per line; the job record
+`<studio_dir>/jobs/<id>.json` is written atomically when the job starts and when it ends, so the
+last run per book and stage survives a restart. A record still `running` when a runner is created
+belonged to a studio that died, and becomes `interrupted`.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import os
+import re
+import secrets
+import signal
+import subprocess
+import sys
+import threading
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+
+from video_pipeline.episode_tools import write_atomic
+from video_pipeline.studio.books import STAGES, Book, StudioPaths
+
+STOP_GRACE_SECONDS = 5.0
+STAGE_MODULES = {
+    "script": "video_pipeline.generate_script",
+    "voices": "video_pipeline.synthesize_voices",
+    "render": "video_pipeline.render_episode",
+}
+_SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
+_ANSI = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
+
+
+class Busy(Exception):
+    """A job is already running; `current` is its record."""
+
+    def __init__(self, current: dict) -> None:
+        super().__init__(f"a job is already running: {current['id']}")
+        self.current = current
+
+
+class UnknownJob(LookupError):
+    """No job with that id (or the id is not a safe file name)."""
+
+
+@dataclass
+class Job:
+    id: str
+    book: str
+    stage: str
+    cmd: list[str]
+    started_at: str
+    ended_at: str | None = None
+    state: str = "running"
+    exit_code: int | None = None
+    pid: int | None = None
+    _stopping: bool = field(default=False, repr=False)
+
+    def to_dict(self) -> dict:
+        record = asdict(self)
+        record.pop("_stopping")
+        return record
+
+
+def stage_command(stage: str, book: Book, paths: StudioPaths, force: bool = False) -> list[str]:
+    """The CLI argv that runs `stage` for `book`, as `python -m video_pipeline.<module> ...`."""
+    if stage not in STAGE_MODULES:
+        raise ValueError(f"unknown stage {stage!r}; expected one of {', '.join(STAGES)}")
+    cmd = [sys.executable, "-m", STAGE_MODULES[stage], "--book", str(book.book_path)]
+    cmd += ["--episodes-dir", str(paths.episodes_dir)]
+    if stage != "script":
+        cmd += ["--build-dir", str(paths.build_dir)]
+    cmd += ["--config-dir", str(paths.config_dir)]
+    if stage == "voices":
+        cmd.append("--reviewed")
+    if stage == "render":
+        cmd += ["--assets-dir", str(book.assets_dir), "--sfx-dir", str(paths.sfx_dir)]
+    if force:
+        cmd.append("--force")
+    return cmd
+
+
+def clean_log_text(text: str) -> str:
+    """`text` for display: ANSI escape codes removed, and on each line only the text after the
+    last carriage return kept (progress bars overwrite themselves with `\\r`)."""
+    text = _ANSI.sub("", text)
+    return "\n".join(line.rstrip("\r").rsplit("\r", 1)[-1] for line in text.split("\n"))
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+class JobRunner:
+    """Runs at most one stage subprocess at a time and keeps its log and record on disk."""
+
+    def __init__(
+        self,
+        studio_dir: Path,
+        env: dict[str, str] | None = None,
+        cwd: Path | None = None,
+        stop_grace: float = STOP_GRACE_SECONDS,
+    ) -> None:
+        self.jobs_dir = Path(studio_dir) / "jobs"
+        self.env = dict(env or {})
+        self.cwd = cwd
+        self.stop_grace = stop_grace
+        self._lock = threading.Lock()
+        self._job: Job | None = None
+        self._proc: subprocess.Popen | None = None
+        self._thread: threading.Thread | None = None
+        self._mark_interrupted()
+
+    # --- paths and records --------------------------------------------------------------------
+
+    def _record_path(self, job_id: str) -> Path:
+        return self.jobs_dir / f"{job_id}.json"
+
+    def _log_path(self, job_id: str) -> Path:
+        return self.jobs_dir / f"{job_id}.log"
+
+    def _write(self, job: Job) -> None:
+        write_atomic(self._record_path(job.id), job.to_dict())
+
+    def _records(self) -> list[dict]:
+        if not self.jobs_dir.is_dir():
+            return []
+        found = []
+        for path in self.jobs_dir.glob("*.json"):
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(record, dict) and isinstance(record.get("id"), str):
+                found.append(record)
+        return found
+
+    def _mark_interrupted(self) -> None:
+        for record in self._records():
+            if record.get("state") == "running":
+                record["state"] = "interrupted"
+                record["ended_at"] = _now().isoformat()
+                write_atomic(self._record_path(record["id"]), record)
+
+    # --- running --------------------------------------------------------------------------------
+
+    def start(self, book_slug: str, stage: str, cmd: list[str]) -> Job:
+        """Start `cmd` in the background for (`book_slug`, `stage`). Raises `Busy` when a job is
+        already running. A program that cannot be started gives a `failed` job, not an error."""
+        if not _SAFE_ID.fullmatch(book_slug) or not _SAFE_ID.fullmatch(stage):
+            raise ValueError(f"unsafe book slug or stage: {book_slug!r}, {stage!r}")
+        with self._lock:
+            if self._job is not None:
+                raise Busy(self._job.to_dict())
+            started = _now()
+            job_id = f"{started:%Y%m%dT%H%M%S}-{book_slug}-{stage}-{secrets.token_hex(2)}"
+            job = Job(job_id, book_slug, stage, list(cmd), started.isoformat())
+            self.jobs_dir.mkdir(parents=True, exist_ok=True)
+            log = self._log_path(job_id).open("ab")
+            env = {**os.environ, **self.env, "PYTHONUNBUFFERED": "1"}
+            try:
+                proc = subprocess.Popen(  # noqa: S603 - argv list built by stage_command
+                    job.cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                    cwd=self.cwd,
+                    env=env,
+                    start_new_session=True,
+                )
+            except OSError as exc:
+                log.write(f"error: could not start {job.cmd[0]}: {exc}\n".encode())
+                log.close()
+                job.state, job.ended_at = "failed", _now().isoformat()
+                self._write(job)
+                return Job(**asdict(job))
+            job.pid = proc.pid
+            self._write(job)
+            self._job, self._proc = job, proc
+            self._thread = threading.Thread(
+                target=self._pump, args=(job, proc, log), name=f"job-{job_id}", daemon=True
+            )
+            self._thread.start()
+            return Job(**asdict(job))
+
+    def _pump(self, job: Job, proc: subprocess.Popen, log) -> None:
+        try:
+            assert proc.stdout is not None
+            for line in iter(proc.stdout.readline, b""):
+                log.write(line)
+                log.flush()
+            proc.stdout.close()
+            code = proc.wait()
+        finally:
+            log.close()
+        with self._lock:
+            job.exit_code = code
+            job.ended_at = _now().isoformat()
+            if job._stopping:
+                job.state = "stopped"
+            else:
+                job.state = "done" if code == 0 else "failed"
+            self._write(job)
+            self._job = self._proc = None
+
+    def current(self) -> dict | None:
+        """The running job's record, or None."""
+        with self._lock:
+            return self._job.to_dict() if self._job else None
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Wait for the running job (if any) to finish; True when nothing is running after."""
+        with self._lock:
+            thread = self._thread
+        if thread is not None:
+            thread.join(timeout)
+            return not thread.is_alive()
+        return True
+
+    def stop(self) -> dict | None:
+        """Stop the running job: SIGTERM to its process group, SIGKILL after the grace period.
+        Returns the final record (state `stopped`), or None when nothing was running."""
+        with self._lock:
+            job, proc, thread = self._job, self._proc, self._thread
+            if job is None or proc is None or thread is None:
+                return None
+            job._stopping = True
+        _signal_group(proc.pid, signal.SIGTERM)
+        thread.join(self.stop_grace)
+        if thread.is_alive():
+            _signal_group(proc.pid, signal.SIGKILL)
+            thread.join()
+        return job.to_dict()
+
+    # --- reading --------------------------------------------------------------------------------
+
+    def latest(self, book: str, stage: str) -> dict | None:
+        """The newest record for (`book`, `stage`), read from disk; None if it never ran."""
+        matches = [r for r in self._records() if r.get("book") == book and r.get("stage") == stage]
+        if not matches:
+            return None
+        return max(matches, key=lambda r: (str(r.get("started_at") or ""), r["id"]))
+
+    def log(self, job_id: str, offset: int = 0) -> tuple[str, int]:
+        """Log text from byte `offset` and the offset to ask for next. ANSI codes are removed and
+        `\\r`-overwritten text collapsed; while the job runs only complete lines are returned."""
+        path = self._log_path(job_id)
+        if not _SAFE_ID.fullmatch(job_id) or not self._record_path(job_id).is_file():
+            raise UnknownJob(job_id)
+        with self._lock:
+            running = self._job is not None and self._job.id == job_id
+        try:
+            with path.open("rb") as fh:
+                fh.seek(max(offset, 0))
+                data = fh.read()
+        except FileNotFoundError:
+            return "", max(offset, 0)
+        start = max(offset, 0)
+        if running:
+            cut = data.rfind(b"\n") + 1
+            data = data[:cut]
+        return clean_log_text(data.decode("utf-8", errors="replace")), start + len(data)
+
+
+def _signal_group(pgid: int, sig: signal.Signals) -> None:
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(pgid, sig)
