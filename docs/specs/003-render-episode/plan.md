@@ -181,6 +181,21 @@ Inputs already exist: `book_data.json` (pages with `illustration_file`, square 1
 - Docs: `CLAUDE.md` (render command, outputs, nook/sfx locations, stage 3 implemented), `.claude/rules/ffmpeg.md` (no drawtext in Homebrew FFmpeg → Pillow caption PNGs; measured zoompan speed), `.claude/memory/steering/tech-stack.md`.
 - **Commit:** `feat(render): Phase 5: real pilot render and docs` with measured time and memory.
 
+**Results (2026-11-09):**
+- `uv run pytest -m ffmpeg`: 10 passed.
+- Pilot render: 15:15 video in 492.7 s (8.2 min) wall, 23 sections; max RSS 0.90 GB.
+- Output: 1920×1080 30 fps h264 yuv420p BT.709, AAC 48 kHz stereo; video and audio both 915.300 s, 27459 frames, 220 MB.
+- No-change re-run: "up to date" in 0.61 s.
+
+**Deviations during execution:**
+- Camera endpoints are clamped before interpolation (pan travel effectively 0.054).
+- `load_page_turn` takes the `audio_sfx` folder.
+- Captions use single-frame inputs + `eof_action=repeat`.
+- BT.709 is tagged via `setparams`.
+- Pictures are verified before any render.
+- `resolve_pictures` falls back to `page_PP.png` when `illustration_file` is absent.
+- The record is deleted at re-render start.
+
 ## Spec coverage
 
 | Spec item | Phase(s) |

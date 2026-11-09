@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A pipeline for turning an illustrated children's book (pilot: *The Snail Mail Express: A Whisperwood Hollow Story*) into publishable outputs. Two parts:
 
 1. **Book production (exists):** Python scripts in `scripts/` that render print/digital editions from `book_data.json` + `assets/illustrations/`.
-2. **Storytime video factory (in progress, see `PRD.md`):** a `video_pipeline/` package that turns the same book into a 16:9 1080p YouTube read-aloud video. Stages 1–2 (episode script, voices) exist; render and the one-command wrapper are still planned. Specs live in `docs/specs/`.
+2. **Storytime video factory (in progress, see `PRD.md`):** a `video_pipeline/` package that turns the same book into a 16:9 1080p YouTube read-aloud video. Stages 1–3 (episode script, voices, render) exist; the one-command wrapper is still planned. Specs live in `docs/specs/`.
 
 Git repository; feature work happens on `feat/NNN-*` branches.
 
@@ -34,6 +34,9 @@ uv run python -m video_pipeline.synthesize_voices download        # one-time: fe
 uv run python -m video_pipeline.synthesize_voices --reviewed [--force]   # stage 2: speak the reviewed script
 uv run python -m video_pipeline.synthesize_voices approve         # after listening to preview.wav
 uv run pytest -m "ffmpeg or tts"                                  # real FFmpeg pitch lift + real Orpheus
+
+# Video pipeline (stage 3: render)
+uv run python -m video_pipeline.render_episode [--force]    # render the approved episode to build/<slug>/video/<slug>.mp4
 ```
 
 `build_book.py` outputs (all in `build/`): front/back cover PNGs (300 DPI), KDP wrap cover PDF/PNG, 20-page digital PDF (8.5"×8.5"), complete reader PDF (covers + 20 pages), 24-page KDP print interior PDF (with bleed), EPUB 3, and `index.html` flipbook (references `../assets/illustrations/` by relative path, so open it from `build/`).
@@ -57,6 +60,6 @@ Target: Apple Silicon M1 Pro, 16 GB — stages run sequentially to fit memory.
 - Stages / planned files:
   1. **Implemented:** `video_pipeline/` — deterministic core (`contract.py`, `episode.py`, `episode_tools.py`), model access (`llm.py` Gemini API + writing brief, `agents.py` Codex runner, `mcp_server.py` episode tools `get_episode_plan`/`validate_banter`/`save_episode_script`), CLI `generate_script.py`. Writes hand-editable `episodes/<slug>/episode_script.json` (intro, per-page `lines` with `speaker`/`role`/`text`, `ffmpeg_camera` zoom targets, outro; regenerate with `--force`). Default provider: Codex from the ChatGPT app, run headless with only the `kiddo` MCP tools (`KIDDO_CODEX_BIN` overrides the binary); agent run logs (raw JSONL + `.stderr.log`, gitignored) go to `episodes/<slug>/agent/`. Opt-in `--provider gemini-api` reads `GEMINI_API_KEY`. No fallback between providers. The seed alone decides the episode plan. Cast in `config/cast.json`, kid-safety terms in `config/disallowed_terms.txt`. Every generated script needs human review before voice synthesis.
   2. **Implemented:** `video_pipeline/audio_checks.py` (numpy measurements, trim, stitch, pauses), `tts.py` (Orpheus via `mlx-audio` 0.6.4, pinned, offline with `HF_HUB_OFFLINE=1`; FFmpeg `asetrate`/`aresample`/`atempo` pitch lift because Homebrew FFmpeg lacks rubberband), CLI `synthesize_voices.py`. Voices per role in `config/cast.json` (tara / zac +2 st / zoe +3 st); model, pitch, pauses and checks in `config/voices.json`; optional `metadata.pronunciations` in book data (applied to spoken text only). Lines may carry inline tags `<giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>`. Outputs in `build/<slug>/audio/`: `clips/` (hash-keyed, reused), `tracks/` (intro, `page-PP`, outro WAV + timing JSON), `preview.wav`, `review.md`, `status.json` ("pending review" → "approved" via `approve`). Refuses to run without `--reviewed`.
-  3. `video_pipeline/render_episode.py` — must require voice `status.json` "approved". Pillow + FFmpeg: `zoompan` Ken Burns, `xfade` page flips, `sidechaincompress` BGM ducking, page-turn SFX from `assets/audio_sfx/`, H.264/AAC 1920×1080.
+  3. **Implemented:** `video_pipeline/timeline.py` (pure: sections, frame-exact durations, caption cards, camera math + matching zoompan expressions, cache keys), `frames.py` (Pillow canvas: whole illustration centred over a blurred darkened copy; caption PNGs; generated page-turn sound; numpy master audio mix), `render_episode.py` (FFmpeg section/transition clips, concat `-c copy`, AAC mux; approval gate via `synthesize_voices.approval_problems`; per-section caching; CLI). Config in `config/render.json`. Optional inputs: per-book `episodes/<slug>/intro_nook.png`/`outro_nook.png`, shared `assets/nook/…`, else covers; `assets/audio_sfx/page_turn.wav`, else generated (cached at `build/sfx/`). Outputs in `build/<slug>/video/`: `sections/`, `transitions/`, `frames/`, `audio/master.wav`, `<slug>.mp4` + `<slug>.json` record. On-screen captions, no subtitle file; background music not implemented yet (separate spec).
   4. One-command CLI/MCP wrapper for the whole pipeline for future books (`mcp_server.py` currently exposes only the stage-1 episode tools).
 - Act II (story pages) has no on-screen avatars or speech bubbles — visuals are the book pages only. Intro/outro use a single reading-nook keyframe each, animated by FFmpeg.
