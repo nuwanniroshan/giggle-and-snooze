@@ -1,4 +1,5 @@
 import dataclasses
+import json
 
 import numpy as np
 import pytest
@@ -410,3 +411,70 @@ def test_seed_is_not_part_of_clip_identity(script):  # ruling: seed change keeps
     assert [j.key for j in plan_jobs(script, CFG, {})] == [
         j.key for j in plan_jobs(script, other, {})
     ]
+
+
+# --- FR-7 review fix: files edited on disk are rebuilt --------------------------------------
+
+
+def _scribble(path):
+    """Replace a WAV with different, still valid audio (an edit made outside synthesis)."""
+    audio, sr = sf.read(path, dtype="float32")
+    sf.write(path, audio * 0.5, sr, subtype="PCM_16")
+
+
+def test_edited_track_wav_is_rebuilt(script, tmp_path):  # FR-7
+    _, paths, _, names, _, _ = run(script, tmp_path)
+    assert build_preview(names, paths, CFG) is True
+    name = names[1]
+    original = paths.track(name).read_bytes()
+    preview = paths.preview.read_bytes()
+    _scribble(paths.track(name))
+    assert paths.track(name).read_bytes() != original
+    *_, rebuilt, _ = run(script, tmp_path)
+    assert rebuilt == [name]
+    assert paths.track(name).read_bytes() == original
+    assert load_json(paths.track_timing(name))["wav_sha256"] == sv.sha256_file(paths.track(name))
+    # The restored track is byte-identical to the one the preview was joined from.
+    assert build_preview(names, paths, CFG) is False
+    assert paths.preview.read_bytes() == preview
+
+
+def test_unchanged_rerun_rebuilds_nothing(script, tmp_path):  # FR-7
+    _, paths, _, names, _, _ = run(script, tmp_path)
+    assert build_preview(names, paths, CFG) is True
+    *_, rebuilt, _ = run(script, tmp_path)
+    assert rebuilt == []
+    assert build_preview(names, paths, CFG) is False
+
+
+def test_edited_preview_wav_is_rebuilt(script, tmp_path):  # FR-7
+    _, paths, _, names, _, _ = run(script, tmp_path)
+    build_preview(names, paths, CFG)
+    original = paths.preview.read_bytes()
+    assert load_json(paths.preview_meta)["wav_sha256"] == sv.sha256_file(paths.preview)
+    _scribble(paths.preview)
+    assert build_preview(names, paths, CFG) is True
+    assert paths.preview.read_bytes() == original
+
+
+def test_preview_follows_a_track_edited_without_its_key(script, tmp_path):  # FR-7
+    # A preview joined from a track file that no longer matches is stale, even if the track's
+    # timing key still matches: the preview key covers the track audio itself.
+    _, paths, _, names, _, _ = run(script, tmp_path)
+    build_preview(names, paths, CFG)
+    timing = load_json(paths.track_timing(names[0]))
+    timing["wav_sha256"] = "0" * 64
+    paths.track_timing(names[0]).write_text(json.dumps(timing), encoding="utf-8")
+    assert build_preview(names, paths, CFG) is True
+
+
+def test_timing_without_wav_sha_is_rebuilt_once(script, tmp_path):  # FR-7 upgrade path
+    _, paths, _, names, _, _ = run(script, tmp_path)
+    for name in names:
+        timing = load_json(paths.track_timing(name))
+        del timing["wav_sha256"]
+        paths.track_timing(name).write_text(json.dumps(timing), encoding="utf-8")
+    *_, rebuilt, _ = run(script, tmp_path)
+    assert rebuilt == names
+    *_, rebuilt, _ = run(script, tmp_path)
+    assert rebuilt == []

@@ -1882,6 +1882,7 @@ An implementation review found eleven defects; each was fixed test-first.
 9. `plan_jobs` rejects two roles sharing a voice (AC-2.4).
 10. `approve(paths, script_path, settings_sha)` also refuses when the voice settings changed since synthesis. `_synthesize` computes the status with `next_status`, writes `review.md`, then `status.json` last.
 11. Approval follows the preview (AC-4.4): clips re-synthesized by an interrupted or failed run (e.g. an interrupted `--force`) were reused next run and the approval survived on audio nobody heard. `status.json` now records `preview_key` (read with `current_preview_key(paths)` from `preview.json` after `build_preview`); `next_status(paths, script_sha, settings_sha, preview_key, any_synthesized)` keeps "approved" only if the previous status is approved, its `preview_key` equals the current one, nothing was synthesized this run and both hashes match. `approve` refuses with "the preview changed since synthesis finished; re-run synthesis first" when the keys differ, and with "episode script not found: <path>" when the script is missing.
+12. FR-7 (spec 003 review): a track or preview edited or replaced on disk is rebuilt. Each timing JSON stores `wav_sha256` of its track WAV and `preview.json` stores the preview's; reuse needs the key and the current file's sha256 to match, and the preview key also covers each track's `wav_sha256`. Timing JSONs written before this fix lack the field and rebuild once (which also re-hashes the tracks, so an existing approval must be given again).
 
 ---
 

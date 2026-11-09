@@ -438,10 +438,14 @@ def build_tracks(
         }
         track_key = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:32]
         timing_path = paths.track_timing(name)
+        meta = _read_json_or_none(timing_path)
+        # Reuse needs the same inputs and the very file that was written (FR-7): a track WAV
+        # edited or replaced on disk, or a timing JSON from before `wav_sha256`, is rebuilt.
         if (
-            paths.track(name).exists()
-            and timing_path.exists()
-            and json.loads(timing_path.read_text(encoding="utf-8")).get("track_key") == track_key
+            meta is not None
+            and meta.get("track_key") == track_key
+            and paths.track(name).is_file()
+            and meta.get("wav_sha256") == sha256_file(paths.track(name))
         ):
             continue
         clips = [sf.read(paths.clip(o.job.key), dtype="float32")[0] for o in items]
@@ -452,6 +456,7 @@ def build_tracks(
             {
                 "track": name,
                 "track_key": track_key,
+                "wav_sha256": sha256_file(paths.track(name)),
                 "duration": round(len(audio) / cfg.sample_rate, 3),
                 "lines": [
                     {
@@ -474,21 +479,30 @@ def build_tracks(
 
 
 def build_preview(track_names: list[str], paths: AudioPaths, cfg: VoiceConfig) -> bool:
-    """Join the tracks; rebuild only when a track key, the order or the gap changed."""
-    keyed = [
-        [name, json.loads(paths.track_timing(name).read_text(encoding="utf-8"))["track_key"]]
-        for name in track_names
-    ]
+    """Join the tracks; rebuild only when a track (key or audio), the order or the gap changed,
+    or preview.wav no longer matches the file that was written (FR-7)."""
+    keyed = []
+    for name in track_names:
+        timing = json.loads(paths.track_timing(name).read_text(encoding="utf-8"))
+        keyed.append([name, timing["track_key"], timing.get("wav_sha256")])
     payload = [keyed, cfg.pauses["between_tracks"], cfg.sample_rate]
     preview_key = hashlib.sha256(json.dumps(payload).encode()).hexdigest()[:32]
     meta = _read_json_or_none(paths.preview_meta)
-    if paths.preview.exists() and meta is not None and meta.get("preview_key") == preview_key:
+    if (
+        paths.preview.is_file()
+        and meta is not None
+        and meta.get("preview_key") == preview_key
+        and meta.get("wav_sha256") == sha256_file(paths.preview)
+    ):
         return False
     tracks = [sf.read(paths.track(name), dtype="float32")[0] for name in track_names]
     gaps = [cfg.pauses["between_tracks"]] * max(0, len(tracks) - 1)
     audio, _ = stitch(tracks, gaps, cfg.sample_rate)
     write_wav_atomic(paths.preview, audio, cfg.sample_rate)
-    write_atomic(paths.preview_meta, {"preview_key": preview_key, "tracks": keyed})  # after wav
+    write_atomic(  # after the wav, so an interrupted run leaves no matching record
+        paths.preview_meta,
+        {"preview_key": preview_key, "wav_sha256": sha256_file(paths.preview), "tracks": keyed},
+    )
     return True
 
 
