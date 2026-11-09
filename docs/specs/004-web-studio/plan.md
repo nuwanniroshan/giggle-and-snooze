@@ -1,0 +1,110 @@
+# Implementation Plan: Episode studio (local web interface)
+
+**Spec:** docs/specs/004-web-studio/spec.md (v1.0.0, Approved)
+**Branch:** feat/004-web-studio
+**Created:** 2026-11-09
+
+## Context
+
+The three stages already exist as CLIs: `video_pipeline.generate_script`, `video_pipeline.synthesize_voices` (`--reviewed`, `approve`), `video_pipeline.render_episode`. Each takes `--book`, `--episodes-dir`, `--build-dir` (where relevant), `--config-dir`, and render takes `--assets-dir` (pictures under `<assets>/illustrations/`, shared nooks under `<assets>/nook/`, page-turn sound under `<assets>/audio_sfx/`). The pilot lives at `book_data.json` + `assets/`.
+
+**Tech (traced to NFR Simplicity, no build step):** Starlette 1.10 + uvicorn 0.54 + Jinja2 3.1 + python-multipart 0.0.33 are already installed in `.venv` (pulled in by `mcp`); declare them explicitly in `pyproject.toml`. Pages are server-rendered Jinja templates with a little vanilla JS (polling a JSON endpoint every second for job progress). Tests use Starlette's `TestClient`, which needs `httpx` (dev dependency). Media playback uses Starlette `FileResponse` (supports HTTP Range).
+
+**Design: four modules in a new `video_pipeline/studio/` package.**
+- `books.py` — book registry, upload validation/storage, reviewed mark, script editing, stage status. No web code.
+- `jobs.py` — one-at-a-time background job runner: each stage runs as a **subprocess of the existing CLI** (same code path as the command line; stoppable by terminating its process group; isolates memory), output streamed to a log file, job record persisted as JSON.
+- `app.py` — Starlette routes + templates + media serving; `main()` starts uvicorn on `127.0.0.1`.
+- `templates/` + `static/studio.js` + `static/studio.css`.
+
+## Global Constraints
+
+- **Book layout.** Pilot: `book_data.json`, assets root `assets/`. Added books: `books/<slug>/book_data.json`, `books/<slug>/illustrations/<files>`; uploaded nooks go to `episodes/<slug>/intro_nook.png` / `outro_nook.png` (render already prefers per-book nooks). Slug = `contract.slugify(metadata.title)`. Render for an added book: `--assets-dir books/<slug>`; add a `--sfx-dir` option to `render_episode` (default `<ROOT>/assets/audio_sfx`) so the shared page-turn sound applies to every book.
+- **Studio state** lives under `build/studio/`: `jobs/<job_id>.json` (record) and `jobs/<job_id>.log` (output). Everything else is derived from existing pipeline files (FR-2).
+- **Reviewed mark:** `episodes/<slug>/reviewed.json` = `{script_sha256, reviewed_at}`; valid only while the script's sha matches.
+- **Stage states:** `not_started | running | done | needs_review | approved | failed | interrupted | out_of_date`.
+- **Server binds only `127.0.0.1`**, default port 8765 (`--port` to change); port in use → clear error, exit 1.
+- **All writes atomic** (`*.tmp` then `os.replace`). Upload file names are reduced to their basename and must match a name the book data expects (page `illustration_file`s, `cover_front.png`, `cover_back.png`, `intro_nook.png`, `outro_nook.png`); anything else is rejected. Upload size limit 25 MB per file.
+- No change to existing CLI behaviour except the additive `--sfx-dir` option and an additive `check` helper in render (below).
+
+---
+
+## Phase 1: Books, uploads, reviewed mark, script editing, status
+
+**Implements:** FR-1, FR-2, FR-4 (review mark), FR-5, FR-6 | **Satisfies:** AC-1.2, AC-1.3, AC-2.1–2.5, AC-4.2–4.4 (data side), AC-5.3, AC-6.2
+**Files:** `video_pipeline/studio/__init__.py`, `video_pipeline/studio/books.py`, `video_pipeline/render_episode.py` (additive), `tests/test_studio_books.py`
+
+**Interfaces:**
+- `Book(slug, title, book_path: Path, assets_dir: Path, is_pilot: bool)`; `StudioPaths(root)` with `books_dir`, `episodes_dir`, `build_dir`, `config_dir`, `studio_dir`.
+- `list_books(paths) -> list[Book]` — pilot (if `book_data.json` loads) + each `books/*/book_data.json` that loads; sorted by title; a broken added book is listed with an `error` string instead of being hidden.
+- `validate_upload(book_json: bytes, files: dict[str, bytes]) -> tuple[dict | None, list[str]]` — parse JSON, validate with `episode.load_book`-equivalent rules (reuse `episode.load_book` by writing to a temp file, or factor its validation), check every expected illustration and both covers are present and open with Pillow, reject unexpected names and oversize files. Returns the parsed book and every problem.
+- `save_book(paths, book, files, replace=False) -> Book` — refuses an existing slug unless `replace`; writes into a temp dir then swaps into `books/<slug>/` atomically (rename old dir aside, rename new in, delete old); nooks to `episodes/<slug>/`. Refuses a slug equal to the pilot's.
+- `script_path(paths, book)`, `load_script(...)`, `mark_reviewed(paths, book) -> dict`, `reviewed_ok(paths, book) -> bool`.
+- `save_line_edits(paths, book, edits: dict[str, str]) -> list[str]` — `edits` maps a line id (`intro-NN` / `page-PP-NN` / `outro-NN`, same numbering as spec 002) to new text; applies to a copy, runs `contract.validate_script(script, book, terms)`; problems → return them (nothing written); else atomic write. Any successful save clears the reviewed mark (deletes `reviewed.json`).
+- In `render_episode.py`: add `--sfx-dir` (default `ROOT/"assets"/"audio_sfx"`) threaded through `render_video(..., sfx_dir=None)`; add `render_check(book_path, episodes_dir, build_dir, config_dir, assets_dir, sfx_dir) -> str` returning `"up_to_date" | "out_of_date" | "not_rendered" | "blocked"` by computing the final key exactly like `render_video` does but without running FFmpeg (factor the key computation into a shared helper; no behaviour change).
+- `stage_status(paths, book, jobs_view) -> dict` with keys `script`, `voices`, `video`, each `{state, detail}`, and `next_action` string from AC-1.3. Uses: script file + reviewed mark; `synthesize_voices.approval_problems` + status.json; `render_check`; and the job runner's latest record per (book, stage) for `running/failed/interrupted`.
+
+**Tests (failing first):** list_books with pilot + one added + one broken; upload validation (valid; bad JSON; missing illustration; missing cover; unreadable image; unexpected filename incl. `../evil.png`; oversize); save_book (new; duplicate refused; replace swaps; pilot slug refused; nook placement); reviewed mark set/cleared by edit/stale when script changed externally; save_line_edits valid/invalid (nothing written, problems returned, unknown line id rejected); render_check states with a fake world (reuse `tests/render_helpers.py`); `--sfx-dir` used (fake runner world with a supplied page_turn.wav in a custom dir); stage_status/next_action for each combination.
+
+**Commit:** `feat(studio): Phase 1: books, uploads, review mark, script edits and status`
+
+---
+
+## Phase 2: One-at-a-time job runner
+
+**Implements:** FR-3 | **Satisfies:** AC-3.1 (command gating data), AC-3.2–3.6, NFR Reliability
+**Files:** `video_pipeline/studio/jobs.py`, `tests/test_studio_jobs.py`
+
+**Interfaces:**
+- `stage_command(stage, book, paths, force=False) -> list[str]` — `[sys.executable, "-m", "video_pipeline.<module>", ...]`: script → `generate_script --book B --episodes-dir E --config-dir C [--force]`; voices → `synthesize_voices --book B --episodes-dir E --build-dir D --config-dir C --reviewed [--force]`; render → `render_episode --book B --episodes-dir E --build-dir D --config-dir C --assets-dir A --sfx-dir S [--force]`.
+- `JobRunner(studio_dir, env=None)`: `start(book_slug, stage, cmd) -> Job` (raises `Busy(current)` if a job is running); background thread runs `subprocess.Popen(cmd, stdout=PIPE, stderr=STDOUT, text=True, start_new_session=True, env={..., "PYTHONUNBUFFERED": "1"})`, appends each line to the log file and an in-memory tail; record JSON `{id, book, stage, cmd, started_at, ended_at, state: running|done|failed|stopped|interrupted, exit_code}` written atomically on start and end. `stop()` sends SIGTERM to the process group, SIGKILL after 5 s → state `stopped`. `current()`, `latest(book, stage)`, `log(job_id, offset) -> (text, new_offset)`. On construction, any persisted record still `running` becomes `interrupted`.
+- Gating (AC-3.1/4.4) lives in the app layer using Phase 1 status (voices requires `reviewed_ok`; render requires no `approval_problems`).
+
+**Tests (failing first; jobs use tiny `python -c` commands, no pipeline):** start → done with log captured and exit 0; failing command → failed with exit code and output; second start while running → Busy; stop → stopped and process gone; restart with a stale running record → interrupted; log offsets stream incrementally; stage_command shapes for pilot and added book (force flags, sfx/assets dirs).
+
+**Commit:** `feat(studio): Phase 2: one-at-a-time job runner`
+
+---
+
+## Phase 3: Web app, pages and media
+
+**Implements:** FR-3 (display), FR-4, FR-7, Story 1 | **Satisfies:** AC-1.1–1.3, AC-2.x (UI), AC-3.x (UI), AC-4.1–4.4, AC-5.1–5.3, AC-6.1–6.2
+**Files:** `video_pipeline/studio/app.py`, `video_pipeline/studio/templates/{base,home,book,upload,script,audio,video}.html`, `video_pipeline/studio/static/{studio.js,studio.css}`, `pyproject.toml` (declare starlette, uvicorn, jinja2, python-multipart; dev httpx), `uv.lock`, `tests/test_studio_app.py`
+
+**Routes (HTML unless noted):**
+- `GET /` home: books table with per-stage state badges and next action; banner when a job is running.
+- `GET /books/new`, `POST /books` (multipart: `book_data` + `files[]` + optional `replace=1`) → errors listed, or redirect to the book.
+- `GET /books/{slug}`: stage cards with buttons (disabled with a reason when gated or busy), last job status + live log panel, force/regenerate options with confirmation (JS `confirm()` + a hidden `confirm=1` field the server requires for regenerate).
+- `POST /books/{slug}/run/{stage}` (`force`, `confirm`) → 409 with message if busy/gated; else start job, redirect back.
+- `POST /jobs/stop`; `GET /api/jobs/current` and `GET /api/jobs/{id}/log?offset=N` (JSON) for polling.
+- `GET /books/{slug}/script`: intro, pages (text, illustration thumbnail, lines with speaker/role, editable textareas named by line id), outro; `POST /books/{slug}/script` saves edits (problems shown per line); `POST /books/{slug}/script/reviewed`.
+- `GET /books/{slug}/audio`: `<audio>` for preview and each track, review-sheet table (from track timing JSONs), status + approved_at; `POST /books/{slug}/audio/approve` calls `synthesize_voices.approve` in-process (fast) and shows refusal reasons.
+- `GET /books/{slug}/video`: `<video controls>`, duration, path, out-of-date notice from `render_check`.
+- `GET /media/{slug}/{kind}/{name}`: serve only whitelisted files (illustrations, audio tracks/preview, the final video) resolved from the book — never a client-supplied path.
+- `main(argv)`: `--port` (8765), `--host` fixed to 127.0.0.1 (not configurable), prints `Studio running at http://127.0.0.1:PORT`; port in use → `error: port PORT is already in use` exit 1.
+
+**Tests (TestClient, failing first; JobRunner and stage commands faked; worlds from `tests/render_helpers.py`):** home lists books with states/next action; upload good/bad/duplicate/replace; run gating (voices blocked until reviewed, render blocked until approved) and busy 409; regenerate requires confirm; script page renders lines, save valid/invalid, reviewed button; audio page lists tracks and approve works/refuses; video page plays and flags out-of-date; media route refuses unknown names and traversal; `Range` request returns 206; server refuses non-loopback host (unit-test the bind address used by `main`).
+
+**Commit:** `feat(studio): Phase 3: web pages, stage controls and media`
+
+---
+
+## Phase 4: Real run and docs
+
+- Start the studio (`uv run python -m video_pipeline.studio`), check with `curl` that `/` lists the pilot with voices approved and video up to date; open it in the browser pane and screenshot home, script, audio and video pages.
+- Upload a copy of the mini test book through the browser form (or `curl -F`) and confirm it appears with next step "Generate script"; delete it afterwards (it is test data created by this phase).
+- Run a short real stage from the UI against the pilot: approve is already done; run render (should report "up to date" in < 1 s) and confirm live log + done state.
+- Docs: `CLAUDE.md` (studio command, book layout, `--sfx-dir`), steering tech-stack, `.claude/rules` note if useful.
+- **Commit:** `feat(studio): Phase 4: real run and docs`
+
+## Spec coverage
+
+| Spec item | Phase |
+|---|---|
+| FR-1 Books | 1 |
+| FR-2 Status | 1 (+ render_check) |
+| FR-3 Jobs | 2, 3 |
+| FR-4 Gates | 1 (review mark), 3 (enforced in routes) |
+| FR-5 Script editing | 1, 3 |
+| FR-6 Uploads | 1, 3 |
+| FR-7 Media | 3 |
+| NFR Security / Responsiveness / Simplicity / Reliability / Compatibility | 3 (bind, media whitelist), 3 (polling), 3 (no build), 2 (interrupted), 1 (`--sfx-dir` additive; added books runnable by CLI) |
