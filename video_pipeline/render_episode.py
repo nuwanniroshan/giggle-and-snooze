@@ -22,7 +22,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -30,7 +30,7 @@ import numpy as np
 import soundfile as sf
 from PIL import Image, UnidentifiedImageError
 
-from video_pipeline import timeline
+from video_pipeline import sound_library, timeline
 from video_pipeline.contract import ConfigError
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
@@ -46,6 +46,7 @@ from video_pipeline.frames import (
     render_caption,
 )
 from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
+from video_pipeline.sound_library import Cue, ambience_problems, build_cues, render_bed
 from video_pipeline.synthesize_voices import (
     AudioPaths,
     approval_problems,
@@ -61,6 +62,7 @@ from video_pipeline.timeline import (
     load_render_config,
     page_section_name,
     section_key,
+    section_times,
     total_frames,
     transition_frames,
     transition_key,
@@ -557,6 +559,8 @@ class _Inputs:
     keys: list[str]
     trans_keys: list[str]
     paths: VideoPaths
+    ambience: list[Cue] = field(default_factory=list)
+    ambience_key: list = field(default_factory=list)
 
 
 def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
@@ -594,6 +598,8 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
     keys = [section_key(s, picture_sha[s.picture], cfg) for s in sections]
     trans_keys = [transition_key(a, b, cfg) for a, b in zip(keys, keys[1:], strict=False)]
     paths = VideoPaths(folder.build_dir / "video")
+    cues = _load_ambience(script, sections, cfg, Path(root))
+    ambience_key = [[c.sound.name, sha256_file(c.sound.file), c.start, c.end] for c in cues]
     return _Inputs(
         slug,
         cfg,
@@ -606,7 +612,44 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         keys,
         trans_keys,
         paths,
+        cues,
+        ambience_key,
     )
+
+
+def _load_ambience(script: dict, sections: list[Section], cfg: RenderConfig, root: Path) -> list:
+    """The ambience cues (spec 007). The library is touched only when the script has an `ambience`
+    field; an unknown or missing sound fails here, before any section is rendered."""
+    blocks = [script["intro"], script["outro"], *script["pages"]]
+    if not any("ambience" in block for block in blocks):
+        return []
+    try:
+        library = sound_library.load_library(root / "assets" / "sound_library")
+    except sound_library.LibraryError as exc:
+        raise RenderError(str(exc)) from None
+    problems = ambience_problems(script, library)
+    if problems:
+        raise RenderError("; ".join(problems))
+    cues = build_cues(script, sections, section_times(sections, cfg), library)
+    missing = sorted({c.sound.name for c in cues if not c.sound.file.is_file()})
+    if missing:
+        raise RenderError(f"sound file missing: {', '.join(missing)}")
+    return cues
+
+
+def _render_bed(inputs: _Inputs) -> np.ndarray | None:
+    """The levelled ambience bed for the whole episode, or None when there are no cues."""
+    if not inputs.ambience:
+        return None
+    decoded: dict[str, np.ndarray] = {}
+    for cue in inputs.ambience:
+        if cue.sound.name not in decoded:
+            try:
+                decoded[cue.sound.name] = sound_library.decode_sound(cue.sound, inputs.sample_rate)
+            except (sound_library.LibraryError, SoundError) as exc:
+                raise RenderError(str(exc)) from None
+    length = round(total_frames(inputs.sections, inputs.cfg) / inputs.cfg.fps * inputs.sample_rate)
+    return render_bed(inputs.ambience, decoded, length, inputs.sample_rate, inputs.cfg.audio)
 
 
 def _page_turn_digest(page_turn: np.ndarray) -> str:
@@ -626,6 +669,7 @@ def _final_key(inputs: _Inputs, page_turn_sha: str) -> str:
             "sample_rate": inputs.sample_rate,
             "audio": asdict(inputs.cfg.audio),
             "video": asdict(inputs.cfg.video),
+            **({"ambience": inputs.ambience_key} if inputs.ambience_key else {}),
         }
     )
 
@@ -770,8 +814,11 @@ def render_video(
             clips += [clip, paths.sections / f"{b.name}.mp4"]
 
         master = paths.audio / "master.wav"
+        bed = _render_bed(inputs)
         write_wav_atomic(
-            master, mix_master(sections, tracks, page_turn, cfg, sample_rate), sample_rate
+            master,
+            mix_master(sections, tracks, page_turn, cfg, sample_rate, ambience=bed),
+            sample_rate,
         )
         list_file = paths.root / "concat.txt"
         write_concat_list(clips, list_file)
