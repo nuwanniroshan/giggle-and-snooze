@@ -2,22 +2,38 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import shutil
+import sys
+import tempfile
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from video_pipeline.agents import (
+    AgentResult,
+    AgentUnavailable,
+    build_codex_command,
+    codex_status,
+    run_codex,
+)
 from video_pipeline.episode_tools import write_atomic
-from video_pipeline.library import BookFolder
+from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
 
 MOTIONS = ("sway", "bob", "rotate", "breathe", "shift")
 EFFECTS = ("rain", "snow", "fireflies", "falling_leaves", "water_ripple", "smoke", "mist", "glow")
 PLAN_DIR = "animation"
 LIMITS_FILE = "animation.json"
+MAX_SAVES = 3
+SERVER_FIELDS = ("page_number", "picture", "provider", "written_at")
 
 
 class PlanError(ValueError):
@@ -248,3 +264,243 @@ def cut_fields_hash(plan: MotionPlan) -> str:
         for layer in plan.layers
     )
     return hashlib.sha256(json.dumps(fields, separators=(",", ":")).encode()).hexdigest()
+
+
+# -- planning with a tool-using provider (Phase 2: FR-4, FR-5, FR-6) -----------------------------
+
+
+@dataclass
+class PlanTools:
+    """The one planning tool. Page, picture identity and provider come from the server's own
+    command line; the model only sends layers and effects."""
+
+    limits: Limits
+    picture: PictureId
+    page_number: int
+    out: Path
+    provider: str = "codex"
+    saves: int = 0
+
+    def save_motion_plan(self, plan: object) -> dict:
+        self.saves += 1
+        if self.saves > MAX_SAVES:
+            return {"saved": False, "errors": [f"save limit reached ({MAX_SAVES} saves); stop"]}
+        if not isinstance(plan, dict):
+            return {"saved": False, "errors": ["plan: must be an object {layers, effects}"]}
+        data = {
+            **{k: v for k, v in plan.items() if k not in SERVER_FIELDS},
+            "page_number": self.page_number,
+            "picture": self.picture.model_dump(),
+            "provider": self.provider,
+            "written_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        errors = plan_problems(data, self.limits)
+        if errors:
+            return {"saved": False, "errors": errors}
+        save_plan(self.out, MotionPlan.model_validate(data))
+        return {"saved": True, "errors": []}
+
+
+PLAN_PROMPT = """You plan gentle loop animation for one children's picture-book illustration.
+The picture is attached. It is {width}x{height} pixels; all coordinates are in these pixels.
+Page text: {text}
+What the picture shows: {prompt}
+Characters: {characters}
+Choose 1-{max_layers} layers worth moving (characters, their parts like hair or antennae, \
+foreground leaves, water, clouds). For each: name (snake_case), description, a tight box \
+[x0,y0,x1,y1], optional include_points/exclude_points, z (higher = in front), depth \
+(0 far .. 1 near), pivot [x,y] where it would hinge, and motions from {motions} \
+(amplitude: degrees for sway/rotate max {rot}; fraction of the shorter side for bob/shift \
+max {shift}; scale fraction for breathe max {breathe}; period_s {pmin}-{pmax}; phase 0-1; \
+shift needs direction [dx,dy]). Add 0-{max_effects} effects from {effects} that fit the scene, \
+each with intensity 0-1, optional region {{"box": [...]}} or {{"layer": name}}, optional \
+colour #rrggbb.
+Keep everything subtle. Call save_motion_plan with {{"layers": [...], "effects": [...]}}; \
+fix every error it returns and save again (at most {saves} saves). Finish with one short line."""
+
+
+@dataclass(frozen=True)
+class PlanOutcome:
+    page_number: int
+    status: Literal["written", "kept", "failed"]
+    reason: str = ""
+
+
+Provider = Callable[..., AgentResult]
+
+
+def page_picture(folder: BookFolder, page: dict) -> Path:
+    number = int(page["page_number"])
+    return folder.illustrations / (page.get("illustration_file") or f"page_{number:02d}.png")
+
+
+def read_planning(root: Path) -> tuple[int, float]:
+    """(attempts, time limit in seconds) from config/animation.json."""
+    data = json.loads((Path(root) / "config" / LIMITS_FILE).read_text(encoding="utf-8"))
+    settings = data["planning"]
+    return int(settings["attempts"]), float(settings["time_limit_s"])
+
+
+def plan_prompt(page: dict, book: dict, picture: PictureId, limits: Limits) -> str:
+    style = book.get("style_bible") or {}
+    characters = " ".join(str(v) for k, v in style.items() if k.endswith("_description") and v)
+    return PLAN_PROMPT.format(
+        width=picture.width,
+        height=picture.height,
+        text=page.get("text", ""),
+        prompt=page.get("prompt", ""),
+        characters=characters or "(none described)",
+        max_layers=limits.max_layers,
+        motions=", ".join(MOTIONS),
+        rot=limits.max_rotate_deg,
+        shift=limits.max_shift,
+        breathe=limits.max_breathe,
+        pmin=limits.min_period_s,
+        pmax=limits.max_period_s,
+        max_effects=limits.max_effects,
+        effects=", ".join(EFFECTS),
+        saves=MAX_SAVES,
+    )
+
+
+def _refusals(result: AgentResult) -> list[str]:
+    return [
+        str(event.data["errors"][0])
+        for event in result.events
+        if event.kind == "tool-result" and isinstance(event.data, dict) and event.data.get("errors")
+    ] or [result.reason or "the agent saved nothing"]
+
+
+def plan_page(
+    folder: BookFolder,
+    page: dict,
+    limits: Limits,
+    *,
+    binary: Path,
+    book: dict,
+    root: Path,
+    force: bool = False,
+    provider: Provider | None = None,
+) -> PlanOutcome:
+    """Plan one page: keep an existing plan (unless forced), else run the agent until it saves
+    a valid plan or the attempts run out, feeding back the refusals."""
+    number = int(page["page_number"])
+    target, picture = plan_path(folder, number), page_picture(folder, page)
+    if target.exists() and not force:
+        return PlanOutcome(number, "kept")
+    if not picture.is_file():
+        return PlanOutcome(number, "failed", f"{picture.name} is missing")
+    attempts, time_limit = read_planning(root)
+    base = plan_prompt(page, book, picture_identity(picture), limits)
+    feedback: list[str] = ["no attempts configured"]
+    with tempfile.TemporaryDirectory(prefix="kiddo-plan-") as tmp:
+        out = Path(tmp) / "plan.json"
+        for attempt in range(1, attempts + 1):
+            text = base
+            if attempt > 1:
+                text += "\nThe last attempt was refused. Fix these problems and save again:\n"
+                text += "\n".join(f"- {problem}" for problem in feedback[:20])
+            command = build_codex_command(
+                binary,
+                sys.executable,
+                [
+                    "-m",
+                    "video_pipeline.plan_mcp",
+                    "--picture",
+                    str(picture),
+                    "--page",
+                    str(number),
+                    "--out",
+                    str(out),
+                    "--root",
+                    str(root),
+                ],
+                {"PYTHONPATH": str(PROJECT_ROOT)},
+                prompt=text,
+                images=[picture],
+            )
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            log = folder.build_dir / "agent" / f"{stamp}-plan-p{number:02d}-{attempt}.jsonl"
+            result = (provider or run_codex)(command, log, timeout_s=time_limit)
+            if not out.exists():
+                feedback = _refusals(result)
+                continue
+            try:
+                plan = load_plan(out, limits)  # the tool validated it; check again on the way in
+            except PlanError as exc:
+                feedback = [str(exc)]
+                out.unlink(missing_ok=True)
+                continue
+            if target.exists():
+                shutil.copyfile(target, target.with_name(target.name + ".bak"))
+            save_plan(target, plan)
+            return PlanOutcome(number, "written")
+    return PlanOutcome(number, "failed", feedback[0])
+
+
+def plan_book(
+    folder: BookFolder,
+    limits: Limits,
+    *,
+    root: Path,
+    pages: list[int] | None = None,
+    force: bool = False,
+    provider: Provider | None = None,
+    binary: Path | None = None,
+    log: Callable[[str], None] = print,
+) -> list[PlanOutcome]:
+    """Plan every story page (or only `pages`). Covers and maps are not pages and get no plan.
+    A failing page never stops the others; AgentUnavailable is raised before any page."""
+    book = json.loads(folder.book_json.read_text(encoding="utf-8"))
+    binary = binary or codex_status()
+    outcomes: list[PlanOutcome] = []
+    for page in sorted(book["pages"], key=lambda p: int(p["page_number"])):
+        if pages and int(page["page_number"]) not in pages:
+            continue
+        outcome = plan_page(
+            folder,
+            page,
+            limits,
+            binary=binary,
+            book=book,
+            root=root,
+            force=force,
+            provider=provider,
+        )
+        reason = f" - {outcome.reason}" if outcome.reason else ""
+        log(f"  page {outcome.page_number:02d}: {outcome.status}{reason}")
+        outcomes.append(outcome)
+    return outcomes
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m video_pipeline.motion_plan",
+        description="Write motion plans for a book's page pictures (spec 009).",
+    )
+    parser.add_argument("--book", required=True)
+    parser.add_argument("--page", type=int, action="append", help="plan only this page (repeat)")
+    parser.add_argument("--force", action="store_true", help="replace existing plans (.bak kept)")
+    parser.add_argument("--root", type=Path, default=PROJECT_ROOT)
+    args = parser.parse_args(argv)
+    try:
+        folder = book_folder(args.book, args.root)
+        outcomes = plan_book(
+            folder,
+            load_limits(Path(args.root) / "config"),
+            root=Path(args.root),
+            pages=args.page,
+            force=args.force,
+        )
+    except (LibraryError, AgentUnavailable, PlanError, OSError, KeyError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    written = sum(o.status == "written" for o in outcomes)
+    kept = sum(o.status == "kept" for o in outcomes)
+    failed = [o for o in outcomes if o.status == "failed"]
+    print(f"{written} written, {kept} kept, {len(failed)} failed")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -474,3 +474,217 @@ def test_cut_hash_ignores_layer_order_and_point_order() -> None:
     a_swapped = make_layer("a", include_points=[[2, 2], [1, 1]])
     second = cut_hash(make_plan(layers=[b, a_swapped]))
     assert first == second
+
+
+# -- planning with a (fake) provider: Phase 2 ----------------------------------------------------
+
+
+def _server_args(command: list[str]) -> list[str]:
+    prefix = "mcp_servers.kiddo.args="
+    setting = next(c for c in command if c.startswith(prefix))
+    return json.loads(setting[len(prefix) :])
+
+
+def _plan_body() -> dict:
+    return {"layers": [make_layer()], "effects": [{"type": "snow", "intensity": 0.5}]}
+
+
+class FakeCodex:
+    """Plays the agent: saves the next payload for the page through the real plan tools.
+
+    `payloads` maps a page number to the payloads its attempts save in turn; a page with no
+    entry saves a valid plan; `None` saves nothing (as a provider failure would).
+    """
+
+    def __init__(self, payloads: dict[int, list] | None = None):
+        self.payloads = {k: list(v) for k, v in (payloads or {}).items()}
+        self.commands: list[list[str]] = []
+
+    def __call__(self, command, log_path, timeout_s=600, on_event=None, max_refused_saves=5):
+        from video_pipeline import plan_mcp
+        from video_pipeline.agents import AgentEvent, AgentResult
+
+        self.commands.append(command)
+        args = plan_mcp.parse_args(_server_args(command)[2:])  # drop "-m video_pipeline.plan_mcp"
+        tools = plan_mcp.build_tools(args)
+        queue = self.payloads.get(args.page)
+        payload = queue.pop(0) if queue else (_plan_body() if queue is None else None)
+        events = []
+        if payload is not None:
+            result = tools.save_motion_plan(payload)
+            events.append(AgentEvent("tool-result", tool="save_motion_plan", data=result))
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("{}\n", encoding="utf-8")
+        reason = "" if payload is not None else "agent exited with status 1"
+        return AgentResult(ok=not reason, events=events, log_path=log_path, reason=reason)
+
+
+@pytest.fixture
+def book_root(tmp_path: Path) -> BookFolder:
+    from tests.helpers import make_root
+
+    folder = make_root(tmp_path)
+    folder.illustrations.mkdir(parents=True, exist_ok=True)
+    for number in range(1, 9):
+        Image.new("RGB", SIZE, "green").save(folder.illustrations / f"page_{number:02d}.png")
+    for name in ("cover_front.png", "cover_back.png", "map_whisperwood.png"):
+        Image.new("RGB", SIZE, "blue").save(folder.illustrations / name)
+    return folder
+
+
+def _plan_book(folder: BookFolder, fake: FakeCodex, **kw) -> list:
+    from video_pipeline.motion_plan import plan_book
+
+    return plan_book(
+        folder,
+        LIMITS,
+        root=folder.root,
+        provider=fake,
+        binary=Path("/fake/codex"),
+        log=lambda line: None,
+        **kw,
+    )
+
+
+def _plan_files(folder: BookFolder) -> list[str]:
+    return sorted(p.name for p in (folder.folder / "animation").glob("*"))
+
+
+def test_plan_book_writes_a_plan_per_story_page(book_root) -> None:  # AC-1.1
+    outcomes = _plan_book(book_root, FakeCodex())
+    assert [o.status for o in outcomes] == ["written"] * 8
+    assert _plan_files(book_root) == [f"page_{n:02d}.json" for n in range(1, 9)]
+    plan = load_plan(plan_path(book_root, 2), LIMITS)
+    picture = book_root.illustrations / "page_02.png"
+    assert plan.picture == picture_identity(picture) and plan.page_number == 2
+
+
+def test_planning_agent_gets_the_picture_and_only_plan_tools(book_root) -> None:  # FR-4, FR-5
+    fake = FakeCodex()
+    _plan_book(book_root, fake, pages=[3])
+    command = fake.commands[0]
+    picture = str(book_root.illustrations / "page_03.png")
+    assert command[command.index("-i") + 1] == picture
+    assert command[command.index("--sandbox") + 1] == "read-only"
+    args = _server_args(command)
+    assert args[:2] == ["-m", "video_pipeline.plan_mcp"]
+    assert args[args.index("--picture") + 1] == picture
+    assert "1024x1024" in command[-1]
+    assert list((book_root.build_dir / "agent").glob("*-plan-p03-1.jsonl"))
+
+
+def test_existing_plans_are_kept_byte_for_byte(book_root) -> None:  # AC-1.2
+    _plan_book(book_root, FakeCodex(), pages=[2])
+    before = plan_path(book_root, 2).read_bytes()
+    lines: list[str] = []
+    from video_pipeline.motion_plan import plan_book
+
+    fake = FakeCodex()
+    outcomes = plan_book(
+        book_root,
+        LIMITS,
+        root=book_root.root,
+        pages=[2],
+        provider=fake,
+        binary=Path("/fake/codex"),
+        log=lines.append,
+    )
+    assert outcomes[0].status == "kept" and not fake.commands
+    assert plan_path(book_root, 2).read_bytes() == before
+    assert any("kept" in line for line in lines)
+
+
+def test_force_rewrites_and_keeps_a_backup(book_root) -> None:  # AC-1.3
+    _plan_book(book_root, FakeCodex(), pages=[2])
+    before = plan_path(book_root, 2).read_bytes()
+    other = _plan_body()
+    other["layers"][0]["name"] = "bush"
+    outcomes = _plan_book(book_root, FakeCodex({2: [other]}), pages=[2], force=True)
+    assert outcomes[0].status == "written"
+    assert plan_path(book_root, 2).with_name("page_02.json.bak").read_bytes() == before
+    assert load_plan(plan_path(book_root, 2), LIMITS).layers[0].name == "bush"
+
+
+def test_refused_plans_are_retried_with_the_errors(book_root) -> None:  # FR-6 retry
+    bad = _plan_body()
+    bad["layers"][0]["motions"][0]["amplitude"] = 9.0
+    fake = FakeCodex({4: [bad, _plan_body()]})
+    outcomes = _plan_book(book_root, fake, pages=[4])
+    assert outcomes[0].status == "written" and len(fake.commands) == 2
+    assert "amplitude" in fake.commands[1][-1]
+
+
+def test_one_failing_page_does_not_stop_the_others(book_root) -> None:  # AC-1.5
+    outcomes = _plan_book(book_root, FakeCodex({5: [None, None, None]}))
+    failed = [o for o in outcomes if o.status == "failed"]
+    assert [o.page_number for o in failed] == [5]
+    assert "status 1" in failed[0].reason
+    assert len([o for o in outcomes if o.status == "written"]) == 7
+    assert not plan_path(book_root, 5).exists()
+
+
+def test_missing_picture_fails_only_that_page(book_root) -> None:
+    (book_root.illustrations / "page_06.png").unlink()
+    outcomes = _plan_book(book_root, FakeCodex())
+    failed = [o for o in outcomes if o.status == "failed"]
+    assert [(o.page_number, o.reason) for o in failed] == [(6, "page_06.png is missing")]
+
+
+def test_single_page_touches_only_that_page(book_root) -> None:  # AC-1.6
+    fake = FakeCodex()
+    outcomes = _plan_book(book_root, fake, pages=[3])
+    assert [o.page_number for o in outcomes] == [3] and len(fake.commands) == 1
+    assert _plan_files(book_root) == ["page_03.json"]
+
+
+def test_main_exits_one_and_names_the_failed_page(book_root, monkeypatch, capsys) -> None:
+    from video_pipeline import motion_plan
+
+    fake = FakeCodex({5: [None, None, None]})
+    monkeypatch.setattr(motion_plan, "codex_status", lambda: Path("/fake/codex"))
+    monkeypatch.setattr(motion_plan, "run_codex", fake)
+    code = motion_plan.main(["--book", book_root.slug, "--root", str(book_root.root)])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "page 05: failed" in out and "7 written, 0 kept, 1 failed" in out
+
+
+def test_main_page_flag_and_success_exit(book_root, monkeypatch, capsys) -> None:
+    from video_pipeline import motion_plan
+
+    monkeypatch.setattr(motion_plan, "codex_status", lambda: Path("/fake/codex"))
+    monkeypatch.setattr(motion_plan, "run_codex", FakeCodex())
+    args = ["--book", book_root.slug, "--root", str(book_root.root), "--page", "3"]
+    assert motion_plan.main(args) == 0
+    assert _plan_files(book_root) == ["page_03.json"]
+
+
+def test_main_without_provider_exits_one_and_writes_nothing(book_root, monkeypatch, capsys):
+    from video_pipeline import motion_plan
+    from video_pipeline.agents import AgentUnavailable
+
+    def down():
+        raise AgentUnavailable("install the ChatGPT desktop app")
+
+    monkeypatch.setattr(motion_plan, "codex_status", down)
+    assert motion_plan.main(["--book", book_root.slug, "--root", str(book_root.root)]) == 1
+    assert "install the ChatGPT desktop app" in capsys.readouterr().err
+    assert not (book_root.folder / "animation").exists()
+
+
+@pytest.mark.codex
+def test_real_plan_page_one(tmp_path: Path) -> None:
+    """Plans pilot page 1 with the real Codex and checks the plan validates."""
+    import shutil
+
+    from tests.helpers import PILOT_BOOK, make_root
+    from video_pipeline.motion_plan import load_limits, plan_book
+
+    folder = make_root(tmp_path, PILOT_BOOK, slug="the-snail-mail-express")
+    folder.illustrations.mkdir(parents=True, exist_ok=True)
+    shutil.copy(PILOT_BOOK.parent / "illustrations" / "page_01.png", folder.illustrations)
+    limits = load_limits(PROJECT_ROOT / "config")
+    outcomes = plan_book(folder, limits, root=tmp_path, pages=[1])
+    assert outcomes[0].status == "written", outcomes[0].reason
+    plan = load_plan(plan_path(folder, 1), limits)
+    assert 1 <= len(plan.layers) <= limits.max_layers
