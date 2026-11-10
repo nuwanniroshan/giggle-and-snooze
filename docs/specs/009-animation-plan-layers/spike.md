@@ -217,3 +217,9 @@ Comparison runs (one folder each):
   }
 }
 ```
+
+## Pilot book result (Phase 6, 2026-11-10)
+
+- Plans: `motion_plan` wrote 20/20 pilot plans with Codex (0 failed, 8 min).
+- Cut, offline (`HF_HUB_OFFLINE=1`, `uv run --offline`): 20 pages, 2.9–9.9 s per page after load (machine load varies the upper end), peak RSS 0.94 GB; an unchanged re-run is all cached in 0.6 s. LaMa tiles are capped at 3 per page (`tile.max_tiles`), since each 512 tile costs ~2.3 s.
+- Producer review in the studio (NFR-7): **80% or more of planned layers cleanly cut** — passed.
