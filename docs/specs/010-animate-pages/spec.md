@@ -1,6 +1,6 @@
 # Spec 010: Animated story pages in the video
 
-**Status:** Draft
+**Status:** Approved
 **Created:** 2026-11-10
 **Branch:** `feat/010-animate-pages`
 **PRD:** [prd.md](prd.md)
