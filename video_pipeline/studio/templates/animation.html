@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge, book_links, animation_controls %}
+{% block title %}Animation: {{ book.title }}{% endblock %}
+{% block content %}
+<h1>Animation</h1>
+<p class="muted">{{ book.title }}</p>
+{{ book_links(book) }}
+<section class="stage">
+  <p>{{ summary }}. <span class="muted">Plan pictures writes a motion plan for each painted page (kept plans are not replaced); Cut layers cuts the planned layers out and fills the background.</span></p>
+  {{ animation_controls(book, controls) }}
+</section>
+{% if rows %}
+<table>
+  <thead><tr><th>Page</th><th>Plan</th><th>Cut</th><th>Detail</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/books/{{ book.slug }}/animation/{{ r.page_number }}">Page {{ r.page_number }}</a></td>
+    <td><span class="state{% if r.plan_state in ('stale', 'invalid') %} strong{% endif %}">{{ r.plan_state }}</span></td>
+    <td>{{ r.cut_state }}</td>
+    <td class="muted small-cell">{{ r.detail }}{% if r.empty_layers %} Empty layers: {{ r.empty_layers|join(', ') }}.{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">This book has no readable pages.</p>
+{% endif %}
+<section class="stage">
+  <h2>Last animation run</h2>
+  {% if job %}
+  <p>{{ job.label|capitalize }} {{ badge(job.state) }}
+    <span class="muted"{% if job.live %} data-elapsed="{{ job.elapsed }}"{% endif %}>{{ format_duration(job.elapsed) }}</span>
+    {% if job.exit_code is not none %}<span class="muted">exit code {{ job.exit_code }}</span>{% endif %}</p>
+  <pre class="log" id="log" data-job-id="{{ job.id }}" data-offset="{{ job.offset }}"{% if job.live %} data-live="1"{% endif %}>{{ job.log }}</pre>
+  {% else %}
+  <p class="muted">Plan pictures or Cut layers has not run for this book in the studio yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

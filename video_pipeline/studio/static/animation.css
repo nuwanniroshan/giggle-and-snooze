@@ -1,0 +1,15 @@
+/* Animation view (spec 009): the picture with an SVG of boxes and points laid over it. */
+figure.anim { position: relative; margin: 0 0 16px; }
+figure.anim img { display: block; width: 100%; height: auto; border-radius: var(--radius-control); }
+figure.anim svg { position: absolute; top: 0; left: 0; width: 100%; height: auto; aspect-ratio: auto; pointer-events: none; }
+figure.anim figcaption { margin-top: 8px; font-size: 14px; }
+figure.anim rect { fill: none; stroke-width: calc(var(--u) * 0.4); }
+figure.anim rect.effect { stroke: #fff; stroke-dasharray: calc(var(--u) * 1.5) var(--u); }
+figure.anim text { fill: #fff; stroke: #000; stroke-width: calc(var(--u) * 0.3); paint-order: stroke; font-family: var(--sans); font-weight: 600; }
+figure.anim circle { stroke: #000; stroke-width: calc(var(--u) * 0.3); }
+figure.anim circle.inc { fill: #fff; }
+figure.anim circle.exc { fill: none; stroke: #fff; stroke-width: calc(var(--u) * 0.5); }
+img.cut { display: block; width: 100%; height: auto; margin: 0 0 24px; border-radius: var(--radius-control); box-shadow: var(--shadow-raised); background: var(--rule); }
+.swatch { display: inline-block; width: 12px; height: 12px; vertical-align: middle; border: 1px solid var(--ink); border-radius: 2px; }
+.scroll { overflow-x: auto; }
+nav.pager { margin-top: -32px; }

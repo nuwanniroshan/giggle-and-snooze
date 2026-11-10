@@ -5,5 +5,15 @@
 {% if items %}<ul class="problems"{% if id %} id="problems-{{ id }}"{% endif %}>{% for p in items %}<li>{{ p }}</li>{% endfor %}</ul>{% endif %}
 {%- endmacro %}
 {% macro book_links(book) -%}
-<nav class="sub"><a href="/books/{{ book.slug }}">Stages</a> <a href="/books/{{ book.slug }}/script">Script</a> <a href="/books/{{ book.slug }}/audio">Audio</a> <a href="/books/{{ book.slug }}/video">Video</a></nav>
+<nav class="sub"><a href="/books/{{ book.slug }}">Stages</a> <a href="/books/{{ book.slug }}/script">Script</a> <a href="/books/{{ book.slug }}/audio">Audio</a> <a href="/books/{{ book.slug }}/video">Video</a> <a href="/books/{{ book.slug }}/animation">Animation</a></nav>
+{%- endmacro %}
+{% macro animation_controls(book, controls) -%}
+<div class="controls">
+{% for item in controls %}
+  <form method="post" action="/books/{{ book.slug }}/run/{{ item.stage }}" class="inline">
+    <button{% if loop.index > 1 %} class="secondary"{% endif %} type="submit"{% if item.blocked %} disabled{% endif %}>{{ item.button }}</button>
+  </form>
+{% endfor %}
+{% if controls and controls[0].blocked %}<span class="reason">{{ controls[0].blocked }}</span>{% endif %}
+</div>
 {%- endmacro %}

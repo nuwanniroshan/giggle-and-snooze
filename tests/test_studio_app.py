@@ -806,3 +806,167 @@ def test_posting_a_book_file_is_refused_and_saves_nothing(bare):  # AC-4.2
     assert r.status_code == 410
     assert "no longer used" in r.text
     assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]
+
+
+# --- animation view (spec 009 Phase 5: AC-5.1 – AC-5.5) ---------------------------------------
+
+
+def _animated(tmp_path, commands=None):
+    from tests import animation_helpers as ah
+
+    folder = make_root(tmp_path)
+    for n in (1, 2):
+        ah.write_picture(folder, n)
+    effect = {"type": "fireflies", "region": {"box": [0, 0, 32, 24]}, "intensity": 0.4}
+    two = [ah.layer(), ah.layer("lamp", box=[2, 30, 12, 44], z=2, pivot=[7, 44])]
+    ah.write_plan(folder, 1, layers=two, effects=[effect])
+    return Studio(tmp_path, commands), folder, ah
+
+
+@pytest.fixture
+def animated(tmp_path):
+    s, folder, ah = _animated(tmp_path)
+    yield s, folder, ah
+    if s.runner.current():
+        s.runner.stop()
+
+
+def test_book_page_links_to_animation_with_summary(animated):  # AC-5.1
+    s, _folder, _ah = animated
+    html = s.client.get(f"/books/{PILOT_SLUG}").text
+    assert f'href="/books/{PILOT_SLUG}/animation"' in html
+    assert "1 of 8 plans, 0 cut" in text_of(html)
+
+
+def test_animation_view_lists_page_states(animated):  # AC-5.1
+    s, folder, ah = animated
+    from video_pipeline.motion_plan import plan_path
+
+    plan_path(folder, 3).parent.mkdir(parents=True, exist_ok=True)
+    plan_path(folder, 3).write_text("[]", encoding="utf-8")
+    r = s.client.get(f"/books/{PILOT_SLUG}/animation")
+    assert r.status_code == 200
+    text = text_of(r.text)
+    assert "ok" in text and "none" in text and "invalid" in text
+    assert "needs cut" in text
+    assert f'href="/books/{PILOT_SLUG}/animation/1"' in r.text
+
+
+def test_animation_page_shows_the_plan(animated):  # AC-5.2
+    s, _folder, _ah = animated
+    r = s.client.get(f"/books/{PILOT_SLUG}/animation/1")
+    assert r.status_code == 200
+    html = r.text
+    text = text_of(html)
+    for word in ("square", "lamp", "the square", "sway", "6.0", "0.25", "fireflies", "0.4"):
+        assert word in text, word
+    assert "[28, 28]" in text and "[7, 44]" in text  # pivots
+    assert f'src="/media/{PILOT_SLUG}/illustration/page_01.png"' in html
+    svg = re.search(r"<svg[^>]*viewBox=\"0 0 64 48\".*?</svg>", html, re.S)
+    assert svg is not None
+    assert len(re.findall(r"<rect\b[^>]*class=\"layer", svg.group(0))) == 2
+    assert len(re.findall(r"<circle\b", svg.group(0))) == 4  # 2 include + 2 exclude points
+    assert "needs cut" in text
+
+
+def test_animation_page_after_cut_shows_masks_and_background(animated):  # AC-5.3
+    s, folder, ah = animated
+    ah.cut(folder, pages=[1])
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation/1").text
+    assert f'src="/media/{PILOT_SLUG}/mask/page_01.png"' in html
+    assert f'src="/media/{PILOT_SLUG}/layer/page_01_background.png"' in html
+    assert re.search(r"\bcut\b", text_of(html)) and "needs cut" not in text_of(html)
+    r = s.client.get(f"/media/{PILOT_SLUG}/mask/page_01.png")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    for name in ("page_01_background.png", "page_01_square.png", "page_01_lamp.png"):
+        assert s.client.get(f"/media/{PILOT_SLUG}/layer/{name}").status_code == 200, name
+    ah.write_plan(folder, 1, layers=[ah.layer(box=[10, 10, 30, 30])])  # a box edit
+    assert "needs cut" in text_of(s.client.get(f"/books/{PILOT_SLUG}/animation/1").text)
+
+
+def test_animation_page_reads_the_plan_from_disk(animated):  # AC-5.5
+    s, folder, ah = animated
+    assert "lamp" in s.client.get(f"/books/{PILOT_SLUG}/animation/1").text
+    ah.write_plan(folder, 1, layers=[ah.layer("chimney")])
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation/1").text
+    assert "chimney" in html and "lamp" not in html
+
+
+def test_animation_page_without_plan_and_unknown_page(animated):
+    s, _folder, _ah = animated
+    r = s.client.get(f"/books/{PILOT_SLUG}/animation/2")
+    assert r.status_code == 200 and "no plan" in text_of(r.text).lower()
+    assert s.client.get(f"/books/{PILOT_SLUG}/animation/99").status_code == 404
+    assert s.client.get("/books/nope/animation").status_code == 404
+
+
+def test_animation_page_shows_invalid_detail(animated):
+    s, folder, _ah = animated
+    from video_pipeline.motion_plan import plan_path
+
+    plan_path(folder, 2).write_text('{"page_number": 2}', encoding="utf-8")
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}/animation/2").text)
+    assert "invalid" in text and "picture" in text
+
+
+def test_layer_and_mask_media_are_whitelisted(animated):
+    s, folder, ah = animated
+    from video_pipeline.cut_layers import layers_dir
+
+    assert s.client.get(f"/media/{PILOT_SLUG}/mask/page_01.png").status_code == 404  # no cut yet
+    ah.cut(folder, pages=[1])
+    (layers_dir(folder, 1) / "stray.png").write_bytes(png_bytes())
+    bad = [
+        f"/media/{PILOT_SLUG}/layer/page_01_stray.png",
+        f"/media/{PILOT_SLUG}/layer/page_01_layers.json",
+        f"/media/{PILOT_SLUG}/layer/../../etc",
+        f"/media/{PILOT_SLUG}/layer/page_01_..%2F..%2Fbook.json",
+        f"/media/{PILOT_SLUG}/layer/page_02_background.png",
+        f"/media/{PILOT_SLUG}/layer/background.png",
+        f"/media/{PILOT_SLUG}/mask/page_02.png",
+        f"/media/{PILOT_SLUG}/mask/../page_01.png",
+    ]
+    for url in bad:
+        assert s.client.get(url).status_code == 404, url
+
+
+def test_run_plan_and_cut_start_jobs(animated):  # AC-5.4
+    s, _folder, _ah = animated
+    for stage in ("plan", "cut"):
+        r = s.client.post(f"/books/{PILOT_SLUG}/run/{stage}")
+        assert r.status_code == 303
+        assert r.headers["location"] == f"/books/{PILOT_SLUG}/animation"
+        s.wait()
+    assert [c[:2] for c in s.commands.calls] == [("plan", PILOT_SLUG), ("cut", PILOT_SLUG)]
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
+    assert "layer cutting" in text_of(html).lower() and "finished" in html
+
+
+def test_run_plan_and_cut_refused_when_busy(tmp_path):  # AC-5.4
+    s, _folder, _ah = _animated(tmp_path, Commands("import time; time.sleep(30)"))
+    try:
+        assert s.client.post(f"/books/{PILOT_SLUG}/run/plan").status_code == 303
+        for stage in ("plan", "cut", "script"):
+            r = s.client.post(f"/books/{PILOT_SLUG}/run/{stage}")
+            assert r.status_code == 409, stage
+            assert "motion planning" in r.text
+        html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
+        assert re.search(r"<button[^>]*disabled[^>]*>\s*Plan pictures", html)
+        assert re.search(r"<button[^>]*disabled[^>]*>\s*Cut layers", html)
+    finally:
+        s.runner.stop()
+
+
+def test_animation_runs_are_refused_cross_site(animated):
+    s, _folder, _ah = animated
+    r = s.client.post(f"/books/{PILOT_SLUG}/run/cut", headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403
+    assert s.commands.calls == []
+
+
+def test_book_page_survives_missing_animation_config(animated):
+    s, _folder, _ah = animated
+    (s.paths.config_dir / "animation.json").unlink()
+    assert s.client.get(f"/books/{PILOT_SLUG}").status_code == 200
+    assert s.client.get(f"/books/{PILOT_SLUG}/animation").status_code == 200
+    assert s.client.get(f"/books/{PILOT_SLUG}/animation/1").status_code == 200

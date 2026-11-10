@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from video_pipeline.episode_tools import write_atomic
-from video_pipeline.studio.books import STAGES, StudioPaths
+from video_pipeline.studio.books import ANIMATION_STAGES, STAGES, StudioPaths
 
 STOP_GRACE_SECONDS = 5.0
 LOCK_FILE = "studio.lock"
@@ -44,6 +44,8 @@ STAGE_MODULES = {
     "script": "video_pipeline.generate_script",
     "voices": "video_pipeline.synthesize_voices",
     "render": "video_pipeline.render_episode",
+    "plan": "video_pipeline.motion_plan",
+    "cut": "video_pipeline.cut_layers",
 }
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 _ANSI = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
@@ -109,7 +111,9 @@ def stage_command(stage: str, book, paths: StudioPaths, force: bool = False) -> 
     if stage in STORY_STAGES:
         return story_command(stage, book if isinstance(book, str) else book.slug, paths)
     if stage not in STAGE_MODULES:
-        raise ValueError(f"unknown stage {stage!r}; expected one of {', '.join(STAGES)}")
+        raise ValueError(
+            f"unknown stage {stage!r}; expected one of {', '.join(STAGES + ANIMATION_STAGES)}"
+        )
     cmd = [
         sys.executable,
         "-m",

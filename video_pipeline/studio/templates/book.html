@@ -36,6 +36,11 @@
 {% endfor %}
 
 <section class="stage">
+  <h2>Animation</h2>
+  <p>{{ animation }} <a href="/books/{{ book.slug }}/animation">Open the animation view</a></p>
+</section>
+
+<section class="stage">
   <h2>Last run</h2>
   {% if job %}
   <p>{{ job.label|capitalize }} {{ badge(job.state) }}

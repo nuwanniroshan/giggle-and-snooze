@@ -586,3 +586,144 @@ def test_render_check_detail_names_a_missing_picture(world):
     video = status_of(paths, sb.get_book(paths, PILOT_SLUG))["video"]
     assert "audio" not in video["detail"]
     assert "page_02.png" in video["detail"]
+
+
+# --- animation plans and cuts (spec 009 Phase 5: AC-5.1, AC-5.3, AC-5.5) ----------------------
+
+
+def _anim_book(tmp_path):
+    from tests import animation_helpers as ah
+
+    folder = make_root(tmp_path)
+    paths = sb.StudioPaths(tmp_path)
+    book = sb.get_book(paths, folder.slug)
+    for n in (1, 2, 3, 4):
+        ah.write_picture(folder, n)
+    for n in (1, 2, 3):
+        ah.write_plan(folder, n)
+    return paths, book, folder, ah
+
+
+def _rows(paths, book):
+    return {r["page_number"]: r for r in sb.page_animation(paths, book)}
+
+
+def test_animation_stages_are_separate_from_the_episode_flow():
+    assert sb.ANIMATION_STAGES == ("plan", "cut")
+    assert not set(sb.ANIMATION_STAGES) & set(sb.STAGES)
+    assert sb.STAGE_LABELS["plan"] == "motion planning"
+    assert sb.STAGE_LABELS["cut"] == "layer cutting"
+
+
+def test_page_animation_plan_states(tmp_path):  # AC-5.1
+    from video_pipeline.motion_plan import plan_path
+
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.write_picture(folder, 2, colour=(0, 200, 0))  # page 2's picture changed → stale
+    plan_path(folder, 3).write_text('{"page_number": 3}', encoding="utf-8")  # invalid
+    rows = _rows(paths, book)
+    assert len(rows) == 8
+    assert rows[1]["plan_state"] == "ok" and rows[1]["plan"] is not None
+    assert rows[2]["plan_state"] == "stale" and "changed" in rows[2]["detail"]
+    assert rows[3]["plan_state"] == "invalid" and "picture" in rows[3]["detail"]
+    assert rows[4]["plan_state"] == "none" and rows[4]["plan"] is None
+    assert [rows[n]["cut_state"] for n in (2, 3, 4)] == ["—", "—", "—"]
+
+
+def test_page_animation_cut_state_follows_the_manifest(tmp_path):  # AC-5.3
+    paths, book, folder, ah = _anim_book(tmp_path)
+    assert _rows(paths, book)[1]["cut_state"] == "needs cut"
+    ah.cut(folder, pages=[1])
+    rows = _rows(paths, book)
+    assert rows[1]["cut_state"] == "cut"
+    assert rows[1]["empty_layers"] == []
+    assert rows[2]["cut_state"] == "needs cut"
+    ah.write_plan(folder, 1, layers=[ah.layer(box=[10, 10, 30, 30])])  # a box edit
+    assert _rows(paths, book)[1]["cut_state"] == "needs cut"
+
+
+def test_page_animation_motion_edit_keeps_the_cut(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    moved = ah.layer(motions=[{"type": "bob", "amplitude": 0.01, "period_s": 4.0}])
+    ah.write_plan(folder, 1, layers=[moved])
+    assert _rows(paths, book)[1]["cut_state"] == "cut"
+
+
+def test_page_animation_lists_empty_layers(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.write_plan(folder, 1, layers=[ah.layer(), ah.layer("nothing", box=[0, 0, 8, 8], z=2)])
+    ah.cut(folder, pages=[1])
+    row = _rows(paths, book)[1]
+    assert row["cut_state"] == "cut"
+    assert row["empty_layers"] == ["nothing"]
+
+
+def test_page_animation_missing_layer_file_needs_cut(tmp_path):
+    from video_pipeline.cut_layers import layers_dir
+
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    (layers_dir(folder, 1) / "square.png").unlink()
+    assert _rows(paths, book)[1]["cut_state"] == "needs cut"
+
+
+def test_page_animation_reads_plans_from_disk_each_time(tmp_path):  # AC-5.5
+    paths, book, folder, ah = _anim_book(tmp_path)
+    assert _rows(paths, book)[1]["plan"].layers[0].z == 1
+    ah.write_plan(folder, 1, layers=[ah.layer(z=5)])
+    assert _rows(paths, book)[1]["plan"].layers[0].z == 5
+
+
+def test_page_animation_without_models_config_degrades(tmp_path):
+    paths, book, _folder, _ah = _anim_book(tmp_path)
+    cfg_path = paths.config_dir / "animation.json"
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    del cfg["models"]
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+    rows = _rows(paths, book)
+    assert rows[1]["plan_state"] == "ok"
+    assert rows[1]["cut_state"] == "—"
+
+
+def test_page_animation_without_animation_config_degrades(tmp_path):
+    paths, book, _folder, _ah = _anim_book(tmp_path)
+    (paths.config_dir / "animation.json").unlink()
+    rows = _rows(paths, book)
+    assert {r["cut_state"] for r in rows.values()} == {"—"}
+    assert rows[1]["plan_state"] == "unavailable"
+    assert "animation.json" in rows[1]["detail"]
+
+
+def test_animation_summary(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    assert sb.animation_summary(sb.page_animation(paths, book)) == "3 of 8 plans, 1 cut"
+
+
+def test_layer_files_whitelist(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    assert sb.layer_files(paths, book, 1) == {}
+    ah.cut(folder, pages=[1])
+    files = sb.layer_files(paths, book, 1)
+    assert set(files) == {"square.png", "background.png"}
+    assert all(p.is_file() for p in files.values())
+
+
+def test_mask_overlay_tints_each_layer(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    assert sb.mask_overlay(paths, book, 1) is None
+    two = [ah.layer(), ah.layer("left", box=[0, 30, 10, 40], z=2)]
+    ah.write_plan(folder, 1, layers=two)
+    ah.cut(folder, pages=[1])
+    data = sb.mask_overlay(paths, book, 1)
+    with Image.open(io.BytesIO(data)) as im:
+        assert im.size == (64, 48)
+        px = im.convert("RGB")
+        inside_a, inside_b, outside = (
+            px.getpixel((28, 20)),
+            px.getpixel((5, 35)),
+            px.getpixel((50, 5)),
+        )
+    assert inside_a != inside_b
+    assert inside_a != outside and inside_b != outside

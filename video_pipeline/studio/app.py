@@ -75,7 +75,12 @@ STAGE_BUTTONS = {
     "script": "Generate script",
     "voices": "Synthesize voices",
     "render": "Render video",
+    "plan": "Plan pictures",
+    "cut": "Cut layers",
 }
+MASK_CACHE_SIZE = 32
+_LAYER_NAME = re.compile(r"^page_(\d+)_(.+)$")
+_MASK_NAME = re.compile(r"^page_(\d+)\.png$")
 _PROBLEM_LINE = re.compile(r"^(intro|outro) line (\d+)\b")
 _PROBLEM_PAGE_LINE = re.compile(r"^page (\d+) (narration|Q&A) line (\d+)\b")
 _PROBLEM_PAGE = re.compile(r"^page (\d+)\b")
@@ -187,6 +192,8 @@ class Studio:
         self.runner = runner
         self.command_for = command_for
         self.write_lock = threading.Lock()  # serialises every check-then-act (module docstring)
+        self.masks: dict[tuple[str, int, str], bytes] = {}  # (slug, page, cut_hash) → PNG
+        self.masks_lock = threading.Lock()
         self.drafts = DraftStore(paths.root)
         self.allowed_origins = {f"http://{HOST}:{port}", f"http://localhost:{port}"}
         self.templates = Jinja2Templates(directory=STUDIO_DIR / "templates")
@@ -258,8 +265,9 @@ class Studio:
                 return problems[0]
         return None
 
-    def last_job(self, book: sb.Book) -> dict | None:
-        jobs = [j for s in sb.STAGES if (j := self.runner.latest(book.slug, s))]
+    def last_job(self, book: sb.Book, stages: tuple[str, ...] | None = None) -> dict | None:
+        stages = stages or sb.STAGES + sb.ANIMATION_STAGES
+        jobs = [j for s in stages if (j := self.runner.latest(book.slug, s))]
         if not jobs:
             return None
         job = max(jobs, key=lambda j: (str(j.get("started_at") or ""), j["id"]))
@@ -312,6 +320,7 @@ class Studio:
             "stages": stages,
             "has_script": sb.script_path(self.paths, book).exists(),
             "job": self.last_job(book),
+            "animation": sb.animation_summary(sb.page_animation(self.paths, book)),
         }
         return self.render(request, "book.html", context)
 
@@ -322,9 +331,11 @@ class Studio:
     def _run_stage(self, request: Request, form) -> Response:
         book = self.book_or_none(request)
         stage = request.path_params["stage"]
-        if book is None or stage not in sb.STAGES:
+        if book is None or stage not in sb.STAGES + sb.ANIMATION_STAGES:
             return self.not_found(request)
         back = f"/books/{book.slug}"
+        if stage in sb.ANIMATION_STAGES:
+            back += "/animation"
         with self.write_lock:
             refused = self._start_stage(book, stage, form)
         if refused is not None:
@@ -743,6 +754,72 @@ class Studio:
         }
         return self.render(request, "video.html", context)
 
+    # --- animation (spec 009 FR-12) ------------------------------------------------------------
+
+    def animation_controls(self, book: sb.Book) -> list[dict]:
+        busy = self.busy_reason()
+        return [
+            {"stage": st, "button": STAGE_BUTTONS[st], "blocked": busy or self.gate(book, st)}
+            for st in sb.ANIMATION_STAGES
+        ]
+
+    def animation_page(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        if book is None:
+            return self.not_found(request)
+        rows = sb.page_animation(self.paths, book)
+        context = {
+            "book": book,
+            "rows": rows,
+            "summary": sb.animation_summary(rows),
+            "controls": self.animation_controls(book),
+            "job": self.last_job(book, sb.ANIMATION_STAGES),
+        }
+        return self.render(request, "animation.html", context)
+
+    def animation_page_detail(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        number = request.path_params["number"]
+        rows = sb.page_animation(self.paths, book) if book else []
+        row = next((r for r in rows if r["page_number"] == number), None)
+        if book is None or row is None:
+            return self.not_found(request)
+        numbers = [r["page_number"] for r in rows]
+        at = numbers.index(number)
+        cut = row["cut_state"] == "cut"
+        context = {
+            "book": book,
+            "row": row,
+            "plan": row["plan"],
+            "palette": [f"rgb{c}" for c in sb.MASK_PALETTE],
+            "picture_url": f"/media/{book.slug}/illustration/{row['picture']}",
+            "mask_url": f"/media/{book.slug}/mask/page_{number:02d}.png" if cut else None,
+            "background_url": (
+                f"/media/{book.slug}/layer/page_{number:02d}_background.png" if cut else None
+            ),
+            "prev": numbers[at - 1] if at > 0 else None,
+            "next": numbers[at + 1] if at + 1 < len(numbers) else None,
+            "controls": self.animation_controls(book),
+        }
+        return self.render(request, "animation_page.html", context)
+
+    def mask_png(self, book: sb.Book, number: int) -> bytes | None:
+        """The masks overlay for a cut page, made once per cut (kept in memory by cut hash)."""
+        manifest = _read_json(sb.layers_dir(sb.folder_of(self.paths, book), number) / sb.MANIFEST)
+        if manifest is None:
+            return None
+        key = (book.slug, number, str(manifest.get("cut_hash")))
+        with self.masks_lock:
+            if key in self.masks:
+                return self.masks[key]
+        data = sb.mask_overlay(self.paths, book, number)
+        if data is not None:
+            with self.masks_lock:
+                if len(self.masks) >= MASK_CACHE_SIZE:
+                    self.masks.pop(next(iter(self.masks)))
+                self.masks[key] = data
+        return data
+
     # --- media (FR-7) ---------------------------------------------------------------------------
 
     def media_path(self, book: sb.Book, kind: str, name: str) -> Path | None:
@@ -775,13 +852,22 @@ class Studio:
                 if name == f"{book.slug}.mp4"
                 else None
             )
+        if kind == "layer" and (m := _LAYER_NAME.match(name)):
+            return sb.layer_files(self.paths, book, int(m.group(1))).get(m.group(2))
         return None
 
     def media(self, request: Request) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return Response("not found", status_code=404)
-        path = self.media_path(book, request.path_params["kind"], request.path_params["name"])
+        kind, name = request.path_params["kind"], request.path_params["name"]
+        if kind == "mask":
+            m = _MASK_NAME.match(name)
+            data = self.mask_png(book, int(m.group(1))) if m else None
+            if data is None:
+                return Response("not found", status_code=404)
+            return Response(data, media_type="image/png", headers={"Cache-Control": "no-store"})
+        path = self.media_path(book, kind, name)
         if path is None or not path.is_file():
             return Response("not found", status_code=404)
         return FileResponse(path)
@@ -872,6 +958,8 @@ def create_app(
         Route("/books/{slug}/audio", studio.audio_page),
         Route("/books/{slug}/audio/approve", studio.approve_audio, methods=["POST"]),
         Route("/books/{slug}/video", studio.video_page),
+        Route("/books/{slug}/animation", studio.animation_page),
+        Route("/books/{slug}/animation/{number:int}", studio.animation_page_detail),
         Route("/jobs/stop", studio.stop_job, methods=["POST"]),
         Route("/api/jobs/current", studio.api_current),
         Route("/api/jobs/{job_id}/log", studio.api_log),

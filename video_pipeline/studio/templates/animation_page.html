@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import book_links, animation_controls %}
+{% block title %}Page {{ row.page_number }} animation: {{ book.title }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/animation.css">{% endblock %}
+{% block content %}
+<h1>Page {{ row.page_number }}</h1>
+<p class="muted">{{ book.title }}</p>
+{{ book_links(book) }}
+<nav class="sub pager">
+  <a href="/books/{{ book.slug }}/animation">All pages</a>
+  {% if prev %}<a href="/books/{{ book.slug }}/animation/{{ prev }}">Page {{ prev }}</a>{% endif %}
+  {% if next %}<a href="/books/{{ book.slug }}/animation/{{ next }}">Page {{ next }}</a>{% endif %}
+</nav>
+<section class="stage">
+  <p><span class="muted">Plan</span> <span class="state{% if row.plan_state in ('stale', 'invalid') %} strong{% endif %}">{{ row.plan_state }}</span>
+     <span class="muted">Cut</span> <span class="state">{{ row.cut_state }}</span></p>
+  {% if row.detail %}<p class="strong">{{ row.detail }}</p>{% endif %}
+  {% if row.empty_layers %}<p class="strong">Empty layers (the cut found nothing): {{ row.empty_layers|join(', ') }}</p>{% endif %}
+  {{ animation_controls(book, controls) }}
+</section>
+{% if plan is none %}
+<p class="muted">{% if row.plan_state == 'none' %}No plan for this page yet. Run Plan pictures.{% else %}The plan cannot be shown.{% endif %}</p>
+<img class="thumb" src="{{ picture_url }}" alt="Page {{ row.page_number }} picture">
+{% else %}
+{% set w = plan.picture.width %}{% set h = plan.picture.height %}
+{% set unit = [w, h]|max / 100 %}
+<section class="stage">
+  <h2>Layers on the picture</h2>
+  <figure class="anim">
+    <img src="{{ picture_url }}" alt="Page {{ row.page_number }} picture" width="{{ w }}" height="{{ h }}">
+    <svg viewBox="0 0 {{ w }} {{ h }}" aria-label="layer boxes, points and effect regions" style="--u: {{ unit }}px">
+      {% for e in plan.effects %}{% if e.region and e.region.box %}{% set b = e.region.box %}
+      <rect class="effect" x="{{ b[0] }}" y="{{ b[1] }}" width="{{ b[2] - b[0] }}" height="{{ b[3] - b[1] }}"/>
+      <text x="{{ b[0] + unit }}" y="{{ b[3] - unit }}" font-size="{{ unit * 2.4 }}">{{ e.type }}</text>
+      {% endif %}{% endfor %}
+      {% for l in plan.layers %}{% set b = l.box %}
+      <rect class="layer" x="{{ b[0] }}" y="{{ b[1] }}" width="{{ b[2] - b[0] }}" height="{{ b[3] - b[1] }}" style="stroke: {{ palette[loop.index0 % palette|length] }}"/>
+      <text x="{{ b[0] + unit }}" y="{{ b[1] + unit * 3 }}" font-size="{{ unit * 2.4 }}">{{ l.name }}</text>
+      {% for p in l.include_points %}<circle class="inc" cx="{{ p[0] }}" cy="{{ p[1] }}" r="{{ unit }}"/>{% endfor %}
+      {% for p in l.exclude_points %}<circle class="exc" cx="{{ p[0] }}" cy="{{ p[1] }}" r="{{ unit }}"/>{% endfor %}
+      {% endfor %}
+    </svg>
+    <figcaption class="muted">Boxes in each layer's mask colour. Filled dots are include points, hollow dots are exclude points; dashed boxes are effect regions.</figcaption>
+  </figure>
+</section>
+<section class="stage">
+  <h2>Layers</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Layer</th><th>z</th><th>Depth</th><th>Pivot</th><th>Motions</th></tr></thead>
+    <tbody>
+    {% for l in plan.layers %}
+    <tr>
+      <td><span class="swatch" style="background: {{ palette[loop.index0 % palette|length] }}"></span> <strong>{{ l.name }}</strong>{% if l.name in row.empty_layers %} <span class="state strong">empty</span>{% endif %}<br><span class="muted">{{ l.description }}</span></td>
+      <td>{{ l.z }}</td>
+      <td>{{ l.depth }}</td>
+      <td class="mono">{{ l.pivot|list }}</td>
+      <td>{% for m in l.motions %}<div>{{ m.type }} <span class="muted">amplitude</span> {{ m.amplitude }} <span class="muted">period</span> {{ m.period_s }} s <span class="muted">phase</span> {{ m.phase }}{% if m.direction %} <span class="muted">direction</span> {{ m.direction|list }}{% endif %}</div>{% else %}<span class="muted">still</span>{% endfor %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+<section class="stage">
+  <h2>Effects</h2>
+  {% if plan.effects %}
+  <table>
+    <thead><tr><th>Effect</th><th>Region</th><th>Intensity</th><th>Colour</th></tr></thead>
+    <tbody>
+    {% for e in plan.effects %}
+    <tr>
+      <td>{{ e.type }}</td>
+      <td class="mono">{% if e.region is none %}whole picture{% elif e.region.layer %}layer {{ e.region.layer }}{% if e.region.box %} in {{ e.region.box|list }}{% endif %}{% elif e.region.box %}{{ e.region.box|list }}{% else %}whole picture{% endif %}</td>
+      <td>{{ e.intensity }}</td>
+      <td>{{ e.colour or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No effects.</p>
+  {% endif %}
+</section>
+{% if mask_url %}
+<section class="stage">
+  <h2>Cut</h2>
+  <p class="small">Masks over the dimmed picture, each in its layer's colour</p>
+  <img class="cut" src="{{ mask_url }}" alt="Layer masks for page {{ row.page_number }}">
+  <p class="small">Filled background</p>
+  <img class="cut" src="{{ background_url }}" alt="Filled background for page {{ row.page_number }}">
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}
