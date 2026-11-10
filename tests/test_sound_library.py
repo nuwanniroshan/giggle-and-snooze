@@ -311,7 +311,7 @@ def test_render_bed_silent_outside_and_level_inside():
     assert not bed[: round(2.4 * SR)].any()  # fade starts half a fade (0.5 s) before the cue
     assert not bed[round(7.6 * SR) :].any()
     inside = bed[round(3.6 * SR) : round(6.4 * SR)]
-    expected = 10 ** (AUDIO.ambience_gain_db / 20) * _rms(_sine())
+    expected = 10 ** ((-20.0 + AUDIO.ambience_gain_db) / 20)
     assert _rms(inside) == pytest.approx(expected, rel=0.02)
 
 
@@ -320,7 +320,7 @@ def test_render_bed_crossfades_between_cues():
     cues = [_cue("a", 0.0, 5.0), _cue("b", 5.0, 10.0)]
     ones = np.ones(SR)
     bed = render_bed(cues, {"a": ones, "b": ones}, length, SR, AUDIO)
-    gain = 10 ** (AUDIO.ambience_gain_db / 20)
+    gain = 10 ** ((-20.0 + AUDIO.ambience_gain_db) / 20)
     # With constant sounds the sum of the two envelopes is the bed / gain.
     span = bed[round(4.5 * SR) : round(5.5 * SR)] / gain
     assert np.allclose(span, 1.0, atol=0.01)
@@ -334,21 +334,21 @@ def test_render_bed_loop_cue_starting_at_zero_starts_silent_and_ends_faded():
     length = 4 * SR
     bed = render_bed([_cue("a", 0.0, 4.0)], {"a": np.ones(SR)}, length, SR, AUDIO)
     assert bed[0] == 0.0
-    assert abs(bed[-1]) < 0.01 * 10 ** (AUDIO.ambience_gain_db / 20)
-    assert bed[2 * SR] == pytest.approx(10 ** (AUDIO.ambience_gain_db / 20))
+    assert abs(bed[-1]) < 0.01 * 10 ** ((-20.0 + AUDIO.ambience_gain_db) / 20)
+    assert bed[2 * SR] == pytest.approx(10 ** ((-20.0 + AUDIO.ambience_gain_db) / 20))
 
 
 def test_render_bed_cue_wider_than_fade_at_edges_of_short_section():
     # A cue shorter than the fade must not blow up or go negative.
     bed = render_bed([_cue("a", 1.0, 1.2)], {"a": np.ones(SR)}, 3 * SR, SR, AUDIO)
-    assert bed.min() >= 0.0 and bed.max() <= 10 ** (AUDIO.ambience_gain_db / 20) + 1e-12
+    assert bed.min() >= 0.0 and bed.max() <= 10 ** ((-20.0 + AUDIO.ambience_gain_db) / 20) + 1e-12
 
 
 def test_render_bed_sfx_plays_once_then_silence():
     length = 6 * SR
     pop = np.ones(SR // 2)
     bed = render_bed([_cue("pop", 2.0, 5.0, "sfx")], {"pop": pop}, length, SR, AUDIO)
-    gain = 10 ** (AUDIO.sfx_gain_db / 20)
+    gain = 10 ** ((-20.0 + AUDIO.sfx_gain_db) / 20)
     start = 2 * SR
     assert np.allclose(bed[start : start + SR // 2], gain)  # shorter than the section: no fade
     assert not bed[:start].any()
@@ -358,7 +358,7 @@ def test_render_bed_sfx_plays_once_then_silence():
 def test_render_bed_sfx_longer_than_section_is_cut_with_short_fade():
     length = 6 * SR
     bed = render_bed([_cue("pop", 1.0, 2.0, "sfx")], {"pop": np.ones(4 * SR)}, length, SR, AUDIO)
-    gain = 10 ** (AUDIO.sfx_gain_db / 20)
+    gain = 10 ** ((-20.0 + AUDIO.sfx_gain_db) / 20)
     assert not bed[2 * SR :].any()
     assert bed[round(1.5 * SR)] == pytest.approx(gain)
     assert bed[2 * SR - 1] < 0.05 * gain  # faded over the last 0.1 s
@@ -394,3 +394,75 @@ def test_decode_sound_uses_ffmpeg_decoder_and_names_sound(monkeypatch, lib):
     monkeypatch.setattr(frames, "_decode_with_ffmpeg", boom)
     with pytest.raises(LibraryError, match="rain"):
         decode_sound(lib.get("rain"), 8000)
+
+
+# --- loudness normalisation (AC-1.1, AC-2.5) ---------------------------------------------------
+
+
+def _db(x):
+    return 20 * np.log10(x)
+
+
+def _scaled_sine(rms_db):
+    s = _sine(2.0)
+    return s / _rms(s) * 10 ** (rms_db / 20)
+
+
+@pytest.mark.parametrize("source_db", [-52.0, -12.0])
+def test_render_bed_loops_reach_the_same_level_whatever_the_source(source_db):
+    from video_pipeline.sound_library import REFERENCE_VOICE_DBFS
+
+    length = 12 * SR
+    bed = render_bed([_cue("a", 2.0, 10.0)], {"a": _scaled_sine(source_db)}, length, SR, AUDIO)
+    inside = bed[round(3.5 * SR) : round(8.5 * SR)]
+    assert _db(_rms(inside)) == pytest.approx(
+        REFERENCE_VOICE_DBFS + AUDIO.ambience_gain_db, abs=1.0
+    )
+
+
+def test_render_bed_spike_never_exceeds_the_peak_ceiling():
+    spiky = np.zeros(2 * SR)
+    spiky[SR // 2] = 1.4
+    spiky += 0.001 * _sine(2.0)
+    loop = render_bed([_cue("a", 1.0, 9.0)], {"a": spiky}, 10 * SR, SR, AUDIO)
+    assert np.abs(loop).max() <= 10 ** (-14.0 / 20) + 1e-9
+    sfx = render_bed([_cue("a", 1.0, 9.0, "sfx")], {"a": spiky}, 10 * SR, SR, AUDIO)
+    assert np.abs(sfx).max() <= 10 ** (-8.0 / 20) + 1e-9
+    assert np.abs(sfx).max() > 0.1  # and it is still audible
+
+
+def test_render_bed_silent_sound_stays_silent():
+    bed = render_bed([_cue("a", 1.0, 5.0)], {"a": np.zeros(SR)}, 6 * SR, SR, AUDIO)
+    assert np.isfinite(bed).all() and not bed.any()
+
+
+def test_normalize_sound_hits_target_rms():
+    from video_pipeline.sound_library import normalize_sound
+
+    out = normalize_sound(_scaled_sine(-40.0), -30.0, -6.0)
+    assert _db(_rms(out)) == pytest.approx(-30.0, abs=0.01)
+
+
+def test_normalize_sound_respects_max_boost():
+    from video_pipeline.sound_library import normalize_sound
+
+    src = _scaled_sine(-70.0)
+    out = normalize_sound(src, -20.0, 0.0, max_boost_db=36.0)
+    assert _db(_rms(out) / _rms(src)) == pytest.approx(36.0, abs=0.01)
+
+
+def test_normalize_sound_respects_peak_ceiling():
+    from video_pipeline.sound_library import normalize_sound
+
+    spiky = np.zeros(1000)
+    spiky[10] = 2.0
+    spiky[500:600] = 0.01
+    out = normalize_sound(spiky, -20.0, -14.0)
+    assert np.abs(out).max() == pytest.approx(10 ** (-14.0 / 20))
+
+
+def test_normalize_sound_silence_is_unchanged():
+    from video_pipeline.sound_library import normalize_sound
+
+    out = normalize_sound(np.zeros(100), -20.0, -14.0)
+    assert not out.any() and np.isfinite(out).all()

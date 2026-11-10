@@ -66,7 +66,7 @@ class CaptionStyle:
 class AudioSettings:
     peak_dbfs: float
     sfx_gain_db: float
-    ambience_gain_db: float = -22.0  # spec 007: ambience/music bed level under the voices
+    ambience_gain_db: float = -14.0  # spec 007: dB below the reference voice level
     ambience_fade: float = 1.5  # seconds, centred on the page change
     loop_crossfade: float = 1.0  # seconds, where a short sound repeats
 

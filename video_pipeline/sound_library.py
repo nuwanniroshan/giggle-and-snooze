@@ -209,10 +209,37 @@ def loop_fill(sound: np.ndarray, n: int, xf: int) -> np.ndarray:
     return out
 
 
-def _gain(kind: str, audio: AudioSettings) -> float:
-    """Linear gain per kind; `music` shares the ambience level until it gets its own setting."""
-    db = audio.sfx_gain_db if kind == "sfx" else audio.ambience_gain_db
-    return 10 ** (db / 20)
+REFERENCE_VOICE_DBFS = -20.0  # nominal speech RMS; cue levels are "dB below the voices"
+LOOP_PEAK_CEILING_DBFS = -14.0
+SFX_PEAK_CEILING_DBFS = -8.0
+
+
+def normalize_sound(
+    data: np.ndarray, target_rms_db: float, peak_ceiling_db: float, max_boost_db: float = 36.0
+) -> np.ndarray:
+    """`data` scaled to `target_rms_db` RMS, boosted by at most `max_boost_db` and never beyond
+    `peak_ceiling_db` at the sample peak. Silence is returned unchanged."""
+    x = np.asarray(data, dtype=np.float64)
+    rms = float(np.sqrt(np.mean(np.square(x)))) if len(x) else 0.0
+    peak = float(np.max(np.abs(x))) if len(x) else 0.0
+    if rms < 1e-9 or peak < 1e-9:
+        return x
+    gain = min(
+        10 ** (target_rms_db / 20) / rms,
+        10 ** (max_boost_db / 20),
+        10 ** (peak_ceiling_db / 20) / peak,
+    )
+    return x * gain
+
+
+def _normalized(kind: str, data: np.ndarray, audio: AudioSettings) -> np.ndarray:
+    """The decoded sound at its cue level; `music` shares the ambience setting until it gets
+    its own."""
+    if kind == "sfx":
+        target, ceiling = REFERENCE_VOICE_DBFS + audio.sfx_gain_db, SFX_PEAK_CEILING_DBFS
+    else:
+        target, ceiling = REFERENCE_VOICE_DBFS + audio.ambience_gain_db, LOOP_PEAK_CEILING_DBFS
+    return normalize_sound(data, target, ceiling)
 
 
 def render_bed(
@@ -230,15 +257,14 @@ def render_bed(
     half = fade // 2
     xf = round(audio.loop_crossfade * sample_rate)
     for cue in cues:
-        data = decoded[cue.sound.name]
+        data = _normalized(cue.sound.kind, decoded[cue.sound.name], audio)
         start = round(cue.start * sample_rate)
         end = min(length, round(cue.end * sample_rate))
         if end <= start:
             continue
-        gain = _gain(cue.sound.kind, audio)
         if cue.sound.kind == "sfx":
             tail = min(len(data), end - start)
-            piece = data[:tail].astype(np.float64) * gain
+            piece = data[:tail].copy()
             ramp = min(tail, round(0.1 * sample_rate))
             if tail < len(data) and ramp:  # cut short by the section, so fade the cut
                 piece[-ramp:] *= np.linspace(1.0, 0.0, ramp)
@@ -249,7 +275,7 @@ def render_bed(
         lo, hi = max(0, rise_from), min(length, fall_to)
         t = np.arange(lo, hi)
         env = np.clip((t - rise_from) / fade, 0, 1) * np.clip((fall_to - t) / fade, 0, 1)
-        bed[lo:hi] += loop_fill(data, hi - lo, xf) * env * gain
+        bed[lo:hi] += loop_fill(data, hi - lo, xf) * env
     return bed
 
 
