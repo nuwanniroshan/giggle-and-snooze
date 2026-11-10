@@ -80,6 +80,32 @@ class VideoSettings:
 
 
 @dataclass(frozen=True)
+class EffectDefaults:
+    """Per-effect defaults for the story-page animation (spec 010 FR-8)."""
+
+    count: int = 0
+    speed: float = 0.0
+    size: float = 0.0
+    strength: float = 0.0
+    colour: str = "#ffffff"
+
+
+@dataclass(frozen=True)
+class AnimationSettings:
+    """The `animation` block of render.json (spec 010 FR-8). It never enters a cache key here:
+    animated sections add their own plan identity to their keys (spec 010 NFR-5)."""
+
+    enabled: bool = True
+    intensity: float = 1.0
+    ease_in_s: float = 1.0
+    parallax_max_shift: float = 0.006  # fraction of the picture's shorter side
+    parallax_period_s: float = 9.0
+    override_min: float = 0.25
+    override_max: float = 2.0
+    effects: dict[str, EffectDefaults] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class RenderConfig:
     width: int
     height: int
@@ -95,6 +121,7 @@ class RenderConfig:
     captions: CaptionStyle
     audio: AudioSettings
     video: VideoSettings
+    animation: AnimationSettings = field(default_factory=AnimationSettings)
 
 
 _NESTED = {
@@ -127,6 +154,8 @@ def load_render_config(path: Path) -> RenderConfig:
         raise ConfigError(f"render configuration is not valid JSON: {path} ({exc})") from None
     missing: list[str] = []
     for f in fields(RenderConfig):
+        if f.name == "animation":
+            continue  # optional block, parsed by _animation_settings
         if f.name not in data:
             missing.append(f.name)
         elif f.name in _NESTED:
@@ -142,6 +171,7 @@ def load_render_config(path: Path) -> RenderConfig:
     if missing:
         raise ConfigError(f"{path}: missing {', '.join(missing)}")
     nested = {name: _typed(cls, data[name]) for name, cls in _NESTED.items()}
+    nested["animation"] = _animation_settings(path, data.get("animation", {}))
     config = _typed(RenderConfig, data | nested)
     min_card = config.captions.min_card_seconds
     if not math.isfinite(min_card) or min_card < 0:
@@ -149,6 +179,86 @@ def load_render_config(path: Path) -> RenderConfig:
             f"{path}: captions.min_card_seconds must be a number ≥ 0, got {min_card!r}"
         )
     return config
+
+
+_COLOUR_RE = re.compile(r"#[0-9a-fA-F]{6}")
+
+
+def _number(path: Path, dotted: str, value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        raise ConfigError(f"{path}: {dotted} must be a number, got {value!r}")
+    return float(value)
+
+
+def _effect_defaults(path: Path, name: str, block: object) -> EffectDefaults:
+    where = f"animation.effects.{name}"
+    if not isinstance(block, dict):
+        raise ConfigError(f"{path}: {where} must be an object")
+    values: dict[str, object] = {}
+    for key in ("speed", "size", "strength"):
+        if key in block:
+            values[key] = _number(path, f"{where}.{key}", block[key])
+            if values[key] < 0:
+                raise ConfigError(f"{path}: {where}.{key} must be ≥ 0, got {block[key]!r}")
+    if "count" in block:
+        count = block["count"]
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ConfigError(f"{path}: {where}.count must be a whole number ≥ 0, got {count!r}")
+        values["count"] = count
+    if "colour" in block:
+        colour = block["colour"]
+        if not isinstance(colour, str) or not _COLOUR_RE.fullmatch(colour):
+            raise ConfigError(f"{path}: {where}.colour must be #rrggbb, got {colour!r}")
+        values["colour"] = colour
+    return EffectDefaults(**values)
+
+
+def _animation_settings(path: Path, block: object) -> AnimationSettings:
+    """Parse the optional `animation` block (spec 010 FR-8); a bad value raises ConfigError
+    naming the dotted field. A missing block or field takes the dataclass default."""
+    # imported here: motion_plan pulls in the agent runner and Pillow, which timeline must not
+    from video_pipeline.motion_plan import EFFECTS
+
+    if not isinstance(block, dict):
+        raise ConfigError(f"{path}: animation must be an object")
+    values: dict[str, object] = {}
+    if "enabled" in block:
+        if not isinstance(block["enabled"], bool):
+            raise ConfigError(f"{path}: animation.enabled must be true or false")
+        values["enabled"] = block["enabled"]
+    for f in fields(AnimationSettings):
+        if f.name in ("enabled", "effects") or f.name not in block:
+            continue
+        values[f.name] = _number(path, f"animation.{f.name}", block[f.name])
+    settings = AnimationSettings(**values)
+    for name in ("intensity", "parallax_period_s", "override_min"):
+        if getattr(settings, name) <= 0:
+            raise ConfigError(f"{path}: animation.{name} must be > 0, got {block[name]!r}")
+    for name in ("ease_in_s", "parallax_max_shift"):
+        if getattr(settings, name) < 0:
+            raise ConfigError(f"{path}: animation.{name} must be ≥ 0, got {block[name]!r}")
+    if settings.override_min > settings.override_max:
+        raise ConfigError(
+            f"{path}: animation.override_min ({settings.override_min}) must not exceed "
+            f"animation.override_max ({settings.override_max})"
+        )
+    if "effects" not in block:
+        return settings
+    effects = block["effects"]
+    if not isinstance(effects, dict):
+        raise ConfigError(f"{path}: animation.effects must be an object")
+    for name in effects:
+        if name not in EFFECTS:
+            raise ConfigError(
+                f"{path}: unknown effect animation.effects.{name} (one of {', '.join(EFFECTS)})"
+            )
+    missing = [name for name in EFFECTS if name not in effects]
+    if missing:
+        raise ConfigError(
+            f"{path}: missing animation.effects.{', animation.effects.'.join(missing)}"
+        )
+    parsed = {name: _effect_defaults(path, name, effects[name]) for name in EFFECTS}
+    return AnimationSettings(**{**values, "effects": parsed})
 
 
 # --- captions -------------------------------------------------------------------------------

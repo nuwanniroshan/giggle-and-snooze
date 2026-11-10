@@ -245,9 +245,32 @@ def _ambience_errors(where: str, block: dict) -> list[str]:
     return []
 
 
+# spec 010 FR-9: a page may turn its animation off or scale it; render.json may narrow this range
+ANIMATION_OVERRIDE_RANGE = (0.25, 2.0)
+
+
+def _animation_errors(
+    where: str,
+    block: dict,
+    lo: float = ANIMATION_OVERRIDE_RANGE[0],
+    hi: float = ANIMATION_OVERRIDE_RANGE[1],
+) -> list[str]:
+    """A story page's optional `animation` override: `false` or a number from `lo` to `hi`."""
+    if "animation" not in block:
+        return []
+    value = block["animation"]
+    if value is False or (
+        isinstance(value, int | float) and not isinstance(value, bool) and lo <= value <= hi
+    ):
+        return []
+    return [f"{where}: animation must be false or a number from {lo} to {hi} (got {value!r})"]
+
+
 def _bookend_errors(block: dict, name: str, terms: list[str], title: str) -> list[str]:
     lines = block.get("lines", [])
     errors = _ambience_errors(name, block)
+    if "animation" in block:
+        errors.append(f"{name}: animation is allowed only on story pages, not the {name}")
     errors += [
         error
         for i, line in enumerate(lines)
@@ -293,6 +316,7 @@ def _page_errors(pages: list[dict], book: dict, terms: list[str]) -> list[str]:
             split += 1
         narration, qa = lines[:split], lines[split:]
         errors += _ambience_errors(f"page {number}", page)
+        errors += _animation_errors(f"page {number}", page)
         errors += _narration_errors(number, narration, book_page["text"], terms)
         if any(line.get("role") == "narration" for line in qa):
             errors.append(f"page {number}: narration lines must come before Q&A lines")

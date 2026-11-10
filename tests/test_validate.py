@@ -302,3 +302,33 @@ def test_bad_ambience_is_reported(where, expected, bad):  # AC-1.5 (type part)
     block["ambience"] = bad
     errors = validate_script(script, book, TERMS)
     assert any(expected in error for error in errors)
+
+
+# --- page animation override (spec 010 FR-9, AC-3.5) -----------------------------------------
+
+
+@pytest.mark.parametrize("value", [1.5, False, 0.25, 2.0, 1])
+def test_page_animation_override_accepted(value):
+    book, script = build()
+    script["pages"][2]["animation"] = value
+    assert validate_script(script, book, TERMS) == []
+
+
+@pytest.mark.parametrize("value", [0, 3, "high", True, 0.2, 2.01, None, [1]])
+def test_bad_page_animation_override_named(value):
+    book, script = build()
+    script["pages"][2]["animation"] = value
+    errors = validate_script(script, book, TERMS)
+    assert len(errors) == 1
+    assert "page 3: animation must be false or a number from 0.25 to 2.0" in errors[0]
+
+
+@pytest.mark.parametrize("where", ["intro", "outro"])
+@pytest.mark.parametrize("value", [False, 1.0])
+def test_animation_on_intro_or_outro_rejected(where, value):
+    book, script = build()
+    script[where]["animation"] = value
+    errors = validate_script(script, book, TERMS)
+    assert len(errors) == 1
+    assert errors[0].startswith(f"{where}: animation")
+    assert "story pages" in errors[0]

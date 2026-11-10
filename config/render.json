@@ -36,5 +36,24 @@
     "ambience_fade": 1.5,
     "loop_crossfade": 1.0
   },
-  "video": {"crf": 18, "preset": "medium", "audio_bitrate": "192k", "audio_rate": 48000}
+  "video": {"crf": 18, "preset": "medium", "audio_bitrate": "192k", "audio_rate": 48000},
+  "animation": {
+    "enabled": true,
+    "intensity": 1.0,
+    "ease_in_s": 1.0,
+    "parallax_max_shift": 0.006,
+    "parallax_period_s": 9.0,
+    "override_min": 0.25,
+    "override_max": 2.0,
+    "effects": {
+      "rain": {"count": 220, "speed": 0.9, "size": 0.012, "strength": 0.35, "colour": "#cfd8e3"},
+      "snow": {"count": 140, "speed": 0.12, "size": 0.004, "strength": 0.8, "colour": "#ffffff"},
+      "fireflies": {"count": 24, "speed": 0.03, "size": 0.004, "strength": 0.9, "colour": "#fff2a8"},
+      "falling_leaves": {"count": 14, "speed": 0.08, "size": 0.018, "strength": 0.9, "colour": "#c9772e"},
+      "water_ripple": {"count": 0, "speed": 0.5, "size": 0.004, "strength": 0.3, "colour": "#ffffff"},
+      "smoke": {"count": 6, "speed": 0.03, "size": 0.05, "strength": 0.35, "colour": "#d9d6d0"},
+      "mist": {"count": 3, "speed": 0.01, "size": 0.4, "strength": 0.25, "colour": "#e8eef2"},
+      "glow": {"count": 0, "speed": 0.25, "size": 0.15, "strength": 0.3, "colour": "#ffd27a"}
+    }
+  }
 }

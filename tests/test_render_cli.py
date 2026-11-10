@@ -195,6 +195,24 @@ def test_approval_problems_lists_each_problem(world):
     assert problems and "run synthesis first" in problems[0]
 
 
+@pytest.mark.parametrize("value", [False, 1.5])
+def test_page_animation_override_keeps_the_approval(world, value):  # spec 010 AC-3.6
+    paths = sv.AudioPaths(world["audio"])
+    settings = load_json(paths.status)["settings_sha256"]
+    script = load_json(world["script_path"])
+    script["pages"][0]["animation"] = value
+    script["pages"][-1]["animation"] = False
+    world["script_path"].write_text(
+        json.dumps(script, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    assert sv.approval_problems(paths, world["script_path"], settings) == []
+    script["pages"][0]["lines"][0]["text"] = "A changed narration line."
+    world["script_path"].write_text(
+        json.dumps(script, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    assert sv.approval_problems(paths, world["script_path"], settings) != []
+
+
 # --- pictures --------------------------------------------------------------------------------
 
 
