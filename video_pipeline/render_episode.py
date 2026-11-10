@@ -637,10 +637,8 @@ def _load_ambience(script: dict, sections: list[Section], cfg: RenderConfig, roo
     return cues
 
 
-def _render_bed(inputs: _Inputs) -> np.ndarray | None:
-    """The levelled ambience bed for the whole episode, or None when there are no cues."""
-    if not inputs.ambience:
-        return None
+def _decode_sounds(inputs: _Inputs) -> dict[str, np.ndarray]:
+    """Decode each distinct sound of the ambience cues; a failure names the sound (RenderError)."""
     decoded: dict[str, np.ndarray] = {}
     for cue in inputs.ambience:
         if cue.sound.name not in decoded:
@@ -648,6 +646,13 @@ def _render_bed(inputs: _Inputs) -> np.ndarray | None:
                 decoded[cue.sound.name] = sound_library.decode_sound(cue.sound, inputs.sample_rate)
             except (sound_library.LibraryError, SoundError) as exc:
                 raise RenderError(str(exc)) from None
+    return decoded
+
+
+def _render_bed(inputs: _Inputs, decoded: dict[str, np.ndarray]) -> np.ndarray | None:
+    """The levelled ambience bed for the whole episode, or None when there are no cues."""
+    if not inputs.ambience:
+        return None
     length = round(total_frames(inputs.sections, inputs.cfg) / inputs.cfg.fps * inputs.sample_rate)
     return render_bed(inputs.ambience, decoded, length, inputs.sample_rate, inputs.cfg.audio)
 
@@ -776,6 +781,7 @@ def render_video(
                 # Records written before spec 004 lack these; render_check needs them.
                 write_atomic(record_path, {**record, **page_turn_fields})
             return RenderResult(final, duration, 0, len(sections), True)
+        decoded = _decode_sounds(inputs)  # fail on a bad sound before any encoding
         record_path.unlink(missing_ok=True)  # stale until the new video is complete
 
         rendered = reused = 0
@@ -814,7 +820,7 @@ def render_video(
             clips += [clip, paths.sections / f"{b.name}.mp4"]
 
         master = paths.audio / "master.wav"
-        bed = _render_bed(inputs)
+        bed = _render_bed(inputs, decoded)
         write_wav_atomic(
             master,
             mix_master(sections, tracks, page_turn, cfg, sample_rate, ambience=bed),

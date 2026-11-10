@@ -315,6 +315,21 @@ def test_render_bed_silent_outside_and_level_inside():
     assert _rms(inside) == pytest.approx(expected, rel=0.02)
 
 
+def test_render_bed_overlapping_loop_cues_are_both_audible():  # AC-1.2
+    length = 10 * SR
+    a, b = _cue("a", 1.0, 9.0), _cue("b", 1.0, 9.0)
+    sounds = {"a": _sine(2.0, 100.0), "b": _sine(2.0, 173.0)}
+    both = render_bed([a, b], sounds, length, SR, AUDIO)
+    alone = render_bed([a], sounds, length, SR, AUDIO)
+    span = slice(round(3 * SR), round(7 * SR))
+    assert _rms(both[span]) == pytest.approx(np.sqrt(2) * _rms(alone[span]), rel=0.15)
+    # b's own frequency is present in the mix, and a's too
+    spectrum = np.abs(np.fft.rfft(both[span]))
+    freqs = np.fft.rfftfreq(len(both[span]), 1 / SR)
+    for hz in (100.0, 173.0):
+        assert spectrum[np.argmin(np.abs(freqs - hz))] > 0.2 * spectrum.max()
+
+
 def test_render_bed_crossfades_between_cues():
     length = 10 * SR
     cues = [_cue("a", 0.0, 5.0), _cue("b", 5.0, 10.0)]

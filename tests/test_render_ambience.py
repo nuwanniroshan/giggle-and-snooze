@@ -57,6 +57,15 @@ def set_ambience(world, page, names):
     assert sv.main(["approve", *common]) == 0
 
 
+def set_block_ambience(world, block, names):
+    data = load_json(world["script_path"])
+    data[block]["ambience"] = names
+    world["script_path"].write_text(json.dumps(data, indent=2), encoding="utf-8")
+    common = ["--book", world["slug"], "--root", str(world["root"])]
+    assert sv.main(["--reviewed", *common]) == 0
+    assert sv.main(["approve", *common]) == 0
+
+
 def render(world, *extra):
     runner = FakeRunner()
     return re_.main(cli_args(world, *extra), run=runner), runner
@@ -158,8 +167,14 @@ def test_undecodable_sound_is_named(world, monkeypatch, capsys):
         raise sl.LibraryError(f"sound {sound.name!r}: cannot decode")
 
     monkeypatch.setattr(sl, "decode_sound", bad)
-    assert render(world)[0] == 1
+    code, runner = render(world)
+    assert code == 1
     assert "rain" in capsys.readouterr().err
+    assert runner.calls == []  # fails before any encoding
+    # render_check_detail stays free of decoding
+    assert re_.render_check_detail(BookFolder(world["slug"], world["root"]), world["root"])[0] != (
+        "blocked"
+    )
 
 
 def test_library_file_content_changes_final_key_but_unrelated_does_not(world):  # AC-4.2
@@ -171,3 +186,45 @@ def test_library_file_content_changes_final_key_but_unrelated_does_not(world):  
     assert re_._final_key(inputs(world), "pt") == before
     (lib / "rain.mp3").write_bytes(b"rain-v2")
     assert re_._final_key(inputs(world), "pt") != before
+
+
+@pytest.mark.parametrize("block", ["intro", "outro"])
+def test_ambience_on_intro_or_outro_only_is_audible_in_that_section(world, block):  # AC-1.3
+    assert render(world)[0] == 0
+    plain = master(world)
+    set_block_ambience(world, block, ["rain"])
+    assert render(world)[0] == 0
+    with_bed = master(world)
+    assert len(with_bed) == len(plain)
+    ins = inputs(world)
+    assert [c.sound.name for c in ins.ambience] == ["rain"]
+    index = 0 if block == "intro" else len(ins.sections) - 1
+    start, end = frames.section_times(ins.sections, ins.cfg)[index]
+    rate = ins.sample_rate
+    window = slice(
+        round((start + 0.25 * (end - start)) * rate), round((end - 0.25 * (end - start)) * rate)
+    )
+    assert np.max(np.abs(with_bed[window] - plain[window])) > 1e-3
+    # and silent in the middle of the episode, away from the section
+    mstart, mend = frames.section_times(ins.sections, ins.cfg)[4]
+    middle = slice(round((mstart + 0.25) * rate), round((mend - 0.25) * rate))
+    assert np.array_equal(with_bed[middle], plain[middle])
+
+
+def test_changed_library_file_changes_master_and_reuses_video(world, monkeypatch):  # AC-4.2
+    lib = world["assets"] / "sound_library"
+
+    def decode(sound, rate):
+        hz = 200 if b"v1" in sound.file.read_bytes() else 330
+        return 0.5 * np.sin(2 * np.pi * hz * np.arange(rate * 3) / rate)
+
+    monkeypatch.setattr(sl, "decode_sound", decode)
+    set_ambience(world, 3, ["rain"])
+    assert render(world)[0] == 0
+    before = master(world)
+    (lib / "rain.mp3").write_bytes(b"rain-v2")
+    code, runner = render(world)
+    assert code == 0
+    assert not np.array_equal(master(world), before)
+    assert runner.whats("section ") == [] and runner.whats("transition ") == []
+    assert runner.whats("mux") == ["mux"]
