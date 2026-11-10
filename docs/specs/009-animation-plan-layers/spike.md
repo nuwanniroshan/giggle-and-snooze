@@ -10,7 +10,7 @@ Date: 2026-11-10. Script: `docs/specs/009-animation-plan-layers/spike_cut.py` (t
 | <= 10 s per page, all layers plus fill, after load | PASS with `CPU_AND_GPU`: about 3.0 s per page (encoder 0.24 s, 4 prompts + decoders about 0.4 s, fill about 2.4 s). The first page of a fresh process is about 3.4-3.6 s. |
 | Peak memory <= 4 GB | PASS. Peak RSS 0.9-1.0 GB for the whole process (1.3 GB with `CPU_ONLY`). |
 | Bit-exact across runs | PASS. Two separate processes give identical sha256 for every mask and every background (also pass 1 against pass 2 inside one process). Not identical between `CPU_AND_GPU` and `CPU_ONLY` (float differences), so the compute unit is part of the model id for the cut hash. |
-| Masks a human would accept | PENDING the producer. My own read of the overlays is in "Mask quality" below: 8 of 12 layers look cleanly cut, the 3 snails need occlusion handling, and Clara on page 12 loses part of the scroll. |
+| Masks a human would accept | PASS (producer, 2026-11-10: "good enough, continue"). My own read of the overlays is in "Mask quality" below: 8 of 12 layers look cleanly cut, the 3 snails need occlusion handling, and Clara on page 12 loses part of the scroll. |
 
 Core ML SAM 2.1 does work, but **not with `ComputeUnit.ALL` or `CPU_AND_NE`** (see "Compute units"). That is the main finding.
 
@@ -125,7 +125,9 @@ My read of the cutouts per layer (final run, `--select large --clean`):
 
 That is 8 of 12 clean (counting Clara on page 5 as clean apart from the magnifier), 3 snails acceptable only after occlusion handling, and Clara on page 12 not clean. NFR-7 asks for 80% (about 10 of 12); this is below it today, so the producer's judgement and some tuning (hole growth, occlusion subtraction, point or box edits) decide the gate.
 
-## Producer verdict on masks: pending
+## Producer verdict on masks: accepted (2026-11-10)
+
+The producer judged the final-configuration masks good enough to build on. The 80% clean-layer target (NFR-7) is still checked on the whole pilot book in Phase 6, after occlusion handling (front-most layer owns each pixel) is in the cutter.
 
 Overlay and cutout files (not committed; in the session scratchpad). Each overlay is the picture with each layer tinted in its own colour and the box outline; each cutout sheet shows every layer on a checkerboard; each background is the LaMa fill.
 
