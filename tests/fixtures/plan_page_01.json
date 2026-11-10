@@ -1,0 +1,50 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "839c4c8cb63efdc958baa5686094d01dbf9bef76abb99dab3c97a2ca810a7c17",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "hand",
+  "written_at": "2026-11-10T00:00:00+00:00",
+  "layers": [
+    {
+      "name": "clara",
+      "description": "Clara riding on the snail, reading",
+      "box": [250, 105, 620, 605],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [430, 560],
+      "motions": [{"type": "sway", "amplitude": 1.0, "period_s": 6.0}]
+    },
+    {
+      "name": "snail",
+      "description": "Barnaby the snail",
+      "box": [105, 230, 830, 985],
+      "z": 2,
+      "depth": 0.5,
+      "pivot": [470, 960],
+      "motions": [{"type": "breathe", "amplitude": 0.01, "period_s": 8.0}]
+    },
+    {
+      "name": "acorn_mailbox",
+      "description": "the acorn mailbox on the right",
+      "box": [885, 335, 1015, 600],
+      "z": 1,
+      "depth": 0.4,
+      "pivot": [950, 600],
+      "motions": [{"type": "sway", "amplitude": 1.5, "period_s": 5.0}]
+    },
+    {
+      "name": "front_mushroom",
+      "description": "a mushroom in the foreground",
+      "box": [745, 850, 880, 1000],
+      "z": 4,
+      "depth": 0.9,
+      "pivot": [810, 1000],
+      "motions": [{"type": "sway", "amplitude": 1.0, "period_s": 7.0, "phase": 0.3}]
+    }
+  ],
+  "effects": []
+}

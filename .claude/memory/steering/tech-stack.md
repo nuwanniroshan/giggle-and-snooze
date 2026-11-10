@@ -15,6 +15,7 @@ Python 3.12 (CPython via uv) — edit to match reality
 - Render (`video_pipeline/`, spec 003): Pillow canvas (illustration over a blurred darkened copy) and caption PNGs; numpy master audio mix; FFmpeg `zoompan`, `xfade`, concat `-c copy`, H.264/AAC mux. No background music yet (separate spec).
 - Studio (`video_pipeline/studio/`, spec 004): Starlette 1.10, uvicorn, Jinja2, python-multipart (declared; they came with `mcp`); server-rendered pages, no JS build. Dev: httpx for Starlette's `TestClient`.
 - Planned later stages (PRD.md): background music with `sidechaincompress` ducking
+- Layer cutting (spec 009): `coremltools` 8.x running `apple/coreml-sam2.1-small` (Core ML, `CPU_AND_GPU`) and `onnxruntime` running `Carve/LaMa-ONNX` `lama_fp32.onnx` (CPU provider); revisions pinned in `config/animation.json`, both Apache-2.0.
 - Venv also contains pymupdf/pymupdf4llm, numpy, onnxruntime, PyYAML
 
 ## Infrastructure

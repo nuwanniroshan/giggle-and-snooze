@@ -1,0 +1,196 @@
+{
+  "page_number": 17,
+  "picture": {
+    "file": "page_17.png",
+    "sha256": "5a36fd26d43fa7178360d660581d42a8583930975e0c1573e2e8b68e31b3eda1",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:56:29+00:00",
+  "layers": [
+    {
+      "name": "barnaby_left_eyestalk",
+      "description": "Tall left golden eye-stalk and rounded eye only; preserve the forest behind it.",
+      "box": [
+        345,
+        259,
+        438,
+        437
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        355,
+        429
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 7.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eyestalk",
+      "description": "Diagonal golden eye-stalk and its rounded eye, excluding Fleet and the lantern.",
+      "box": [
+        417,
+        316,
+        540,
+        437
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.66,
+      "pivot": [
+        424,
+        430
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 7.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "fleet_head",
+      "description": "Fleet's grey rounded head with yellow eyes and small beak; hinge at the neck for a tiny peaceful bow.",
+      "box": [
+        559,
+        363,
+        620,
+        412
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.7,
+      "pivot": [
+        583,
+        407
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 1.2,
+          "period_s": 8.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_outer_hair",
+      "description": "Only the outer chestnut curls to the right of Clara's face, excluding face, collar, and dress.",
+      "box": [
+        741,
+        304,
+        805,
+        455
+      ],
+      "include_points": [
+        [
+          778,
+          358
+        ],
+        [
+          781,
+          407
+        ]
+      ],
+      "exclude_points": [
+        [
+          744,
+          371
+        ],
+        [
+          751,
+          428
+        ]
+      ],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        753,
+        319
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 6.0,
+          "phase": 0.45,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_leaf_sprig",
+      "description": "Small green leaves and fine twig extending left from the right-hand branch, excluding the thick branch.",
+      "box": [
+        790,
+        461,
+        860,
+        562
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.8,
+      "pivot": [
+        849,
+        528
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.5,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "fireflies",
+      "region": {
+        "box": [
+          124,
+          75,
+          917,
+          930
+        ],
+        "layer": null
+      },
+      "intensity": 0.15,
+      "colour": "#e9ef9b"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          461,
+          414,
+          542,
+          510
+        ],
+        "layer": null
+      },
+      "intensity": 0.2,
+      "colour": "#ffd779"
+    }
+  ]
+}

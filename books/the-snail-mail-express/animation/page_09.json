@@ -1,0 +1,115 @@
+{
+  "page_number": 9,
+  "picture": {
+    "file": "page_09.png",
+    "sha256": "c0b5313c1368f4ed44ad4b6ec1b967b296283154ca5495d61fd9d124fa12de27",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:53:11+00:00",
+  "layers": [
+    {
+      "name": "clara_hair",
+      "description": "Loose chestnut waves along the left side of Clara's head and shoulder; exclude face, collar, hands and dress.",
+      "box": [
+        520,
+        437,
+        627,
+        647
+      ],
+      "include_points": [
+        [
+          558,
+          534
+        ],
+        [
+          548,
+          587
+        ]
+      ],
+      "exclude_points": [
+        [
+          641,
+          527
+        ],
+        [
+          605,
+          615
+        ]
+      ],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        605,
+        456
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 6.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "lantern",
+      "description": "Hanging brass lantern with its glowing glass, below the fixed ceiling hook.",
+      "box": [
+        464,
+        128,
+        566,
+        285
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.45,
+      "pivot": [
+        514,
+        137
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.45,
+          "period_s": 7.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "smoke",
+      "region": {
+        "box": [
+          309,
+          458,
+          365,
+          586
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#fff4dd"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          449,
+          151,
+          582,
+          305
+        ],
+        "layer": null
+      },
+      "intensity": 0.18,
+      "colour": "#ffd580"
+    }
+  ]
+}

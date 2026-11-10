@@ -6,6 +6,7 @@ loads safetensors weights and never runs code shipped with the model.
 
 from __future__ import annotations
 
+import gc
 import os
 import subprocess
 from dataclasses import dataclass
@@ -174,6 +175,11 @@ class OrpheusVoice:
         self._mx = mx
         self.settings = settings
         self.sample_rate = int(self._model.sample_rate)
+
+    def recover(self) -> None:
+        """Free what a failed GPU run left behind, before a retry."""
+        gc.collect()
+        self._mx.clear_cache()
 
     def synthesize(self, text: str, voice: str, seed: int) -> np.ndarray:
         self._mx.random.seed(seed)

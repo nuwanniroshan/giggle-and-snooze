@@ -1,0 +1,173 @@
+{
+  "page_number": 19,
+  "picture": {
+    "file": "page_19.png",
+    "sha256": "4b49b259e2fa0347b126b4281edff411ed872722347c6d24d8569a35f1436dae",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:57:22+00:00",
+  "layers": [
+    {
+      "name": "lantern",
+      "description": "Warm hanging lantern with its curved hanger; preserve the owl and snail behind it.",
+      "box": [
+        476,
+        389,
+        550,
+        500
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        527,
+        393
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.3,
+          "period_s": 5.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_front_eye_stalk",
+      "description": "Diagonal golden eye-stalk ending in the round eye beside the owl, with a soft hinge at its base.",
+      "box": [
+        480,
+        314,
+        649,
+        460
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        636,
+        448
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 7.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eye_stalk",
+      "description": "Upright golden eye-stalk and round eye on the right, ending where it joins Barnaby's head.",
+      "box": [
+        584,
+        260,
+        683,
+        428
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        672,
+        419
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 8.5,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair_left",
+      "description": "Outer chestnut curls on Clara's left side, keeping her face, collar, and book still.",
+      "box": [
+        216,
+        298,
+        289,
+        436
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        276,
+        304
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 6.5,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_toadstool",
+      "description": "Tall red spotted toadstool at lower right, including its pale stem.",
+      "box": [
+        752,
+        789,
+        849,
+        906
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 7,
+      "depth": 0.9,
+      "pivot": [
+        800,
+        901
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 7.0,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "fireflies",
+      "region": {
+        "box": [
+          89,
+          277,
+          948,
+          923
+        ],
+        "layer": null
+      },
+      "intensity": 0.18,
+      "colour": "#fff2a1"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "lantern"
+      },
+      "intensity": 0.16,
+      "colour": "#ffd477"
+    }
+  ]
+}

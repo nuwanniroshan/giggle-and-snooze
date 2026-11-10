@@ -12,38 +12,56 @@ from __future__ import annotations
 import copy
 import io
 import json
-import os
-import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
 
-from PIL import Image, UnidentifiedImageError
+import numpy as np
+from PIL import Image
 
 from video_pipeline import synthesize_voices as sv
-from video_pipeline.contract import ConfigError, load_disallowed_terms, slugify, validate_script
-from video_pipeline.episode import BookError, book_problems, load_book
+from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
+from video_pipeline.cut_layers import MANIFEST, cut_hash, layers_dir, model_ids
+from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import BOOK_FILE, PROJECT_ROOT, BookFolder, list_book_slugs
+from video_pipeline.motion_plan import (
+    LIMITS_FILE,
+    load_limits,
+    page_picture,
+    plan_path,
+    plan_state,
+)
 from video_pipeline.render_episode import VideoPaths, render_check_detail
 
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-MAX_UPLOAD_FILES = 100  # pictures per upload; the request is refused above (this + 1) x 25 MB
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
 NOOK_FILES = ("intro_nook.png", "outro_nook.png")
-# Parts of a book folder a replacement keeps: the script, its marks, nooks and generated output.
-CARRIED_ON_REPLACE = ("episode", "build", "nooks")
-# Slugs a book may not take because a studio route already uses that path (`/books/new`).
-RESERVED_SLUGS = frozenset({"new"})
 STAGES = ("script", "voices", "render")
 STATUS_KEYS = {"script": "script", "voices": "voices", "render": "video"}
 STAGE_LABELS = {
     "script": "script generation",
     "voices": "voice synthesis",
     "render": "video render",
+    "plan": "motion planning",
+    "cut": "layer cutting",
 }
+# Spec 009: run as studio jobs, but outside the script → voices → render flow.
+ANIMATION_STAGES = ("plan", "cut")
+NO_CUT = "—"
+# One fixed tint per layer (in plan order) for the masks overlay; the picture under it is dimmed.
+MASK_PALETTE = (
+    (230, 25, 75),
+    (60, 180, 75),
+    (255, 225, 25),
+    (0, 130, 200),
+    (245, 130, 48),
+    (145, 30, 180),
+    (70, 240, 240),
+    (240, 50, 230),
+)
+MASK_ALPHA = 0.65
+MASK_DIM = 0.35
 JOB_OVERRIDES = ("running", "failed", "interrupted")
 
 LatestJob = Callable[[str, str], dict | None]
@@ -172,125 +190,6 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
                 f"file names {other!r} and {name!r} differ only by case; rename one of them"
             )
     return required, problems
-
-
-def slug_problem(slug: str) -> str | None:
-    """Why `slug` cannot name an added book (it is a studio route), or None."""
-    if slug in RESERVED_SLUGS:
-        return f"the slug {slug!r} is reserved by the studio (it comes from the title); change the title"
-    return None
-
-
-def _image_problem(name: str, data: bytes) -> str | None:
-    if len(data) > MAX_UPLOAD_BYTES:
-        limit = MAX_UPLOAD_BYTES / (1024 * 1024)
-        return f"{name}: file is too large ({len(data) / (1024 * 1024):.1f} MB; limit {limit:g} MB)"
-    try:
-        with Image.open(io.BytesIO(data)) as im:
-            im.verify()
-    except (OSError, UnidentifiedImageError, SyntaxError, ValueError) as exc:
-        return f"{name}: not a readable image ({exc})"
-    return None
-
-
-def validate_upload(book_json: bytes, files: dict[str, bytes]) -> tuple[dict | None, list[str]]:
-    """Parse and check an upload without saving anything: the book data (the same rules as
-    `episode.load_book`), every expected illustration and both covers present and readable, no
-    unexpected or path-like names, no file over `MAX_UPLOAD_BYTES`. Returns the parsed book (None
-    when it is not a JSON object) and every problem found."""
-    if len(book_json) > MAX_UPLOAD_BYTES:
-        return None, [f"book data is larger than {MAX_UPLOAD_BYTES / (1024 * 1024):g} MB"]
-    try:
-        book = json.loads(book_json.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        return None, [f"book data is not valid JSON ({exc})"]
-    problems = book_problems(book, "book data")
-    if not isinstance(book, dict):
-        return None, problems
-    metadata = book.get("metadata")
-    title = metadata.get("title") if isinstance(metadata, dict) else None
-    if isinstance(title, str) and (problem := slug_problem(slugify(title.strip()))):
-        problems.append(problem)
-    required, name_problems = expected_files(book)
-    problems += name_problems
-    for name, data in files.items():
-        if not _plain_name(name):
-            problems.append(f"file name not allowed: {name!r}")
-        elif name not in required and name not in NOOK_FILES:
-            problems.append(f"unexpected file: {name!r} (the book data does not use it)")
-        elif problem := _image_problem(name, data):
-            problems.append(problem)
-    for name, label in required.items():
-        if name not in files:
-            problems.append(f"missing {label}: {name}")
-    return book, problems
-
-
-def _write_bytes_atomic(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        tmp.write_bytes(data)
-        os.replace(tmp, path)  # noqa: PTH105 - atomic replace
-    finally:
-        tmp.unlink(missing_ok=True)
-
-
-def save_book(
-    paths: StudioPaths, book: dict, files: dict[str, bytes], replace: bool = False
-) -> Book:
-    """Store a validated upload as `books/<slug>/` (AC-2.3) with its nooks in `nooks/` (AC-2.5).
-    Refuses a reserved slug and an existing slug unless `replace` (AC-2.4). A replacement keeps
-    the book's episode script, nooks and generated output, and deletes its reviewed mark (the
-    script was reviewed against the old book).
-
-    The new folder is assembled in a temporary place, the kept parts are moved into it, the old
-    folder is moved aside and the new one renamed into place. A failure puts the old book back."""
-    _parsed, problems = validate_upload(json.dumps(book).encode("utf-8"), files)
-    if problems:
-        raise StudioError("; ".join(problems))
-    title = book["metadata"]["title"].strip()
-    slug = slugify(title)
-    if problem := slug_problem(slug):
-        raise StudioError(problem)
-    folder = BookFolder(slug, Path(paths.root))
-    target = folder.folder
-    if target.exists() and not replace:
-        raise StudioError(f"a book {slug!r} already exists; confirm to replace it")
-    paths.books_dir.mkdir(parents=True, exist_ok=True)
-    token = uuid4().hex[:8]
-    new, old = paths.books_dir / f".{slug}.new-{token}", paths.books_dir / f".{slug}.old-{token}"
-    carried: list[str] = []
-    try:
-        (new / "illustrations").mkdir(parents=True)
-        (new / BOOK_FILE).write_text(
-            json.dumps(book, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
-        for name, data in files.items():
-            if name not in NOOK_FILES:
-                (new / "illustrations" / name).write_bytes(data)
-        if target.exists():
-            for part in CARRIED_ON_REPLACE:
-                if (target / part).exists():
-                    os.replace(target / part, new / part)  # noqa: PTH105
-                    carried.append(part)
-            os.replace(target, old)  # noqa: PTH105
-        try:
-            os.replace(new, target)  # noqa: PTH105
-        except OSError:
-            if old.exists():
-                os.replace(old, target)  # noqa: PTH105 - put the previous book back
-            for part in carried:
-                os.replace(new / part, target / part)  # noqa: PTH105
-            raise
-    finally:
-        shutil.rmtree(new, ignore_errors=True)
-        shutil.rmtree(old, ignore_errors=True)
-    folder.reviewed_path.unlink(missing_ok=True)
-    for name in NOOK_FILES:
-        if name in files:
-            _write_bytes_atomic(folder.nooks / name, files[name])
-    return Book(slug, title, folder.book_json)
 
 
 # --- the script and its reviewed mark (AC-4.2-4.4) ------------------------------------------
@@ -553,3 +452,183 @@ def stage_status(paths: StudioPaths, book: Book, latest_job: LatestJob) -> dict:
             status[STATUS_KEYS[stage]] = _job_state(job)
     status["next_action"] = "Fix the book data" if book.error else _next_action(status)
     return status
+
+
+# --- animation plans and cuts (spec 009 FR-12) ----------------------------------------------
+
+
+def _cut_settings(paths: StudioPaths) -> tuple[int, dict[str, str]] | None:
+    """The feather and model ids the cut hash depends on, or None when config/animation.json has
+    no usable `cut` or `models` block (cut state then shows as unknown)."""
+    config = _read_dict(paths.config_dir / LIMITS_FILE)
+    try:
+        return int(config["cut"]["feather_px"]), model_ids(config["models"])
+    except (TypeError, KeyError, ValueError, AttributeError):
+        return None
+
+
+def _manifest(folder: BookFolder, page_number: int) -> dict | None:
+    return _read_dict(layers_dir(folder, page_number) / MANIFEST)
+
+
+def _manifest_files(manifest: dict) -> list[str]:
+    """Plain file names the manifest lists (layer PNGs and the background); others are ignored."""
+    names = [e.get("file") for e in manifest.get("layers") or [] if isinstance(e, dict)]
+    names.append(manifest.get("background"))
+    return [n for n in names if isinstance(n, str) and _plain_name(n)]
+
+
+def _cut_state(folder: BookFolder, page_number: int, plan, settings) -> str:
+    manifest = _manifest(folder, page_number)
+    if manifest is None or manifest.get("cut_hash") != cut_hash(plan, *settings):
+        return "needs cut"
+    out = layers_dir(folder, page_number)
+    return (
+        "cut" if all((out / name).is_file() for name in _manifest_files(manifest)) else "needs cut"
+    )
+
+
+def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
+    """Per story page, read from disk on every call (AC-5.5): `page_number`, `plan_state` (none,
+    ok, stale, invalid, no_picture, or unavailable when the animation config cannot be read),
+    `detail`, `plan`, `cut_state` ("cut", "needs cut" or "—") and the manifest's `empty_layers`."""
+    if book.error:
+        return []
+    folder = folder_of(paths, book)
+    try:
+        pages = load_book(book.book_path)["pages"]
+    except BookError:
+        return []
+    try:
+        limits = load_limits(paths.config_dir)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        detail = f"{paths.config_dir / LIMITS_FILE}: {exc}"
+        return [
+            {
+                "page_number": int(p["page_number"]),
+                "picture": page_picture(folder, p).name,
+                "plan_state": "unavailable",
+                "detail": detail,
+                "plan": None,
+                "cut_state": NO_CUT,
+                "empty_layers": [],
+            }
+            for p in sorted(pages, key=lambda p: int(p["page_number"]))
+        ]
+    settings = _cut_settings(paths)
+    rows = []
+    for page in sorted(pages, key=lambda p: int(p["page_number"])):
+        number = int(page["page_number"])
+        st = plan_state(folder, page, limits)
+        cut = NO_CUT
+        if st.state == "ok" and settings is not None:
+            cut = _cut_state(folder, number, st.plan, settings)
+        manifest = _manifest(folder, number) if cut == "cut" else None
+        empty = [
+            str(e.get("name"))
+            for e in (manifest or {}).get("layers") or []
+            if isinstance(e, dict) and e.get("empty")
+        ]
+        rows.append(
+            {
+                "page_number": number,
+                "picture": page_picture(folder, page).name,
+                "plan_state": st.state,
+                "detail": st.detail,
+                "plan": st.plan,
+                "cut_state": cut,
+                "empty_layers": empty,
+            }
+        )
+    return rows
+
+
+def animation_summary(rows: list[dict]) -> str:
+    """E.g. "12 of 20 plans, 8 cut"; plans are pages with a plan file in any state."""
+    planned = sum(r["plan_state"] not in ("none", "unavailable") for r in rows)
+    cut = sum(r["cut_state"] == "cut" for r in rows)
+    return f"{planned} of {len(rows)} plans, {cut} cut"
+
+
+def animation_attention(rows: list[dict]) -> dict:
+    """What the book page lists under the summary (AC-5.1), compactly: the pages whose plan is
+    stale, invalid or has no picture (with the message), the page numbers with no plan, and the
+    config problem once when the animation config cannot be read. ok pages are not listed."""
+    unavailable = next((r["detail"] for r in rows if r["plan_state"] == "unavailable"), "")
+    return {
+        "problems": [r for r in rows if r["plan_state"] in ("stale", "invalid", "no_picture")],
+        "unplanned": [r["page_number"] for r in rows if r["plan_state"] == "none"],
+        "unavailable": unavailable,
+    }
+
+
+def layer_files(paths: StudioPaths, book: Book, page_number: int) -> dict[str, Path]:
+    """The cut files of a page the manifest names (file name → path), existing ones only."""
+    folder = folder_of(paths, book)
+    manifest = _manifest(folder, page_number)
+    if manifest is None:
+        return {}
+    out = layers_dir(folder, page_number)
+    return {n: out / n for n in _manifest_files(manifest) if (out / n).is_file()}
+
+
+def _plan_layer_order(folder: BookFolder, page_number: int) -> dict[str, int]:
+    """Layer name → its index in the plan file (the colour the page view gives its box);
+    empty when the plan cannot be read."""
+    plan = _read_dict(plan_path(folder, page_number)) or {}
+    layers = plan.get("layers")
+    names = (
+        [e.get("name") for e in layers if isinstance(e, dict)] if isinstance(layers, list) else []
+    )
+    return {name: i for i, name in reversed(list(enumerate(names))) if isinstance(name, str)}
+
+
+def mask_overlay(paths: StudioPaths, book: Book, page_number: int) -> bytes | None:
+    """A PNG of every cut layer's alpha, tinted with its palette colour at its offset, over the
+    dimmed page picture (transparent where there is no picture). None when the page is not cut.
+    A layer's colour is picked by its index in the plan (by name), as for its box in the page
+    view; a layer the plan no longer has keeps its manifest index."""
+    folder = folder_of(paths, book)
+    manifest = _manifest(folder, page_number)
+    if manifest is None:
+        return None
+    out = layers_dir(folder, page_number)
+    background = out / str(manifest.get("background"))
+    if not background.is_file():
+        return None
+    with Image.open(background) as im:
+        width, height = im.size
+    canvas = np.zeros((height, width, 4), np.float32)
+    try:
+        page = next(
+            p for p in load_book(book.book_path)["pages"] if int(p["page_number"]) == page_number
+        )
+        with Image.open(page_picture(folder, page)) as im:
+            if im.size == (width, height):
+                canvas[..., :3] = np.asarray(im.convert("RGB"), np.float32) * MASK_DIM
+                canvas[..., 3] = 255
+    except (StopIteration, BookError, OSError):
+        pass
+    entries = [e for e in manifest.get("layers") or [] if isinstance(e, dict)]
+    order = _plan_layer_order(folder, page_number)
+    for position, entry in enumerate(entries):
+        layer_name = entry.get("name")
+        index = order.get(layer_name, position) if isinstance(layer_name, str) else position
+        name, offset = entry.get("file"), entry.get("offset")
+        if not (isinstance(name, str) and _plain_name(name) and (out / name).is_file()):
+            continue
+        x0, y0 = (int(v) for v in offset)
+        with Image.open(out / name) as im:
+            alpha = np.asarray(im.convert("RGBA"), np.float32)[..., 3] / 255 * MASK_ALPHA
+        h = min(alpha.shape[0], height - y0)
+        w = min(alpha.shape[1], width - x0)
+        if h <= 0 or w <= 0 or x0 < 0 or y0 < 0:
+            continue
+        a = alpha[:h, :w, None]
+        tint = np.array(MASK_PALETTE[index % len(MASK_PALETTE)], np.float32)
+        region = canvas[y0 : y0 + h, x0 : x0 + w]
+        region[..., :3] = region[..., :3] * (1 - a) + tint * a
+        region[..., 3:] = np.maximum(region[..., 3:], a * 255)
+    buf = io.BytesIO()
+    Image.fromarray(canvas.round().astype(np.uint8), "RGBA").save(buf, format="PNG")
+    return buf.getvalue()

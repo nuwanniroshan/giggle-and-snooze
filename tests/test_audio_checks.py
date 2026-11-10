@@ -8,6 +8,7 @@ from video_pipeline.audio_checks import (
     longest_silence,
     measure_clip,
     pause_between,
+    squeeze_silences,
     stitch,
     trim_silence,
 )
@@ -97,3 +98,10 @@ def test_stitch_needs_one_gap_fewer_than_clips():
 )
 def test_pause_between(prev, nxt, expected):  # AC-1.4
     assert pause_between(*prev, *nxt, PAUSES) == expected
+
+
+def test_squeeze_silences_shortens_long_stalls_only():
+    audio = np.concatenate([tone(1), silence(2.4), tone(1), silence(0.3), tone(1)])
+    out = squeeze_silences(audio, SR, -40, 0.6)
+    assert abs(len(out) / SR - (3 + 0.6 + 0.3)) < 0.05
+    assert squeeze_silences(tone(1), SR, -40, 0.6) is not None

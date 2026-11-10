@@ -1,0 +1,337 @@
+{
+  "book_slug": "a-pocket-full-of-plops",
+  "title": "A Pocket Full of Plops",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "orpheus",
+      "voice": "tara",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "orpheus",
+      "voice": "zac",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "orpheus",
+      "voice": "zoe",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Snuggle in, everyone. Today we're reading A Pocket Full of Plops."
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> Plops! That sounds like a bubbly little word."
+      },
+      {
+        "speaker": "kid_older",
+        "text": "I wonder how a plop could fit in a pocket."
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Let's open the book and find out together."
+      }
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "static"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Rain tapped the porch roof. Mina pulled on her yellow coat and listened."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Plip, plop, patter-pat! I’ll save some sounds for my family.”"
+        }
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "A drop landed on a leaf: plip! Mina cupped her hands and tucked the plip into her pocket."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "But the next plip sounded out in the garden. “Stay, little plip, stay!”"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Why does Mina still hear the plip outside? Did it slip out of her pocket?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<giggle> Her little cupped hands look like a bowl beside that big leaf!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "They do look like a little bowl. But a sound isn't something her hands can hold. Another raindrop makes another plip outside."
+        }
+      ],
+      "qa_grounding": "cupped hands"
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "A drop landed in a puddle: plop! Mina held her other pocket open wide."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "But the next plop sounded down by her boots. “Stay, little plop, stay!”"
+        }
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mina pressed both pockets shut. “Now I’ve got you!”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "She peeked inside, but found only a little damp fluff. Plip and plop were still outside."
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<giggle> That tiny fluff in her pocket looks so soggy!"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "So closing both pockets didn't catch the sounds?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "That's right. She found only damp fluff. The plips and plops are still outside, where the rain is falling."
+        }
+      ],
+      "qa_grounding": "a little damp fluff"
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mina went inside and opened her empty hands. “I wanted to bring you the rain.”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mama put down her cup. “Then let’s go and listen.”"
+        }
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mama came to the porch, and Papa and baby Jo came too. Mina made room beside her."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "A leaf went plip; a puddle went plop. Everyone leaned close to listen."
+        }
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Can you make a plip?” Mina asked. Mama tapped one finger on her cup: tip, tip, tip."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mina grinned. “A tiny sound, just like the leaf!”"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "Mama's blue cup looks like a tiny drum! Can a little finger make a rain sound?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes! Mama's gentle tap makes a tiny sound like the drop on the leaf. You can try tapping one finger softly on your palm."
+        }
+      ],
+      "qa_grounding": "a blue cup"
+    },
+    {
+      "page_number": 8,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Can you make a plop?” Mina asked. Papa patted his knees: pom, pom, pom."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Jo clapped, so Mina clapped too. Now their little song had a patter-pat!"
+        }
+      ]
+    },
+    {
+      "page_number": 9,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Plip, plop, patter-pat!” sang Mina. Mama tapped, Papa patted, and Jo clapped along."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The rain kept time on the roof. They sang it again: “Plip, plop, patter-pat!”"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Did Mina find a way to share the rain sounds without putting them in her pockets?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "She did. They're listening together and making their own sounds with taps, pats, and claps. Even the rain on the roof joins their song."
+        }
+      ],
+      "qa_grounding": "The rain kept time"
+    },
+    {
+      "page_number": 10,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "static"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "At last, the rain grew quiet. Mina’s pockets were empty, but everyone was humming."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "She snuggled close and hummed along. “Plip, plop, patter-pat.”"
+        }
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "kid_younger",
+        "text": "I liked sleepy baby Jo. <yawn> Now I feel snuggly too."
+      },
+      {
+        "speaker": "kid_older",
+        "text": "Mina's pockets were empty, but everyone had a song to hum."
+      },
+      {
+        "speaker": "storyteller",
+        "text": "You can listen for little sounds with someone you love, too. A quiet moment can hold a lovely song."
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Subscribe and come back for our next story. We'll save a cozy spot for you!"
+      }
+    ]
+  }
+}

@@ -7,4 +7,5 @@ __pycache__/
 !.env.example
 build/
 books/*/build/
+drafts/
 .claude/settings.local.json

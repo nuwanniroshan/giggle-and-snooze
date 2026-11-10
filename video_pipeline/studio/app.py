@@ -37,7 +37,6 @@ from pathlib import Path
 import uvicorn
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
-from starlette.datastructures import UploadFile
 from starlette.middleware import Middleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
@@ -47,7 +46,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from video_pipeline import synthesize_voices as sv
-from video_pipeline.contract import ConfigError, slugify
+from video_pipeline.contract import ConfigError
+from video_pipeline.drafts import DraftError, DraftStore
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.library import PROJECT_ROOT
 from video_pipeline.render_episode import VideoPaths
@@ -75,7 +75,12 @@ STAGE_BUTTONS = {
     "script": "Generate script",
     "voices": "Synthesize voices",
     "render": "Render video",
+    "plan": "Plan pictures",
+    "cut": "Cut layers",
 }
+MASK_CACHE_SIZE = 32
+_LAYER_NAME = re.compile(r"^page_(\d+)_(.+)$")
+_MASK_NAME = re.compile(r"^page_(\d+)\.png$")
 _PROBLEM_LINE = re.compile(r"^(intro|outro) line (\d+)\b")
 _PROBLEM_PAGE_LINE = re.compile(r"^page (\d+) (narration|Q&A) line (\d+)\b")
 _PROBLEM_PAGE = re.compile(r"^page (\d+)\b")
@@ -187,6 +192,9 @@ class Studio:
         self.runner = runner
         self.command_for = command_for
         self.write_lock = threading.Lock()  # serialises every check-then-act (module docstring)
+        self.masks: dict[tuple[str, int, str], bytes] = {}  # (slug, page, cut_hash) → PNG
+        self.masks_lock = threading.Lock()
+        self.drafts = DraftStore(paths.root)
         self.allowed_origins = {f"http://{HOST}:{port}", f"http://localhost:{port}"}
         self.templates = Jinja2Templates(directory=STUDIO_DIR / "templates")
         self.templates.env.autoescape = True
@@ -202,10 +210,17 @@ class Studio:
         job = self.runner.current()
         if job is None:
             return None
-        book = sb.get_book(self.paths, job["book"])
+        if job["stage"] in ("ideas", "candidate"):
+            title = "story ideas"
+        elif job["stage"] == "book":
+            draft = self.drafts.get(job["book"])
+            title = draft["idea"]["title"] if draft else "a draft book"
+        else:
+            book = sb.get_book(self.paths, job["book"])
+            title = book.title if book else job["book"]
         return {
             **job,
-            "title": book.title if book else job["book"],
+            "title": title,
             "label": sb.STAGE_LABELS.get(job["stage"], job["stage"]),
             "elapsed": _elapsed(job),
         }
@@ -250,8 +265,9 @@ class Studio:
                 return problems[0]
         return None
 
-    def last_job(self, book: sb.Book) -> dict | None:
-        jobs = [j for s in sb.STAGES if (j := self.runner.latest(book.slug, s))]
+    def last_job(self, book: sb.Book, stages: tuple[str, ...] | None = None) -> dict | None:
+        stages = stages or sb.STAGES + sb.ANIMATION_STAGES
+        jobs = [j for s in stages if (j := self.runner.latest(book.slug, s))]
         if not jobs:
             return None
         job = max(jobs, key=lambda j: (str(j.get("started_at") or ""), j["id"]))
@@ -305,6 +321,9 @@ class Studio:
             "has_script": sb.script_path(self.paths, book).exists(),
             "job": self.last_job(book),
         }
+        rows = sb.page_animation(self.paths, book)
+        context["animation"] = sb.animation_summary(rows)
+        context["animation_attention"] = sb.animation_attention(rows)
         return self.render(request, "book.html", context)
 
     async def run_stage(self, request: Request) -> Response:
@@ -314,9 +333,11 @@ class Studio:
     def _run_stage(self, request: Request, form) -> Response:
         book = self.book_or_none(request)
         stage = request.path_params["stage"]
-        if book is None or stage not in sb.STAGES:
+        if book is None or stage not in sb.STAGES + sb.ANIMATION_STAGES:
             return self.not_found(request)
         back = f"/books/{book.slug}"
+        if stage in sb.ANIMATION_STAGES:
+            back += "/animation"
         with self.write_lock:
             refused = self._start_stage(book, stage, form)
         if refused is not None:
@@ -355,70 +376,197 @@ class Studio:
 
     # --- uploads --------------------------------------------------------------------------------
 
+    # --- add a book from an idea (spec 006) ----------------------------------------------------
+
+    def add_book_context(self, problems=None, text: str = "", **extra) -> dict:
+        settings = self.drafts.settings()
+        return {
+            "ideas": self.drafts.latest_run("ideas"),
+            "candidate": self.drafts.latest_run("candidate"),
+            "drafts": self.drafts.list(),
+            "problems": problems or [],
+            "text": text,
+            "settings": settings,
+            "author": self.drafts.default_author(),
+            **extra,
+        }
+
     def new_book(self, request: Request) -> Response:
-        return self.render(request, "upload.html", {"problems": [], "duplicate": None})
+        return self.render(request, "add_book.html", self.add_book_context())
 
-    async def add_book(self, request: Request) -> Response:
-        cap = (sb.MAX_UPLOAD_FILES + 1) * sb.MAX_UPLOAD_BYTES
-        length = request.headers.get("content-length")
-        if length is None or not length.isdigit():
-            lines = ["The upload must say how large it is (Content-Length)."]
-            return await run_in_threadpool(self.message, request, "Upload refused", lines, 411, "/")
-        if int(length) > cap:
-            lines = [
-                f"The upload is too large ({int(length) / (1024 * 1024):.0f} MB; at most"
-                f" {sb.MAX_UPLOAD_FILES} pictures of up to {sb.MAX_UPLOAD_BYTES // (1024 * 1024)}"
-                " MB each plus the book data)."
-            ]
-            return await run_in_threadpool(
-                self.message, request, "Upload refused", lines, 413, "/books/new"
-            )
-        limit = sb.MAX_UPLOAD_BYTES + 1
-        async with request.form(max_files=sb.MAX_UPLOAD_FILES + 1) as form:
-            book_part = form.get("book_data")
-            book_json = None
-            if isinstance(book_part, UploadFile) and book_part.filename:
-                book_json = await book_part.read(limit)
-            files: dict[str, bytes] = {}
-            problems: list[str] = []
-            for part in form.getlist("files"):
-                if not isinstance(part, UploadFile) or not part.filename:
-                    continue
-                if part.filename in files:
-                    problems.append(f"file uploaded twice: {part.filename!r}")
-                files[part.filename] = await part.read(limit)
-            replace = form.get("replace") == "1"
-        return await run_in_threadpool(self._add_book, request, book_json, files, problems, replace)
+    def refuse_upload(self, request: Request) -> Response:
+        """The JSON upload is gone (spec 006 AC-4.2): nothing is saved."""
+        return self.message(
+            request,
+            "Upload no longer used",
+            ["Books are added from an idea now: use Suggest ideas or Improve idea on this page."],
+            410,
+            "/books/new",
+        )
 
-    def _add_book(self, request, book_json, files, problems, replace) -> Response:
-        def refuse(problems, status=422, duplicate=None):
-            context = {"problems": problems, "duplicate": duplicate}
-            return self.render(request, "upload.html", context, status)
+    def _start_story(self, stage: str, subject: str, job_book: str):
+        """Start a story run under the write lock; the refusal's reason or None when started."""
+        if reason := self.busy_reason():
+            return reason
+        try:
+            self.runner.start(job_book, stage, self.command_for(stage, subject, self.paths))
+        except Busy:
+            return self.busy_reason() or "another job is running"
+        return None
 
-        if book_json is None:
-            return refuse(["choose the book data file (book_data.json)"])
-        book, found = sb.validate_upload(book_json, files)
-        problems += found
-        if problems or book is None:
-            return refuse(problems)
-        slug = slugify(book["metadata"]["title"].strip())
-        exists = (self.paths.books_dir / slug).exists()
-        if exists and not replace:
-            return refuse([], 409, duplicate=slug)
+    async def start_ideas(self, request: Request) -> Response:
         with self.write_lock:
-            job = self.runner.current()
-            if exists and job and job["book"] == slug:
-                label = sb.STAGE_LABELS.get(job["stage"], job["stage"])
-                reason = f"{label} is running for {slug!r}; wait for it before replacing"
-                saved, error = None, reason
-            else:
-                try:
-                    saved, error = sb.save_book(self.paths, book, files, replace=replace), None
-                except sb.StudioError as exc:
-                    saved, error = None, str(exc)
-        if saved is None:
-            return refuse([error], 409)
-        return RedirectResponse(f"/books/{saved.slug}", status_code=303)
+            run = self.drafts.new_run("ideas")
+            reason = self._start_story("ideas", run, "_ideas")
+            if reason:
+                self.drafts.update_run(run, state="failed", problems=[f"Refused: {reason}."])
+        if reason:
+            return self.render(
+                request, "add_book.html", self.add_book_context([f"Refused: {reason}."])
+            )
+        return RedirectResponse("/books/new", status_code=303)
+
+    async def start_improve(self, request: Request) -> Response:
+        form = await request.form()
+        text = str(form.get("idea") or "").strip()
+        limits = self.drafts.settings()["idea_length"]
+        if not limits[0] <= len(text) <= limits[1]:
+            problem = (
+                f"Describe the idea in {limits[0]} to {limits[1]} characters (it has {len(text)})."
+            )
+            return self.render(
+                request, "add_book.html", self.add_book_context([problem], text), 422
+            )
+        with self.write_lock:
+            run = self.drafts.new_run("candidate")
+            self.drafts.update_run(run, request=text)
+            reason = self._start_story("candidate", run, "_ideas")
+            if reason:
+                self.drafts.update_run(run, state="failed", problems=[f"Refused: {reason}."])
+        if reason:
+            return self.render(
+                request, "add_book.html", self.add_book_context([f"Refused: {reason}."], text), 409
+            )
+        return RedirectResponse("/books/new", status_code=303)
+
+    def _chosen_idea(self, run_id: str, index: str | None) -> tuple[dict | None, str | None]:
+        run = self.drafts.read_run(run_id) if run_id else None
+        if not run or run.get("state") != "ready" or not run.get("payload"):
+            return None, "Choose an idea that has finished writing."
+        payload = run["payload"]
+        if run["kind"] == "candidate":
+            return payload, None
+        try:
+            return payload["ideas"][int(index)], None
+        except (TypeError, ValueError, IndexError, KeyError):
+            return None, "Choose one of the ideas listed."
+
+    async def write_book(self, request: Request) -> Response:
+        form = await request.form()
+        settings = self.drafts.settings()
+        low, high = settings["page_range"]
+        author = str(form.get("author") or "").strip() or self.drafts.default_author()
+        problems = []
+        try:
+            pages = int(form.get("pages") or settings["default_pages"])
+        except ValueError:
+            pages = 0
+        if not low <= pages <= high:
+            problems.append(f"The maximum page count must be {low} to {high}.")
+        if not author:
+            problems.append("Enter the author name.")
+        idea, problem = self._chosen_idea(str(form.get("run") or ""), form.get("index"))
+        if problem:
+            problems.append(problem)
+        if problems:
+            return self.render(request, "add_book.html", self.add_book_context(problems), 422)
+        with self.write_lock:
+            draft = self.drafts.new_draft(idea, pages, author)
+            reason = self._start_story("book", draft["id"], draft["id"])
+            if reason:
+                self.drafts.discard(draft["id"])
+        if reason:
+            return self.render(
+                request, "add_book.html", self.add_book_context([f"Refused: {reason}."]), 409
+            )
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    def draft_or_none(self, request: Request) -> dict | None:
+        return self.drafts.get(request.path_params["draft_id"])
+
+    def draft_page(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        return self.render(request, "draft.html", {"draft": draft, "problems": []})
+
+    async def save_page(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        form = await request.form()
+        number = int(request.path_params["number"])
+        with self.write_lock:
+            problems = self.drafts.update_page_text(
+                draft["id"], number, str(form.get("text") or "")
+            )
+        if problems:
+            fresh = self.drafts.get(draft["id"])
+            return self.render(request, "draft.html", {"draft": fresh, "problems": problems}, 422)
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    async def create_book_from_draft(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        with self.write_lock:
+            if self.busy_reason():
+                problems = [f"Refused: {self.busy_reason()}."]
+                return self.render(
+                    request, "draft.html", {"draft": draft, "problems": problems}, 409
+                )
+            try:
+                slug = self.drafts.create_book(draft["id"])
+            except DraftError as exc:
+                return self.render(
+                    request, "draft.html", {"draft": draft, "problems": [str(exc)]}, 409
+                )
+        return RedirectResponse(f"/books/{slug}", status_code=303)
+
+    async def discard_draft(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        form = await request.form()
+        if form.get("confirm") != "yes":
+            problems = ["Confirm the discard to delete this draft and its generation log."]
+            return self.render(request, "draft.html", {"draft": draft, "problems": problems}, 422)
+        with self.write_lock:
+            self.drafts.discard(draft["id"])
+        return RedirectResponse("/books/new", status_code=303)
+
+    async def write_again(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        with self.write_lock:
+            if draft["state"] not in ("failed", "interrupted"):
+                problems = ["Only a failed or interrupted draft can be written again."]
+                return self.render(
+                    request, "draft.html", {"draft": draft, "problems": problems}, 409
+                )
+            if reason := self.busy_reason():
+                return self.render(
+                    request,
+                    "draft.html",
+                    {"draft": draft, "problems": [f"Refused: {reason}."]},
+                    409,
+                )
+            self.drafts.update(draft["id"], state="writing", attempts=0, problems=[], book=None)
+            reason = self._start_story("book", draft["id"], draft["id"])
+            if reason:
+                self.drafts.update(draft["id"], state="failed", problems=[f"Refused: {reason}."])
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
 
     # --- the script -----------------------------------------------------------------------------
 
@@ -608,6 +756,72 @@ class Studio:
         }
         return self.render(request, "video.html", context)
 
+    # --- animation (spec 009 FR-12) ------------------------------------------------------------
+
+    def animation_controls(self, book: sb.Book) -> list[dict]:
+        busy = self.busy_reason()
+        return [
+            {"stage": st, "button": STAGE_BUTTONS[st], "blocked": busy or self.gate(book, st)}
+            for st in sb.ANIMATION_STAGES
+        ]
+
+    def animation_page(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        if book is None:
+            return self.not_found(request)
+        rows = sb.page_animation(self.paths, book)
+        context = {
+            "book": book,
+            "rows": rows,
+            "summary": sb.animation_summary(rows),
+            "controls": self.animation_controls(book),
+            "job": self.last_job(book, sb.ANIMATION_STAGES),
+        }
+        return self.render(request, "animation.html", context)
+
+    def animation_page_detail(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        number = request.path_params["number"]
+        rows = sb.page_animation(self.paths, book) if book else []
+        row = next((r for r in rows if r["page_number"] == number), None)
+        if book is None or row is None:
+            return self.not_found(request)
+        numbers = [r["page_number"] for r in rows]
+        at = numbers.index(number)
+        cut = row["cut_state"] == "cut"
+        context = {
+            "book": book,
+            "row": row,
+            "plan": row["plan"],
+            "palette": [f"rgb{c}" for c in sb.MASK_PALETTE],
+            "picture_url": f"/media/{book.slug}/illustration/{row['picture']}",
+            "mask_url": f"/media/{book.slug}/mask/page_{number:02d}.png" if cut else None,
+            "background_url": (
+                f"/media/{book.slug}/layer/page_{number:02d}_background.png" if cut else None
+            ),
+            "prev": numbers[at - 1] if at > 0 else None,
+            "next": numbers[at + 1] if at + 1 < len(numbers) else None,
+            "controls": self.animation_controls(book),
+        }
+        return self.render(request, "animation_page.html", context)
+
+    def mask_png(self, book: sb.Book, number: int) -> bytes | None:
+        """The masks overlay for a cut page, made once per cut (kept in memory by cut hash)."""
+        manifest = _read_json(sb.layers_dir(sb.folder_of(self.paths, book), number) / sb.MANIFEST)
+        if manifest is None:
+            return None
+        key = (book.slug, number, str(manifest.get("cut_hash")))
+        with self.masks_lock:
+            if key in self.masks:
+                return self.masks[key]
+        data = sb.mask_overlay(self.paths, book, number)
+        if data is not None:
+            with self.masks_lock:
+                if len(self.masks) >= MASK_CACHE_SIZE:
+                    self.masks.pop(next(iter(self.masks)))
+                self.masks[key] = data
+        return data
+
     # --- media (FR-7) ---------------------------------------------------------------------------
 
     def media_path(self, book: sb.Book, kind: str, name: str) -> Path | None:
@@ -640,13 +854,22 @@ class Studio:
                 if name == f"{book.slug}.mp4"
                 else None
             )
+        if kind == "layer" and (m := _LAYER_NAME.match(name)):
+            return sb.layer_files(self.paths, book, int(m.group(1))).get(m.group(2))
         return None
 
     def media(self, request: Request) -> Response:
         book = self.book_or_none(request)
         if book is None:
             return Response("not found", status_code=404)
-        path = self.media_path(book, request.path_params["kind"], request.path_params["name"])
+        kind, name = request.path_params["kind"], request.path_params["name"]
+        if kind == "mask":
+            m = _MASK_NAME.match(name)
+            data = self.mask_png(book, int(m.group(1))) if m else None
+            if data is None:
+                return Response("not found", status_code=404)
+            return Response(data, media_type="image/png", headers={"Cache-Control": "no-store"})
+        path = self.media_path(book, kind, name)
         if path is None or not path.is_file():
             return Response("not found", status_code=404)
         return FileResponse(path)
@@ -707,6 +930,7 @@ def create_app(
     Shutdown stops the running stage and releases the lock."""
     runner = runner or JobRunner(paths.studio_dir, cwd=PROJECT_ROOT)
     studio = Studio(paths, runner, command_for, port)
+    studio.drafts.mark_interrupted_all()  # a draft still writing belonged to a stopped studio
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
@@ -719,7 +943,15 @@ def create_app(
     routes = [
         Route("/", studio.home),
         Route("/books/new", studio.new_book),
-        Route("/books", studio.add_book, methods=["POST"]),
+        Route("/books", studio.refuse_upload, methods=["POST"]),
+        Route("/ideas", studio.start_ideas, methods=["POST"]),
+        Route("/ideas/improve", studio.start_improve, methods=["POST"]),
+        Route("/drafts", studio.write_book, methods=["POST"]),
+        Route("/drafts/{draft_id}", studio.draft_page),
+        Route("/drafts/{draft_id}/pages/{number:int}", studio.save_page, methods=["POST"]),
+        Route("/drafts/{draft_id}/create", studio.create_book_from_draft, methods=["POST"]),
+        Route("/drafts/{draft_id}/discard", studio.discard_draft, methods=["POST"]),
+        Route("/drafts/{draft_id}/write-again", studio.write_again, methods=["POST"]),
         Route("/books/{slug}", studio.book_page),
         Route("/books/{slug}/run/{stage}", studio.run_stage, methods=["POST"]),
         Route("/books/{slug}/script", studio.script_page),
@@ -728,6 +960,8 @@ def create_app(
         Route("/books/{slug}/audio", studio.audio_page),
         Route("/books/{slug}/audio/approve", studio.approve_audio, methods=["POST"]),
         Route("/books/{slug}/video", studio.video_page),
+        Route("/books/{slug}/animation", studio.animation_page),
+        Route("/books/{slug}/animation/{number:int}", studio.animation_page_detail),
         Route("/jobs/stop", studio.stop_job, methods=["POST"]),
         Route("/api/jobs/current", studio.api_current),
         Route("/api/jobs/{job_id}/log", studio.api_log),

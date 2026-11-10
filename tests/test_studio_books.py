@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from tests.helpers import MINI_BOOK, load_json, make_root
+from tests.helpers import MINI_BOOK, add_book_from_draft, load_json, make_root
 from tests.render_helpers import FakeRunner, cli_args, make_world, picture
 from tests.voice_helpers import make_script, write_script
 from video_pipeline import frames
@@ -88,8 +88,7 @@ def test_studio_paths_layout(tmp_path):  # spec 005 FR-3, FR-4
 
 
 def test_list_books_pilot_added_and_broken(studio):  # AC-1.2, FR-1
-    added = new_book("A Zebra Named Quill")
-    sb.save_book(studio, added, upload_files(added))
+    add_book_from_draft(studio.root, "A Zebra Named Quill")
     broken = studio.books_dir / "broken-book"
     broken.mkdir(parents=True)
     (broken / "book.json").write_text("{not json", encoding="utf-8")
@@ -118,202 +117,6 @@ def test_folder_name_need_not_match_the_title(studio):  # spec 005 FR-2: the fol
     shutil.copy(MINI_BOOK, folder / "book.json")
     (only,) = [b for b in sb.list_books(studio) if b.slug == "wrong-name"]
     assert only.error is None and only.title == "The Lantern Bug Parade"
-
-
-# --- upload validation (AC-2.1, AC-2.2, FR-6) -----------------------------------------------
-
-
-def test_valid_upload_has_no_problems():
-    book = new_book()
-    parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book, nooks=True))
-    assert problems == []
-    assert parsed == book
-
-
-def test_upload_respects_illustration_file_names():
-    book = new_book()
-    book["pages"][0]["illustration_file"] = "opening.png"
-    files = upload_files(book)
-    assert "opening.png" in files and "page_01.png" not in files
-    assert sb.validate_upload(as_bytes(book), files)[1] == []
-
-
-def test_bad_json_is_one_problem():
-    parsed, problems = sb.validate_upload(b"{nope", {})
-    assert parsed is None
-    assert len(problems) == 1 and "not valid JSON" in problems[0]
-
-
-def test_non_object_json_is_rejected():
-    parsed, problems = sb.validate_upload(b"[1, 2]", {})
-    assert parsed is None and problems
-
-
-def test_invalid_book_lists_every_problem():
-    book = new_book()
-    book["metadata"]["title"] = ""
-    book["pages"][2]["text"] = " "
-    book["pages"][4]["prompt"] = ""
-    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
-    text = "\n".join(problems)
-    assert "metadata.title is missing" in text
-    assert "page 3: 'text' is missing or empty" in text
-    assert "page 5: 'prompt' is missing or empty" in text
-
-
-def test_missing_illustration_and_cover_are_listed():
-    book = new_book()
-    files = upload_files(book)
-    del files["page_04.png"], files["cover_back.png"]
-    _parsed, problems = sb.validate_upload(as_bytes(book), files)
-    assert any("page 4" in p and "page_04.png" in p for p in problems)
-    assert any("cover_back.png" in p for p in problems)
-    assert len(problems) == 2
-
-
-def test_missing_front_cover_is_listed():
-    book = new_book()
-    files = upload_files(book)
-    del files["cover_front.png"]
-    assert any("cover_front.png" in p for p in sb.validate_upload(as_bytes(book), files)[1])
-
-
-def test_unreadable_image_is_rejected():
-    book = new_book()
-    files = upload_files(book)
-    files["page_02.png"] = b"not a picture"
-    problems = sb.validate_upload(as_bytes(book), files)[1]
-    assert len(problems) == 1 and "page_02.png" in problems[0]
-
-
-@pytest.mark.parametrize(
-    "name", ["../evil.png", "sub/page_01.png", "..", "", "notes.txt", "page_99.png"]
-)
-def test_unexpected_or_path_like_names_are_rejected(name):
-    book = new_book()
-    files = upload_files(book)
-    files[name] = png_bytes()
-    problems = sb.validate_upload(as_bytes(book), files)[1]
-    assert len(problems) == 1 and repr(name) in problems[0]
-
-
-def test_illustration_file_with_a_path_in_the_book_data_is_rejected():
-    book = new_book()
-    book["pages"][0]["illustration_file"] = "../escape.png"
-    files = upload_files(book)
-    problems = sb.validate_upload(as_bytes(book), files)[1]
-    assert any("page 1" in p and "illustration_file" in p for p in problems)
-
-
-def test_oversize_file_is_rejected(monkeypatch):
-    book = new_book()
-    files = upload_files(book)
-    noise = np.random.default_rng(1).integers(0, 255, (256, 256, 3), dtype=np.uint8)
-    buf = io.BytesIO()
-    Image.fromarray(noise).save(buf, format="PNG")
-    files["page_01.png"] = buf.getvalue()
-    monkeypatch.setattr(sb, "MAX_UPLOAD_BYTES", len(as_bytes(book)) + 1)
-    assert len(files["page_01.png"]) > sb.MAX_UPLOAD_BYTES
-    problems = sb.validate_upload(as_bytes(book), files)[1]
-    assert problems and all("page_01.png" in p and "too large" in p for p in problems)
-
-
-def test_default_upload_limit_is_25_mb():
-    assert sb.MAX_UPLOAD_BYTES == 25 * 1024 * 1024
-
-
-# --- saving a book (AC-2.3, AC-2.4, AC-2.5) ---------------------------------------------------
-
-
-def test_save_new_book(studio):  # AC-2.3
-    book = new_book()
-    saved = sb.save_book(studio, book, upload_files(book))
-    folder = studio.books_dir / "the-moon-kite-race"
-    assert saved == sb.Book("the-moon-kite-race", book["metadata"]["title"], folder / "book.json")
-    assert load_json(folder / "book.json") == book
-    names = sorted(p.name for p in (folder / "illustrations").iterdir())
-    assert names == sorted(
-        [f"page_{n:02d}.png" for n in range(1, 9)] + ["cover_back.png", "cover_front.png"]
-    )
-    assert sorted(p.name for p in studio.books_dir.iterdir()) == [PILOT_SLUG, "the-moon-kite-race"]
-    # The saved layout is exactly what render's resolve_pictures expects.
-    re_.resolve_pictures(book, BookFolder(saved.slug, studio.root), studio.shared_nooks)
-
-
-def test_save_places_nooks_in_the_episode_folder(studio):  # AC-2.5
-    book = new_book()
-    files = upload_files(book, nooks=True)
-    saved = sb.save_book(studio, book, files)
-    folder = BookFolder(saved.slug, studio.root)
-    assert (folder.nooks / "intro_nook.png").read_bytes() == files["intro_nook.png"]
-    assert (folder.nooks / "outro_nook.png").read_bytes() == files["outro_nook.png"]
-    assert not (folder.illustrations / "intro_nook.png").exists()
-    pictures = re_.resolve_pictures(book, BookFolder(saved.slug, studio.root), studio.shared_nooks)
-    assert pictures.by_section["intro"] == "intro_nook"
-
-
-def test_duplicate_title_is_refused(studio):  # AC-2.4
-    book = new_book()
-    sb.save_book(studio, book, upload_files(book))
-    before = tree(studio.books_dir)
-    with pytest.raises(sb.StudioError, match="already exists"):
-        sb.save_book(studio, book, upload_files(book))
-    assert tree(studio.books_dir) == before
-
-
-def test_replace_swaps_only_that_book(studio):  # AC-2.4
-    first = new_book()
-    first["pages"][0]["illustration_file"] = "old_name.png"
-    sb.save_book(studio, first, upload_files(first))
-    other = new_book("Another Tale Entirely")
-    sb.save_book(studio, other, upload_files(other))
-    other_before = tree(studio.books_dir / "another-tale-entirely")
-
-    second = new_book()
-    second["metadata"]["blurb"] = "replaced"
-    sb.save_book(studio, second, upload_files(second), replace=True)
-
-    folder = studio.books_dir / "the-moon-kite-race"
-    assert load_json(folder / "book.json")["metadata"]["blurb"] == "replaced"
-    assert not (folder / "illustrations" / "old_name.png").exists()
-    assert (folder / "illustrations" / "page_01.png").exists()
-    assert tree(studio.books_dir / "another-tale-entirely") == other_before
-    assert sorted(p.name for p in studio.books_dir.iterdir()) == [
-        "another-tale-entirely",
-        PILOT_SLUG,
-        "the-moon-kite-race",
-    ]
-
-
-def test_existing_book_needs_replace_to_be_overwritten(studio):  # AC-2.4
-    book = new_book()
-    sb.save_book(studio, book, upload_files(book))
-    with pytest.raises(sb.StudioError, match="already exists"):
-        sb.save_book(studio, book, upload_files(book))
-
-
-def test_save_refuses_an_invalid_upload(studio):
-    book = new_book()
-    files = upload_files(book)
-    del files["cover_front.png"]
-    with pytest.raises(sb.StudioError, match="cover_front.png"):
-        sb.save_book(studio, book, files)
-    assert not (studio.books_dir / "the-moon-kite-race").exists()
-
-
-def test_failed_save_leaves_no_partial_book(studio, monkeypatch):
-    book = new_book()
-    real_replace = sb.os.replace
-
-    def boom(src, dst):
-        if str(dst).endswith("the-moon-kite-race"):
-            raise OSError("disk trouble")
-        return real_replace(src, dst)
-
-    monkeypatch.setattr(sb.os, "replace", boom)
-    with pytest.raises(OSError):
-        sb.save_book(studio, book, upload_files(book))
-    assert sorted(p.name for p in studio.books_dir.iterdir()) == [PILOT_SLUG]
 
 
 # --- the script, the reviewed mark and line edits (AC-4.2-4.4) ------------------------------
@@ -573,9 +376,8 @@ def states(status):
 
 
 def test_status_of_a_new_book(studio):
-    book = new_book()
-    saved = sb.save_book(studio, book, upload_files(book))
-    status = status_of(studio, saved)
+    slug = add_book_from_draft(studio.root)
+    status = status_of(studio, sb.get_book(studio, slug))
     assert states(status) == ("not_started", "not_started", "not_started")
     assert status["next_action"] == "Generate script"  # AC-2.3
 
@@ -701,55 +503,8 @@ def test_status_of_a_broken_book_is_not_started(studio):
 # --- review fixes (round 1) -------------------------------------------------------------------
 
 
-def test_reserved_slug_is_refused(studio):
-    book = new_book("New")
-    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
-    assert any("'new' is reserved" in p for p in problems)
-    assert "new" in sb.RESERVED_SLUGS
-    with pytest.raises(sb.StudioError, match="reserved"):
-        sb.save_book(studio, book, upload_files(book))
-    assert not (studio.books_dir / "new").exists()
-
-
-@pytest.mark.parametrize(
-    "name", ["intro_nook.png", "outro_nook.png", "cover_front.png", "cover_back.png"]
-)
-def test_page_illustration_named_like_a_nook_or_cover_is_refused(name):
-    book = new_book()
-    book["pages"][0]["illustration_file"] = name
-    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book, nooks=True))
-    assert any(f"page 1: illustration_file {name!r}" in p and "reserved" in p for p in problems)
-
-
-def test_illustration_names_differing_only_by_case_are_refused():
-    book = new_book()
-    book["pages"][0]["illustration_file"] = "Picture.png"
-    book["pages"][1]["illustration_file"] = "picture.png"
-    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
-    assert any("differ only by case" in p and "picture.png" in p for p in problems)
-    book["pages"][1]["illustration_file"] = "Cover_Front.png"
-    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
-    assert any("differ only by case" in p and "cover_front.png" in p for p in problems)
-
-
-def test_the_same_illustration_on_two_pages_is_allowed():
-    book = new_book()
-    book["pages"][0]["illustration_file"] = "shared.png"
-    book["pages"][1]["illustration_file"] = "shared.png"
-    _parsed, problems = sb.validate_upload(as_bytes(book), upload_files(book))
-    assert problems == []
-
-
-def test_oversize_book_data_is_reported_as_too_large():
-    data = b" " * (sb.MAX_UPLOAD_BYTES + 1)
-    book, problems = sb.validate_upload(data, {})
-    assert book is None
-    assert problems == ["book data is larger than 25 MB"]
-
-
 def test_reviewed_mark_is_bound_to_the_book_file(studio):
-    book = new_book()
-    saved = sb.save_book(studio, book, upload_files(book))
+    saved = sb.get_book(studio, add_book_from_draft(studio.root))
     write_script(make_script(saved.book_path), BookFolder(saved.slug, studio.root))
     mark = sb.mark_reviewed(studio, saved)
     assert mark["book_sha256"] == sv.sha256_file(saved.book_path)
@@ -766,18 +521,6 @@ def test_reviewed_mark_without_book_hash_is_not_reviewed(studio, scripted):
     mark.pop("book_sha256")
     sb.reviewed_path(studio, scripted).write_text(json.dumps(mark), encoding="utf-8")
     assert not sb.reviewed_ok(studio, scripted)
-
-
-def test_replacing_a_book_deletes_its_reviewed_mark(studio):
-    book = new_book()
-    saved = sb.save_book(studio, book, upload_files(book))
-    write_script(make_script(saved.book_path), BookFolder(saved.slug, studio.root))
-    sb.mark_reviewed(studio, saved)
-    book["metadata"]["author"] = "Someone Else"
-    sb.save_book(studio, book, upload_files(book), replace=True)
-    assert not sb.reviewed_path(studio, saved).exists()
-    assert not sb.reviewed_ok(studio, saved)
-    assert status_of(studio, saved)["script"]["state"] == "needs_review"
 
 
 def _iso(ts: float) -> str:
@@ -843,3 +586,167 @@ def test_render_check_detail_names_a_missing_picture(world):
     video = status_of(paths, sb.get_book(paths, PILOT_SLUG))["video"]
     assert "audio" not in video["detail"]
     assert "page_02.png" in video["detail"]
+
+
+# --- animation plans and cuts (spec 009 Phase 5: AC-5.1, AC-5.3, AC-5.5) ----------------------
+
+
+def _anim_book(tmp_path):
+    from tests import animation_helpers as ah
+
+    folder = make_root(tmp_path)
+    paths = sb.StudioPaths(tmp_path)
+    book = sb.get_book(paths, folder.slug)
+    for n in (1, 2, 3, 4):
+        ah.write_picture(folder, n)
+    for n in (1, 2, 3):
+        ah.write_plan(folder, n)
+    return paths, book, folder, ah
+
+
+def _rows(paths, book):
+    return {r["page_number"]: r for r in sb.page_animation(paths, book)}
+
+
+def test_animation_stages_are_separate_from_the_episode_flow():
+    assert sb.ANIMATION_STAGES == ("plan", "cut")
+    assert not set(sb.ANIMATION_STAGES) & set(sb.STAGES)
+    assert sb.STAGE_LABELS["plan"] == "motion planning"
+    assert sb.STAGE_LABELS["cut"] == "layer cutting"
+
+
+def test_page_animation_plan_states(tmp_path):  # AC-5.1
+    from video_pipeline.motion_plan import plan_path
+
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.write_picture(folder, 2, colour=(0, 200, 0))  # page 2's picture changed → stale
+    plan_path(folder, 3).write_text('{"page_number": 3}', encoding="utf-8")  # invalid
+    rows = _rows(paths, book)
+    assert len(rows) == 8
+    assert rows[1]["plan_state"] == "ok" and rows[1]["plan"] is not None
+    assert rows[2]["plan_state"] == "stale" and "changed" in rows[2]["detail"]
+    assert rows[3]["plan_state"] == "invalid" and "picture" in rows[3]["detail"]
+    assert rows[4]["plan_state"] == "none" and rows[4]["plan"] is None
+    assert [rows[n]["cut_state"] for n in (2, 3, 4)] == ["—", "—", "—"]
+
+
+def test_page_animation_cut_state_follows_the_manifest(tmp_path):  # AC-5.3
+    paths, book, folder, ah = _anim_book(tmp_path)
+    assert _rows(paths, book)[1]["cut_state"] == "needs cut"
+    ah.cut(folder, pages=[1])
+    rows = _rows(paths, book)
+    assert rows[1]["cut_state"] == "cut"
+    assert rows[1]["empty_layers"] == []
+    assert rows[2]["cut_state"] == "needs cut"
+    ah.write_plan(folder, 1, layers=[ah.layer(box=[10, 10, 30, 30])])  # a box edit
+    assert _rows(paths, book)[1]["cut_state"] == "needs cut"
+
+
+def test_page_animation_motion_edit_keeps_the_cut(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    moved = ah.layer(motions=[{"type": "bob", "amplitude": 0.01, "period_s": 4.0}])
+    ah.write_plan(folder, 1, layers=[moved])
+    assert _rows(paths, book)[1]["cut_state"] == "cut"
+
+
+def test_page_animation_lists_empty_layers(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.write_plan(folder, 1, layers=[ah.layer(), ah.layer("nothing", box=[0, 0, 8, 8], z=2)])
+    ah.cut(folder, pages=[1])
+    row = _rows(paths, book)[1]
+    assert row["cut_state"] == "cut"
+    assert row["empty_layers"] == ["nothing"]
+
+
+def test_page_animation_missing_layer_file_needs_cut(tmp_path):
+    from video_pipeline.cut_layers import layers_dir
+
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    (layers_dir(folder, 1) / "square.png").unlink()
+    assert _rows(paths, book)[1]["cut_state"] == "needs cut"
+
+
+def test_page_animation_reads_plans_from_disk_each_time(tmp_path):  # AC-5.5
+    paths, book, folder, ah = _anim_book(tmp_path)
+    assert _rows(paths, book)[1]["plan"].layers[0].z == 1
+    ah.write_plan(folder, 1, layers=[ah.layer(z=5)])
+    assert _rows(paths, book)[1]["plan"].layers[0].z == 5
+
+
+def test_page_animation_without_models_config_degrades(tmp_path):
+    paths, book, _folder, _ah = _anim_book(tmp_path)
+    cfg_path = paths.config_dir / "animation.json"
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    del cfg["models"]
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+    rows = _rows(paths, book)
+    assert rows[1]["plan_state"] == "ok"
+    assert rows[1]["cut_state"] == "—"
+
+
+def test_page_animation_without_animation_config_degrades(tmp_path):
+    paths, book, _folder, _ah = _anim_book(tmp_path)
+    (paths.config_dir / "animation.json").unlink()
+    rows = _rows(paths, book)
+    assert {r["cut_state"] for r in rows.values()} == {"—"}
+    assert rows[1]["plan_state"] == "unavailable"
+    assert "animation.json" in rows[1]["detail"]
+
+
+def test_animation_summary(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    assert sb.animation_summary(sb.page_animation(paths, book)) == "3 of 8 plans, 1 cut"
+
+
+def test_layer_files_whitelist(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    assert sb.layer_files(paths, book, 1) == {}
+    ah.cut(folder, pages=[1])
+    files = sb.layer_files(paths, book, 1)
+    assert set(files) == {"square.png", "background.png"}
+    assert all(p.is_file() for p in files.values())
+
+
+def test_mask_overlay_tints_each_layer(tmp_path):
+    paths, book, folder, ah = _anim_book(tmp_path)
+    assert sb.mask_overlay(paths, book, 1) is None
+    two = [ah.layer(), ah.layer("left", box=[0, 30, 10, 40], z=2)]
+    ah.write_plan(folder, 1, layers=two)
+    ah.cut(folder, pages=[1])
+    data = sb.mask_overlay(paths, book, 1)
+    with Image.open(io.BytesIO(data)) as im:
+        assert im.size == (64, 48)
+        px = im.convert("RGB")
+        inside_a, inside_b, outside = (
+            px.getpixel((28, 20)),
+            px.getpixel((5, 35)),
+            px.getpixel((50, 5)),
+        )
+    assert inside_a != inside_b
+    assert inside_a != outside and inside_b != outside
+
+
+def test_mask_colours_follow_the_plan_order_not_the_manifest(tmp_path):
+    # the boxes in the template use the plan's layer order; the masks must use the same colours
+    from video_pipeline.cut_layers import cut_book
+
+    paths, book, folder, ah = _anim_book(tmp_path)
+    square, left = ah.layer(), ah.layer("left", box=[0, 30, 10, 40], z=2)
+    ah.write_plan(folder, 1, layers=[square, left])
+    ah.cut(folder, pages=[1])
+    ah.write_plan(folder, 1, layers=[left, square])  # no overlap: the cut stays cached
+    assert _rows(paths, book)[1]["cut_state"] == "cut"
+    reordered = np.asarray(Image.open(io.BytesIO(sb.mask_overlay(paths, book, 1))))
+    cut_book(
+        folder,
+        root=folder.root,
+        pages=[1],
+        force=True,
+        load_models=ah.fake_models,
+        log=lambda _: None,
+    )  # now the manifest lists the layers in plan order too
+    fresh = np.asarray(Image.open(io.BytesIO(sb.mask_overlay(paths, book, 1))))
+    assert np.array_equal(reordered, fresh)

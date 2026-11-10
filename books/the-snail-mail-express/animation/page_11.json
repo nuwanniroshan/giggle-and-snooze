@@ -1,0 +1,187 @@
+{
+  "page_number": 11,
+  "picture": {
+    "file": "page_11.png",
+    "sha256": "6765f683bafd286b3c6264e93e1d47e00464883e7af3b8ce563c77dbb5b42899",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:53:58+00:00",
+  "layers": [
+    {
+      "name": "barnaby_left_eye_stalk",
+      "description": "Barnaby's left golden eye-stalk and brown eye tip, keeping the face still.",
+      "box": [
+        625,
+        232,
+        707,
+        344
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.5,
+      "pivot": [
+        700,
+        337
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 6.4,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eye_stalk",
+      "description": "Barnaby's right golden eye-stalk and rounded brown eye tip.",
+      "box": [
+        738,
+        220,
+        801,
+        339
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.5,
+      "pivot": [
+        745,
+        333
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.4,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bramwell_breathing",
+      "description": "The happy boar's furry chest and belly below his face, with cup and paws held steady.",
+      "box": [
+        720,
+        684,
+        940,
+        840
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          779,
+          741
+        ],
+        [
+          826,
+          750
+        ]
+      ],
+      "z": 5,
+      "depth": 0.75,
+      "pivot": [
+        850,
+        826
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 5.2,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_fern",
+      "description": "The tall slender fern left of the shell, including its narrow fronds.",
+      "box": [
+        135,
+        478,
+        220,
+        737
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.8,
+      "pivot": [
+        175,
+        731
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 7.6,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_foreground_sprig",
+      "description": "The dark leafy foreground sprig along the bottom right edge.",
+      "box": [
+        886,
+        836,
+        952,
+        971
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 8,
+      "depth": 0.95,
+      "pivot": [
+        908,
+        967
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 8.2,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "rain",
+      "region": {
+        "box": [
+          43,
+          45,
+          977,
+          669
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#edf3e9"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          580,
+          672,
+          650,
+          750
+        ],
+        "layer": null
+      },
+      "intensity": 0.14,
+      "colour": "#ffdb84"
+    }
+  ]
+}

@@ -97,6 +97,16 @@ def test_build_codex_command_allows_only_the_episode_tools():  # AC-6.8
     assert not any(arg.startswith("--dangerously") for arg in command)
 
 
+def test_codex_command_attaches_images():
+    args = (Path("/bin/codex"), "/py", ["-m", "x"], {})
+    command = build_codex_command(*args, prompt="go", images=[Path("/x/p.png")])
+    i = command.index("-i")
+    assert command[i + 1] == "/x/p.png"
+    assert i < command.index("--") < len(command) - 1  # "--" ends -i's file list
+    assert command[-2:] == ["--", "go"]
+    assert "-i" not in build_codex_command(*args, prompt="go")
+
+
 def test_agent_prompt_names_every_tool():
     for name in ("get_episode_plan", "validate_banter", "save_episode_script"):
         assert name in AGENT_PROMPT

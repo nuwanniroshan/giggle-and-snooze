@@ -509,3 +509,21 @@ def test_orphan_without_a_recorded_start_time_is_only_marked(studio, tmp_path):
     finally:
         old.kill()
         old.wait()
+
+
+def test_stage_command_plan_and_cut(tmp_path):  # spec 009 AC-5.4
+    from video_pipeline import cut_layers, motion_plan
+
+    paths, pilot, _ = book_and_added(tmp_path)
+    for stage, module in (("plan", motion_plan), ("cut", cut_layers)):
+        cmd = sj.stage_command(stage, pilot, paths)
+        assert cmd == [
+            sys.executable,
+            "-m",
+            module.__name__,
+            "--book",
+            pilot.slug,
+            "--root",
+            str(paths.root),
+        ]
+        assert sj.stage_command(stage, pilot, paths, force=True)[-1] == "--force"

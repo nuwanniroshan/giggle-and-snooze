@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import problem_list %}
+{% block title %}{{ draft.idea.title }}{% endblock %}
+{% block head %}{% if draft.state == "writing" %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block content %}
+<h1>{{ draft.idea.title }}</h1>
+<p class="small">{{ draft.idea.age_range }} &middot; Maximum {{ draft.pages }} pages &middot; state: {{ draft.state }} &middot; attempts: {{ draft.attempts }}</p>
+<p>{{ draft.idea.premise }}</p>
+{% if problems %}
+<section class="notice">
+  <h2>Nothing was saved</h2>
+  {{ problem_list(problems) }}
+</section>
+{% endif %}
+
+{% if draft.state == "writing" %}
+  <p>Writing the book&hellip; this page refreshes when it is ready.</p>
+{% elif draft.state in ("failed", "interrupted") %}
+  <section class="notice">
+    <h2>{{ "The book could not be written" if draft.state == "failed" else "Writing was interrupted" }}</h2>
+    {% if draft.problems %}{{ problem_list(draft.problems) }}{% endif %}
+    <form method="post" action="/drafts/{{ draft.id }}/write-again"><button type="submit">Write again</button></form>
+  </section>
+{% endif %}
+
+{% if draft.book %}
+<section class="stack">
+  <h2>Pages</h2>
+  {% for page in draft.book.pages %}
+  <article class="card">
+    <h3>Page {{ page.page_number }}: {{ page.title }}</h3>
+    <form method="post" action="/drafts/{{ draft.id }}/pages/{{ page.page_number }}" class="stack">
+      <textarea name="text" rows="3">{{ page.text }}</textarea>
+      <div><button type="submit">Save page</button></div>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="stack">
+  {% if draft.state == "ready" %}
+  <form method="post" action="/drafts/{{ draft.id }}/create">
+    <button type="submit">Create book</button>
+  </form>
+  {% endif %}
+  <form method="post" action="/drafts/{{ draft.id }}/discard" class="stack">
+    <label class="check"><input type="checkbox" name="confirm" value="yes"> I understand this deletes the draft and its generation log</label>
+    <div><button type="submit">Discard draft</button></div>
+  </form>
+  <p><a href="/books/new">Back to Add book</a></p>
+</section>
+{% endblock %}

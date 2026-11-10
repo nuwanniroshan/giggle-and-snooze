@@ -1,0 +1,252 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "a334ce0ed9c9340d68d0d1f05f8e9b1bcd07e92e80391e7ebb101555bc1079ef",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:50:27+00:00",
+  "layers": [
+    {
+      "name": "fleet",
+      "description": "Entire grey and white bird, including both spread wings, yellow eyes, feet and tail; preserve painted feather details.",
+      "box": [
+        284,
+        57,
+        745,
+        403
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.35,
+      "pivot": [
+        518,
+        269
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.005,
+          "period_s": 5.8,
+          "phase": 0.1,
+          "direction": null
+        },
+        {
+          "type": "rotate",
+          "amplitude": 0.7,
+          "period_s": 7.8,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_curls",
+      "description": "Loose chestnut curls along the right edge of Clara's head and shoulder; exclude her face, collar and dress.",
+      "box": [
+        647,
+        550,
+        776,
+        756
+      ],
+      "include_points": [
+        [
+          719,
+          648
+        ],
+        [
+          745,
+          706
+        ]
+      ],
+      "exclude_points": [
+        [
+          653,
+          644
+        ],
+        [
+          674,
+          737
+        ]
+      ],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        666,
+        563
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.3,
+          "period_s": 6.2,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_left_eyestalk",
+      "description": "Barnaby's left tall golden eye-stalk including the round dark eye, ending where it joins his head.",
+      "box": [
+        443,
+        518,
+        493,
+        626
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.63,
+      "pivot": [
+        486,
+        620
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 7.2,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eyestalk",
+      "description": "Barnaby's right tall golden eye-stalk including the round dark eye, ending at the top of his head.",
+      "box": [
+        510,
+        511,
+        545,
+        625
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.63,
+      "pivot": [
+        520,
+        619
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 7.2,
+          "phase": 0.27,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_foreground_fern",
+      "description": "Slender foreground fern on the lower left with its green fronds; exclude the mushrooms and nearby flowers.",
+      "box": [
+        36,
+        703,
+        151,
+        944
+      ],
+      "include_points": [
+        [
+          96,
+          815
+        ],
+        [
+          102,
+          758
+        ]
+      ],
+      "exclude_points": [
+        [
+          35,
+          790
+        ],
+        [
+          133,
+          939
+        ]
+      ],
+      "z": 7,
+      "depth": 0.94,
+      "pivot": [
+        83,
+        937
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.8,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_fern",
+      "description": "Tall leafy green fern beside the right birch trunk above the bell, excluding the bell, tree and flowers.",
+      "box": [
+        858,
+        551,
+        955,
+        795
+      ],
+      "include_points": [
+        [
+          904,
+          674
+        ],
+        [
+          890,
+          613
+        ]
+      ],
+      "exclude_points": [
+        [
+          940,
+          571
+        ],
+        [
+          850,
+          750
+        ]
+      ],
+      "z": 6,
+      "depth": 0.8,
+      "pivot": [
+        915,
+        789
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 6.8,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "falling_leaves",
+      "region": {
+        "box": [
+          203,
+          83,
+          847,
+          493
+        ],
+        "layer": null
+      },
+      "intensity": 0.08,
+      "colour": "#b5ad58"
+    }
+  ]
+}

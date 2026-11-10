@@ -16,7 +16,7 @@ import pytest
 from PIL import Image
 from starlette.testclient import TestClient
 
-from tests.helpers import MINI_BOOK, load_json, make_root
+from tests.helpers import MINI_BOOK, add_book_from_draft, load_json, make_root
 from tests.render_helpers import FakeRunner, cli_args, make_world, picture
 from tests.voice_helpers import make_script, write_script
 from video_pipeline import render_episode as re_
@@ -147,8 +147,7 @@ def test_home_lists_books_with_states_and_next_action(bare):
 
 
 def test_home_shows_an_added_book_and_escapes_its_title(bare):
-    book = new_book("The <b>Bold</b> Kite")
-    assert bare.client.post("/books", files=upload_parts(book)).status_code == 303
+    add_book_from_draft(bare.paths.root, "The <b>Bold</b> Kite")
     r = bare.client.get("/")
     assert "The &lt;b&gt;Bold&lt;/b&gt; Kite" in r.text
     assert "<b>Bold</b>" not in r.text
@@ -186,82 +185,6 @@ def test_unknown_book_is_404(bare):
 
 
 # --- uploads (AC-2.1-2.5) -----------------------------------------------------------------------
-
-
-def test_upload_form_page(bare):
-    r = bare.client.get("/books/new")
-    assert r.status_code == 200
-    assert 'enctype="multipart/form-data"' in r.text
-    assert 'name="book_data"' in r.text and 'name="files"' in r.text
-
-
-def test_upload_valid_book_is_saved_and_listed(bare):
-    book = new_book()
-    nook = {"intro_nook.png": png_bytes((5, 5, 5))}
-    r = bare.client.post("/books", files=upload_parts(book, extra=nook))
-    slug = slugify(book["metadata"]["title"])
-    assert r.status_code == 303
-    assert r.headers["location"] == f"/books/{slug}"
-    assert (bare.paths.books_dir / slug / "book.json").is_file()
-    assert (bare.paths.books_dir / slug / "illustrations" / "page_01.png").is_file()
-    assert (BookFolder(slug, bare.paths.root).nooks / "intro_nook.png").is_file()
-    page = text_of(bare.client.get(f"/books/{slug}").text)
-    assert "The Moon Kite Race" in page and "Generate script" in page
-
-
-def test_upload_invalid_json_saves_nothing(bare):
-    parts = upload_parts(new_book())
-    parts[0] = ("book_data", ("book_data.json", b"{not json", "application/json"))
-    r = bare.client.post("/books", files=parts)
-    assert r.status_code == 422
-    assert "not valid JSON" in r.text
-    assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]
-
-
-def test_upload_lists_every_problem(bare):
-    parts = upload_parts(new_book(), skip="page_03.png", extra={"../evil.png": png_bytes()})
-    r = bare.client.post("/books", files=parts)
-    assert r.status_code == 422
-    assert "page_03.png" in r.text
-    assert "evil.png" in r.text
-    assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]
-    assert not (bare.paths.root.parent / "evil.png").exists()
-
-
-def test_upload_without_book_data_is_refused(bare):
-    r = bare.client.post("/books", files=[("files", ("cover_front.png", png_bytes(), "image/png"))])
-    assert r.status_code == 422
-    assert "book data" in r.text
-
-
-def test_duplicate_upload_refused_then_replaced_with_confirmation(bare):
-    book = new_book()
-    slug = slugify(book["metadata"]["title"])
-    assert bare.client.post("/books", files=upload_parts(book)).status_code == 303
-    marker = bare.paths.books_dir / slug / "illustrations" / "page_01.png"
-    before = marker.read_bytes()
-    book["metadata"]["author"] = "Someone Else"
-    r = bare.client.post("/books", files=upload_parts(book))
-    assert r.status_code == 409
-    assert "already exists" in r.text and 'name="replace"' in r.text
-    assert load_json(bare.paths.books_dir / slug / "book.json")["metadata"]["author"] != (
-        "Someone Else"
-    )
-    r = bare.client.post("/books", data={"replace": "1"}, files=upload_parts(book))
-    assert r.status_code == 303
-    assert load_json(bare.paths.books_dir / slug / "book.json")["metadata"]["author"] == (
-        "Someone Else"
-    )
-    assert marker.read_bytes() == before  # the same picture was uploaded again
-
-
-def test_upload_over_an_existing_book_needs_confirmation(bare):  # AC-2.4
-    r = bare.client.post(
-        "/books",
-        files=upload_parts(new_book(load_json(MINI_BOOK)["metadata"]["title"])),
-    )
-    assert r.status_code == 409
-    assert "already exists" in r.text
 
 
 # --- running stages (AC-3.1-3.6, AC-4.4) --------------------------------------------------------
@@ -675,50 +598,6 @@ def test_module_entry_point_exists():
 # --- review fixes (round 1) -----------------------------------------------------------------------
 
 
-def test_upload_titled_new_is_refused_and_the_form_still_shows(bare):
-    r = bare.client.post("/books", files=upload_parts(new_book("New")))
-    assert r.status_code == 422
-    assert "reserved" in r.text
-    assert not (bare.paths.books_dir / "new").exists()
-    assert 'name="book_data"' in bare.client.get("/books/new").text
-
-
-def test_upload_with_a_page_named_like_a_nook_is_refused(bare):
-    book = new_book("Nook Book")
-    book["pages"][0]["illustration_file"] = "intro_nook.png"
-    r = bare.client.post("/books", files=upload_parts(book, extra={"intro_nook.png": png_bytes()}))
-    assert r.status_code == 422
-    assert "reserved" in r.text
-    assert not (bare.paths.books_dir / "nook-book").exists()
-
-
-def test_oversize_request_is_refused_before_parsing(bare, monkeypatch):
-    monkeypatch.setattr(sb, "validate_upload", lambda *a: pytest.fail("the form was parsed"))
-    limit = (sb.MAX_UPLOAD_FILES + 1) * sb.MAX_UPLOAD_BYTES
-    r = bare.client.post(
-        "/books",
-        content=b"x",
-        headers={
-            "content-type": "multipart/form-data; boundary=b",
-            "content-length": str(limit + 1),
-        },
-    )
-    assert r.status_code == 413
-    assert "too large" in r.text
-
-
-def test_oversize_book_data_upload_says_so(bare):
-    parts = upload_parts(new_book())
-    parts[0] = (
-        "book_data",
-        ("book_data.json", b" " * (sb.MAX_UPLOAD_BYTES + 1), "application/json"),
-    )
-    r = bare.client.post("/books", files=parts)
-    assert r.status_code == 422
-    assert "book data is larger than 25 MB" in r.text
-    assert "not valid JSON" not in r.text
-
-
 @pytest.mark.parametrize("host", ["attacker.example:8765", "attacker.example", "127.0.0.2:8765"])
 def test_unknown_host_header_is_refused(bare, host):
     assert bare.client.get("/", headers={"host": host}).status_code == 400
@@ -727,25 +606,6 @@ def test_unknown_host_header_is_refused(bare, host):
 @pytest.mark.parametrize("host", ["127.0.0.1:8765", "localhost:8765"])
 def test_loopback_host_headers_are_allowed(bare, host):
     assert bare.client.get("/", headers={"host": host}).status_code == 200
-
-
-def test_replace_upload_refused_while_that_book_runs(tmp_path):
-    make_root(tmp_path)
-    s = Studio(tmp_path, Commands("import time; time.sleep(30)"))
-    book = new_book()
-    slug = slugify(book["metadata"]["title"])
-    assert s.client.post("/books", files=upload_parts(book)).status_code == 303
-    try:
-        assert s.client.post(f"/books/{slug}/run/script").status_code == 303
-        book["metadata"]["author"] = "Someone Else"
-        r = s.client.post("/books", data={"replace": "1"}, files=upload_parts(book))
-        assert r.status_code == 409
-        assert "running" in r.text
-        assert load_json(s.paths.books_dir / slug / "book.json")["metadata"]["author"] != (
-            "Someone Else"
-        )
-    finally:
-        s.runner.stop()
 
 
 def test_stop_does_not_freeze_other_requests(tmp_path):
@@ -815,17 +675,6 @@ def test_app_shutdown_releases_the_studio_lock(bare):
     with TestClient(bare.app, base_url=ORIGIN), pytest.raises(sj.StudioLocked):
         sj.JobRunner(bare.paths.studio_dir, cwd=bare.paths.root)
     sj.JobRunner(bare.paths.studio_dir, cwd=bare.paths.root).close()
-
-
-def test_upload_without_a_content_length_is_refused(bare, monkeypatch):
-    monkeypatch.setattr(sb, "validate_upload", lambda *a: pytest.fail("the form was parsed"))
-    r = bare.client.post(
-        "/books",
-        content=iter([b"x"]),  # streamed: chunked, no Content-Length
-        headers={"content-type": "multipart/form-data; boundary=b"},
-    )
-    assert r.status_code == 411
-    assert "Content-Length" in r.text
 
 
 def _slow(events: list, name: str, real, seconds: float = 0.5, started=None):
@@ -925,30 +774,6 @@ def test_mark_reviewed_waits_for_a_starting_stage_and_is_refused(tmp_path, monke
     assert not sb.reviewed_ok(s.paths, s.book())
 
 
-def test_a_stage_does_not_start_while_its_book_is_being_replaced(bare, monkeypatch):
-    import threading
-
-    book = new_book()
-    slug = slugify(book["metadata"]["title"])
-    assert bare.client.post("/books", files=upload_parts(book)).status_code == 303
-    events, started = [], threading.Event()
-    monkeypatch.setattr(sb, "save_book", _slow(events, "save", sb.save_book, started=started))
-    real_start = bare.runner.start
-    monkeypatch.setattr(
-        bare.runner, "start", lambda *a, **k: (events.append("start"), real_start(*a, **k))[1]
-    )
-    book["metadata"]["author"] = "Someone Else"
-    with TestClient(bare.app, base_url=ORIGIN, follow_redirects=False) as client:
-        replaced, ran = _concurrently(
-            client,
-            ("/books", {"data": {"replace": "1"}, "files": upload_parts(book)}),
-            (f"/books/{slug}/run/script", {}),
-            started,
-        )
-    assert replaced.status_code == 303 and ran.status_code == 303
-    assert events == ["save-begin", "save-end", "start"]
-
-
 def test_approve_waits_for_a_starting_voices_stage_and_is_refused(tmp_path, monkeypatch):
     import threading
 
@@ -967,3 +792,204 @@ def test_approve_waits_for_a_starting_voices_stage_and_is_refused(tmp_path, monk
     assert ran.status_code == 303, ran.text
     assert approved.status_code == 409 and "still running" in approved.text
     assert load_json(world["audio"] / "status.json")["status"] == "pending review"
+
+
+def test_add_book_page_has_no_file_field(bare):  # AC-4.1
+    html = bare.client.get("/books/new").text
+    assert 'type="file"' not in html and "book_data" not in html
+    assert 'action="/ideas"' in html and 'action="/ideas/improve"' in html
+
+
+def test_posting_a_book_file_is_refused_and_saves_nothing(bare):  # AC-4.2
+    book = load_json(MINI_BOOK)
+    r = bare.client.post("/books", files=upload_parts(book))
+    assert r.status_code == 410
+    assert "no longer used" in r.text
+    assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]
+
+
+# --- animation view (spec 009 Phase 5: AC-5.1 – AC-5.5) ---------------------------------------
+
+
+def _animated(tmp_path, commands=None):
+    from tests import animation_helpers as ah
+
+    folder = make_root(tmp_path)
+    for n in (1, 2):
+        ah.write_picture(folder, n)
+    effect = {"type": "fireflies", "region": {"box": [0, 0, 32, 24]}, "intensity": 0.4}
+    two = [ah.layer(), ah.layer("lamp", box=[2, 30, 12, 44], z=2, pivot=[7, 44])]
+    ah.write_plan(folder, 1, layers=two, effects=[effect])
+    return Studio(tmp_path, commands), folder, ah
+
+
+@pytest.fixture
+def animated(tmp_path):
+    s, folder, ah = _animated(tmp_path)
+    yield s, folder, ah
+    if s.runner.current():
+        s.runner.stop()
+
+
+def test_book_page_links_to_animation_with_summary(animated):  # AC-5.1
+    s, _folder, _ah = animated
+    html = s.client.get(f"/books/{PILOT_SLUG}").text
+    assert f'href="/books/{PILOT_SLUG}/animation"' in html
+    assert "1 of 8 plans, 0 cut" in text_of(html)
+
+
+def test_animation_view_lists_page_states(animated):  # AC-5.1
+    s, folder, ah = animated
+    from video_pipeline.motion_plan import plan_path
+
+    plan_path(folder, 3).parent.mkdir(parents=True, exist_ok=True)
+    plan_path(folder, 3).write_text("[]", encoding="utf-8")
+    r = s.client.get(f"/books/{PILOT_SLUG}/animation")
+    assert r.status_code == 200
+    text = text_of(r.text)
+    assert "ok" in text and "none" in text and "invalid" in text
+    assert "needs cut" in text
+    assert f'href="/books/{PILOT_SLUG}/animation/1"' in r.text
+
+
+def test_animation_page_shows_the_plan(animated):  # AC-5.2
+    s, _folder, _ah = animated
+    r = s.client.get(f"/books/{PILOT_SLUG}/animation/1")
+    assert r.status_code == 200
+    html = r.text
+    text = text_of(html)
+    for word in ("square", "lamp", "the square", "sway", "6.0", "0.25", "fireflies", "0.4"):
+        assert word in text, word
+    assert "[28, 28]" in text and "[7, 44]" in text  # pivots
+    assert f'src="/media/{PILOT_SLUG}/illustration/page_01.png"' in html
+    svg = re.search(r"<svg[^>]*viewBox=\"0 0 64 48\".*?</svg>", html, re.S)
+    assert svg is not None
+    assert len(re.findall(r"<rect\b[^>]*class=\"layer", svg.group(0))) == 2
+    assert len(re.findall(r"<circle\b", svg.group(0))) == 4  # 2 include + 2 exclude points
+    assert "needs cut" in text
+
+
+def test_animation_page_after_cut_shows_masks_and_background(animated):  # AC-5.3
+    s, folder, ah = animated
+    ah.cut(folder, pages=[1])
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation/1").text
+    assert f'src="/media/{PILOT_SLUG}/mask/page_01.png"' in html
+    assert f'src="/media/{PILOT_SLUG}/layer/page_01_background.png"' in html
+    assert re.search(r"\bcut\b", text_of(html)) and "needs cut" not in text_of(html)
+    r = s.client.get(f"/media/{PILOT_SLUG}/mask/page_01.png")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    for name in ("page_01_background.png", "page_01_square.png", "page_01_lamp.png"):
+        assert s.client.get(f"/media/{PILOT_SLUG}/layer/{name}").status_code == 200, name
+    ah.write_plan(folder, 1, layers=[ah.layer(box=[10, 10, 30, 30])])  # a box edit
+    assert "needs cut" in text_of(s.client.get(f"/books/{PILOT_SLUG}/animation/1").text)
+
+
+def test_animation_page_reads_the_plan_from_disk(animated):  # AC-5.5
+    s, folder, ah = animated
+    assert "lamp" in s.client.get(f"/books/{PILOT_SLUG}/animation/1").text
+    ah.write_plan(folder, 1, layers=[ah.layer("chimney")])
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation/1").text
+    assert "chimney" in html and "lamp" not in html
+
+
+def test_animation_page_without_plan_and_unknown_page(animated):
+    s, _folder, _ah = animated
+    r = s.client.get(f"/books/{PILOT_SLUG}/animation/2")
+    assert r.status_code == 200 and "no plan" in text_of(r.text).lower()
+    assert s.client.get(f"/books/{PILOT_SLUG}/animation/99").status_code == 404
+    assert s.client.get("/books/nope/animation").status_code == 404
+
+
+def test_animation_page_shows_invalid_detail(animated):
+    s, folder, _ah = animated
+    from video_pipeline.motion_plan import plan_path
+
+    plan_path(folder, 2).write_text('{"page_number": 2}', encoding="utf-8")
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}/animation/2").text)
+    assert "invalid" in text and "picture" in text
+
+
+def test_layer_and_mask_media_are_whitelisted(animated):
+    s, folder, ah = animated
+    from video_pipeline.cut_layers import layers_dir
+
+    assert s.client.get(f"/media/{PILOT_SLUG}/mask/page_01.png").status_code == 404  # no cut yet
+    ah.cut(folder, pages=[1])
+    (layers_dir(folder, 1) / "stray.png").write_bytes(png_bytes())
+    bad = [
+        f"/media/{PILOT_SLUG}/layer/page_01_stray.png",
+        f"/media/{PILOT_SLUG}/layer/page_01_layers.json",
+        f"/media/{PILOT_SLUG}/layer/../../etc",
+        f"/media/{PILOT_SLUG}/layer/page_01_..%2F..%2Fbook.json",
+        f"/media/{PILOT_SLUG}/layer/page_02_background.png",
+        f"/media/{PILOT_SLUG}/layer/background.png",
+        f"/media/{PILOT_SLUG}/mask/page_02.png",
+        f"/media/{PILOT_SLUG}/mask/../page_01.png",
+    ]
+    for url in bad:
+        assert s.client.get(url).status_code == 404, url
+
+
+def test_run_plan_and_cut_start_jobs(animated):  # AC-5.4
+    s, _folder, _ah = animated
+    for stage in ("plan", "cut"):
+        r = s.client.post(f"/books/{PILOT_SLUG}/run/{stage}")
+        assert r.status_code == 303
+        assert r.headers["location"] == f"/books/{PILOT_SLUG}/animation"
+        s.wait()
+    assert [c[:2] for c in s.commands.calls] == [("plan", PILOT_SLUG), ("cut", PILOT_SLUG)]
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
+    assert "layer cutting" in text_of(html).lower() and "finished" in html
+
+
+def test_run_plan_and_cut_refused_when_busy(tmp_path):  # AC-5.4
+    s, _folder, _ah = _animated(tmp_path, Commands("import time; time.sleep(30)"))
+    try:
+        assert s.client.post(f"/books/{PILOT_SLUG}/run/plan").status_code == 303
+        for stage in ("plan", "cut", "script"):
+            r = s.client.post(f"/books/{PILOT_SLUG}/run/{stage}")
+            assert r.status_code == 409, stage
+            assert "motion planning" in r.text
+        html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
+        assert re.search(r"<button[^>]*disabled[^>]*>\s*Plan pictures", html)
+        assert re.search(r"<button[^>]*disabled[^>]*>\s*Cut layers", html)
+    finally:
+        s.runner.stop()
+
+
+def test_animation_runs_are_refused_cross_site(animated):
+    s, _folder, _ah = animated
+    r = s.client.post(f"/books/{PILOT_SLUG}/run/cut", headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403
+    assert s.commands.calls == []
+
+
+def test_book_page_survives_missing_animation_config(animated):
+    s, _folder, _ah = animated
+    (s.paths.config_dir / "animation.json").unlink()
+    assert s.client.get(f"/books/{PILOT_SLUG}").status_code == 200
+    assert s.client.get(f"/books/{PILOT_SLUG}/animation").status_code == 200
+    assert s.client.get(f"/books/{PILOT_SLUG}/animation/1").status_code == 200
+
+
+def test_book_page_lists_pages_whose_plans_need_attention(animated):  # AC-5.1
+    s, folder, ah = animated
+    from video_pipeline.motion_plan import plan_path
+
+    ah.write_plan(folder, 2)
+    ah.write_picture(folder, 2, colour=(0, 200, 0))  # page 2 repainted → stale
+    plan_path(folder, 3).write_text('{"page_number": 3}', encoding="utf-8")  # invalid
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}").text)
+    assert "3 of 8 plans, 0 cut" in text
+    assert "Page 2 stale" in text and "page_02.png changed since the plan was written" in text
+    assert "Page 3 invalid" in text and "picture" in text
+    assert "Page 1 " not in text  # ok pages are not listed one by one
+    assert "No plan: pages 4, 5, 6, 7, 8" in text
+
+
+def test_book_page_names_an_unreadable_animation_config_once(animated):
+    s, _folder, _ah = animated
+    (s.paths.config_dir / "animation.json").unlink()
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}").text)
+    assert text.count("Plans cannot be checked") == 1 and "animation.json" in text
+    assert "unavailable" not in text  # one line for the config, not one per page

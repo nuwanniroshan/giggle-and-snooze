@@ -1,0 +1,227 @@
+{
+  "page_number": 13,
+  "picture": {
+    "file": "page_13.png",
+    "sha256": "f904be77930a0707c49e8b5d8df474da0ff9c9140a1ad2b63abf69e59b005bd8",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:54:51+00:00",
+  "layers": [
+    {
+      "name": "willow_trailing_leaves",
+      "description": "Golden hanging willow foliage; leave the dark trunk and bridge fixed.",
+      "box": [
+        634,
+        4,
+        1023,
+        570
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          962,
+          387
+        ],
+        [
+          996,
+          455
+        ],
+        [
+          933,
+          522
+        ]
+      ],
+      "z": 1,
+      "depth": 0.35,
+      "pivot": [
+        850,
+        55
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 7.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair",
+      "description": "Loose chestnut curls along the back and sides of Clara's head, excluding her face, dress and book.",
+      "box": [
+        256,
+        79,
+        470,
+        264
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          385,
+          156
+        ],
+        [
+          390,
+          225
+        ]
+      ],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        382,
+        108
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 6.4,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_left_eyestalk",
+      "description": "Barnaby's tall left golden eye stalk, with its dark eye tip.",
+      "box": [
+        579,
+        243,
+        611,
+        331
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        603,
+        328
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 5.6,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eyestalk",
+      "description": "Barnaby's right golden eye stalk angled toward the willow.",
+      "box": [
+        632,
+        247,
+        678,
+        334
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        638,
+        329
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.85,
+          "period_s": 6.1,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "fergus_pointing_arm",
+      "description": "Fergus's slender raised arm and upward-pointing fingertips; keep torso and eyes still.",
+      "box": [
+        413,
+        684,
+        477,
+        785
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.85,
+      "pivot": [
+        417,
+        780
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.9,
+          "period_s": 5.4,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_lily_pad",
+      "description": "Large green lily pad just right of centre, including its scalloped edge; exclude surrounding water.",
+      "box": [
+        514,
+        915,
+        680,
+        968
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.95,
+      "pivot": [
+        597,
+        942
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.0012,
+          "period_s": 6.8,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          205,
+          875,
+          830,
+          1020
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#c9dec2"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          672,
+          49,
+          1007,
+          534
+        ],
+        "layer": null
+      },
+      "intensity": 0.1,
+      "colour": "#ffe3a0"
+    }
+  ]
+}

@@ -88,3 +88,17 @@ def plan_signature(script: dict) -> list[tuple]:
         )
         for page in script["pages"]
     ]
+
+
+def add_book_from_draft(root: Path, title: str = "The Moon Kite Race", pages: int = 8) -> str:
+    """Add a book the way the studio does now (spec 006): a ready draft, then create_book."""
+    from tests.test_story_tools import book as book_payload
+    from tests.test_story_tools import idea as idea_payload
+    from video_pipeline.drafts import DraftStore
+
+    store = DraftStore(Path(root))
+    draft = store.new_draft(idea_payload(title), pages=pages, author="Test Author")
+    payload = book_payload(pages)
+    payload["metadata"]["title"] = title
+    store.update(draft["id"], state="ready", book=payload, attempts=1, problems=[])
+    return store.create_book(draft["id"])

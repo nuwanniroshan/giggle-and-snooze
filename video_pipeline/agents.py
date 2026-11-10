@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -135,7 +135,10 @@ def build_codex_command(
     server_args: list[str],
     server_env: dict[str, str],
     model: str | None = None,
+    prompt: str = AGENT_PROMPT,
+    images: Sequence[Path] = (),
 ) -> list[str]:
+    """The headless `codex exec` argv; `images` are attached to the prompt with `-i`."""
     key = f"mcp_servers.{SERVER_NAME}"
     command = [
         str(binary),
@@ -162,7 +165,10 @@ def build_codex_command(
         command += ["-c", setting]
     if model:
         command += ["--model", model]
-    command.append(AGENT_PROMPT)
+    for image in images:
+        command += ["-i", str(image)]
+    # "--" ends -i's file list, so the prompt is never read as an image or a flag.
+    command += ["--", prompt]
     return command
 
 

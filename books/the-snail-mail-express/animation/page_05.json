@@ -1,0 +1,205 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "55b995f5642e4ad50404a40bfe689a5e5d6baad7d9d93dd668e3810207dc7810",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:51:42+00:00",
+  "layers": [
+    {
+      "name": "clara_loose_hair",
+      "description": "Only the loose chestnut locks trailing behind Clara's head; preserve her face, collar and dress.",
+      "box": [
+        305,
+        181,
+        454,
+        345
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.55,
+      "pivot": [
+        437,
+        211
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 6.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_left_eye_stalk",
+      "description": "The viewer-left golden eye-stalk and eye, from its attachment at the top of Barnaby's head.",
+      "box": [
+        636,
+        224,
+        719,
+        343
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.58,
+      "pivot": [
+        711,
+        334
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 7.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eye_stalk",
+      "description": "The viewer-right upright golden eye-stalk and eye; keep the smiling face still.",
+      "box": [
+        722,
+        194,
+        779,
+        335
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.58,
+      "pivot": [
+        766,
+        329
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_bramble_tip",
+      "description": "Upper twig and its leaves above the crimson thread's knot on the foreground right bramble; exclude the thread and snail.",
+      "box": [
+        748,
+        649,
+        822,
+        742
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.85,
+      "pivot": [
+        813,
+        734
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 8.0,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_lily_pad",
+      "description": "Small left green lily pad on the pond, including its lobed outline and pale veins; exclude surrounding water.",
+      "box": [
+        282,
+        934,
+        464,
+        999
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.9,
+      "pivot": [
+        374,
+        966
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.0012,
+          "period_s": 6.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_lily_pad",
+      "description": "Larger right green lily pad beneath the glowing thread, excluding the crimson thread itself.",
+      "box": [
+        589,
+        919,
+        808,
+        1007
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.92,
+      "pivot": [
+        702,
+        966
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.001,
+          "period_s": 7.5,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          244,
+          895,
+          867,
+          1023
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": null
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          689,
+          918,
+          735,
+          965
+        ],
+        "layer": null
+      },
+      "intensity": 0.15,
+      "colour": "#ffe6a0"
+    }
+  ]
+}
