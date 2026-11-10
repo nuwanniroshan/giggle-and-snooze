@@ -334,6 +334,26 @@ def merge_regions(
     return sorted(boxes)
 
 
+def limit_regions(
+    boxes: list[tuple[int, int, int, int]], max_n: int
+) -> list[tuple[int, int, int, int]]:
+    """Merge the pair whose combined box is smallest until at most max_n boxes remain.
+    Each LaMa tile costs ~2.3 s on the M1 Pro, so this bounds the fill time per page."""
+    boxes = sorted(boxes)
+    while len(boxes) > max(max_n, 1):
+        best = None
+        for i in range(len(boxes)):
+            for j in range(i + 1, len(boxes)):
+                a, b = boxes[i], boxes[j]
+                box = (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+                area = (box[2] - box[0]) * (box[3] - box[1])
+                if best is None or area < best[0]:
+                    best = (area, i, j, box)
+        _, i, j, box = best
+        boxes = sorted([b for k, b in enumerate(boxes) if k not in (i, j)] + [box])
+    return boxes
+
+
 def crop_box(
     region: tuple[int, int, int, int], width: int, height: int, *, margin: int, min_crop: int
 ) -> tuple[int, int, int, int]:
@@ -597,7 +617,8 @@ class LamaOnnx:
         hole = dilate(mask, int(tile_cfg["dilate_px"]))
         cur = np.array(image, dtype=np.uint8, copy=True)
         h, w = hole.shape
-        for region in merge_regions(hole_regions(hole), gap=margin):
+        regions = merge_regions(hole_regions(hole), gap=margin)
+        for region in limit_regions(regions, int(tile_cfg["max_tiles"])):
             x0, y0, x1, y1 = crop_box(
                 region, w, h, margin=margin, min_crop=int(tile_cfg["min_crop_px"])
             )

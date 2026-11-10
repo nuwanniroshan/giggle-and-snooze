@@ -166,7 +166,8 @@
         "dilate_px": 6,
         "margin_px": 96,
         "min_crop_px": 512,
-        "paste": "only inside the hole"
+        "paste": "only inside the hole",
+        "max_tiles": 3
       },
       "license": "Apache-2.0",
       "source": "https://huggingface.co/Carve/LaMa-ONNX"

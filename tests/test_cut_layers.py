@@ -709,3 +709,15 @@ def test_real_cut_pilot_page_one(tmp_path: Path) -> None:
     print(f"\nreal cut: {seconds:.2f} s first page, {again[0].detail} again, peak {peak_gb:.2f} GB")
     assert seconds <= 10
     assert peak_gb <= 4
+
+
+def test_limit_regions_merges_the_cheapest_pair_until_under_the_cap() -> None:
+    boxes = [(0, 0, 10, 10), (20, 0, 30, 10), (500, 500, 510, 510)]
+    out = cut_layers.limit_regions(boxes, 2)
+    assert out == [(0, 0, 30, 10), (500, 500, 510, 510)]
+
+
+def test_limit_regions_keeps_boxes_already_under_the_cap() -> None:
+    boxes = [(0, 0, 10, 10), (500, 500, 510, 510)]
+    assert cut_layers.limit_regions(boxes, 3) == boxes
+    assert cut_layers.limit_regions(boxes, 1) == [(0, 0, 510, 510)]
