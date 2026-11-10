@@ -121,10 +121,14 @@
         "mask_logits": "low_res_masks[0, i], 256x256, float logits",
         "upsample": "bilinear to picture size, then threshold at 0.0",
         "select": "largest mask among those with score >= best score - 0.05",
+        "select_margin": 0.05,
         "clean": {
           "close_px": 7,
           "fill_interior_holes": true
         }
+      },
+      "self_check": {
+        "embedding_max_abs": 100.0
       },
       "license": "Apache-2.0",
       "source": "https://huggingface.co/apple/coreml-sam2.1-small"
