@@ -239,12 +239,15 @@ def mix_master(
     page_turn: np.ndarray,
     cfg: RenderConfig,
     sample_rate: int,
+    ambience: np.ndarray | None = None,
 ) -> np.ndarray:
     """The episode's mono float32 audio, exactly as long as the video.
 
     Each section's track starts at `section start + lead_in`; the page-turn sound (at
     `sfx_gain_db`) starts at each transition, i.e. the end of the previous section. If the peak
     exceeds `peak_dbfs` the whole mix is scaled down; speech is otherwise untouched (AC-1.3).
+    `ambience` (spec 007), a bed already levelled and exactly as long as the mix, is added just
+    before the peak limit; `None` gives the same output as before the bed existed.
     """
     length = round(total_frames(sections, cfg) / cfg.fps * sample_rate)
     mix = np.zeros(length, dtype=np.float64)
@@ -265,6 +268,10 @@ def mix_master(
         at = round(end * sample_rate)
         piece = turn[: max(0, length - at)]
         mix[at : at + len(piece)] += piece
+    if ambience is not None:
+        if len(ambience) != length:
+            raise ValueError(f"ambience bed has {len(ambience)} samples, the mix has {length}")
+        mix += np.asarray(ambience, dtype=np.float64)
     limit = 10 ** (cfg.audio.peak_dbfs / 20)
     peak = float(np.abs(mix).max()) if length else 0.0
     if peak > limit:

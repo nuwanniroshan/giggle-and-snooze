@@ -7,9 +7,13 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
+import numpy as np
 from pydantic import BaseModel, ValidationError
+
+if TYPE_CHECKING:
+    from video_pipeline.timeline import AudioSettings, Section
 
 AUDIO_SUFFIXES = {".mp3", ".wav", ".ogg", ".flac"}
 INDEX = "index.json"
@@ -104,6 +108,149 @@ def check_library(root: Path) -> list[str]:
         if p.suffix.lower() in AUDIO_SUFFIXES and p.name not in listed
     ]
     return problems
+
+
+# --- cues and bed mixing (spec 007 FR-3) --------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Cue:
+    """One sound playing from `start` to `end` seconds of the final video."""
+
+    sound: Sound
+    start: float
+    end: float
+
+
+def _block(script: dict, section: str) -> dict:
+    if section in ("intro", "outro"):
+        return script[section]
+    number = int(section.removeprefix("page-"))
+    return next(p for p in script["pages"] if p["page_number"] == number)
+
+
+def _names(script: dict, section: str, previous: list[str]) -> list[str]:
+    if section == "back-cover":
+        return previous  # the back cover keeps what the last page had
+    return [n.lower() for n in _block(script, section).get("ambience", [])]
+
+
+def ambience_problems(script: dict, library: Library) -> list[str]:
+    """One line per `ambience` name that is not in the library, naming the page."""
+    blocks = [
+        ("intro", script["intro"]),
+        *[(f"page {p['page_number']}", p) for p in script["pages"]],
+        ("outro", script["outro"]),
+    ]
+    return [
+        f"{where}: unknown sound {name!r}"
+        for where, block in blocks
+        for name in block.get("ambience", [])
+        if name.lower() not in library.sounds
+    ]
+
+
+def build_cues(
+    script: dict,
+    sections: list[Section],
+    times: list[tuple[float, float]],
+    library: Library,
+) -> list[Cue]:
+    """Cues for the episode: a loopable sound on consecutive sections is one cue (AC-2.4);
+    an `sfx` gets its own cue per section so it plays once at each page's start (AC-2.6)."""
+    cues: list[Cue] = []
+    open_runs: dict[str, int] = {}  # loopable name -> index in cues
+    previous: list[str] = []
+    for section, (start, end) in zip(sections, times, strict=True):
+        names = _names(script, section.name, previous)
+        previous = names
+        for name in list(open_runs):
+            if name not in names:
+                del open_runs[name]
+        for name in dict.fromkeys(names):
+            sound = library.get(name)
+            if sound.kind == "sfx":
+                cues.append(Cue(sound, start, end))
+            elif name in open_runs:
+                old = cues[open_runs[name]]
+                cues[open_runs[name]] = Cue(old.sound, old.start, end)
+            else:
+                open_runs[name] = len(cues)
+                cues.append(Cue(sound, start, end))
+    return cues
+
+
+def decode_sound(sound: Sound, sample_rate: int) -> np.ndarray:
+    """The sound file as mono float32 at `sample_rate`; failures name the sound."""
+    from video_pipeline import frames  # lazy: frames pulls in the TTS-side modules
+
+    try:
+        return frames._decode_with_ffmpeg(sound.file, sample_rate)
+    except frames.SoundError as exc:
+        raise LibraryError(f"sound {sound.name!r}: {exc}") from None
+
+
+def loop_fill(sound: np.ndarray, n: int, xf: int) -> np.ndarray:
+    """`sound` repeated to exactly n samples, crossfading xf samples at each join."""
+    if len(sound) >= n:
+        return sound[:n].astype(np.float64)
+    if len(sound) == 0:
+        return np.zeros(n)
+    xf = max(0, min(xf, len(sound) // 2))
+    ramp = np.linspace(0.0, 1.0, xf)
+    out = np.empty(n)
+    out[: len(sound)] = sound
+    pos = len(sound)
+    while pos < n:
+        out[pos - xf : pos] = out[pos - xf : pos] * (1 - ramp) + sound[:xf] * ramp
+        take = min(len(sound) - xf, n - pos)
+        out[pos : pos + take] = sound[xf : xf + take]
+        pos += take
+    return out
+
+
+def _gain(kind: str, audio: AudioSettings) -> float:
+    """Linear gain per kind; `music` shares the ambience level until it gets its own setting."""
+    db = audio.sfx_gain_db if kind == "sfx" else audio.ambience_gain_db
+    return 10 ** (db / 20)
+
+
+def render_bed(
+    cues: list[Cue],
+    decoded: dict[str, np.ndarray],
+    length: int,
+    sample_rate: int,
+    audio: AudioSettings,
+) -> np.ndarray:
+    """Mono float64 bed of `length` samples. Loopable cues fade in and out centred on their
+    boundaries (so neighbours crossfade), but not beyond the episode's start and end; an `sfx`
+    plays once from its start, cut with a 0.1 s fade if its section ends first."""
+    bed = np.zeros(length)
+    fade = max(1, round(audio.ambience_fade * sample_rate))
+    half = fade // 2
+    xf = round(audio.loop_crossfade * sample_rate)
+    for cue in cues:
+        data = decoded[cue.sound.name]
+        start = round(cue.start * sample_rate)
+        end = min(length, round(cue.end * sample_rate))
+        if end <= start:
+            continue
+        gain = _gain(cue.sound.kind, audio)
+        if cue.sound.kind == "sfx":
+            tail = min(len(data), end - start)
+            piece = data[:tail].astype(np.float64) * gain
+            ramp = min(tail, round(0.1 * sample_rate))
+            if tail < len(data) and ramp:  # cut short by the section, so fade the cut
+                piece[-ramp:] *= np.linspace(1.0, 0.0, ramp)
+            bed[start : start + tail] += piece
+            continue
+        rise_from = start - half if start > 0 else start
+        fall_to = end + half if end < length else end
+        lo, hi = max(0, rise_from), min(length, fall_to)
+        t = np.arange(lo, hi)
+        env = np.clip((t - rise_from) / fade, 0, 1) * np.clip((fall_to - t) / fade, 0, 1)
+        bed[lo:hi] += loop_fill(data, hi - lo, xf) * env * gain
+    return bed
 
 
 def main(argv: list[str] | None = None) -> int:

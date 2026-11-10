@@ -355,3 +355,64 @@ def test_mix_master_track_too_long_for_section(cfg):
     tracks["outro"] = np.zeros(SR * 5, np.float32)
     with pytest.raises(ValueError, match="outro"):
         mix_master(_sections(cfg), tracks, page_turn_sound(SR), cfg, SR)
+
+
+# --- mix_master with an ambience bed (spec 007) ----------------------------------------------
+
+
+def _expected_without_bed(sections, tracks, page_turn, cfg):
+    """The pre-spec-007 mix, written out independently of mix_master."""
+    length = round(total_frames(sections, cfg) / cfg.fps * SR)
+    mix = np.zeros(length)
+    times = section_times(sections, cfg)
+    for section, (start, _end) in zip(sections, times, strict=True):
+        if section.track is not None:
+            at = round((start + cfg.lead_in) * SR)
+            mix[at : at + len(tracks[section.track])] += tracks[section.track]
+    turn = page_turn.astype(np.float64) * 10 ** (cfg.audio.sfx_gain_db / 20)
+    for _s, end in times[:-1]:
+        at = round(end * SR)
+        piece = turn[: max(0, length - at)]
+        mix[at : at + len(piece)] += piece
+    limit = 10 ** (cfg.audio.peak_dbfs / 20)
+    peak = np.abs(mix).max()
+    if peak > limit:
+        mix *= limit / peak
+    return mix.astype(np.float32)
+
+
+def test_mix_master_ambience_none_is_old_output(cfg):
+    sections = _sections(cfg)
+    tracks = _tracks(cfg, value=1.0)
+    tracks["intro"][5] = 3.0  # make the limiter act too
+    turn = page_turn_sound(SR)
+    expected = _expected_without_bed(sections, tracks, turn, cfg)
+    assert np.array_equal(mix_master(sections, tracks, turn, cfg, SR), expected)
+    assert np.array_equal(mix_master(sections, tracks, turn, cfg, SR, ambience=None), expected)
+
+
+def test_mix_master_zero_bed_leaves_speech_unchanged(cfg):
+    sections = _sections(cfg)
+    tracks = _tracks(cfg)
+    turn = page_turn_sound(SR)
+    base = mix_master(sections, tracks, turn, cfg, SR)
+    length = len(base)
+    with_bed = mix_master(sections, tracks, turn, cfg, SR, ambience=np.zeros(length))
+    assert np.array_equal(with_bed, base)
+
+
+def test_mix_master_adds_bed_and_keeps_peak_limit(cfg):
+    sections = _sections(cfg)
+    tracks = _tracks(cfg)
+    turn = page_turn_sound(SR)
+    base = mix_master(sections, tracks, turn, cfg, SR)
+    bed = np.full(len(base), 0.01)
+    mixed = mix_master(sections, tracks, turn, cfg, SR, ambience=bed)
+    assert np.allclose(mixed, base + 0.01, atol=1e-6)
+    loud = mix_master(sections, tracks, turn, cfg, SR, ambience=np.full(len(base), 5.0))
+    assert np.abs(loud).max() == pytest.approx(10 ** (cfg.audio.peak_dbfs / 20), rel=1e-4)
+
+
+def test_mix_master_ambience_wrong_length(cfg):
+    with pytest.raises(ValueError, match="ambience"):
+        mix_master(_sections(cfg), _tracks(cfg), page_turn_sound(SR), cfg, SR, ambience=np.zeros(5))

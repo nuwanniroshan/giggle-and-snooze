@@ -792,3 +792,21 @@ def test_caption_cards_pilot_never_ends_mid_sentence_needlessly(cfg):
         needless += chosen > oracle
     print(f"\npilot captions: needless mid-sentence card ends={needless}")
     assert needless == 0
+
+
+def test_config_ambience_settings_read_and_default(cfg, tmp_path):
+    """Spec 007 FR-3: level, fade and loop crossfade come from `audio`; all three are optional."""
+    assert cfg.audio.ambience_gain_db == pytest.approx(-22.0)
+    assert cfg.audio.ambience_fade == pytest.approx(1.5)
+    assert cfg.audio.loop_crossfade == pytest.approx(1.0)
+    data = load_json(RENDER_CONFIG)
+    data["audio"].update(ambience_gain_db=-30, ambience_fade=2, loop_crossfade=0.5)
+    path = tmp_path / "render.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    audio = load_render_config(path).audio
+    assert (audio.ambience_gain_db, audio.ambience_fade, audio.loop_crossfade) == (-30, 2, 0.5)
+    for key in ("ambience_gain_db", "ambience_fade", "loop_crossfade"):
+        del data["audio"][key]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    audio = load_render_config(path).audio
+    assert (audio.ambience_gain_db, audio.ambience_fade, audio.loop_crossfade) == (-22.0, 1.5, 1.0)

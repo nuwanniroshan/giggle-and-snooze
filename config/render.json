@@ -29,6 +29,12 @@
     "font": "/System/Library/Fonts/Supplemental/Georgia.ttf",
     "fallback_font": "/System/Library/Fonts/Supplemental/Times New Roman.ttf"
   },
-  "audio": {"peak_dbfs": -1.0, "sfx_gain_db": -6.0},
+  "audio": {
+    "peak_dbfs": -1.0,
+    "sfx_gain_db": -6.0,
+    "ambience_gain_db": -22.0,
+    "ambience_fade": 1.5,
+    "loop_crossfade": 1.0
+  },
   "video": {"crf": 18, "preset": "medium", "audio_bitrate": "192k", "audio_rate": 48000}
 }
