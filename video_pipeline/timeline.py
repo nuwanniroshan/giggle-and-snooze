@@ -81,7 +81,11 @@ class VideoSettings:
 
 @dataclass(frozen=True)
 class EffectDefaults:
-    """Per-effect defaults for the story-page animation (spec 010 FR-8)."""
+    """Per-effect defaults for the story-page animation (spec 010 FR-8), in the units of the
+    ADR-010 spike (px are at a 1024 px shorter side and scale by side/1024): `count` particles at
+    intensity 1; `speed` short sides per second for moving particles, or Hz / drift rate for
+    distortion and haze; `size` px (streak length, dot, wavelength, noise or glow softness);
+    `strength` opacity 0–1, px displacement (`water_ripple`) or additive gain (`glow`)."""
 
     count: int = 0
     speed: float = 0.0
