@@ -218,3 +218,91 @@ def test_outro_fades_to_black(rendered):
     frames = rendered[4]
     assert frames[-1].mean() < 8
     assert frames[-1].mean() < frames[-10].mean()
+
+
+# --- animated page sections (spec 010 Phase 4) ------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def animated(tmp_path_factory):
+    """The mini book with page 1 animated (fake cut): its page-01 section rendered animated (twice,
+    from a clean cache) and still, with its own camera and with a static camera."""
+    from tests import animation_helpers as ah
+    from tests.helpers import MINI_BOOK
+    from tests.render_helpers import make_world
+    from video_pipeline import render_episode as re_
+    from video_pipeline.timeline import CENTRE, Camera
+
+    tmp = tmp_path_factory.mktemp("animated")
+    with pytest.MonkeyPatch.context() as mp:
+        world = make_world(tmp, mp, MINI_BOOK)
+    ah.write_plan(world["folder"], 1, layers=[ah.layer()])
+    ah.cut(world["folder"], pages=[1])
+    inputs = re_._load_inputs(world["folder"], world["root"])
+    assert inputs.eligibility["page-01"].animated
+    section = next(s for s in inputs.sections if s.name == "page-01")
+    static = dataclasses.replace(section, camera=Camera("static", section.frames, CENTRE, CENTRE))
+    picture = inputs.pictures.files[section.picture]
+    cfg = inputs.cfg
+    out = {"cfg": cfg, "section": section}
+
+    def clip(name, sec, animate):
+        path = tmp / f"{name}.mp4"
+        anim = re_._load_animation(inputs, world["folder"], sec, picture, None) if animate else None
+        assert (anim is not None) == animate
+        re_._render_section(
+            sec, picture, path, tmp / "work" / name, cfg, run_ffmpeg, re_.run_ffmpeg_frames, anim
+        )
+        return path
+
+    for name, sec, animate in [
+        ("animated", section, True),
+        ("animated_again", section, True),
+        ("still", section, False),
+        ("static_animated", static, True),
+        ("static_still", static, False),
+    ]:
+        path = clip(name, sec, animate)
+        out[name] = _decode_rgb(path)
+        out[f"{name}_probe"] = probe(path)
+    return out
+
+
+def test_animated_clip_is_tagged_like_the_still(animated):  # FR-12
+    for name in ("animated", "still"):
+        v = animated[f"{name}_probe"]["streams"][0]
+        assert (v["pix_fmt"], v["color_range"], v["color_space"]) == ("yuv420p", "tv", "bt709")
+        assert (v["width"], v["height"]) == (W, H)
+
+
+def test_animated_frame_count_equals_the_still(animated):  # AC-1.6
+    frames = animated["section"].frames
+    assert len(animated["animated"]) == len(animated["still"]) == frames
+    assert int(animated["animated_probe"]["streams"][0]["nb_frames"]) == frames
+
+
+def test_animated_first_frame_matches_the_still(animated):  # AC-1.4
+    mad = np.abs(animated["animated"][0] - animated["still"][0]).mean()
+    assert mad <= 3, mad
+
+
+def test_animated_page_actually_moves(animated):  # AC-1.1
+    frames = animated["static_animated"]
+    assert np.abs(frames[-1] - frames[0]).max() > 30
+
+
+def test_animated_render_is_repeatable(animated):  # AC-5.4
+    assert np.array_equal(animated["animated"], animated["animated_again"])
+
+
+def test_backdrop_outside_the_picture_matches_the_still(animated):  # AC-1.5
+    side = H  # the 64×64 test picture is contained at full height
+    x0 = (W - side) // 2
+    margin = 2  # 4:2:0 chroma bleeds across the picture edge
+    keep = np.ones((H, W), bool)
+    keep[:, x0 - margin : x0 + side + margin] = False
+    a, s = animated["static_animated"], animated["static_still"]
+    assert len(a) == len(s)
+    for n in range(len(a)):
+        mad = np.abs(a[n][keep] - s[n][keep]).mean()
+        assert mad <= 2, (n, mad)

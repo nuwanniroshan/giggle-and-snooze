@@ -2,6 +2,7 @@
 
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -11,11 +12,15 @@ from video_pipeline import render_episode
 from video_pipeline.render_episode import (
     ENCODE_ARGS,
     RenderError,
+    _to_bt709_yuv,
+    animated_section_command,
+    animated_section_filtergraph,
     concat_command,
     frame_grab_command,
     mux_command,
     probe,
     run_ffmpeg,
+    run_ffmpeg_frames,
     section_command,
     section_filtergraph,
     transition_command,
@@ -288,3 +293,102 @@ def test_probe_missing_binary_is_render_error(monkeypatch):
     monkeypatch.setattr(render_episode.subprocess, "run", fake_run)
     with pytest.raises(RenderError, match="ffprobe not found"):
         probe(Path("x.mp4"))
+
+
+# --- animated sections (spec 010 Phase 4) -----------------------------------------------------
+
+
+def test_animated_filtergraph_converts_the_piped_frames_and_keeps_the_tail(cfg):  # FR-12
+    section = _page(captions=CARDS)
+    graph = animated_section_filtergraph(section, 2, cfg)
+    still = section_filtergraph(section, 2, cfg)
+    head, rest = graph.split(";\n", 1)
+    assert head == f"[0:v]{_to_bt709_yuv(1920, 1080)}[base]"
+    assert "zoompan" not in graph and "scale=7680" not in graph
+    assert rest == still.split(";\n", 1)[1]  # same caption overlays and BT.709 tail
+
+
+def test_animated_filtergraph_outro_fade_and_no_captions(cfg):
+    section = _outro()
+    graph = animated_section_filtergraph(section, 0, cfg)
+    assert graph.startswith(f"[0:v]{_to_bt709_yuv(1920, 1080)}[base];\n[base]fade=t=out:")
+    assert graph.endswith(f"{BT709_TAGS},format=yuv420p[vout]")
+    with pytest.raises(ValueError, match="captions"):
+        animated_section_filtergraph(_page(captions=CARDS), 1, cfg)
+
+
+def test_animated_section_command_pipes_rawvideo_then_captions(cfg, tmp_path):  # AC-1.6
+    section = _page(frames=77, captions=CARDS)
+    caps = [tmp_path / "c0.png", tmp_path / "c1.png"]
+    cmd = animated_section_command(section, caps, tmp_path / "g.txt", tmp_path / "o.mp4", cfg)
+    assert all(isinstance(a, str) for a in cmd)
+    assert cmd[:4] == ["ffmpeg", "-y", "-loglevel", "error"]
+    first = cmd.index("-i")
+    assert cmd[4:first] == ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "1920x1080",
+                            "-framerate", "30"]  # fmt: skip
+    assert "-color_range" not in cmd[:first]
+    inputs = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-i"]
+    assert inputs == ["pipe:0", *map(str, caps)]
+    assert cmd[cmd.index("-filter_complex_script") + 1] == str(tmp_path / "g.txt")
+    assert cmd[cmd.index("-map") + 1] == "[vout]"
+    assert cmd[cmd.index("-frames:v") + 1] == "77"
+    encode = ENCODE_ARGS(cfg)
+    assert cmd[-1 - len(encode) : -1] == encode
+    assert cmd[-1] == str(tmp_path / "o.mp4")
+
+
+def _child(code: str, *args: str) -> list[str]:
+    return [sys.executable, "-c", code, *args]
+
+
+_COUNT = "import sys,pathlib; d=sys.stdin.buffer.read(); pathlib.Path(sys.argv[-1]).write_text(str(len(d)))"
+
+
+def test_run_ffmpeg_frames_writes_every_frame(tmp_path):
+    out = tmp_path / "n.txt"
+    frames = (bytes([i]) * 1000 for i in range(25))
+    run_ffmpeg_frames(_child(_COUNT, str(out)), frames, "section page-01")
+    assert out.read_text() == "25000"
+
+
+def test_run_ffmpeg_frames_failure_names_what_and_stderr_tail(tmp_path):
+    code = "import sys; sys.stdin.buffer.read(); sys.stderr.write('x'*2000+'Invalid argument'); sys.exit(1)"
+    with pytest.raises(RenderError) as info:
+        run_ffmpeg_frames(_child(code), (b"abc" for _ in range(3)), "section page-01")
+    message = str(info.value)
+    assert message.startswith("section page-01: ") and message.endswith("Invalid argument")
+    assert len(message) < 1000
+
+
+def test_run_ffmpeg_frames_early_exit_does_not_hang(tmp_path):
+    code = "import sys; sys.stderr.write('bad input'); sys.exit(3)"
+    frames = (b"z" * 1_000_000 for _ in range(200))  # far more than a pipe buffer
+    with pytest.raises(RenderError, match="section page-02: bad input"):
+        run_ffmpeg_frames(_child(code), frames, "section page-02")
+
+
+def test_run_ffmpeg_frames_disk_full_names_the_output_folder(tmp_path):
+    out = tmp_path / "video" / "sections" / "page-01.tmp.mp4"
+    code = "import sys; sys.stdin.buffer.read(); sys.stderr.write('No space left on device'); sys.exit(1)"
+    with pytest.raises(RenderError) as info:
+        run_ffmpeg_frames(_child(code, str(out)), iter([b"a"]), "section page-01")
+    assert str(info.value) == (
+        f"section page-01: not enough disk space to write video in {out.parent}"
+    )
+
+
+def test_run_ffmpeg_frames_missing_binary_is_render_error():
+    with pytest.raises(RenderError) as info:
+        run_ffmpeg_frames(["no-such-ffmpeg-binary-xyz"], iter([b"a"]), "section page-01")
+    assert str(info.value) == "section page-01: ffmpeg not found; brew install ffmpeg"
+
+
+def test_run_ffmpeg_frames_frame_error_stops_the_process(tmp_path):
+    def frames():
+        yield b"a" * 10
+        raise ValueError("picture frames ended early")
+
+    marker = tmp_path / "n.txt"
+    with pytest.raises(ValueError, match="ended early"):
+        run_ffmpeg_frames(_child(_COUNT, str(marker)), frames(), "section page-01")
+    assert not marker.exists()  # killed before it could finish

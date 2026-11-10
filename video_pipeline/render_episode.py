@@ -19,9 +19,11 @@ import hashlib
 import io
 import json
 import os
+import queue
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+import threading
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,8 +33,18 @@ import soundfile as sf
 from PIL import Image, UnidentifiedImageError
 
 from video_pipeline import sound_library, timeline
-from video_pipeline.animate import PageEligibility, animated_key, page_eligibility
+from video_pipeline.animate import (
+    AnimationError,
+    PageAnimation,
+    PageEligibility,
+    animated_key,
+    canvas_frames,
+    load_page_animation,
+    page_eligibility,
+    picture_frames,
+)
 from video_pipeline.contract import ConfigError
+from video_pipeline.cut_layers import layers_dir
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.frames import (
@@ -40,6 +52,7 @@ from video_pipeline.frames import (
     PictureError,
     SoundError,
     _read_cache,
+    canvas_parts,
     compose_canvas,
     load_page_turn,
     mix_master,
@@ -127,17 +140,36 @@ def section_filtergraph(section: Section, caption_count: int, cfg: RenderConfig)
     """The section's filtergraph: upscaled canvas → zoompan camera → caption overlays → (outro)
     fade-out → `[vout]` in yuv420p. Input 0 is the canvas, inputs 1..K the caption stills, in
     the order of `section.captions`; overlay times are section-relative seconds."""
+    _check_caption_count(section, caption_count)
+    w, h, fps = cfg.width, cfg.height, cfg.fps
+    z, x, y = zoompan_expr(section.camera)
+    head = (
+        f"[0:v]{_to_bt709_yuv(cfg.upscale * w, cfg.upscale * h)},"
+        f"zoompan=z='{z}':x='{x}':y='{y}':d={section.frames}:s={w}x{h}:fps={fps}[base]"
+    )
+    return _graph_with_tail(head, section, cfg)
+
+
+def animated_section_filtergraph(section: Section, caption_count: int, cfg: RenderConfig) -> str:
+    """An animated section's filtergraph (spec 010 FR-12): input 0 is the piped rgb24 frames with
+    the camera already applied, converted to BT.709 yuv420p; then the same caption overlays and
+    (outro) fade/tag tail as `section_filtergraph`."""
+    _check_caption_count(section, caption_count)
+    return _graph_with_tail(f"[0:v]{_to_bt709_yuv(cfg.width, cfg.height)}[base]", section, cfg)
+
+
+def _check_caption_count(section: Section, caption_count: int) -> None:
     if caption_count != len(section.captions):
         raise ValueError(
             f"section {section.name} has {len(section.captions)} captions, "
             f"{caption_count} caption inputs given"
         )
-    w, h, fps = cfg.width, cfg.height, cfg.fps
-    z, x, y = zoompan_expr(section.camera)
-    chains = [
-        f"[0:v]{_to_bt709_yuv(cfg.upscale * w, cfg.upscale * h)},"
-        f"zoompan=z='{z}':x='{x}':y='{y}':d={section.frames}:s={w}x{h}:fps={fps}[base]"
-    ]
+
+
+def _graph_with_tail(head: str, section: Section, cfg: RenderConfig) -> str:
+    """`head` (ending in `[base]`), then one overlay per caption, the outro fade and the tags."""
+    fps = cfg.fps
+    chains = [head]
     label = "base"
     for index, card in enumerate(section.captions, start=1):
         # Half-open [start, end): contiguous cards never share a boundary frame. The quotes keep
@@ -174,6 +206,34 @@ def section_command(
     canvas and overlay repeats each caption's frame (`eof_action=repeat`). Looping the full-frame
     captions instead decodes every one of them on every frame (about 3x slower at 1080p)."""
     cmd = ["ffmpeg", "-y", "-loglevel", "error", *_input_still(canvas_png, cfg.fps)]
+    for caption in caption_pngs:
+        cmd += _input_still(caption, cfg.fps)
+    cmd += [
+        "-filter_complex_script",
+        str(script_path),
+        "-map",
+        "[vout]",
+        "-frames:v",
+        str(section.frames),
+        *ENCODE_ARGS(cfg),
+        str(out_path),
+    ]
+    return cmd
+
+
+def animated_section_command(
+    section: Section,
+    caption_pngs: Sequence[Path],
+    script_path: Path,
+    out_path: Path,
+    cfg: RenderConfig,
+) -> list[str]:
+    """FFmpeg arguments encoding an animated section: input 0 is rgb24 W×H frames on stdin (full
+    range by definition; no -color_range on it), inputs 1..K the caption stills, exactly
+    `section.frames` frames out (AC-1.6)."""
+    cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+    cmd += ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{cfg.width}x{cfg.height}"]
+    cmd += ["-framerate", str(cfg.fps), "-i", "pipe:0"]
     for caption in caption_pngs:
         cmd += _input_still(caption, cfg.fps)
     cmd += [
@@ -307,6 +367,17 @@ def _tail(text: str | bytes | None) -> str:
     return (text or "").strip()[-_STDERR_TAIL:]
 
 
+def _ffmpeg_failure(
+    cmd: list[str], what: str, stderr: str | bytes | None, code: int
+) -> RenderError:
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", "replace")
+    if "No space left on device" in (stderr or ""):
+        folder = Path(cmd[-1]).parent
+        return RenderError(f"{what}: not enough disk space to write video in {folder}")
+    return RenderError(f"{what}: {_tail(stderr) or f'ffmpeg exit {code}'}")
+
+
 def run_ffmpeg(cmd: list[str], what: str) -> None:
     """Run an FFmpeg command; a missing binary or a failure becomes RenderError naming `what`."""
     try:
@@ -314,14 +385,63 @@ def run_ffmpeg(cmd: list[str], what: str) -> None:
     except FileNotFoundError:
         raise RenderError(f"{what}: ffmpeg not found; brew install ffmpeg") from None
     except subprocess.CalledProcessError as exc:
-        stderr = (
-            exc.stderr.decode("utf-8", "replace") if isinstance(exc.stderr, bytes) else exc.stderr
+        raise _ffmpeg_failure(cmd, what, exc.stderr, exc.returncode) from None
+
+
+_FRAME_QUEUE = 3  # frames buffered between the drawing loop and the pipe writer
+
+
+def run_ffmpeg_frames(cmd: list[str], frames: Iterable[bytes], what: str) -> None:
+    """Run an FFmpeg command that reads raw frames on stdin (spec 010 FR-12, spike fact 8).
+
+    A writer thread feeds the pipe from a small queue while this thread draws the next frame;
+    stderr is drained on its own thread. Close stdin, then collect stderr, then wait. A failure
+    becomes RenderError naming `what` with the stderr tail, as in `run_ffmpeg`; an error while
+    drawing frames kills FFmpeg and propagates unchanged."""
+    try:
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
         )
-        if "No space left on device" in (stderr or ""):
-            folder = Path(cmd[-1]).parent
-            raise RenderError(f"{what}: not enough disk space to write video in {folder}") from None
-        detail = _tail(stderr) or f"ffmpeg exit {exc.returncode}"
-        raise RenderError(f"{what}: {detail}") from None
+    except FileNotFoundError:
+        raise RenderError(f"{what}: ffmpeg not found; brew install ffmpeg") from None
+    assert proc.stdin is not None and proc.stderr is not None
+    stdin, stderr = proc.stdin, proc.stderr
+    err: list[bytes] = []
+    reader = threading.Thread(target=lambda: err.append(stderr.read()), daemon=True)
+    reader.start()
+    pending: queue.Queue[bytes | None] = queue.Queue(maxsize=_FRAME_QUEUE)
+    broken = threading.Event()
+
+    def write() -> None:
+        while (item := pending.get()) is not None:
+            if broken.is_set():
+                continue  # FFmpeg is gone: drain the queue so the producer never blocks
+            try:
+                stdin.write(item)
+            except OSError:  # BrokenPipeError: FFmpeg exited early; its stderr says why
+                broken.set()
+
+    writer = threading.Thread(target=write, daemon=True)
+    writer.start()
+    try:
+        for frame in frames:
+            if broken.is_set():
+                break
+            pending.put(frame)
+    except BaseException:
+        proc.kill()
+        raise
+    finally:
+        pending.put(None)
+        writer.join()
+        try:
+            stdin.close()
+        except OSError:
+            broken.set()
+        reader.join()
+        code = proc.wait()
+    if code != 0 or broken.is_set():
+        raise _ffmpeg_failure(cmd, what, b"".join(err), code)
 
 
 def probe(path: Path) -> dict:
@@ -473,6 +593,7 @@ class RenderResult:
 
 
 Runner = Callable[[list[str], str], None]
+FrameRunner = Callable[[list[str], Iterable[bytes], str], None]
 Progress = Callable[[str, str], None]
 
 
@@ -511,16 +632,88 @@ def _run_to(run: Runner, cmd_for: Callable[[Path], list[str]], out: Path, what: 
         tmp.unlink(missing_ok=True)
 
 
-def _render_section(
-    section: Section, picture: Path, clip: Path, work: Path, cfg: RenderConfig, run: Runner
+def _run_frames_to(
+    frame_run: FrameRunner,
+    cmd_for: Callable[[Path], list[str]],
+    frames: Iterable[bytes],
+    out: Path,
+    what: str,
 ) -> None:
-    canvas = work / "canvas.png"
-    compose_canvas(picture, cfg, canvas)
+    """`_run_to` for a command fed frames on stdin: write to a temporary file, then move it."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _tmp_clip(out)
+    try:
+        frame_run(cmd_for(tmp), frames, what)
+        os.replace(tmp, out)  # noqa: PTH105 - atomic replace
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def animated_canvas_frames(
+    anim: PageAnimation, picture: Path, section: Section, cfg: RenderConfig
+) -> Iterator[bytes]:
+    """The section's rgb24 W×H frames: each animated picture frame placed on the still canvas's
+    backdrop (made once per section) with the section's camera applied (spec 010 FR-12)."""
+    try:
+        with Image.open(picture) as im:
+            rgb = im.convert("RGB")
+    except (OSError, UnidentifiedImageError) as exc:
+        raise PictureError(picture, str(exc)) from None
+    backdrop, size, offset = canvas_parts(rgb, cfg)
+    return canvas_frames(
+        picture_frames(anim, section.frames),
+        np.asarray(backdrop, dtype=np.uint8),
+        size,
+        offset,
+        section.camera,
+        section.frames,
+        cfg.width,
+        cfg.height,
+        cfg.upscale,
+    )
+
+
+def _render_captions(section: Section, work: Path, cfg: RenderConfig) -> list[Path]:
     captions = []
     for number, card in enumerate(section.captions):
         path = work / f"caption_{number:03d}.png"
         render_caption(card.text, cfg, path)
         captions.append(path)
+    return captions
+
+
+def _render_section(
+    section: Section,
+    picture: Path,
+    clip: Path,
+    work: Path,
+    cfg: RenderConfig,
+    run: Runner,
+    frame_run: FrameRunner = run_ffmpeg_frames,
+    anim: PageAnimation | None = None,
+) -> None:
+    """Render one section clip: the still canvas through zoompan, or, given `anim`, the animated
+    frames piped through `frame_run` with the same captions, tail and encoding."""
+    if anim is not None:
+        if anim.frames != section.frames:
+            raise ValueError(f"animation has {anim.frames} frames, section {section.frames}")
+        work.mkdir(parents=True, exist_ok=True)
+        captions = _render_captions(section, work, cfg)
+        graph = work / "graph.txt"
+        graph.write_text(
+            animated_section_filtergraph(section, len(captions), cfg), encoding="utf-8"
+        )
+        _run_frames_to(
+            frame_run,
+            lambda out: animated_section_command(section, captions, graph, out, cfg),
+            animated_canvas_frames(anim, picture, section, cfg),
+            clip,
+            f"section {section.name}",
+        )
+        return
+    canvas = work / "canvas.png"
+    compose_canvas(picture, cfg, canvas)
+    captions = _render_captions(section, work, cfg)
     graph = work / "graph.txt"
     graph.write_text(section_filtergraph(section, len(captions), cfg), encoding="utf-8")
     _run_to(
@@ -565,6 +758,7 @@ class _Inputs:
     ambience_key: list = field(default_factory=list)
     eligibility: dict[str, PageEligibility] = field(default_factory=dict)
     still_notes: list[tuple[str, str]] = field(default_factory=list)
+    still_keys: list[str] = field(default_factory=list)  # equal to `keys` for still sections
 
 
 def _check_overrides(script: dict, cfg: RenderConfig) -> None:
@@ -637,10 +831,11 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         raise RenderError(str(exc)) from None
     _check_overrides(script, cfg)
     eligibility, still_notes = _page_eligibility(folder, book, script, cfg, Path(root))
-    keys = []
+    keys, still_keys = [], []
     for s in sections:
         key = section_key(s, picture_sha[s.picture], cfg)
         el = eligibility.get(s.name)
+        still_keys.append(key)
         keys.append(animated_key(key, el, cfg.animation) if el and el.animated else key)
     trans_keys = [transition_key(a, b, cfg) for a, b in zip(keys, keys[1:], strict=False)]
     paths = VideoPaths(folder.build_dir / "video")
@@ -662,6 +857,7 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         ambience_key,
         eligibility,
         still_notes,
+        still_keys,
     )
 
 
@@ -797,12 +993,17 @@ def render_video(
     run: Runner = run_ffmpeg,
     on_progress: Progress | None = None,
     sfx_dir: Path | None = None,
+    frame_run: FrameRunner = run_ffmpeg_frames,
 ) -> RenderResult:
     """Render the approved episode of one book to `books/<slug>/build/video/<slug>.mp4` (spec 003).
 
     Sections and transitions are cached by key; the final video is reused when the ordered keys,
     the tracks, the page-turn sound and the audio/encode settings are unchanged (AC-7.1, AC-7.2).
     The page-turn sound comes from `sfx_dir` (default `<root>/assets/audio_sfx`).
+
+    An animated page whose layer files can't be loaded renders still and is logged; its clip is
+    recorded under the still key and the video record gets no final key, so the next run tries
+    the animation again instead of calling the still fallback up to date (spec 010 Phase 4).
     """
     inputs = _load_inputs(folder, root)
     slug, cfg = inputs.slug, inputs.cfg
@@ -836,7 +1037,8 @@ def render_video(
         record_path.unlink(missing_ok=True)  # stale until the new video is complete
 
         rendered = reused = 0
-        for section, key in zip(sections, keys, strict=True):
+        fell_back: list[str] = []
+        for index, (section, key) in enumerate(zip(sections, keys, strict=True)):
             clip = paths.sections / f"{section.name}.mp4"
             meta = paths.sections / f"{section.name}.json"
             picture = pictures.files[section.picture]
@@ -845,7 +1047,14 @@ def render_video(
                 action = "reused"
             else:
                 meta.unlink(missing_ok=True)
-                _render_section(section, picture, clip, paths.frames / section.name, cfg, run)
+                anim = _load_animation(inputs, folder, section, picture, on_progress)
+                el = inputs.eligibility.get(section.name)
+                if el is not None and el.animated and anim is None:
+                    fell_back.append(section.name)
+                    key = inputs.still_keys[index]
+                _render_section(
+                    section, picture, clip, paths.frames / section.name, cfg, run, frame_run, anim
+                )
                 write_atomic(meta, {"key": key, "frames": section.frames, "picture": str(picture)})
                 rendered += 1
                 action = "rendered"
@@ -888,7 +1097,7 @@ def render_video(
         write_atomic(
             record_path,
             {
-                "final_key": final_key,
+                "final_key": None if fell_back else final_key,
                 "duration": round(duration, 3),
                 "frames": total_frames(sections, cfg),
                 "sections": [
@@ -904,6 +1113,37 @@ def render_video(
         if exc.errno == errno.ENOSPC:
             raise RenderError(f"not enough disk space to write video in {paths.root}") from None
         raise
+
+
+def _load_animation(
+    inputs: _Inputs,
+    folder: BookFolder,
+    section: Section,
+    picture: Path,
+    on_progress: Progress | None,
+) -> PageAnimation | None:
+    """The section's page animation, or None for a still section or when its files can't be
+    loaded (logged as "page NN: still – reason")."""
+    el = inputs.eligibility.get(section.name)
+    if el is None or not el.animated or el.plan is None:
+        return None
+    number = el.plan.page_number
+    try:
+        return load_page_animation(
+            el.plan,
+            layers_dir(folder, number),
+            picture,
+            inputs.cfg.animation,
+            el.scale,
+            inputs.slug,
+            number,
+            inputs.cfg.fps,
+            section.frames,
+        )
+    except AnimationError as exc:
+        if on_progress:
+            on_progress(f"page {number:02d}", f"still – {exc}")
+        return None
 
 
 # --- CLI ------------------------------------------------------------------------------------
@@ -932,8 +1172,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None, run: Runner | None = None) -> int:
+def main(
+    argv: list[str] | None = None, run: Runner | None = None, frame_run: FrameRunner | None = None
+) -> int:
     args = parse_args(argv)
+    folder: BookFolder | None = None
     try:
         folder = book_folder(args.book, args.root)
         result = render_video(
@@ -943,15 +1186,15 @@ def main(argv: list[str] | None = None, run: Runner | None = None) -> int:
             run=run or run_ffmpeg,
             on_progress=lambda name, action: print(f"  {name}: {action}", flush=True),
             sfx_dir=args.sfx_dir,
+            frame_run=frame_run or run_ffmpeg_frames,
         )
     except (RenderError, PictureError, SoundError, BookError, ConfigError, LibraryError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except OSError as exc:
         if exc.errno == errno.ENOSPC:
-            print(
-                f"error: not enough disk space to write video in {args.build_dir}", file=sys.stderr
-            )
+            where = folder.build_dir / "video" if folder is not None else args.root
+            print(f"error: not enough disk space to write video in {where}", file=sys.stderr)
             return 1
         raise
     if result.up_to_date:

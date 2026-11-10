@@ -55,22 +55,44 @@ def _save_png_atomic(image: Image.Image, out_path: Path) -> None:
 # --- canvas ---------------------------------------------------------------------------------
 
 
+def canvas_parts(
+    picture: Image.Image, cfg: RenderConfig
+) -> tuple[Image.Image, tuple[int, int], tuple[int, int]]:
+    """(blurred darkened backdrop W×H, contain size, paste offset): the parts `compose_canvas`
+    puts together, shared with the animated sections (spec 010 FR-12)."""
+    size = (cfg.width, cfg.height)
+    backdrop = ImageOps.fit(picture, size, Image.Resampling.LANCZOS)
+    backdrop = backdrop.filter(ImageFilter.GaussianBlur(cfg.backdrop.blur))
+    darken = cfg.backdrop.darken
+    backdrop = backdrop.point(lambda v: round(v * darken))
+    front = _contain_size(picture.size, size)
+    offset = ((size[0] - front[0]) // 2, (size[1] - front[1]) // 2)
+    return backdrop, front, offset
+
+
+def _contain_size(image: tuple[int, int], size: tuple[int, int]) -> tuple[int, int]:
+    """The size `ImageOps.contain(image, size)` resizes to (Pillow's arithmetic, so the still
+    canvas stays byte-identical)."""
+    im_ratio = image[0] / image[1]
+    dest_ratio = size[0] / size[1]
+    if im_ratio == dest_ratio:
+        return size
+    if im_ratio > dest_ratio:
+        return size[0], round(image[1] / image[0] * size[0])
+    return round(image[0] / image[1] * size[1]), size[1]
+
+
 def compose_canvas(picture_path: Path, cfg: RenderConfig, out_path: Path) -> None:
     """Write the RGB W×H canvas: the whole picture at full frame height, centred, over a blurred,
     darkened copy of itself filling the frame (AC-3.1)."""
     picture_path = Path(picture_path)
-    size = (cfg.width, cfg.height)
     try:
         with Image.open(picture_path) as im:
             picture = im.convert("RGB")
     except (OSError, UnidentifiedImageError) as exc:
         raise PictureError(picture_path, str(exc)) from None
-    backdrop = ImageOps.fit(picture, size, Image.Resampling.LANCZOS)
-    backdrop = backdrop.filter(ImageFilter.GaussianBlur(cfg.backdrop.blur))
-    darken = cfg.backdrop.darken
-    backdrop = backdrop.point(lambda v: round(v * darken))
-    front = ImageOps.contain(picture, size, Image.Resampling.LANCZOS)
-    backdrop.paste(front, ((size[0] - front.width) // 2, (size[1] - front.height) // 2))
+    backdrop, size, offset = canvas_parts(picture, cfg)
+    backdrop.paste(picture.resize(size, Image.Resampling.LANCZOS), offset)
     _save_png_atomic(backdrop, out_path)
 
 

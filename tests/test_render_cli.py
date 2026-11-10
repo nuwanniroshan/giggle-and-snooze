@@ -10,7 +10,7 @@ import pytest
 import soundfile as sf
 
 from tests.helpers import MINI_BOOK, PILOT_BOOK, load_json
-from tests.render_helpers import FakeRunner, cli_args, make_world, picture
+from tests.render_helpers import FakeFrameRunner, FakeRunner, cli_args, make_world, picture
 from video_pipeline import render_episode as re_
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.episode import load_book
@@ -24,9 +24,10 @@ def world(tmp_path, monkeypatch):
     return make_world(tmp_path, monkeypatch, MINI_BOOK)
 
 
-def render(world, *extra, runner=None):
+def render(world, *extra, runner=None, frame_runner=None):
     runner = runner if runner is not None else FakeRunner()
-    return re_.main(cli_args(world, *extra), run=runner), runner
+    frame_runner = frame_runner if frame_runner is not None else FakeFrameRunner()
+    return re_.main(cli_args(world, *extra), run=runner, frame_run=frame_runner), runner
 
 
 def sections_rendered(runner):
@@ -504,3 +505,107 @@ def test_animation_off_logs_nothing_and_keeps_still_keys(world, capsys):  # AC-2
     assert inputs.keys == _still_keys(inputs)
     assert render(world)[0] == 0
     assert "still" not in capsys.readouterr().out
+
+
+# --- animated sections (spec 010 Phase 4) -----------------------------------------------------
+
+
+def _render_both(world, *extra):
+    runner, frames = FakeRunner(), FakeFrameRunner()
+    code = re_.main(cli_args(world, *extra), run=runner, frame_run=frames)
+    return code, runner, frames
+
+
+def _section_meta(world, name):
+    return load_json(world["video"] / "sections" / f"{name}.json")
+
+
+def test_animated_page_pipes_exactly_its_frames(world, capsys):  # AC-1.6, FR-12
+    _animate(world)
+    inputs = _inputs(world)
+    page = next(s for s in inputs.sections if s.name == "page-01")
+    code, runner, frames = _render_both(world)
+    assert code == 0, capsys.readouterr().err
+    assert frames.whats() == ["section page-01"]
+    what, cmd, count, sizes = frames.calls[0]
+    assert count == page.frames and sizes == {320 * 180 * 3}
+    assert cmd[cmd.index("-i") + 1] == "pipe:0"
+    assert cmd[cmd.index("-frames:v") + 1] == str(page.frames)
+    assert sections_rendered(runner) == [n for n in MINI_SECTIONS if n != "page-01"]
+    # transitions into and out of the animated page still grab its real frames (AC-2.2)
+    clip = str(world["video"] / "sections" / "page-01.mp4")
+    grabs = [w for w, c in runner.calls if w.startswith("grab ") and clip in c]
+    assert grabs == ["grab first frame of page-01", "grab last frame of page-01"]
+    assert runner.whats("transition ") == [
+        f"transition {a}__{b}" for a, b in zip(MINI_SECTIONS, MINI_SECTIONS[1:], strict=False)
+    ]
+    assert _section_meta(world, "page-01")["key"] == inputs.keys[1]
+    assert "page-01: rendered" in capsys.readouterr().out
+    assert not list(world["video"].rglob("*.tmp*"))
+
+
+def test_master_audio_is_identical_with_animation_on_and_off(world):  # AC-2.3
+    _animate(world)
+    assert _render_both(world)[0] == 0
+    on = (world["video"] / "audio" / "master.wav").read_bytes()
+    _edit_json(world["config"] / "render.json", lambda c: c["animation"].update(enabled=False))
+    code, _runner, frames = _render_both(world)
+    assert code == 0 and frames.calls == []
+    assert (world["video"] / "audio" / "master.wav").read_bytes() == on
+
+
+def test_animation_off_runs_exactly_todays_commands(world, tmp_path):  # AC-2.4, NFR-5
+    import shutil
+
+    code, today, _ = _render_both(world)
+    assert code == 0
+    metas = {p.name: p.read_bytes() for p in (world["video"] / "sections").glob("*.json")}
+    shutil.rmtree(world["video"])
+    _animate(world)
+    _edit_json(world["config"] / "render.json", lambda c: c["animation"].update(enabled=False))
+    code, off, frames = _render_both(world)
+    assert code == 0 and frames.calls == []
+    assert off.calls == today.calls
+    assert {p.name: p.read_bytes() for p in (world["video"] / "sections").glob("*.json")} == metas
+
+
+def test_second_animated_run_renders_nothing(world, capsys):  # AC-5.1
+    _animate(world)
+    assert _render_both(world)[0] == 0
+    capsys.readouterr()
+    code, runner, frames = _render_both(world)
+    assert code == 0 and runner.calls == [] and frames.calls == []
+    assert "up to date" in capsys.readouterr().out
+
+
+def test_unloadable_layer_falls_back_to_still_and_logs(world, capsys):  # FR-11, plan Phase 4
+    from video_pipeline.cut_layers import layers_dir
+
+    _animate(world)
+    folder = layers_dir(world["folder"], 1)
+    manifest = load_json(folder / "layers.json")
+    layer = next(e for e in manifest["layers"] if not e.get("empty"))
+    (folder / layer["file"]).write_bytes(b"not a png")
+    inputs = _inputs(world)
+    assert inputs.eligibility["page-01"].animated  # the file is only read at render time
+    code, runner, frames = _render_both(world)
+    out = capsys.readouterr().out
+    assert code == 0 and frames.calls == []
+    assert "section page-01" in runner.whats("section ")
+    assert out.count("page 01: still – ") == 1 and "can't read the layer" in out
+    # written under the still key, so the next run tries the animation again
+    assert _section_meta(world, "page-01")["key"] == _still_keys(inputs)[1]
+    assert re_.render_check(world["folder"], world["root"]) == "out_of_date"
+    code, runner, frames = _render_both(world)
+    assert code == 0 and sections_rendered(runner) == ["page-01"]
+    assert "page 01: still – " in capsys.readouterr().out
+
+
+def test_main_disk_full_outside_render_names_the_video_folder(world, capsys, monkeypatch):
+    def full(*args, **kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(re_, "render_video", full)
+    code, _ = render(world)
+    assert code == 1
+    assert f"not enough disk space to write video in {world['video']}" in capsys.readouterr().err
