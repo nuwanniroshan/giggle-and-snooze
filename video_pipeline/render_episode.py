@@ -8,7 +8,7 @@ The builders are pure (they return argument lists or filtergraph strings); `run_
 `probe` are the only places that start a process. `render_video` gates on approved audio, resolves
 the pictures, caches sections/transitions by key and assembles the final video.
 
-Run: uv run python -m video_pipeline.render_episode [--book PATH] [--force]
+Run: uv run python -m video_pipeline.render_episode --book SLUG [--force] [--preview-page N]
 """
 
 from __future__ import annotations
@@ -491,6 +491,10 @@ class VideoPaths:
     def record(self, slug: str) -> Path:
         return self.root / f"{slug}.json"
 
+    def preview(self, page_number: int) -> Path:
+        """A page preview (spec 010 FR-15): `preview/page_NN.mp4`."""
+        return self.root / "preview" / f"page_{page_number:02d}.mp4"
+
 
 @dataclass(frozen=True)
 class ResolvedPictures:
@@ -507,6 +511,14 @@ def _illustration_file(page: dict) -> str:
     return page.get("illustration_file") or f"page_{int(page['page_number']):02d}.png"
 
 
+def _page_picture(folder: BookFolder, page: dict) -> Path:
+    """A story page's illustration; missing → RenderError naming the page and file."""
+    path = folder.illustrations / _illustration_file(page)
+    if not path.is_file():
+        raise RenderError(f"page {int(page['page_number'])}: illustration not found: {path}")
+    return path
+
+
 def resolve_pictures(book: dict, folder: BookFolder, shared_nooks: Path) -> ResolvedPictures:
     """Every picture the episode shows (FR-1, AC-6.1, AC-6.3).
 
@@ -517,11 +529,7 @@ def resolve_pictures(book: dict, folder: BookFolder, shared_nooks: Path) -> Reso
     illustrations = folder.illustrations
     files: dict[str, Path] = {}
     for page in book["pages"]:
-        number = int(page["page_number"])
-        path = illustrations / _illustration_file(page)
-        if not path.is_file():
-            raise RenderError(f"page {number}: illustration not found: {path}")
-        files[f"page_{number:02d}"] = path
+        files[f"page_{int(page['page_number']):02d}"] = _page_picture(folder, page)
     for cover in ("cover_front", "cover_back"):
         path = illustrations / f"{cover}.png"
         if not path.is_file():
@@ -797,6 +805,15 @@ def _page_eligibility(
     return out, notes
 
 
+def _read_script(script_path: Path) -> dict:
+    try:
+        return json.loads(script_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise RenderError(f"no episode script: {script_path}") from None
+    except json.JSONDecodeError as exc:
+        raise RenderError(f"episode script is not valid JSON: {script_path} ({exc})") from None
+
+
 def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
     """Gate on approved audio, then load the script, tracks and pictures and key every section
     and transition. Reads only; raises RenderError (or PictureError) on anything missing."""
@@ -809,10 +826,7 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
     problems = approval_problems(audio, script_path, settings_sha, folder.book_json)
     if problems:
         raise AudioNotApproved("; ".join(problems))
-    try:
-        script = json.loads(script_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise RenderError(f"episode script is not valid JSON: {script_path} ({exc})") from None
+    script = _read_script(script_path)
     cfg = load_render_config(Path(root) / "config" / "render.json")
 
     track_names = [
@@ -1038,26 +1052,20 @@ def render_video(
 
         rendered = reused = 0
         fell_back: list[str] = []
+        work = _SectionWork(paths, cfg, folder, slug, run, frame_run, force, on_progress)
         for index, (section, key) in enumerate(zip(sections, keys, strict=True)):
-            clip = paths.sections / f"{section.name}.mp4"
-            meta = paths.sections / f"{section.name}.json"
-            picture = pictures.files[section.picture]
-            if _reusable(clip, meta, key, force):
-                reused += 1
-                action = "reused"
-            else:
-                meta.unlink(missing_ok=True)
-                anim = _load_animation(inputs, folder, section, picture, on_progress)
-                el = inputs.eligibility.get(section.name)
-                if el is not None and el.animated and anim is None:
-                    fell_back.append(section.name)
-                    key = inputs.still_keys[index]
-                _render_section(
-                    section, picture, clip, paths.frames / section.name, cfg, run, frame_run, anim
-                )
-                write_atomic(meta, {"key": key, "frames": section.frames, "picture": str(picture)})
-                rendered += 1
-                action = "rendered"
+            action, fallback = _ensure_section(
+                work,
+                section,
+                key,
+                inputs.still_keys[index],
+                inputs.eligibility.get(section.name),
+                pictures.files[section.picture],
+            )
+            if fallback is not None:
+                fell_back.append(section.name)
+            rendered += action == "rendered"
+            reused += action == "reused"
             if on_progress:
                 on_progress(section.name, action)
 
@@ -1115,35 +1123,155 @@ def render_video(
         raise
 
 
-def _load_animation(
-    inputs: _Inputs,
-    folder: BookFolder,
+@dataclass(frozen=True)
+class _SectionWork:
+    """What rendering or reusing one section clip needs besides the section itself."""
+
+    paths: VideoPaths
+    cfg: RenderConfig
+    folder: BookFolder
+    slug: str
+    run: Runner
+    frame_run: FrameRunner
+    force: bool
+    on_progress: Progress | None
+
+
+def _ensure_section(
+    work: _SectionWork,
     section: Section,
+    key: str,
+    still_key: str,
+    el: PageEligibility | None,
     picture: Path,
-    on_progress: Progress | None,
-) -> PageAnimation | None:
-    """The section's page animation, or None for a still section or when its files can't be
-    loaded (logged as "page NN: still – reason")."""
-    el = inputs.eligibility.get(section.name)
+) -> tuple[str, str | None]:
+    """Reuse the section clip in `sections/` when its key matches, else render it (animated when
+    `el` says so) and record its key. Returns "reused" or "rendered", and why an animated page
+    fell back to still (None when it did not); a fallback is recorded under `still_key`."""
+    paths = work.paths
+    clip = paths.sections / f"{section.name}.mp4"
+    meta = paths.sections / f"{section.name}.json"
+    if _reusable(clip, meta, key, work.force):
+        return "reused", None
+    meta.unlink(missing_ok=True)
+    anim, fallback = _load_animation(work, section, el, picture)
+    if fallback is not None:
+        key = still_key
+        if work.on_progress and el is not None and el.plan is not None:
+            work.on_progress(f"page {el.plan.page_number:02d}", f"still – {fallback}")
+    _render_section(
+        section,
+        picture,
+        clip,
+        paths.frames / section.name,
+        work.cfg,
+        work.run,
+        work.frame_run,
+        anim,
+    )
+    write_atomic(meta, {"key": key, "frames": section.frames, "picture": str(picture)})
+    return "rendered", fallback
+
+
+def _load_animation(
+    work: _SectionWork, section: Section, el: PageEligibility | None, picture: Path
+) -> tuple[PageAnimation | None, str | None]:
+    """The section's page animation, or None for a still section; when its files can't be
+    loaded, None and the reason."""
     if el is None or not el.animated or el.plan is None:
-        return None
+        return None, None
     number = el.plan.page_number
     try:
-        return load_page_animation(
+        anim = load_page_animation(
             el.plan,
-            layers_dir(folder, number),
+            layers_dir(work.folder, number),
             picture,
-            inputs.cfg.animation,
+            work.cfg.animation,
             el.scale,
-            inputs.slug,
+            work.slug,
             number,
-            inputs.cfg.fps,
+            work.cfg.fps,
             section.frames,
         )
     except AnimationError as exc:
-        if on_progress:
-            on_progress(f"page {number:02d}", f"still – {exc}")
-        return None
+        return None, str(exc)
+    return anim, None
+
+
+# --- page preview (spec 010 FR-15) ----------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PreviewResult:
+    path: Path
+    animated: bool
+    reason: str  # why the page is still ("" when animated)
+
+
+def _voices_command(slug: str) -> str:
+    return f"python -m video_pipeline.synthesize_voices --book {slug} --reviewed"
+
+
+def render_preview(
+    folder: BookFolder,
+    root: Path,
+    page: int,
+    *,
+    run: Runner = run_ffmpeg,
+    frame_run: FrameRunner = run_ffmpeg_frames,
+    on_progress: Progress | None = None,
+    force: bool = False,
+) -> PreviewResult:
+    """Render one story page's full section with its voice to `video/preview/page_NN.mp4`.
+
+    No approval gate: it needs the script, the render config and that page's track only. The
+    section goes through the same code, cache folder and key as the full render, so a later
+    render reuses it (spec 010 FR-15, AC-6.1, AC-6.3)."""
+    root = Path(root)
+    slug = folder.slug
+    book = load_book(folder.book_json)
+    script = _read_script(folder.script_path)
+    cfg = load_render_config(root / "config" / "render.json")
+    script_page = next((p for p in script["pages"] if int(p["page_number"]) == page), None)
+    if script_page is None:
+        numbers = sorted(int(p["page_number"]) for p in script["pages"])
+        span = f"{numbers[0]}–{numbers[-1]}" if numbers else "none"
+        raise RenderError(f"page {page} is not a story page of {slug} (story pages: {span})")
+    name = page_section_name(page)
+    audio = AudioPaths(folder.build_dir / "audio")
+    if not (audio.track(name).is_file() and audio.track_timing(name).is_file()):
+        raise RenderError(f"no voice track for page {page} – run {_voices_command(slug)}")
+    timings, tracks, sample_rate = _load_tracks(audio, [name])
+    book_page = next(
+        (p for p in book["pages"] if int(p["page_number"]) == page), {"page_number": page}
+    )
+    picture = _page_picture(folder, book_page)
+    _check_picture(picture)
+    _check_overrides(script, cfg)
+    try:
+        section = timeline.page_section(script_page, timings[name], cfg, f"page_{page:02d}")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RenderError(f"unusable track timing for {name}: {exc}") from None
+    still_key = section_key(section, sha256_file(picture), cfg)
+    el = page_eligibility(folder, book_page, script_page, cfg.animation, root)
+    key = animated_key(still_key, el, cfg.animation) if el.animated else still_key
+
+    paths = VideoPaths(folder.build_dir / "video")
+    work = _SectionWork(paths, cfg, folder, slug, run, frame_run, force, on_progress)
+    action, fallback = _ensure_section(work, section, key, still_key, el, picture)
+    if on_progress:
+        on_progress(section.name, action)
+    out = paths.preview(page)
+    wav = out.with_suffix(".wav")
+    silent_turn = np.zeros(0, dtype=np.float32)
+    write_wav_atomic(wav, mix_master([section], tracks, silent_turn, cfg, sample_rate), sample_rate)
+    clip = paths.sections / f"{section.name}.mp4"
+    try:
+        _run_to(run, lambda tmp: mux_command(clip, wav, tmp, cfg), out, "mux")
+    finally:
+        wav.unlink(missing_ok=True)
+    animated = el.animated and fallback is None
+    return PreviewResult(out, animated, "" if animated else (fallback or el.reason))
 
 
 # --- CLI ------------------------------------------------------------------------------------
@@ -1169,6 +1297,14 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="folder with an optional page_turn.wav (default: <root>/assets/audio_sfx)",
     )
     parser.add_argument("--force", action="store_true", help="re-render every section")
+    parser.add_argument(
+        "--preview-page",
+        type=int,
+        default=None,
+        metavar="N",
+        help="render only story page N with its voice to build/video/preview/page_NN.mp4 "
+        "(needs the page's voice track, not the audio approval)",
+    )
     return parser.parse_args(argv)
 
 
@@ -1177,14 +1313,29 @@ def main(
 ) -> int:
     args = parse_args(argv)
     folder: BookFolder | None = None
+    progress: Progress = lambda name, action: print(f"  {name}: {action}", flush=True)  # noqa: E731
     try:
         folder = book_folder(args.book, args.root)
+        if args.preview_page is not None:
+            preview = render_preview(
+                folder,
+                args.root,
+                args.preview_page,
+                run=run or run_ffmpeg,
+                frame_run=frame_run or run_ffmpeg_frames,
+                on_progress=progress,
+                force=args.force,
+            )
+            print(f"preview: {preview.path}")
+            state = "animated" if preview.animated else f"still – {preview.reason}"
+            print(f"page {args.preview_page:02d}: {state}")
+            return 0
         result = render_video(
             folder,
             args.root,
             force=args.force,
             run=run or run_ffmpeg,
-            on_progress=lambda name, action: print(f"  {name}: {action}", flush=True),
+            on_progress=progress,
             sfx_dir=args.sfx_dir,
             frame_run=frame_run or run_ffmpeg_frames,
         )

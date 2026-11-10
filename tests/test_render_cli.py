@@ -609,3 +609,101 @@ def test_main_disk_full_outside_render_names_the_video_folder(world, capsys, mon
     code, _ = render(world)
     assert code == 1
     assert f"not enough disk space to write video in {world['video']}" in capsys.readouterr().err
+
+
+# --- page preview (spec 010 Phase 5: FR-15, AC-6.1, AC-6.3) -----------------------------------
+
+
+def _preview(world, page="4", runner=None, frames=None):
+    runner = runner if runner is not None else FakeRunner()
+    frames = frames if frames is not None else FakeFrameRunner()
+    code = re_.main(cli_args(world, "--preview-page", page), run=runner, frame_run=frames)
+    return code, runner, frames
+
+
+def test_preview_writes_the_page_video(world, capsys):  # AC-6.1, FR-15
+    code, runner, frames = _preview(world)
+    out = capsys.readouterr().out
+    assert code == 0
+    preview = world["video"] / "preview" / "page_04.mp4"
+    assert preview.exists()
+    assert runner.whats() == ["section page-04", "mux"]
+    mux = runner.calls[-1][1]
+    assert mux[mux.index("-i") + 1] == str(world["video"] / "sections" / "page-04.mp4")
+    assert str(preview) in out
+    slug = world["slug"]
+    assert f"still – no plan – run python -m video_pipeline.motion_plan --book {slug}" in out
+    assert not world["final"].exists()
+    assert not list(world["video"].rglob("*.tmp*"))
+    assert not list((world["video"] / "preview").glob("*.wav"))
+
+
+def test_preview_works_without_approval(tmp_path, monkeypatch, capsys):  # AC-6.1
+    world = make_world(tmp_path, monkeypatch, MINI_BOOK, approve=False)
+    code, _runner, _frames = _preview(world)
+    assert code == 0, capsys.readouterr().err
+    assert (world["video"] / "preview" / "page_04.mp4").exists()
+
+
+def test_preview_without_the_page_track_names_the_voices_command(world, capsys):  # AC-6.3
+    (world["audio"] / "tracks" / "page-04.wav").unlink()
+    code, runner, frames = _preview(world)
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "no voice track for page 4" in err
+    assert f"python -m video_pipeline.synthesize_voices --book {world['slug']} --reviewed" in err
+    assert runner.calls == [] and frames.calls == []
+
+
+def test_preview_of_a_page_that_is_not_a_story_page(world, capsys):
+    code, runner, _frames = _preview(world, page="99")
+    err = capsys.readouterr().err
+    assert code == 1 and "page 99" in err and "not a story page" in err
+    assert runner.calls == []
+
+
+def test_preview_audio_spans_the_section(world):  # the voice sits after the lead-in
+    seen = {}
+
+    class Grab(FakeRunner):
+        def __call__(self, cmd, what):
+            if what == "mux":
+                wav = cmd[cmd.index("-i", cmd.index("-i") + 1) + 1]
+                seen["info"] = sf.info(wav)
+            super().__call__(cmd, what)
+
+    assert _preview(world, runner=Grab())[0] == 0
+    inputs = _inputs(world)
+    page = next(s for s in inputs.sections if s.name == "page-04")
+    info = seen["info"]
+    assert abs(info.frames / info.samplerate - page.frames / inputs.cfg.fps) < 0.001
+
+
+def test_full_render_reuses_the_previewed_section(world, capsys):  # FR-15
+    assert _preview(world)[0] == 0
+    meta = _section_meta(world, "page-04")
+    capsys.readouterr()
+    code, runner = render(world)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "page-04" not in sections_rendered(runner)
+    assert "page-04: reused" in out
+    assert meta["key"] == _inputs(world).keys[MINI_SECTIONS.index("page-04")]
+
+
+def test_preview_of_an_animated_page(world, capsys):  # AC-6.1
+    _animate(world, 4)
+    code, runner, frames = _preview(world)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert frames.whats() == ["section page-04"] and runner.whats() == ["mux"]
+    assert "animated" in out and "still" not in out
+    assert _section_meta(world, "page-04")["key"] == _inputs(world).keys[4]
+
+
+def test_render_preview_result(world):
+    result = re_.render_preview(
+        world["folder"], world["root"], 4, run=FakeRunner(), frame_run=FakeFrameRunner()
+    )
+    assert result.path == world["video"] / "preview" / "page_04.mp4"
+    assert result.animated is False and result.reason.startswith("no plan")

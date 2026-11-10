@@ -246,9 +246,14 @@ def animated(tmp_path_factory):
     cfg = inputs.cfg
     out = {"cfg": cfg, "section": section}
 
+    work = re_._SectionWork(
+        re_.VideoPaths(tmp), cfg, world["folder"], world["slug"], run_ffmpeg, None, False, None
+    )
+    el = inputs.eligibility["page-01"]
+
     def clip(name, sec, animate):
         path = tmp / f"{name}.mp4"
-        anim = re_._load_animation(inputs, world["folder"], sec, picture, None) if animate else None
+        anim = re_._load_animation(work, sec, el, picture)[0] if animate else None
         assert (anim is not None) == animate
         re_._render_section(
             sec, picture, path, tmp / "work" / name, cfg, run_ffmpeg, re_.run_ffmpeg_frames, anim

@@ -615,6 +615,43 @@ def _section_captions(timing: dict, cfg: RenderConfig) -> list[CaptionCard]:
     return cards
 
 
+def _track_frames(timing: dict, cfg: RenderConfig) -> int:
+    return _ceil_frames(cfg.lead_in + float(timing["duration"]) + cfg.hold, cfg.fps)
+
+
+def page_section(page: dict, timing: dict, cfg: RenderConfig, picture: str) -> Section:
+    """One story page's section from its script page and its track's timing alone: the same
+    section `build_sections` makes for it (spec 010 FR-15, the page preview)."""
+    name = page_section_name(int(page["page_number"]))
+    frames = _track_frames(timing, cfg)
+    camera_cfg = page.get("ffmpeg_camera", {})
+    motion = camera_cfg.get("narration_motion", "static")
+    start, end = narration_camera(motion, cfg)
+    qa_line = next((line for line in timing["lines"] if line.get("role") != "narration"), None)
+    target = camera_cfg.get("qa_zoom_target")
+    qa_frame = qa_target = None
+    if qa_line is not None and target:
+        qa_frame = round((cfg.lead_in + float(qa_line["start"])) * cfg.fps)
+        qa_target = qa_target_on_canvas(target, cfg)
+    return Section(
+        name,
+        "page",
+        picture,
+        frames,
+        name,
+        _section_captions(timing, cfg),
+        Camera(
+            motion,
+            frames,
+            start,
+            end,
+            qa_frame,
+            qa_target,
+            round(cfg.motion.qa_ease * cfg.fps) if qa_frame is not None else 0,
+        ),
+    )
+
+
 def build_sections(
     script: dict,
     timings: dict[str, dict],
@@ -634,7 +671,7 @@ def build_sections(
         return timings[name]
 
     def frames_for(name: str) -> int:
-        return _ceil_frames(cfg.lead_in + float(timing(name)["duration"]) + cfg.hold, cfg.fps)
+        return _track_frames(timing(name), cfg)
 
     m = cfg.motion
     sections: list[Section] = []
@@ -652,37 +689,7 @@ def build_sections(
     )
     for page in sorted(script["pages"], key=lambda p: int(p["page_number"])):
         name = page_section_name(int(page["page_number"]))
-        frames = frames_for(name)
-        camera_cfg = page.get("ffmpeg_camera", {})
-        motion = camera_cfg.get("narration_motion", "static")
-        start, end = narration_camera(motion, cfg)
-        qa_line = next(
-            (line for line in timing(name)["lines"] if line.get("role") != "narration"), None
-        )
-        target = camera_cfg.get("qa_zoom_target")
-        qa_frame = qa_target = None
-        if qa_line is not None and target:
-            qa_frame = round((cfg.lead_in + float(qa_line["start"])) * cfg.fps)
-            qa_target = qa_target_on_canvas(target, cfg)
-        sections.append(
-            Section(
-                name,
-                "page",
-                chosen[name],
-                frames,
-                name,
-                _section_captions(timing(name), cfg),
-                Camera(
-                    motion,
-                    frames,
-                    start,
-                    end,
-                    qa_frame,
-                    qa_target,
-                    round(m.qa_ease * cfg.fps) if qa_frame is not None else 0,
-                ),
-            )
-        )
+        sections.append(page_section(page, timing(name), cfg, chosen[name]))
     frames = round(cfg.back_cover_seconds * cfg.fps)
     sections.append(
         Section(

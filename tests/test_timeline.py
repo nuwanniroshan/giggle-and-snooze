@@ -357,6 +357,14 @@ def test_build_sections_picture_override(cfg, script, timings):
     assert pictures["page-02"] == "page_02"
 
 
+def test_page_section_is_the_build_sections_entry(cfg, script, timings):  # spec 010 FR-15
+    sections = {s.name: s for s in build_sections(script, timings, cfg)}
+    for page in script["pages"]:
+        name = timeline.page_section_name(int(page["page_number"]))
+        picture = f"page_{int(page['page_number']):02d}"
+        assert timeline.page_section(page, timings[name], cfg, picture) == sections[name]
+
+
 def test_build_sections_captions_shifted(cfg, script, timings):
     sections = {s.name: s for s in build_sections(script, timings, cfg)}
     for name in ["intro", "page-01", "outro"]:

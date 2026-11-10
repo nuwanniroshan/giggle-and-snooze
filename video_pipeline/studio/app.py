@@ -18,7 +18,8 @@ round 2). Only the check and that one write sit inside the lock; stopping a job 
 not take it.
 
 All state comes from `books` (pipeline files) and the `JobRunner`; the gates are the pipeline's
-own: voices need the reviewed script, render needs approved audio (FR-4).
+own: voices need the reviewed script, render needs approved audio (FR-4), a page preview needs
+that page's voice track (spec 010 FR-15).
 """
 
 from __future__ import annotations
@@ -53,6 +54,7 @@ from video_pipeline.library import PROJECT_ROOT
 from video_pipeline.render_episode import VideoPaths
 from video_pipeline.studio import books as sb
 from video_pipeline.studio.jobs import Busy, JobRunner, StudioLocked, UnknownJob, stage_command
+from video_pipeline.timeline import page_section_name
 
 STUDIO_DIR = Path(__file__).resolve().parent
 HOST = "127.0.0.1"
@@ -81,6 +83,7 @@ STAGE_BUTTONS = {
 MASK_CACHE_SIZE = 32
 _LAYER_NAME = re.compile(r"^page_(\d+)_(.+)$")
 _MASK_NAME = re.compile(r"^page_(\d+)\.png$")
+_PREVIEW_NAME = re.compile(r"^page_(\d{2,})\.mp4$")
 _PROBLEM_LINE = re.compile(r"^(intro|outro) line (\d+)\b")
 _PROBLEM_PAGE_LINE = re.compile(r"^page (\d+) (narration|Q&A) line (\d+)\b")
 _PROBLEM_PAGE = re.compile(r"^page (\d+)\b")
@@ -258,10 +261,16 @@ class Studio:
             return None
         return f"{job['label']} is running for {job['title']}"
 
-    def gate(self, book: sb.Book, stage: str) -> str | None:
-        """Why `stage` cannot start for `book` now (None when it can), busy aside."""
+    def gate(self, book: sb.Book, stage: str, page: int | None = None) -> str | None:
+        """Why `stage` cannot start for `book` now (None when it can), busy aside. A page
+        preview needs that page's voice track, not the audio approval (spec 010 FR-15)."""
         if book.error:
             return f"the book data has a problem: {book.error}"
+        if stage == sb.PREVIEW_STAGE:
+            audio = _audio_paths(self.paths, book)
+            name = page_section_name(int(page or 0))
+            if not (audio.track(name).is_file() and audio.track_timing(name).is_file()):
+                return f"no voice track for page {page}: synthesize the voices first"
         if stage == "voices":
             if not sb.script_path(self.paths, book).exists():
                 return "generate the script first"
@@ -273,9 +282,11 @@ class Studio:
                 return problems[0]
         return None
 
-    def last_job(self, book: sb.Book, stages: tuple[str, ...] | None = None) -> dict | None:
+    def last_job(
+        self, book: sb.Book, stages: tuple[str, ...] | None = None, page: int | None = None
+    ) -> dict | None:
         stages = stages or sb.STAGES + sb.ANIMATION_STAGES
-        jobs = [j for s in stages if (j := self.runner.latest(book.slug, s))]
+        jobs = [j for s in stages if (j := self.runner.latest(book.slug, s, page))]
         if not jobs:
             return None
         job = max(jobs, key=lambda j: (str(j.get("started_at") or ""), j["id"]))
@@ -353,12 +364,14 @@ class Studio:
             return self.message(request, title, lines, 409, back)
         return RedirectResponse(back, status_code=303)
 
-    def _start_stage(self, book: sb.Book, stage: str, form) -> tuple[str, list[str]] | None:
-        """Check and start `stage` (call under `write_lock`); the refusal's title and lines, or
-        None when it started."""
+    def _start_stage(
+        self, book: sb.Book, stage: str, form, page: int | None = None
+    ) -> tuple[str, list[str]] | None:
+        """Check and start `stage` (for story `page`, a preview) (call under `write_lock`); the
+        refusal's title and lines, or None when it started."""
         if busy := self.busy_reason():
             return "Busy", [f"Refused: {busy}."]
-        if reason := self.gate(book, stage):
+        if reason := self.gate(book, stage, page):
             return f"Cannot start {sb.STAGE_LABELS[stage]}", [reason]
         force = form.get("force") == "1"
         if stage == "script" and sb.script_path(self.paths, book).exists():
@@ -369,9 +382,9 @@ class Studio:
                 ]
                 return "Confirm regenerating the script", lines
             force = True
-        cmd = self.command_for(stage, book, self.paths, force=force)
+        cmd = self.command_for(stage, book, self.paths, force=force, page=page)
         try:
-            self.runner.start(book.slug, stage, cmd)
+            self.runner.start(book.slug, stage, cmd, page=page)
         except Busy:
             return "Busy", [f"Refused: {self.busy_reason()}."]
         return None
@@ -786,7 +799,7 @@ class Studio:
             "rows": rows,
             "summary": sb.animation_summary(rows),
             "controls": self.animation_controls(book),
-            "job": self.last_job(book, sb.ANIMATION_STAGES),
+            "job": self.last_job(book, (*sb.ANIMATION_STAGES, sb.PREVIEW_STAGE)),
         }
         return self.render(request, "animation.html", context)
 
@@ -813,8 +826,37 @@ class Studio:
             "prev": numbers[at - 1] if at > 0 else None,
             "next": numbers[at + 1] if at + 1 < len(numbers) else None,
             "controls": self.animation_controls(book),
+            "preview_blocked": self.busy_reason() or self.gate(book, sb.PREVIEW_STAGE, number),
+            "preview_job": self.last_job(book, (sb.PREVIEW_STAGE,), number),
+            "preview_url": self.preview_url(book, number),
         }
         return self.render(request, "animation_page.html", context)
+
+    def preview_url(self, book: sb.Book, number: int) -> str | None:
+        """The page preview's media URL (tagged with its modification time), or None."""
+        path = _video_paths(self.paths, book).preview(number)
+        if not path.is_file():
+            return None
+        return f"/media/{book.slug}/preview_video/{path.name}?v={path.stat().st_mtime_ns}"
+
+    async def preview_page(self, request: Request) -> Response:
+        form = await request.form()
+        return await run_in_threadpool(self._preview_page, request, form)
+
+    def _preview_page(self, request: Request, form) -> Response:
+        """Start the page preview job (spec 010 FR-16), back to the page view."""
+        book = self.book_or_none(request)
+        number = request.path_params["number"]
+        rows = sb.page_animation(self.paths, book) if book else []
+        if book is None or not any(r["page_number"] == number for r in rows):
+            return self.not_found(request)
+        back = f"/books/{book.slug}/animation/{number}"
+        with self.write_lock:
+            refused = self._start_stage(book, sb.PREVIEW_STAGE, form, page=number)
+        if refused is not None:
+            title, lines = refused
+            return self.message(request, title, lines, 409, back)
+        return RedirectResponse(back, status_code=303)
 
     def mask_png(self, book: sb.Book, number: int) -> bytes | None:
         """The masks overlay for a cut page, made once per cut (kept in memory by cut hash)."""
@@ -865,6 +907,9 @@ class Studio:
                 if name == f"{book.slug}.mp4"
                 else None
             )
+        if kind == "preview_video" and (m := _PREVIEW_NAME.match(name)):
+            path = _video_paths(self.paths, book).preview(int(m.group(1)))
+            return path if path.name == name else None
         if kind == "layer" and (m := _LAYER_NAME.match(name)):
             return sb.layer_files(self.paths, book, int(m.group(1))).get(m.group(2))
         return None
@@ -973,6 +1018,9 @@ def create_app(
         Route("/books/{slug}/video", studio.video_page),
         Route("/books/{slug}/animation", studio.animation_page),
         Route("/books/{slug}/animation/{number:int}", studio.animation_page_detail),
+        Route(
+            "/books/{slug}/animation/{number:int}/preview", studio.preview_page, methods=["POST"]
+        ),
         Route("/jobs/stop", studio.stop_job, methods=["POST"]),
         Route("/api/jobs/current", studio.api_current),
         Route("/api/jobs/{job_id}/log", studio.api_log),

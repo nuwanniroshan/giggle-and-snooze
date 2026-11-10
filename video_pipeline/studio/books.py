@@ -21,6 +21,7 @@ import numpy as np
 from PIL import Image
 
 from video_pipeline import synthesize_voices as sv
+from video_pipeline.animate import page_eligibility
 from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
 from video_pipeline.cut_layers import (
     MANIFEST,
@@ -40,6 +41,7 @@ from video_pipeline.motion_plan import (
     plan_state,
 )
 from video_pipeline.render_episode import VideoPaths, render_check_detail
+from video_pipeline.timeline import AnimationSettings, load_render_config
 
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
 NOOK_FILES = ("intro_nook.png", "outro_nook.png")
@@ -51,9 +53,12 @@ STAGE_LABELS = {
     "render": "video render",
     "plan": "motion planning",
     "cut": "layer cutting",
+    "preview": "page preview",
 }
 # Spec 009: run as studio jobs, but outside the script → voices → render flow.
 ANIMATION_STAGES = ("plan", "cut")
+# Spec 010: one story page rendered with its voice; started per page, not from the stage buttons.
+PREVIEW_STAGE = "preview"
 NO_CUT = "—"
 # One fixed tint per layer (in plan order) for the masks overlay; the picture under it is dimmed.
 MASK_PALETTE = (
@@ -478,10 +483,54 @@ def _manifest(folder: BookFolder, page_number: int) -> dict | None:
     return _read_dict(layers_dir(folder, page_number) / MANIFEST)
 
 
+def _animation_settings(paths: StudioPaths) -> AnimationSettings | str:
+    """The render config's animation block, or why it cannot be read."""
+    try:
+        return load_render_config(paths.config_dir / "render.json").animation
+    except (ConfigError, OSError, ValueError, KeyError, TypeError) as exc:
+        return f"render config unreadable – {exc}"
+
+
+def _script_pages(paths: StudioPaths, book: Book) -> dict[int, dict]:
+    """The episode script's pages by number; none when there is no readable script."""
+    try:
+        script = load_script(paths, book)
+    except StudioError:
+        return {}
+    pages = (script or {}).get("pages")
+    if not isinstance(pages, list):
+        return {}
+    out = {}
+    for page in pages:
+        try:
+            out[int(page["page_number"])] = page
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+def _will_animate(
+    paths: StudioPaths,
+    folder: BookFolder,
+    page: dict,
+    script_pages: dict[int, dict],
+    settings: AnimationSettings | str,
+) -> dict:
+    """`will_animate` and `still_reason` for a row, as the render decides (spec 010 AC-4.3)."""
+    if isinstance(settings, str):
+        return {"will_animate": False, "still_reason": settings}
+    number = int(page["page_number"])
+    script_page = script_pages.get(number, {"page_number": number})
+    el = page_eligibility(folder, page, script_page, settings, Path(paths.root))
+    return {"will_animate": el.animated, "still_reason": el.reason}
+
+
 def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
     """Per story page, read from disk on every call (AC-5.5): `page_number`, `plan_state` (none,
     ok, stale, invalid, no_picture, or unavailable when the animation config cannot be read),
-    `detail`, `plan`, `cut_state` ("cut", "needs cut" or "—") and the manifest's `empty_layers`."""
+    `detail`, `plan`, `cut_state` ("cut", "needs cut" or "—"), the manifest's `empty_layers`,
+    and whether the render will animate the page (`will_animate`, else `still_reason`, spec 010
+    AC-4.3; the script's per-page override counts when there is a script)."""
     if book.error:
         return []
     folder = folder_of(paths, book)
@@ -489,6 +538,8 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
         pages = load_book(book.book_path)["pages"]
     except BookError:
         return []
+    settings = _animation_settings(paths)
+    script_pages = _script_pages(paths, book)
     try:
         limits = load_limits(paths.config_dir)
     except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -502,6 +553,7 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "plan": None,
                 "cut_state": NO_CUT,
                 "empty_layers": [],
+                **_will_animate(paths, folder, p, script_pages, settings),
             }
             for p in sorted(pages, key=lambda p: int(p["page_number"]))
         ]
@@ -528,6 +580,7 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "plan": st.plan,
                 "cut_state": cut,
                 "empty_layers": empty,
+                **_will_animate(paths, folder, page, script_pages, settings),
             }
         )
     return rows
