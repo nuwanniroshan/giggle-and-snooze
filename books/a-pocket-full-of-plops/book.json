@@ -1,0 +1,105 @@
+{
+  "metadata": {
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 10,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Whisperwood Storybook Press",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "A Pocket Full of Plops",
+    "subtitle": "Mina’s Rainy-Day Song",
+    "author": "Swivel Kids Press",
+    "age_range": "Ages 3-6",
+    "blurb": "Mina wants to keep the rain’s plips and plops in her pockets. When the sounds slip away, she finds a happy way to share them.",
+    "dedication": "For everyone who has stopped to listen to the rain."
+  },
+  "style_bible": {},
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "Listen!",
+      "text": "Rain tapped the porch roof. Mina pulled on her yellow coat and listened. “Plip, plop, patter-pat! I’ll save some sounds for my family.”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Warm watercolor picture-book illustration, soft pencil details, cozy rainy morning. Mina, a small child with brown skin and dark curly hair, wears a yellow raincoat with two large pockets, teal boots, and red trousers. She stands on a sheltered wooden porch listening to rain. Garden beyond, inviting puddles, warm house light. No lettering.",
+      "illustration_file": "page_01.png"
+    },
+    {
+      "page_number": 2,
+      "title": "A Little Plip",
+      "text": "A drop landed on a leaf: plip! Mina cupped her hands and tucked the plip into her pocket. But the next plip sounded out in the garden. “Stay, little plip, stay!”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Same watercolor style and consistent Mina with brown skin, dark curls, yellow two-pocket raincoat, teal boots, red trousers. Mina stands at porch edge beside a broad green leaf, gently tipping cupped hands toward a coat pocket. A raindrop touches the leaf. Show her curious expression and small ripples, no text or literal solid sound objects.",
+      "illustration_file": "page_02.png"
+    },
+    {
+      "page_number": 3,
+      "title": "A Round Plop",
+      "text": "A drop landed in a puddle: plop! Mina held her other pocket open wide. But the next plop sounded down by her boots. “Stay, little plop, stay!”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Gentle watercolor, same Mina in yellow raincoat, teal boots and red trousers. Under the porch eave she holds her second pocket wide and peers at a shallow puddle by her boots. One big drop makes round ripples. Playful, safe rainy garden scene, no lettering.",
+      "illustration_file": "page_03.png"
+    },
+    {
+      "page_number": 4,
+      "title": "Pockets Shut",
+      "text": "Mina pressed both pockets shut. “Now I’ve got you!” She peeked inside, but found only a little damp fluff. Plip and plop were still outside.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Watercolor close view of consistent brown-skinned Mina with dark curls, yellow raincoat, teal boots and red trousers on sheltered porch. She looks into a large empty pocket containing just a tiny tuft of damp lint, with gently puzzled amusement. Rain and leaf visible beyond porch, no text.",
+      "illustration_file": "page_04.png"
+    },
+    {
+      "page_number": 5,
+      "title": "Empty Hands",
+      "text": "Mina went inside and opened her empty hands. “I wanted to bring you the rain.” Mama put down her cup. “Then let’s go and listen.”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Warm watercolor kitchen adjoining porch. Consistent Mina in yellow coat and teal boots shows her empty hands to Mama, a brown-skinned adult with dark curls tied up and a plum cardigan, setting down a blue cup. Welcoming expressions, rainy window, cozy amber tones, no lettering.",
+      "illustration_file": "page_05.png"
+    },
+    {
+      "page_number": 6,
+      "title": "Room to Listen",
+      "text": "Mama came to the porch, and Papa and baby Jo came too. Mina made room beside her. A leaf went plip; a puddle went plop. Everyone leaned close to listen.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Wide cozy watercolor view on roomy sheltered porch. Mina, brown skin and dark curls, yellow raincoat, teal boots, red trousers, welcomes Mama in plum cardigan, Papa with brown skin and short dark hair in a green sweater carrying baby Jo in peach pajamas. Family gathered safely beneath roof, watching dripping leaf and shallow garden puddle. No lettering.",
+      "illustration_file": "page_06.png"
+    },
+    {
+      "page_number": 7,
+      "title": "Try a Plip",
+      "text": "“Can you make a plip?” Mina asked. Mama tapped one finger on her cup: tip, tip, tip. Mina grinned. “A tiny sound, just like the leaf!”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Warm watercolor medium scene on dry sheltered porch. Mama in plum cardigan taps a blue cup lightly with one finger while consistent Mina in yellow raincoat smiles with delight. Rainy leaf in background visually echoes the little tapping action. Papa with baby softly visible nearby. No printed text.",
+      "illustration_file": "page_07.png"
+    },
+    {
+      "page_number": 8,
+      "title": "Try a Plop",
+      "text": "“Can you make a plop?” Mina asked. Papa patted his knees: pom, pom, pom. Jo clapped, so Mina clapped too. Now their little song had a patter-pat!",
+      "layout": "image_top_text_bottom",
+      "prompt": "Joyful gentle watercolor on sheltered porch, same family designs. Papa in green sweater sits securely with baby Jo on his lap, patting one knee as baby claps; Mina in yellow coat claps alongside. Mama in plum cardigan holds blue cup nearby. Expressive hands, cozy rain beyond, no lettering.",
+      "illustration_file": "page_08.png"
+    },
+    {
+      "page_number": 9,
+      "title": "All Together",
+      "text": "“Plip, plop, patter-pat!” sang Mina. Mama tapped, Papa patted, and Jo clapped along. The rain kept time on the roof. They sang it again: “Plip, plop, patter-pat!”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Lively watercolor wide composition of consistent family making music beneath porch roof. Mina with dark curls and yellow raincoat leads with open happy hands; Mama plum cardigan taps blue cup, seated Papa green sweater pats knee while safely holding clapping baby in peach pajamas. Raindrops on roof, garden puddle ripples, warm joyful togetherness. No lettering or musical notation.",
+      "illustration_file": "page_09.png"
+    },
+    {
+      "page_number": 10,
+      "title": "A Song to Share",
+      "text": "At last, the rain grew quiet. Mina’s pockets were empty, but everyone was humming. She snuggled close and hummed along. “Plip, plop, patter-pat.”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Tender closing watercolor on sheltered porch after gentle rain. Consistent Mina in yellow raincoat snuggles beside Mama in plum cardigan on wooden bench; Papa in green sweater sits close holding sleepy baby Jo in peach pajamas. Mina's large pockets visibly relaxed and empty. Last drops on green leaves, pale evening light through soft clouds, peaceful loving family. No lettering.",
+      "illustration_file": "page_10.png"
+    }
+  ]
+}

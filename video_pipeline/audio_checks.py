@@ -61,6 +61,24 @@ def trim_silence(audio: np.ndarray, sr: int, silence_db: float, keep: float) -> 
     return audio[max(0, first * size - pad) : min(len(audio), (last + 1) * size + pad)]
 
 
+def squeeze_silences(audio: np.ndarray, sr: int, silence_db: float, max_gap: float) -> np.ndarray:
+    """Shorten every silent stretch longer than max_gap to max_gap (the model sometimes stalls)."""
+    size = max(1, int(sr * FRAME_S))
+    quiet = frame_db(audio, sr) <= silence_db
+    limit = max(1, int(max_gap / FRAME_S))
+    keep = np.ones(len(quiet), dtype=bool)
+    run = 0
+    for i, is_quiet in enumerate(quiet):
+        run = run + 1 if is_quiet else 0
+        if run > limit:
+            keep[i] = False
+    if keep.all():
+        return audio
+    tail = audio[len(quiet) * size :]
+    frames = audio[: len(quiet) * size].reshape(len(quiet), size)
+    return np.concatenate([frames[keep].reshape(-1), tail])
+
+
 def longest_silence(audio: np.ndarray, sr: int, silence_db: float) -> float:
     run = best = 0
     for voiced in frame_db(audio, sr) > silence_db:

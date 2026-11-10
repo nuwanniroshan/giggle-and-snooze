@@ -10,33 +10,21 @@ output. Shared settings (config, sound effects, the fallback nook) stay at the p
 from __future__ import annotations
 
 import copy
-import io
 import json
-import os
-import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
-
-from PIL import Image, UnidentifiedImageError
 
 from video_pipeline import synthesize_voices as sv
-from video_pipeline.contract import ConfigError, load_disallowed_terms, slugify, validate_script
-from video_pipeline.episode import BookError, book_problems, load_book
+from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
+from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import BOOK_FILE, PROJECT_ROOT, BookFolder, list_book_slugs
 from video_pipeline.render_episode import VideoPaths, render_check_detail
 
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-MAX_UPLOAD_FILES = 100  # pictures per upload; the request is refused above (this + 1) x 25 MB
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
 NOOK_FILES = ("intro_nook.png", "outro_nook.png")
-# Parts of a book folder a replacement keeps: the script, its marks, nooks and generated output.
-CARRIED_ON_REPLACE = ("episode", "build", "nooks")
-# Slugs a book may not take because a studio route already uses that path (`/books/new`).
-RESERVED_SLUGS = frozenset({"new"})
 STAGES = ("script", "voices", "render")
 STATUS_KEYS = {"script": "script", "voices": "voices", "render": "video"}
 STAGE_LABELS = {
@@ -172,125 +160,6 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
                 f"file names {other!r} and {name!r} differ only by case; rename one of them"
             )
     return required, problems
-
-
-def slug_problem(slug: str) -> str | None:
-    """Why `slug` cannot name an added book (it is a studio route), or None."""
-    if slug in RESERVED_SLUGS:
-        return f"the slug {slug!r} is reserved by the studio (it comes from the title); change the title"
-    return None
-
-
-def _image_problem(name: str, data: bytes) -> str | None:
-    if len(data) > MAX_UPLOAD_BYTES:
-        limit = MAX_UPLOAD_BYTES / (1024 * 1024)
-        return f"{name}: file is too large ({len(data) / (1024 * 1024):.1f} MB; limit {limit:g} MB)"
-    try:
-        with Image.open(io.BytesIO(data)) as im:
-            im.verify()
-    except (OSError, UnidentifiedImageError, SyntaxError, ValueError) as exc:
-        return f"{name}: not a readable image ({exc})"
-    return None
-
-
-def validate_upload(book_json: bytes, files: dict[str, bytes]) -> tuple[dict | None, list[str]]:
-    """Parse and check an upload without saving anything: the book data (the same rules as
-    `episode.load_book`), every expected illustration and both covers present and readable, no
-    unexpected or path-like names, no file over `MAX_UPLOAD_BYTES`. Returns the parsed book (None
-    when it is not a JSON object) and every problem found."""
-    if len(book_json) > MAX_UPLOAD_BYTES:
-        return None, [f"book data is larger than {MAX_UPLOAD_BYTES / (1024 * 1024):g} MB"]
-    try:
-        book = json.loads(book_json.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        return None, [f"book data is not valid JSON ({exc})"]
-    problems = book_problems(book, "book data")
-    if not isinstance(book, dict):
-        return None, problems
-    metadata = book.get("metadata")
-    title = metadata.get("title") if isinstance(metadata, dict) else None
-    if isinstance(title, str) and (problem := slug_problem(slugify(title.strip()))):
-        problems.append(problem)
-    required, name_problems = expected_files(book)
-    problems += name_problems
-    for name, data in files.items():
-        if not _plain_name(name):
-            problems.append(f"file name not allowed: {name!r}")
-        elif name not in required and name not in NOOK_FILES:
-            problems.append(f"unexpected file: {name!r} (the book data does not use it)")
-        elif problem := _image_problem(name, data):
-            problems.append(problem)
-    for name, label in required.items():
-        if name not in files:
-            problems.append(f"missing {label}: {name}")
-    return book, problems
-
-
-def _write_bytes_atomic(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        tmp.write_bytes(data)
-        os.replace(tmp, path)  # noqa: PTH105 - atomic replace
-    finally:
-        tmp.unlink(missing_ok=True)
-
-
-def save_book(
-    paths: StudioPaths, book: dict, files: dict[str, bytes], replace: bool = False
-) -> Book:
-    """Store a validated upload as `books/<slug>/` (AC-2.3) with its nooks in `nooks/` (AC-2.5).
-    Refuses a reserved slug and an existing slug unless `replace` (AC-2.4). A replacement keeps
-    the book's episode script, nooks and generated output, and deletes its reviewed mark (the
-    script was reviewed against the old book).
-
-    The new folder is assembled in a temporary place, the kept parts are moved into it, the old
-    folder is moved aside and the new one renamed into place. A failure puts the old book back."""
-    _parsed, problems = validate_upload(json.dumps(book).encode("utf-8"), files)
-    if problems:
-        raise StudioError("; ".join(problems))
-    title = book["metadata"]["title"].strip()
-    slug = slugify(title)
-    if problem := slug_problem(slug):
-        raise StudioError(problem)
-    folder = BookFolder(slug, Path(paths.root))
-    target = folder.folder
-    if target.exists() and not replace:
-        raise StudioError(f"a book {slug!r} already exists; confirm to replace it")
-    paths.books_dir.mkdir(parents=True, exist_ok=True)
-    token = uuid4().hex[:8]
-    new, old = paths.books_dir / f".{slug}.new-{token}", paths.books_dir / f".{slug}.old-{token}"
-    carried: list[str] = []
-    try:
-        (new / "illustrations").mkdir(parents=True)
-        (new / BOOK_FILE).write_text(
-            json.dumps(book, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
-        for name, data in files.items():
-            if name not in NOOK_FILES:
-                (new / "illustrations" / name).write_bytes(data)
-        if target.exists():
-            for part in CARRIED_ON_REPLACE:
-                if (target / part).exists():
-                    os.replace(target / part, new / part)  # noqa: PTH105
-                    carried.append(part)
-            os.replace(target, old)  # noqa: PTH105
-        try:
-            os.replace(new, target)  # noqa: PTH105
-        except OSError:
-            if old.exists():
-                os.replace(old, target)  # noqa: PTH105 - put the previous book back
-            for part in carried:
-                os.replace(new / part, target / part)  # noqa: PTH105
-            raise
-    finally:
-        shutil.rmtree(new, ignore_errors=True)
-        shutil.rmtree(old, ignore_errors=True)
-    folder.reviewed_path.unlink(missing_ok=True)
-    for name in NOOK_FILES:
-        if name in files:
-            _write_bytes_atomic(folder.nooks / name, files[name])
-    return Book(slug, title, folder.book_json)
 
 
 # --- the script and its reviewed mark (AC-4.2-4.4) ------------------------------------------

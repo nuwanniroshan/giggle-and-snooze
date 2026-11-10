@@ -1,0 +1,18 @@
+# Story text must stay gentle for young children (spec 006 FR-5).
+# One term per line, matched case-insensitively as a whole word or phrase.
+# Lines starting with # are comments.
+death
+dies
+died
+dead
+funeral
+grave
+graveyard
+corpse
+blood
+bleeding
+scream
+screams
+screaming
+monster
+monsters

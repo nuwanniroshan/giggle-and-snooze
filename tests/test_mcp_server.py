@@ -4,6 +4,8 @@ import json
 import subprocess
 import sys
 
+import pytest
+
 from tests.helpers import MINI_BOOK, ROOT, load_json, make_banter, make_root
 from video_pipeline import mcp_server
 from video_pipeline.contract import load_disallowed_terms, validate_script
@@ -110,3 +112,53 @@ def test_save_over_mcp_refuses_invalid_then_saves_valid(tmp_path):  # AC-6.7
 def test_bad_book_exits_before_serving(tmp_path, capsys):
     assert mcp_server.main(["--book", "nope", "--root", str(tmp_path)]) == 1
     assert "nope" in capsys.readouterr().err
+
+
+# --- the story writer's server (spec 006 FR-8): one submit tool per mode --------------------
+
+
+def story_call(args: list[str], requests: list[tuple[str, dict]]) -> list[dict]:
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "video_pipeline.story_mcp", *args],
+        cwd=ROOT,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    replies = []
+    try:
+        for index, (method, params) in enumerate(requests, start=1):
+            proc.stdin.write(
+                json.dumps({"jsonrpc": "2.0", "id": index, "method": method, "params": params})
+                + "\n"
+            )
+            proc.stdin.flush()
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    raise AssertionError(f"server closed: {proc.stderr.read()}")
+                message = json.loads(line)
+                if message.get("id") == index:
+                    replies.append(message)
+                    break
+    finally:
+        proc.kill()
+    return replies
+
+
+@pytest.mark.parametrize(
+    ("mode", "tool"),
+    [("ideas", "submit_ideas"), ("candidate", "submit_candidate"), ("book", "submit_book")],
+)
+def test_story_server_exposes_only_its_mode_tool(tmp_path, mode, tool):  # FR-8
+    initialize = {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {"name": "t", "version": "1"},
+    }
+    [_, reply] = story_call(
+        ["--mode", mode, "--out", str(tmp_path / "out.json")],
+        [("initialize", initialize), ("tools/list", {})],
+    )
+    assert [t["name"] for t in reply["result"]["tools"]] == [tool]

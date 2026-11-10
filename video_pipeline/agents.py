@@ -135,6 +135,7 @@ def build_codex_command(
     server_args: list[str],
     server_env: dict[str, str],
     model: str | None = None,
+    prompt: str = AGENT_PROMPT,
 ) -> list[str]:
     key = f"mcp_servers.{SERVER_NAME}"
     command = [
@@ -162,7 +163,7 @@ def build_codex_command(
         command += ["-c", setting]
     if model:
         command += ["--model", model]
-    command.append(AGENT_PROMPT)
+    command.append(prompt)
     return command
 
 

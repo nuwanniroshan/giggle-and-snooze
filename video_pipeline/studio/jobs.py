@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from video_pipeline.episode_tools import write_atomic
-from video_pipeline.studio.books import STAGES, Book, StudioPaths
+from video_pipeline.studio.books import STAGES, StudioPaths
 
 STOP_GRACE_SECONDS = 5.0
 LOCK_FILE = "studio.lock"
@@ -85,8 +85,29 @@ class Job:
         return record
 
 
-def stage_command(stage: str, book: Book, paths: StudioPaths, force: bool = False) -> list[str]:
-    """The CLI argv that runs `stage` for `book`, as `python -m video_pipeline.<module> ...`."""
+STORY_STAGES = ("ideas", "candidate", "book")
+
+
+def story_command(stage: str, subject: str, paths: StudioPaths) -> list[str]:
+    """The CLI argv for a story run (spec 006): `subject` is the run id or the draft id."""
+    flag = "--draft" if stage == "book" else "--run"
+    return [
+        sys.executable,
+        "-m",
+        "video_pipeline.write_story",
+        stage,
+        flag,
+        subject,
+        "--root",
+        str(paths.root),
+    ]
+
+
+def stage_command(stage: str, book, paths: StudioPaths, force: bool = False) -> list[str]:
+    """The CLI argv that runs `stage` for `book`, as `python -m video_pipeline.<module> ...`.
+    Story stages take a string subject (a run id or draft id) instead of a book."""
+    if stage in STORY_STAGES:
+        return story_command(stage, book if isinstance(book, str) else book.slug, paths)
     if stage not in STAGE_MODULES:
         raise ValueError(f"unknown stage {stage!r}; expected one of {', '.join(STAGES)}")
     cmd = [

@@ -16,7 +16,7 @@ import pytest
 from PIL import Image
 from starlette.testclient import TestClient
 
-from tests.helpers import MINI_BOOK, load_json, make_root
+from tests.helpers import MINI_BOOK, add_book_from_draft, load_json, make_root
 from tests.render_helpers import FakeRunner, cli_args, make_world, picture
 from tests.voice_helpers import make_script, write_script
 from video_pipeline import render_episode as re_
@@ -147,8 +147,7 @@ def test_home_lists_books_with_states_and_next_action(bare):
 
 
 def test_home_shows_an_added_book_and_escapes_its_title(bare):
-    book = new_book("The <b>Bold</b> Kite")
-    assert bare.client.post("/books", files=upload_parts(book)).status_code == 303
+    add_book_from_draft(bare.paths.root, "The <b>Bold</b> Kite")
     r = bare.client.get("/")
     assert "The &lt;b&gt;Bold&lt;/b&gt; Kite" in r.text
     assert "<b>Bold</b>" not in r.text
@@ -186,82 +185,6 @@ def test_unknown_book_is_404(bare):
 
 
 # --- uploads (AC-2.1-2.5) -----------------------------------------------------------------------
-
-
-def test_upload_form_page(bare):
-    r = bare.client.get("/books/new")
-    assert r.status_code == 200
-    assert 'enctype="multipart/form-data"' in r.text
-    assert 'name="book_data"' in r.text and 'name="files"' in r.text
-
-
-def test_upload_valid_book_is_saved_and_listed(bare):
-    book = new_book()
-    nook = {"intro_nook.png": png_bytes((5, 5, 5))}
-    r = bare.client.post("/books", files=upload_parts(book, extra=nook))
-    slug = slugify(book["metadata"]["title"])
-    assert r.status_code == 303
-    assert r.headers["location"] == f"/books/{slug}"
-    assert (bare.paths.books_dir / slug / "book.json").is_file()
-    assert (bare.paths.books_dir / slug / "illustrations" / "page_01.png").is_file()
-    assert (BookFolder(slug, bare.paths.root).nooks / "intro_nook.png").is_file()
-    page = text_of(bare.client.get(f"/books/{slug}").text)
-    assert "The Moon Kite Race" in page and "Generate script" in page
-
-
-def test_upload_invalid_json_saves_nothing(bare):
-    parts = upload_parts(new_book())
-    parts[0] = ("book_data", ("book_data.json", b"{not json", "application/json"))
-    r = bare.client.post("/books", files=parts)
-    assert r.status_code == 422
-    assert "not valid JSON" in r.text
-    assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]
-
-
-def test_upload_lists_every_problem(bare):
-    parts = upload_parts(new_book(), skip="page_03.png", extra={"../evil.png": png_bytes()})
-    r = bare.client.post("/books", files=parts)
-    assert r.status_code == 422
-    assert "page_03.png" in r.text
-    assert "evil.png" in r.text
-    assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]
-    assert not (bare.paths.root.parent / "evil.png").exists()
-
-
-def test_upload_without_book_data_is_refused(bare):
-    r = bare.client.post("/books", files=[("files", ("cover_front.png", png_bytes(), "image/png"))])
-    assert r.status_code == 422
-    assert "book data" in r.text
-
-
-def test_duplicate_upload_refused_then_replaced_with_confirmation(bare):
-    book = new_book()
-    slug = slugify(book["metadata"]["title"])
-    assert bare.client.post("/books", files=upload_parts(book)).status_code == 303
-    marker = bare.paths.books_dir / slug / "illustrations" / "page_01.png"
-    before = marker.read_bytes()
-    book["metadata"]["author"] = "Someone Else"
-    r = bare.client.post("/books", files=upload_parts(book))
-    assert r.status_code == 409
-    assert "already exists" in r.text and 'name="replace"' in r.text
-    assert load_json(bare.paths.books_dir / slug / "book.json")["metadata"]["author"] != (
-        "Someone Else"
-    )
-    r = bare.client.post("/books", data={"replace": "1"}, files=upload_parts(book))
-    assert r.status_code == 303
-    assert load_json(bare.paths.books_dir / slug / "book.json")["metadata"]["author"] == (
-        "Someone Else"
-    )
-    assert marker.read_bytes() == before  # the same picture was uploaded again
-
-
-def test_upload_over_an_existing_book_needs_confirmation(bare):  # AC-2.4
-    r = bare.client.post(
-        "/books",
-        files=upload_parts(new_book(load_json(MINI_BOOK)["metadata"]["title"])),
-    )
-    assert r.status_code == 409
-    assert "already exists" in r.text
 
 
 # --- running stages (AC-3.1-3.6, AC-4.4) --------------------------------------------------------
@@ -675,50 +598,6 @@ def test_module_entry_point_exists():
 # --- review fixes (round 1) -----------------------------------------------------------------------
 
 
-def test_upload_titled_new_is_refused_and_the_form_still_shows(bare):
-    r = bare.client.post("/books", files=upload_parts(new_book("New")))
-    assert r.status_code == 422
-    assert "reserved" in r.text
-    assert not (bare.paths.books_dir / "new").exists()
-    assert 'name="book_data"' in bare.client.get("/books/new").text
-
-
-def test_upload_with_a_page_named_like_a_nook_is_refused(bare):
-    book = new_book("Nook Book")
-    book["pages"][0]["illustration_file"] = "intro_nook.png"
-    r = bare.client.post("/books", files=upload_parts(book, extra={"intro_nook.png": png_bytes()}))
-    assert r.status_code == 422
-    assert "reserved" in r.text
-    assert not (bare.paths.books_dir / "nook-book").exists()
-
-
-def test_oversize_request_is_refused_before_parsing(bare, monkeypatch):
-    monkeypatch.setattr(sb, "validate_upload", lambda *a: pytest.fail("the form was parsed"))
-    limit = (sb.MAX_UPLOAD_FILES + 1) * sb.MAX_UPLOAD_BYTES
-    r = bare.client.post(
-        "/books",
-        content=b"x",
-        headers={
-            "content-type": "multipart/form-data; boundary=b",
-            "content-length": str(limit + 1),
-        },
-    )
-    assert r.status_code == 413
-    assert "too large" in r.text
-
-
-def test_oversize_book_data_upload_says_so(bare):
-    parts = upload_parts(new_book())
-    parts[0] = (
-        "book_data",
-        ("book_data.json", b" " * (sb.MAX_UPLOAD_BYTES + 1), "application/json"),
-    )
-    r = bare.client.post("/books", files=parts)
-    assert r.status_code == 422
-    assert "book data is larger than 25 MB" in r.text
-    assert "not valid JSON" not in r.text
-
-
 @pytest.mark.parametrize("host", ["attacker.example:8765", "attacker.example", "127.0.0.2:8765"])
 def test_unknown_host_header_is_refused(bare, host):
     assert bare.client.get("/", headers={"host": host}).status_code == 400
@@ -727,25 +606,6 @@ def test_unknown_host_header_is_refused(bare, host):
 @pytest.mark.parametrize("host", ["127.0.0.1:8765", "localhost:8765"])
 def test_loopback_host_headers_are_allowed(bare, host):
     assert bare.client.get("/", headers={"host": host}).status_code == 200
-
-
-def test_replace_upload_refused_while_that_book_runs(tmp_path):
-    make_root(tmp_path)
-    s = Studio(tmp_path, Commands("import time; time.sleep(30)"))
-    book = new_book()
-    slug = slugify(book["metadata"]["title"])
-    assert s.client.post("/books", files=upload_parts(book)).status_code == 303
-    try:
-        assert s.client.post(f"/books/{slug}/run/script").status_code == 303
-        book["metadata"]["author"] = "Someone Else"
-        r = s.client.post("/books", data={"replace": "1"}, files=upload_parts(book))
-        assert r.status_code == 409
-        assert "running" in r.text
-        assert load_json(s.paths.books_dir / slug / "book.json")["metadata"]["author"] != (
-            "Someone Else"
-        )
-    finally:
-        s.runner.stop()
 
 
 def test_stop_does_not_freeze_other_requests(tmp_path):
@@ -815,17 +675,6 @@ def test_app_shutdown_releases_the_studio_lock(bare):
     with TestClient(bare.app, base_url=ORIGIN), pytest.raises(sj.StudioLocked):
         sj.JobRunner(bare.paths.studio_dir, cwd=bare.paths.root)
     sj.JobRunner(bare.paths.studio_dir, cwd=bare.paths.root).close()
-
-
-def test_upload_without_a_content_length_is_refused(bare, monkeypatch):
-    monkeypatch.setattr(sb, "validate_upload", lambda *a: pytest.fail("the form was parsed"))
-    r = bare.client.post(
-        "/books",
-        content=iter([b"x"]),  # streamed: chunked, no Content-Length
-        headers={"content-type": "multipart/form-data; boundary=b"},
-    )
-    assert r.status_code == 411
-    assert "Content-Length" in r.text
 
 
 def _slow(events: list, name: str, real, seconds: float = 0.5, started=None):
@@ -925,30 +774,6 @@ def test_mark_reviewed_waits_for_a_starting_stage_and_is_refused(tmp_path, monke
     assert not sb.reviewed_ok(s.paths, s.book())
 
 
-def test_a_stage_does_not_start_while_its_book_is_being_replaced(bare, monkeypatch):
-    import threading
-
-    book = new_book()
-    slug = slugify(book["metadata"]["title"])
-    assert bare.client.post("/books", files=upload_parts(book)).status_code == 303
-    events, started = [], threading.Event()
-    monkeypatch.setattr(sb, "save_book", _slow(events, "save", sb.save_book, started=started))
-    real_start = bare.runner.start
-    monkeypatch.setattr(
-        bare.runner, "start", lambda *a, **k: (events.append("start"), real_start(*a, **k))[1]
-    )
-    book["metadata"]["author"] = "Someone Else"
-    with TestClient(bare.app, base_url=ORIGIN, follow_redirects=False) as client:
-        replaced, ran = _concurrently(
-            client,
-            ("/books", {"data": {"replace": "1"}, "files": upload_parts(book)}),
-            (f"/books/{slug}/run/script", {}),
-            started,
-        )
-    assert replaced.status_code == 303 and ran.status_code == 303
-    assert events == ["save-begin", "save-end", "start"]
-
-
 def test_approve_waits_for_a_starting_voices_stage_and_is_refused(tmp_path, monkeypatch):
     import threading
 
@@ -967,3 +792,17 @@ def test_approve_waits_for_a_starting_voices_stage_and_is_refused(tmp_path, monk
     assert ran.status_code == 303, ran.text
     assert approved.status_code == 409 and "still running" in approved.text
     assert load_json(world["audio"] / "status.json")["status"] == "pending review"
+
+
+def test_add_book_page_has_no_file_field(bare):  # AC-4.1
+    html = bare.client.get("/books/new").text
+    assert 'type="file"' not in html and "book_data" not in html
+    assert 'action="/ideas"' in html and 'action="/ideas/improve"' in html
+
+
+def test_posting_a_book_file_is_refused_and_saves_nothing(bare):  # AC-4.2
+    book = load_json(MINI_BOOK)
+    r = bare.client.post("/books", files=upload_parts(book))
+    assert r.status_code == 410
+    assert "no longer used" in r.text
+    assert sorted(p.name for p in bare.paths.books_dir.iterdir()) == [PILOT_SLUG]

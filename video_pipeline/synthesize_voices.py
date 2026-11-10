@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -29,6 +30,7 @@ from video_pipeline.audio_checks import (
     clip_problems,
     measure_clip,
     pause_between,
+    squeeze_silences,
     stitch,
     trim_silence,
 )
@@ -130,6 +132,9 @@ def load_pronunciations(book: dict, book_path: Path) -> dict[str, str]:
                 "non-empty spoken respelling"
             )
     return prons
+
+
+MAX_PAUSE_INSIDE_LINE = 0.6  # seconds; longer stalls inside a line are cut down to this
 
 
 def spoken_text(text: str, prons: dict[str, str]) -> str:
@@ -311,6 +316,38 @@ class LineFailed(Exception):
 Shift = Callable[[np.ndarray, int, float], np.ndarray]
 
 
+GPU_RETRIES = 3
+GPU_BACKOFF_S = (5.0, 15.0, 30.0)
+GPU_HINT = (
+    "the GPU timed out while speaking; close other GPU and memory-heavy apps, then run it "
+    "again: finished lines are kept"
+)
+
+
+def is_gpu_timeout(exc: BaseException) -> bool:
+    """A Metal GPU watchdog timeout from the voice engine (it is transient under load)."""
+    text = str(exc)
+    return isinstance(exc, RuntimeError) and (
+        "kIOGPUCommandBufferCallbackErrorTimeout" in text
+        or "GPU Timeout" in text
+        or "command buffer" in text.lower()
+    )
+
+
+def synthesize_retrying(engine, text: str, voice: str, seed: int, sleep=time.sleep) -> np.ndarray:
+    """One engine call; a GPU timeout frees the GPU memory and tries again after a pause, up to
+    GPU_RETRIES times. Other errors go straight to the caller."""
+    for retry in range(GPU_RETRIES + 1):
+        try:
+            return engine.synthesize(text, voice, seed)
+        except RuntimeError as exc:
+            if not is_gpu_timeout(exc) or retry == GPU_RETRIES:
+                raise
+            engine.recover()
+            sleep(GPU_BACKOFF_S[retry])
+    raise AssertionError("unreachable")
+
+
 def make_clip(
     job: LineJob, engine, cfg: VoiceConfig, shift: Shift
 ) -> tuple[np.ndarray | None, ClipMeasure, int, list[str]]:
@@ -319,11 +356,14 @@ def make_clip(
     problems: list[str] = []
     for attempt in range(1, cfg.max_attempts + 1):
         raw = shift(
-            engine.synthesize(job.spoken, job.voice, cfg.seed + attempt - 1),
+            synthesize_retrying(engine, job.spoken, job.voice, cfg.seed + attempt - 1),
             cfg.sample_rate,
             job.semitones,
         )
         trimmed = trim_silence(raw, cfg.sample_rate, cfg.checks.silence_db, cfg.checks.edge_silence)
+        trimmed = squeeze_silences(
+            trimmed, cfg.sample_rate, cfg.checks.silence_db, MAX_PAUSE_INSIDE_LINE
+        )
         measure = measure_clip(raw, trimmed, cfg.sample_rate, job.words, cfg.checks)
         problems = clip_problems(measure, cfg.checks)
         if not problems:
@@ -373,7 +413,8 @@ def synthesize_clips(
             except (LineFailed, ConfigError):
                 raise
             except Exception as exc:  # noqa: BLE001 - name the line for any engine/pitch error
-                raise LineError(f"{describe(job)}: {type(exc).__name__}: {exc}") from exc
+                hint = f"; {GPU_HINT}" if is_gpu_timeout(exc) else ""
+                raise LineError(f"{describe(job)}: {type(exc).__name__}: {exc}{hint}") from exc
             if audio is None:
                 failures.append((job, problems))
             else:
