@@ -236,9 +236,19 @@ def _line_errors(where: str, line: dict, terms: list[str], generated: bool) -> l
     return errors
 
 
+def _ambience_errors(where: str, block: dict) -> list[str]:
+    if "ambience" not in block:
+        return []
+    names = block["ambience"]
+    if not isinstance(names, list) or not all(isinstance(n, str) and n.strip() for n in names):
+        return [f"{where}: ambience must be a list of sound names"]
+    return []
+
+
 def _bookend_errors(block: dict, name: str, terms: list[str], title: str) -> list[str]:
     lines = block.get("lines", [])
-    errors = [
+    errors = _ambience_errors(name, block)
+    errors += [
         error
         for i, line in enumerate(lines)
         for error in _line_errors(f"{name} line {i + 1}", line, terms, generated=True)
@@ -282,6 +292,7 @@ def _page_errors(pages: list[dict], book: dict, terms: list[str]) -> list[str]:
         while split < len(lines) and lines[split].get("role") == "narration":
             split += 1
         narration, qa = lines[:split], lines[split:]
+        errors += _ambience_errors(f"page {number}", page)
         errors += _narration_errors(number, narration, book_page["text"], terms)
         if any(line.get("role") == "narration" for line in qa):
             errors.append(f"page {number}: narration lines must come before Q&A lines")

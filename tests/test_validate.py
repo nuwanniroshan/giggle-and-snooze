@@ -275,3 +275,30 @@ def test_missing_top_level_key():
     book, script = build()
     del script["outro"]
     assert validate_script(script, book, TERMS) == ["missing top-level key: outro"]
+
+
+def test_ambience_lists_are_valid_on_intro_pages_and_outro():  # FR-2
+    book, script = build()
+    script["intro"]["ambience"] = ["rain_soft"]
+    script["outro"]["ambience"] = ["rain_soft", "crickets"]
+    script["pages"][2]["ambience"] = ["rain_soft"]
+    assert validate_script(script, book, TERMS) == []
+
+
+def test_script_without_ambience_is_valid():  # AC-1.4
+    book, script = build()
+    assert all("ambience" not in page for page in script["pages"])
+    assert validate_script(script, book, TERMS) == []
+
+
+@pytest.mark.parametrize("bad", ["rain", [""], [3]])
+@pytest.mark.parametrize(
+    ("where", "expected"),
+    [("intro", "intro: ambience"), ("page", "page 3: ambience"), ("outro", "outro: ambience")],
+)
+def test_bad_ambience_is_reported(where, expected, bad):  # AC-1.5 (type part)
+    book, script = build()
+    block = script["pages"][2] if where == "page" else script[where]
+    block["ambience"] = bad
+    errors = validate_script(script, book, TERMS)
+    assert any(expected in error for error in errors)
