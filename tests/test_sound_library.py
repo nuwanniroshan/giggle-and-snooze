@@ -420,14 +420,14 @@ def test_render_bed_loops_reach_the_same_level_whatever_the_source(source_db):
     )
 
 
-def test_render_bed_spike_never_exceeds_the_peak_ceiling():
+def test_render_bed_spike_is_clipped_at_twice_the_peak_ceiling():
     spiky = np.zeros(2 * SR)
     spiky[SR // 2] = 1.4
     spiky += 0.001 * _sine(2.0)
     loop = render_bed([_cue("a", 1.0, 9.0)], {"a": spiky}, 10 * SR, SR, AUDIO)
-    assert np.abs(loop).max() <= 10 ** (-14.0 / 20) + 1e-9
+    assert np.abs(loop).max() <= 2 * 10 ** (-14.0 / 20) + 1e-9
     sfx = render_bed([_cue("a", 1.0, 9.0, "sfx")], {"a": spiky}, 10 * SR, SR, AUDIO)
-    assert np.abs(sfx).max() <= 10 ** (-8.0 / 20) + 1e-9
+    assert np.abs(sfx).max() <= 2 * 10 ** (-8.0 / 20) + 1e-9
     assert np.abs(sfx).max() > 0.1  # and it is still audible
 
 
@@ -451,14 +451,42 @@ def test_normalize_sound_respects_max_boost():
     assert _db(_rms(out) / _rms(src)) == pytest.approx(36.0, abs=0.01)
 
 
-def test_normalize_sound_respects_peak_ceiling():
+def test_normalize_sound_ordinary_signal_peaks_at_the_ceiling():
+    from video_pipeline.sound_library import normalize_sound
+
+    out = normalize_sound(_scaled_sine(-40.0), -3.0, -14.0)
+    assert np.abs(out).max() == pytest.approx(10 ** (-14.0 / 20), rel=0.01)
+
+
+def test_normalize_sound_spike_is_clipped_at_twice_the_ceiling():
     from video_pipeline.sound_library import normalize_sound
 
     spiky = np.zeros(1000)
     spiky[10] = 2.0
     spiky[500:600] = 0.01
     out = normalize_sound(spiky, -20.0, -14.0)
-    assert np.abs(out).max() == pytest.approx(10 ** (-14.0 / 20))
+    assert np.abs(out).max() <= 2 * 10 ** (-14.0 / 20) + 1e-12
+
+
+def _noise_with_spike(rms_db=-45.0, n=60000):
+    noise = np.random.default_rng(1).standard_normal(n)
+    noise *= 10 ** (rms_db / 20) / _rms(noise)
+    noise[n // 2] = 1.3
+    return noise
+
+
+def test_normalize_sound_one_spike_does_not_decide_the_level():
+    from video_pipeline.sound_library import normalize_sound
+
+    out = normalize_sound(_noise_with_spike(), -34.0, -14.0)
+    assert _db(_rms(out)) == pytest.approx(-34.0, abs=1.5)
+
+
+def test_normalize_sound_one_spike_is_limited_to_twice_the_ceiling():
+    from video_pipeline.sound_library import normalize_sound
+
+    out = normalize_sound(_noise_with_spike(), -34.0, -14.0)
+    assert np.abs(out).max() <= 2 * 10 ** (-14.0 / 20) + 1e-12
 
 
 def test_normalize_sound_silence_is_unchanged():

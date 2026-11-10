@@ -217,19 +217,19 @@ SFX_PEAK_CEILING_DBFS = -8.0
 def normalize_sound(
     data: np.ndarray, target_rms_db: float, peak_ceiling_db: float, max_boost_db: float = 36.0
 ) -> np.ndarray:
-    """`data` scaled to `target_rms_db` RMS, boosted by at most `max_boost_db` and never beyond
-    `peak_ceiling_db` at the sample peak. Silence is returned unchanged."""
+    """`data` scaled to `target_rms_db` RMS, boosted by at most `max_boost_db`. The ceiling gain
+    uses the 99.9th percentile of |x|, so a rare spike or sparse transient does not decide the
+    level; the output is then hard-limited to twice the ceiling (about +6 dB), so every sample
+    stays at or below `peak_ceiling_db` + 6 dB. Silence is returned unchanged."""
     x = np.asarray(data, dtype=np.float64)
-    rms = float(np.sqrt(np.mean(np.square(x)))) if len(x) else 0.0
-    peak = float(np.max(np.abs(x))) if len(x) else 0.0
+    peak = float(np.percentile(np.abs(x), 99.9)) if len(x) else 0.0
+    # The RMS ignores spikes beyond twice that peak, which the output limiter removes anyway.
+    rms = float(np.sqrt(np.mean(np.square(np.clip(x, -2 * peak, 2 * peak))))) if len(x) else 0.0
     if rms < 1e-9 or peak < 1e-9:
         return x
-    gain = min(
-        10 ** (target_rms_db / 20) / rms,
-        10 ** (max_boost_db / 20),
-        10 ** (peak_ceiling_db / 20) / peak,
-    )
-    return x * gain
+    ceiling = 10 ** (peak_ceiling_db / 20)
+    gain = min(10 ** (target_rms_db / 20) / rms, 10 ** (max_boost_db / 20), ceiling / peak)
+    return np.clip(x * gain, -2 * ceiling, 2 * ceiling)
 
 
 def _normalized(kind: str, data: np.ndarray, audio: AudioSettings) -> np.ndarray:
