@@ -1,7 +1,7 @@
 # Spec 007: Sound library and ambience in episodes
 
 **Status:** Approved
-**Version:** 1.0.1 (PATCH: AC-4.1 wording; audio is mixed once for the whole episode, so only master audio and the final video are rebuilt, video clips are reused)
+**Version:** 1.0.2 (PATCH: FR-2 and AC-1.5 name the library check at render time; 1.0.1: AC-4.1 wording; audio is mixed once for the whole episode, so only master audio and the final video are rebuilt, video clips are reused)
 **Created:** 2026-11-10
 **Branch:** `feat/007-sound-library`
 **Depends on:** specs 003 (render), 005 (book folders)
@@ -49,7 +49,7 @@ Story videos have only voices and a page-turn sound. The producer wants rain, wi
 - [ ] **AC-1.2** Given a page with `ambience` listing two sounds When rendered Then both play together for that page
 - [ ] **AC-1.3** Given an intro or outro with an `ambience` list When rendered Then the sounds play during that section
 - [ ] **AC-1.4** Given an episode script with no `ambience` fields When it is rendered Then its audio is identical to today's output
-- [ ] **AC-1.5** Given an `ambience` list that names a sound not in the library When the script is validated or rendered Then it fails before any encoding, naming the page and the sound
+- [ ] **AC-1.5** Given an `ambience` list that names a sound not in the library When the episode is rendered or its render status is read Then it fails before any encoding, naming the page and the sound
 
 ### Story 2: Smooth, quiet playback
 
@@ -109,7 +109,7 @@ The library is the shared folder `assets/sound_library/` with one audio file per
 Each of intro, page entries and outro may carry an optional `ambience` list of library names. The field is hand-editable like the rest of the script.
 
 **Must:**
-- Validate names against the library when the script is loaded.
+- Check that each ambience entry is a list of names when the script is validated, and check the names against the library when the episode is rendered or its render status is read, naming the page and the sound.
 - Treat a missing field as no ambience.
 - Leave every existing script valid.
 
