@@ -94,6 +94,22 @@ class EffectDefaults:
     colour: str = "#ffffff"
 
 
+# The recommended per-effect defaults (tuned in the ADR-010 spike, also in config/render.json),
+# used when render.json's animation block has no `effects` map (spec 010 FR-8).
+DEFAULT_EFFECTS: dict[str, EffectDefaults] = {
+    "rain": EffectDefaults(count=260, speed=1.6, size=40.0, strength=0.6, colour="#dfe6f0"),
+    "snow": EffectDefaults(count=160, speed=0.12, size=3.0, strength=0.85, colour="#ffffff"),
+    "fireflies": EffectDefaults(count=40, speed=0.25, size=7.0, strength=0.9, colour="#ffe08a"),
+    "falling_leaves": EffectDefaults(
+        count=14, speed=0.08, size=14.0, strength=1.0, colour="#c8862e"
+    ),
+    "water_ripple": EffectDefaults(count=0, speed=0.5, size=38.0, strength=4.0, colour="#ffffff"),
+    "smoke": EffectDefaults(count=6, speed=0.03, size=80.0, strength=0.35, colour="#d9d4cc"),
+    "mist": EffectDefaults(count=0, speed=0.01, size=220.0, strength=0.25, colour="#e8eef2"),
+    "glow": EffectDefaults(count=0, speed=0.2, size=60.0, strength=0.25, colour="#fff2c4"),
+}
+
+
 @dataclass(frozen=True)
 class AnimationSettings:
     """The `animation` block of render.json (spec 010 FR-8). It never enters a cache key here:
@@ -106,7 +122,7 @@ class AnimationSettings:
     parallax_period_s: float = 9.0
     override_min: float = 0.25
     override_max: float = 2.0
-    effects: dict[str, EffectDefaults] = field(default_factory=dict)
+    effects: dict[str, EffectDefaults] = field(default_factory=lambda: dict(DEFAULT_EFFECTS))
 
 
 @dataclass(frozen=True)

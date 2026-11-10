@@ -792,6 +792,18 @@ def test_page_animation_follows_the_script_override(tmp_path):  # AC-4.3
     assert row["still_reason"] == "animation false in the script"
 
 
+@pytest.mark.parametrize("value", ["high", [1], True, None])
+def test_page_animation_with_an_invalid_override_does_not_raise(tmp_path, value):  # AC-3.5
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    script = make_script(MINI_BOOK)
+    script["pages"][0]["animation"] = value
+    write_script(script, folder)
+    row = _rows(paths, book)[1]
+    assert row["will_animate"] is False
+    assert row["still_reason"].startswith("invalid animation value in the script")
+
+
 def test_page_animation_without_render_config_degrades(tmp_path):  # AC-4.3
     paths, book, folder, ah = _anim_book(tmp_path)
     ah.cut(folder, pages=[1])

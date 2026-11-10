@@ -51,7 +51,7 @@ from video_pipeline.contract import ConfigError
 from video_pipeline.drafts import DraftError, DraftStore
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.library import PROJECT_ROOT
-from video_pipeline.render_episode import VideoPaths
+from video_pipeline.render_episode import VideoPaths, voices_command
 from video_pipeline.studio import books as sb
 from video_pipeline.studio.jobs import Busy, JobRunner, StudioLocked, UnknownJob, stage_command
 from video_pipeline.timeline import page_section_name
@@ -270,7 +270,10 @@ class Studio:
             audio = _audio_paths(self.paths, book)
             name = page_section_name(int(page or 0))
             if not (audio.track(name).is_file() and audio.track_timing(name).is_file()):
-                return f"no voice track for page {page}: synthesize the voices first"
+                return (
+                    f"no voice track for page {page}: synthesize the voices first – "
+                    f"run {voices_command(book.slug)}"
+                )
         if stage == "voices":
             if not sb.script_path(self.paths, book).exists():
                 return "generate the script first"

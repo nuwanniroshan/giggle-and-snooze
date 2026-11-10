@@ -485,6 +485,20 @@ def test_effect_intensity_is_scaled_and_capped(tmp_path):
     assert anim.effects[0].intensity == pytest.approx(1.0)
 
 
+@pytest.mark.parametrize("kind", ["rain", "snow", "falling_leaves"])
+def test_particle_speed_follows_the_intensity(tmp_path, kind):  # AC-1.3
+    slow = load(tmp_path, BASE_LAYERS, [{"type": kind, "intensity": 0.1}]).effects[0]
+    fast = load(tmp_path, BASE_LAYERS, [{"type": kind, "intensity": 1.0}]).effects[0]
+    # speed × (0.5 + 0.5 × intensity): every slow particle moves less per frame than any fast one
+    assert slow.speed.max() < fast.speed.min()
+
+
+def test_smoke_rise_follows_the_intensity(tmp_path):  # AC-1.3
+    slow = load(tmp_path, BASE_LAYERS, [{"type": "smoke", "intensity": 0.1}]).effects[0]
+    fast = load(tmp_path, BASE_LAYERS, [{"type": "smoke", "intensity": 1.0}]).effects[0]
+    assert slow.rate == pytest.approx(fast.rate * 0.55)
+
+
 def test_colour_hint_tints_the_effect(tmp_path):
     plain = load(tmp_path, BASE_LAYERS)
     red = load(tmp_path, BASE_LAYERS, [{"type": "glow", "intensity": 1.0, "colour": "#ff0000"}])
@@ -492,6 +506,16 @@ def test_colour_hint_tints_the_effect(tmp_path):
     b = render_frame(red, 20).astype(int)
     delta = (b - a).reshape(-1, 3).sum(axis=0)
     assert delta[0] > 0 and delta[1] == 0 and delta[2] == 0
+
+
+def test_settings_without_an_effects_map_use_the_code_defaults(tmp_path):  # FR-8
+    anim = load(
+        tmp_path,
+        BASE_LAYERS,
+        [{"type": "rain", "intensity": 1.0}],
+        settings=replace(SETTINGS, effects=AnimationSettings().effects),
+    )
+    assert len(anim.effects) == 1
 
 
 def test_missing_effect_defaults_raise(tmp_path):
@@ -571,7 +595,20 @@ def test_renderer_refuses_frames_past_the_section(tmp_path):
 
 
 def test_module_exports_version():
-    assert isinstance(animate.ANIMATION_VERSION, int)
+    # 2: particle speed follows intensity, rest frames match the still canvas (review fixes)
+    assert animate.ANIMATION_VERSION == 2
+
+
+def test_canvas_frames_paste_the_rest_picture_while_at_rest():
+    backdrop = np.zeros((CH, CW, 3), np.uint8)
+    pics = (np.full((H, W, 3), 50, np.uint8) for _ in range(3))
+    rest = np.full((108, 144, 3), 200, np.uint8)
+    cam = Camera("static", 3, (1.0, 0.5, 0.5), (1.0, 0.5, 0.5))
+    out = list(canvas_frames(pics, backdrop, (144, 108), (24, 0), cam, 3, CW, CH, UP, rest, 1))
+    first, second = (np.frombuffer(b, np.uint8).reshape(CH, CW, 3) for b in out[:2])
+    assert (first[:, 24:168] == 200).all() and (second[:, 24:168] == 50).all()
+    with pytest.raises(ValueError, match="rest picture"):
+        list(canvas_frames(iter([]), backdrop, (144, 108), (24, 0), cam, 3, CW, CH, UP, None, 1))
 
 
 # --- eligibility and animated keys (spec 010 Phase 3: FR-11, FR-13, AC-4.1) ---------------------
@@ -635,6 +672,15 @@ def test_override_false_is_still(tmp_path):  # AC-3.4
     folder, _ah = _eligible_world(tmp_path)
     el = _eligibility(folder, script_page={"page_number": 1, "animation": False})
     assert not el.animated and el.reason == "animation false in the script"
+
+
+@pytest.mark.parametrize("value", ["high", [1], True, None, {"a": 1}])
+def test_invalid_override_is_still_never_raises(tmp_path, value):  # AC-3.5 (studio must not crash)
+    folder, _ah = _eligible_world(tmp_path)
+    el = _eligibility(folder, script_page={"page_number": 1, "animation": value})
+    assert not el.animated
+    assert el.reason.startswith("invalid animation value in the script – ")
+    assert repr(value) in el.reason
 
 
 def test_no_plan_names_the_planning_command(tmp_path):  # AC-4.1
@@ -717,6 +763,7 @@ def test_animated_key_formula(tmp_path):  # Global constraints: animated key
             "still": "abc",
             "plan": el.plan_sha,
             "manifest": el.manifest_sha,
+            "files": [list(f) for f in el.files_sha],
             "settings": asdict(settings),
             "scale": el.scale,
             "animation_version": ANIMATION_VERSION,
@@ -726,3 +773,63 @@ def test_animated_key_formula(tmp_path):  # Global constraints: animated key
     assert animated_key("abd", el, settings) != expected
     assert animated_key("abc", replace(el, scale=0.5), settings) != expected
     assert animated_key("abc", el, AnimationSettings(ease_in_s=2.0)) != expected
+
+
+def test_eligibility_hashes_every_cut_file(tmp_path):  # FR-13 (layer and background contents)
+    from video_pipeline.cut_layers import MANIFEST, layers_dir, manifest_files
+
+    folder, _ah = _eligible_world(tmp_path)
+    el = _eligibility(folder)
+    out = layers_dir(folder, 1)
+    manifest = json.loads((out / MANIFEST).read_text(encoding="utf-8"))
+    names = manifest_files(manifest)
+    assert manifest["background"] in names
+    assert dict(el.files_sha) == {
+        n: hashlib.sha256((out / n).read_bytes()).hexdigest() for n in names
+    }
+
+
+@pytest.mark.parametrize("which", ["layer", "background"])
+def test_changed_cut_file_bytes_change_the_animated_key(tmp_path, which):  # FR-13, AC-5.2
+    from video_pipeline.animate import animated_key
+    from video_pipeline.cut_layers import MANIFEST, layers_dir
+
+    folder, _ah = _eligible_world(tmp_path)
+    settings = AnimationSettings()
+    before = animated_key("abc", _eligibility(folder, settings=settings), settings)
+    out = layers_dir(folder, 1)
+    manifest_bytes = (out / MANIFEST).read_bytes()
+    manifest = json.loads(manifest_bytes)
+    name = (
+        manifest["background"]
+        if which == "background"
+        else next(e["file"] for e in manifest["layers"] if not e.get("empty"))
+    )
+    with Image.open(out / name) as im:
+        changed = im.copy()
+    changed.putpixel((0, 0), (1, 2, 3, 255) if changed.mode == "RGBA" else (1, 2, 3))
+    changed.save(out / name)
+    assert (out / MANIFEST).read_bytes() == manifest_bytes
+    after = animated_key("abc", _eligibility(folder, settings=settings), settings)
+    assert after != before
+
+
+def test_animated_canvas_frame_zero_is_the_still_canvas(tmp_path):  # AC-1.4 (review S2)
+    from types import SimpleNamespace
+
+    from tests.helpers import ROOT
+    from video_pipeline.frames import compose_canvas
+    from video_pipeline.render_episode import animated_canvas_frames
+    from video_pipeline.timeline import load_render_config
+
+    cfg = replace(load_render_config(ROOT / "config" / "render.json"), width=320, height=180)
+    layers = [_moving("a", (6, 6, 20, 20), RED, 1, amplitude=0.2)]
+    anim = load(tmp_path, layers, [{"type": "snow", "intensity": 1.0}], frames=3)
+    picture = tmp_path / "page_01.png"
+    cam = Camera("static", 3, (1.0, 0.5, 0.5), (1.0, 0.5, 0.5))
+    section = SimpleNamespace(camera=cam, frames=3)
+    frames = list(animated_canvas_frames(anim, picture, section, cfg))
+    compose_canvas(picture, cfg, tmp_path / "canvas.png")
+    still = picture_of(tmp_path / "canvas.png")
+    assert frames[0] == still.tobytes()
+    assert frames[1] != frames[0]  # later frames still animate

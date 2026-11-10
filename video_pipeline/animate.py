@@ -29,7 +29,13 @@ import cv2
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 
-from video_pipeline.cut_layers import MANIFEST, cut_state, layers_dir, read_config
+from video_pipeline.cut_layers import (
+    MANIFEST,
+    cut_state,
+    layers_dir,
+    manifest_files,
+    read_config,
+)
 from video_pipeline.file_hash import sha256_file
 from video_pipeline.library import BookFolder
 from video_pipeline.motion_plan import (
@@ -44,7 +50,7 @@ from video_pipeline.motion_plan import (
 )
 from video_pipeline.timeline import AnimationSettings, Camera, EffectDefaults, _hash, camera_at
 
-ANIMATION_VERSION = 1
+ANIMATION_VERSION = 2  # 2: speed follows intensity; rest frames match the still canvas
 REFERENCE_SIDE = 1024  # effect sizes in the config are px on a picture with this shorter side
 EDGE_TAPER_PX = 24.0  # haze and ripple fade to nothing over this many px at a box edge (at 1024)
 ZOOM_MAX = 10.0  # zoompan's zoom range
@@ -346,12 +352,17 @@ class EffectState:
     def count(self) -> int:
         return max(1, round(self.defaults.count * self.intensity))
 
+    def speed_factor(self) -> float:
+        """Moving particles go faster with the intensity: × (0.5 + 0.5 × intensity) (AC-1.3)."""
+        return 0.5 + 0.5 * self.intensity
+
     def particle_opacity(self, e: float) -> float:
         return self.defaults.strength * (0.5 + 0.5 * self.intensity) * e
 
 
 class Rain(EffectState):
-    """Slanted anti-aliased 1 px streaks falling at speed × short side per second, wrapping."""
+    """Slanted anti-aliased 1 px streaks falling at speed × (0.5 + 0.5 × intensity) × short side
+    per second, wrapping."""
 
     SLANT = 0.18
 
@@ -359,7 +370,7 @@ class Rain(EffectState):
         d, n = self.defaults, self.count()
         self.x0 = self.rng.random(n)
         self.y0 = self.rng.random(n)
-        self.speed = d.speed * self.short * self.rng.uniform(0.8, 1.2, n)
+        self.speed = d.speed * self.speed_factor() * self.short * self.rng.uniform(0.8, 1.2, n)
         self.length = max(d.size * self.k, 1.0) * self.rng.uniform(0.6, 1.0, n)
 
     def draw(self, out8, area, t, e):
@@ -382,7 +393,7 @@ class Snow(EffectState):
         d, n, rng = self.defaults, self.count(), self.rng
         self.x0 = rng.random(n)
         self.y0 = rng.random(n)
-        self.speed = d.speed * self.short * rng.uniform(0.7, 1.3, n)
+        self.speed = d.speed * self.speed_factor() * self.short * rng.uniform(0.7, 1.3, n)
         self.radius = np.maximum(d.size * self.k * rng.uniform(0.6, 1.4, n) / 2, 0.75)
         self.wobble = 8.0 * self.k
         self.freq = rng.uniform(0.3, 0.6, n)
@@ -409,7 +420,7 @@ class FallingLeaves(EffectState):
         size = max(d.size * self.k, 2.0)
         self.x0 = rng.random(n)
         self.y0 = rng.random(n)
-        self.speed = d.speed * self.short * rng.uniform(0.7, 1.3, n)
+        self.speed = d.speed * self.speed_factor() * self.short * rng.uniform(0.7, 1.3, n)
         self.major = size / 2 * rng.uniform(0.7, 1.3, n)
         self.minor = np.maximum(self.major * rng.uniform(0.35, 0.55, n), 0.75)
         self.angle0 = rng.uniform(0, 360, n)
@@ -487,7 +498,7 @@ class Smoke(EffectState):
         self.phase = rng.random(n)
         self.drift = rng.uniform(4.0, 12.0, n) * self.k
         self.freq = rng.uniform(0.1, 0.25, n)
-        self.rate = d.speed * self.short
+        self.rate = d.speed * self.speed_factor() * self.short
         self.radius = max(d.size * self.k / 2, 1.0)
 
     def draw(self, out8, area, t, e):
@@ -819,6 +830,11 @@ class PageEligibility:
     scale: float = 1.0
     plan_sha: str = ""
     manifest_sha: str = ""
+    files_sha: tuple[tuple[str, str], ...] = ()  # (file name, sha256) of each listed cut file
+
+
+def _is_real(value: object) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 def page_eligibility(
@@ -836,6 +852,12 @@ def page_eligibility(
     override = script_page.get("animation")
     if override is False:
         return PageEligibility(False, "animation false in the script")
+    if "animation" in script_page and not _is_real(override):
+        return PageEligibility(
+            False,
+            f"invalid animation value in the script – {override!r} "
+            "(use false or a number; the render refuses it)",
+        )
     number = int(page["page_number"])
     plan_cmd = f"python -m video_pipeline.motion_plan --book {folder.slug} --page {number}"
     path = plan_path(folder, number)
@@ -863,23 +885,28 @@ def page_eligibility(
         return PageEligibility(False, f"animation config unreadable – {where}: no usable {exc}")
     if cut != "cut":
         return PageEligibility(False, why)
+    out = layers_dir(folder, number)
     try:
         plan_sha = sha256_file(path)
-        manifest_sha = sha256_file(layers_dir(folder, number) / MANIFEST)
-    except OSError as exc:  # removed between the checks and the hash
+        manifest_sha = sha256_file(out / MANIFEST)
+        manifest = json.loads((out / MANIFEST).read_text(encoding="utf-8"))
+        files_sha = tuple((name, sha256_file(out / name)) for name in manifest_files(manifest))
+    except (OSError, ValueError) as exc:  # changed between the checks and the hash
         return PageEligibility(False, f"files changed while checking ({exc})")
     scale = settings.intensity * (float(override) if override is not None else 1.0)
-    return PageEligibility(True, "", st.plan, scale, plan_sha, manifest_sha)
+    return PageEligibility(True, "", st.plan, scale, plan_sha, manifest_sha, files_sha)
 
 
 def animated_key(still_key: str, el: PageEligibility, settings: AnimationSettings) -> str:
-    """An animated section's key: its still key plus the plan and cut identities, the animation
+    """An animated section's key: its still key plus the plan and cut identities (the manifest
+    and the bytes of every layer and background file it lists), the animation
     settings, the page's scale and the animator version (Global constraints)."""
     return _hash(
         {
             "still": still_key,
             "plan": el.plan_sha,
             "manifest": el.manifest_sha,
+            "files": [list(f) for f in el.files_sha],
             "settings": asdict(settings),
             "scale": el.scale,
             "animation_version": ANIMATION_VERSION,
@@ -970,6 +997,14 @@ def picture_frames(anim: PageAnimation, frames: int | None = None) -> Iterator[n
         yield renderer.frame(n)
 
 
+def rest_frames(anim: PageAnimation) -> int:
+    """How many leading frames are at rest (ease 0): each is exactly the original picture."""
+    n = 0
+    while n < anim.frames and ease(n / anim.fps, anim.settings.ease_in_s) <= 0:
+        n += 1
+    return n
+
+
 def render_frame(anim: PageAnimation, n: int) -> np.ndarray:
     """One picture-area frame built from scratch (for tests and previews)."""
     return PageRenderer(anim).frame(n).copy()
@@ -1014,9 +1049,16 @@ def canvas_frames(
     width: int,
     height: int,
     upscale: int,
+    rest: np.ndarray | None = None,
+    rest_count: int = 0,
 ) -> Iterator[bytes]:
     """rgb24 canvas frames: each picture resized (LANCZOS4) to `size` and pasted at `offset` into
-    the backdrop (H×W×3 uint8), then the section's camera applied with a bilinear warp."""
+    the backdrop (H×W×3 uint8), then the section's camera applied with a bilinear warp.
+
+    The first `rest_count` frames paste `rest` instead (the picture already at `size`, resized
+    as the still canvas is), so a section at rest starts exactly like the still one."""
+    if rest_count and (rest is None or rest.shape[:2] != size[::-1]):
+        raise ValueError(f"the rest picture must be {size[0]}×{size[1]}")
     if backdrop.shape != (height, width, 3):
         raise ValueError(f"backdrop is {backdrop.shape}, expected {(height, width, 3)}")
     buf = np.ascontiguousarray(backdrop, dtype=np.uint8).copy()
@@ -1027,7 +1069,9 @@ def canvas_frames(
         pic = next(source, None)
         if pic is None:
             raise ValueError(f"picture frames ended after {n} of {frames} frames")
-        if pic.shape[:2] != (fh, fw):
+        if n < rest_count:
+            pic = rest
+        elif pic.shape[:2] != (fh, fw):
             pic = cv2.resize(pic, (fw, fh), interpolation=cv2.INTER_LANCZOS4)
         buf[py : py + fh, px : px + fw] = pic
         m = camera_matrix(cam, n, width, height, upscale)

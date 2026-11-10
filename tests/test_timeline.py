@@ -860,7 +860,7 @@ def test_config_without_animation_block_gives_defaults(tmp_path):
     anim = load_render_config(_write_config(tmp_path, data)).animation
     assert anim == timeline.AnimationSettings()
     assert anim.enabled is True
-    assert anim.effects == {}
+    assert anim.effects == timeline.DEFAULT_EFFECTS
 
 
 def test_config_partial_animation_block_uses_field_defaults(tmp_path):
@@ -869,7 +869,15 @@ def test_config_partial_animation_block_uses_field_defaults(tmp_path):
     anim = load_render_config(_write_config(tmp_path, data)).animation
     assert anim.intensity == pytest.approx(0.5)
     assert anim.override_max == pytest.approx(2.0)
-    assert anim.effects == {}
+    assert anim.effects == timeline.DEFAULT_EFFECTS  # no effects map: the code defaults
+
+
+def test_default_effects_are_the_recommended_config_values():  # FR-8
+    data = load_json(RENDER_CONFIG)["animation"]["effects"]
+    assert set(timeline.DEFAULT_EFFECTS) == set(ALL_EFFECTS)
+    assert {n: timeline.EffectDefaults(**v) for n, v in data.items()} == timeline.DEFAULT_EFFECTS
+    assert timeline.AnimationSettings().effects == timeline.DEFAULT_EFFECTS
+    assert timeline.AnimationSettings().effects is not timeline.DEFAULT_EFFECTS
 
 
 def test_config_effect_defaults_partial_fields_default(tmp_path):
@@ -928,7 +936,7 @@ def test_animation_block_does_not_change_cache_keys(cfg, script, timings, tmp_pa
     """NFR-5: adding (or editing) the animation block changes no section or transition key."""
     assert timeline.RENDER_VERSION == 3
     data = load_json(RENDER_CONFIG)
-    del data["animation"]
+    data["animation"] = {"enabled": False, "intensity": 0.5}  # differs from the real block
     plain = load_render_config(_write_config(tmp_path, data))
     assert plain.animation != cfg.animation
     for a, b in zip(

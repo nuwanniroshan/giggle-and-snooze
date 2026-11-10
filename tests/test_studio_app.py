@@ -1062,6 +1062,7 @@ def test_preview_needs_the_page_track_not_approval(voiced):  # AC-6.3
     (world["audio"] / "tracks" / "page-04.wav").unlink()
     r = s.client.post(f"/books/{PILOT_SLUG}/animation/4/preview")
     assert r.status_code == 409 and "voice track" in r.text
+    assert f"python -m video_pipeline.synthesize_voices --book {PILOT_SLUG} --reviewed" in r.text
     assert s.commands.calls == []
     html = s.client.get(f"/books/{PILOT_SLUG}/animation/4").text
     assert re.search(r"<button[^>]*disabled[^>]*>\s*Preview", html)

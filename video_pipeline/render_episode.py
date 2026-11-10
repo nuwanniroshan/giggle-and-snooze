@@ -42,8 +42,9 @@ from video_pipeline.animate import (
     load_page_animation,
     page_eligibility,
     picture_frames,
+    rest_frames,
 )
-from video_pipeline.contract import ConfigError
+from video_pipeline.contract import ANIMATION_OVERRIDE_RANGE, ConfigError, _animation_errors
 from video_pipeline.cut_layers import layers_dir
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
@@ -668,6 +669,8 @@ def animated_canvas_frames(
     except (OSError, UnidentifiedImageError) as exc:
         raise PictureError(picture, str(exc)) from None
     backdrop, size, offset = canvas_parts(rgb, cfg)
+    # frames at rest paste the picture resized exactly as the still canvas does (AC-1.4)
+    rest = np.asarray(rgb.resize(size, Image.Resampling.LANCZOS), dtype=np.uint8)
     return canvas_frames(
         picture_frames(anim, section.frames),
         np.asarray(backdrop, dtype=np.uint8),
@@ -678,6 +681,8 @@ def animated_canvas_frames(
         cfg.width,
         cfg.height,
         cfg.upscale,
+        rest,
+        min(rest_frames(anim), section.frames),
     )
 
 
@@ -770,15 +775,27 @@ class _Inputs:
 
 
 def _check_overrides(script: dict, cfg: RenderConfig) -> None:
-    """Each page's numeric `animation` override must sit in render.json's narrower range."""
-    lo, hi = cfg.animation.override_min, cfg.animation.override_max
+    """The script's `animation` overrides, checked before any work (spec 010 FR-9, AC-3.5): each
+    page's is `false` or a number in the script contract's range, narrowed by render.json's
+    `override_min`–`override_max` while animation is on; the intro and outro carry none."""
+    lo, hi = ANIMATION_OVERRIDE_RANGE
+    narrowed = ""
+    if cfg.animation.enabled:
+        lo, hi = max(lo, cfg.animation.override_min), min(hi, cfg.animation.override_max)
+        if (lo, hi) != ANIMATION_OVERRIDE_RANGE:
+            narrowed = " (animation.override_min–override_max in config/render.json)"
+    errors = [
+        f"{name}: animation is allowed only on story pages, not the {name}"
+        for name in ("intro", "outro")
+        if isinstance(script.get(name), dict) and "animation" in script[name]
+    ]
     for page in script["pages"]:
-        value = page.get("animation")
-        if isinstance(value, int | float) and not isinstance(value, bool) and not lo <= value <= hi:
-            raise RenderError(
-                f"page {int(page['page_number'])}: animation {value!r} is outside "
-                f"animation.override_min–override_max ({lo}–{hi}) in config/render.json"
-            )
+        errors += [
+            error + narrowed
+            for error in _animation_errors(f"page {int(page['page_number'])}", page, lo, hi)
+        ]
+    if errors:
+        raise RenderError("; ".join(errors))
 
 
 def _page_eligibility(
@@ -1021,7 +1038,7 @@ def render_video(
     """
     inputs = _load_inputs(folder, root)
     slug, cfg = inputs.slug, inputs.cfg
-    sections, keys, trans_keys = inputs.sections, inputs.keys, inputs.trans_keys
+    sections, keys = inputs.sections, inputs.keys
     pictures, tracks, sample_rate = inputs.pictures, inputs.tracks, inputs.sample_rate
     pairs = list(zip(sections, sections[1:], strict=False))
     if on_progress:
@@ -1052,9 +1069,10 @@ def render_video(
 
         rendered = reused = 0
         fell_back: list[str] = []
+        made_keys: list[str] = []  # the key each section clip is recorded under
         work = _SectionWork(paths, cfg, folder, slug, run, frame_run, force, on_progress)
         for index, (section, key) in enumerate(zip(sections, keys, strict=True)):
-            action, fallback = _ensure_section(
+            action, fallback, made_key = _ensure_section(
                 work,
                 section,
                 key,
@@ -1062,6 +1080,7 @@ def render_video(
                 inputs.eligibility.get(section.name),
                 pictures.files[section.picture],
             )
+            made_keys.append(made_key)
             if fallback is not None:
                 fell_back.append(section.name)
             rendered += action == "rendered"
@@ -1069,6 +1088,11 @@ def render_video(
             if on_progress:
                 on_progress(section.name, action)
 
+        # Keyed on the clips as made: a transition next to a page that fell back to still is
+        # keyed on the still clip, so it is re-made once the page animates (spec 010 AC-2.2).
+        trans_keys = [
+            transition_key(a, b, cfg) for a, b in zip(made_keys, made_keys[1:], strict=False)
+        ]
         clips: list[Path] = [paths.sections / f"{sections[0].name}.mp4"]
         for (a, b), key in zip(pairs, trans_keys, strict=True):
             clip = paths.transitions / f"{a.name}__{b.name}.mp4"
@@ -1110,7 +1134,7 @@ def render_video(
                 "frames": total_frames(sections, cfg),
                 "sections": [
                     {"name": s.name, "key": k, "picture": str(pictures.files[s.picture])}
-                    for s, k in zip(sections, keys, strict=True)
+                    for s, k in zip(sections, made_keys, strict=True)
                 ],
                 **page_turn_fields,
                 "rendered_at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -1144,15 +1168,16 @@ def _ensure_section(
     still_key: str,
     el: PageEligibility | None,
     picture: Path,
-) -> tuple[str, str | None]:
+) -> tuple[str, str | None, str]:
     """Reuse the section clip in `sections/` when its key matches, else render it (animated when
-    `el` says so) and record its key. Returns "reused" or "rendered", and why an animated page
-    fell back to still (None when it did not); a fallback is recorded under `still_key`."""
+    `el` says so) and record its key. Returns "reused" or "rendered", why an animated page fell
+    back to still (None when it did not) and the key the clip is recorded under: `still_key`
+    after a fallback, else `key`."""
     paths = work.paths
     clip = paths.sections / f"{section.name}.mp4"
     meta = paths.sections / f"{section.name}.json"
     if _reusable(clip, meta, key, work.force):
-        return "reused", None
+        return "reused", None, key
     meta.unlink(missing_ok=True)
     anim, fallback = _load_animation(work, section, el, picture)
     if fallback is not None:
@@ -1170,7 +1195,7 @@ def _ensure_section(
         anim,
     )
     write_atomic(meta, {"key": key, "frames": section.frames, "picture": str(picture)})
-    return "rendered", fallback
+    return "rendered", fallback, key
 
 
 def _load_animation(
@@ -1194,7 +1219,8 @@ def _load_animation(
             section.frames,
         )
     except AnimationError as exc:
-        return None, str(exc)
+        fix = f"python -m video_pipeline.cut_layers --book {work.slug} --page {number} --force"
+        return None, f"{exc} – re-run {fix}"
     return anim, None
 
 
@@ -1208,7 +1234,7 @@ class PreviewResult:
     reason: str  # why the page is still ("" when animated)
 
 
-def _voices_command(slug: str) -> str:
+def voices_command(slug: str) -> str:
     return f"python -m video_pipeline.synthesize_voices --book {slug} --reviewed"
 
 
@@ -1240,7 +1266,7 @@ def render_preview(
     name = page_section_name(page)
     audio = AudioPaths(folder.build_dir / "audio")
     if not (audio.track(name).is_file() and audio.track_timing(name).is_file()):
-        raise RenderError(f"no voice track for page {page} – run {_voices_command(slug)}")
+        raise RenderError(f"no voice track for page {page} – run {voices_command(slug)}")
     timings, tracks, sample_rate = _load_tracks(audio, [name])
     book_page = next(
         (p for p in book["pages"] if int(p["page_number"]) == page), {"page_number": page}
@@ -1258,7 +1284,7 @@ def render_preview(
 
     paths = VideoPaths(folder.build_dir / "video")
     work = _SectionWork(paths, cfg, folder, slug, run, frame_run, force, on_progress)
-    action, fallback = _ensure_section(work, section, key, still_key, el, picture)
+    action, fallback, _made = _ensure_section(work, section, key, still_key, el, picture)
     if on_progress:
         on_progress(section.name, action)
     out = paths.preview(page)

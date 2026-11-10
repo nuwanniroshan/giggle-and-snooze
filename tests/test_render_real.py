@@ -311,3 +311,44 @@ def test_backdrop_outside_the_picture_matches_the_still(animated):  # AC-1.5
     for n in range(len(a)):
         mad = np.abs(a[n][keep] - s[n][keep]).mean()
         assert mad <= 2, (n, mad)
+
+
+def test_zero_motion_animated_section_matches_the_still_under_a_push(tmp_path):  # FR-12, AC-2.1
+    """A plan with no motion, parallax or effect goes through the animated path (OpenCV canvas
+    and camera warp) and must look like the still section (FFmpeg zoompan) frame by frame."""
+    from tests import animation_helpers as ah
+    from tests.helpers import MINI_BOOK
+    from tests.render_helpers import make_world
+    from video_pipeline import render_episode as re_
+    from video_pipeline.timeline import CENTRE, Camera
+
+    with pytest.MonkeyPatch.context() as mp:
+        world = make_world(tmp_path, mp, MINI_BOOK)
+    ah.write_plan(world["folder"], 2, layers=[ah.layer(motions=[], depth=0.0)])
+    ah.cut(world["folder"], pages=[2])
+    inputs = re_._load_inputs(world["folder"], world["root"])
+    el = inputs.eligibility["page-02"]
+    assert el.animated
+    section = next(s for s in inputs.sections if s.name == "page-02")
+    push = Camera("narration", section.frames, CENTRE, (1.3, 0.45, 0.55))
+    section = dataclasses.replace(section, camera=push)
+    picture = inputs.pictures.files[section.picture]
+    cfg = inputs.cfg
+    work = re_._SectionWork(
+        re_.VideoPaths(tmp_path), cfg, world["folder"], world["slug"], run_ffmpeg, None, False, None
+    )
+    anim = re_._load_animation(work, section, el, picture)[0]
+    assert anim is not None
+    clips = {}
+    for name, a in (("animated", anim), ("still", None)):
+        clips[name] = tmp_path / f"{name}.mp4"
+        re_._render_section(
+            section, picture, clips[name], tmp_path / "work" / name, cfg, run_ffmpeg,
+            re_.run_ffmpeg_frames, a,
+        )  # fmt: skip
+    moving, still = _decode_rgb(clips["animated"]), _decode_rgb(clips["still"])
+    assert len(moving) == len(still) == section.frames
+    assert np.abs(still[-1] - still[0]).mean() > 1  # the push really moves the picture
+    for n in range(0, section.frames, max(1, section.frames // 12)):
+        mad = np.abs(moving[n] - still[n]).mean()
+        assert mad <= 3, (n, mad)

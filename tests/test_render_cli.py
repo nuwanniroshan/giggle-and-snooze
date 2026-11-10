@@ -479,6 +479,25 @@ def test_plan_edit_on_animated_page_is_out_of_date(world):  # AC-5.5, FR-14
     assert re_.render_check_detail(world["folder"], world["root"])[0] == "out_of_date"
 
 
+def test_layer_png_edit_with_the_same_manifest_is_out_of_date(world):  # AC-5.5, FR-14
+    from PIL import Image
+
+    from video_pipeline.cut_layers import layers_dir
+
+    _animate(world)
+    assert render(world)[0] == 0
+    assert re_.render_check(world["folder"], world["root"]) == "up_to_date"
+    folder = layers_dir(world["folder"], 1)
+    manifest = load_json(folder / "layers.json")
+    name = next(e["file"] for e in manifest["layers"] if not e.get("empty"))
+    with Image.open(folder / name) as im:
+        changed = im.convert("RGBA")
+    changed.putpixel((0, 0), (1, 2, 3, 255))
+    changed.save(folder / name)
+    assert load_json(folder / "layers.json") == manifest
+    assert re_.render_check(world["folder"], world["root"]) == "out_of_date"
+
+
 def test_override_outside_the_config_range_names_the_page(world, capsys):  # FR-9
     _edit_json(world["config"] / "render.json", lambda c: c["animation"].update(override_max=1.0))
     _edit_json(world["script_path"], lambda s: s["pages"][2].update(animation=1.5))
@@ -486,6 +505,49 @@ def test_override_outside_the_config_range_names_the_page(world, capsys):  # FR-
         _inputs(world)
     code, _ = render(world)
     assert code == 1 and "page 3" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("value", ["high", [1], True, None])
+def test_invalid_override_refuses_the_render(world, capsys, value):  # Error Scenarios, AC-3.5
+    _animate(world)
+    _edit_json(world["script_path"], lambda s: s["pages"][0].update(animation=value))
+    with pytest.raises(re_.RenderError, match="page 1: animation must be false or a number"):
+        _inputs(world)
+    code, runner = render(world)
+    assert code == 1 and "page 1: animation" in capsys.readouterr().err
+    assert runner.calls == []
+    state, why = re_.render_check_detail(world["folder"], world["root"])
+    assert state == "blocked" and "page 1: animation" in why
+    with pytest.raises(re_.RenderError, match="page 1: animation must be false or a number"):
+        re_.render_preview(
+            world["folder"], world["root"], 4, run=FakeRunner(), frame_run=FakeFrameRunner()
+        )
+
+
+@pytest.mark.parametrize("block", ["intro", "outro"])
+def test_animation_on_a_bookend_refuses_the_render(world, capsys, block):  # AC-3.5
+    _edit_json(world["script_path"], lambda s: s[block].update(animation=1.0))
+    match = f"{block}: animation is allowed only on story pages"
+    with pytest.raises(re_.RenderError, match=match):
+        _inputs(world)
+    code, runner = render(world)
+    assert code == 1 and match in capsys.readouterr().err and runner.calls == []
+    with pytest.raises(re_.RenderError, match=match):
+        re_.render_preview(
+            world["folder"], world["root"], 4, run=FakeRunner(), frame_run=FakeFrameRunner()
+        )
+
+
+def test_config_range_applies_only_when_animation_is_on(world):  # FR-9
+    _edit_json(
+        world["config"] / "render.json",
+        lambda c: c["animation"].update(override_max=1.0, enabled=False),
+    )
+    _edit_json(world["script_path"], lambda s: s["pages"][2].update(animation=1.5))
+    _inputs(world)  # the narrower config range is not checked while animation is off
+    _edit_json(world["script_path"], lambda s: s["pages"][2].update(animation=3.0))
+    with pytest.raises(re_.RenderError, match="page 3: animation must be false or a number"):
+        _inputs(world)  # the script contract's own range always is
 
 
 def test_still_pages_are_logged_once_with_the_reason(world, capsys):  # AC-4.1
@@ -593,12 +655,59 @@ def test_unloadable_layer_falls_back_to_still_and_logs(world, capsys):  # FR-11,
     assert code == 0 and frames.calls == []
     assert "section page-01" in runner.whats("section ")
     assert out.count("page 01: still – ") == 1 and "can't read the layer" in out
+    fix = f"re-run python -m video_pipeline.cut_layers --book {world['slug']} --page 1 --force"
+    assert fix in out  # the fix command (AC-4.1)
     # written under the still key, so the next run tries the animation again
     assert _section_meta(world, "page-01")["key"] == _still_keys(inputs)[1]
     assert re_.render_check(world["folder"], world["root"]) == "out_of_date"
     code, runner, frames = _render_both(world)
     assert code == 0 and sections_rendered(runner) == ["page-01"]
     assert "page 01: still – " in capsys.readouterr().out
+
+
+def test_fixed_layer_after_a_fallback_rerenders_both_transitions(world, capsys):  # AC-2.2, AC-5.2
+    from video_pipeline.cut_layers import layers_dir
+
+    _animate(world)
+    folder = layers_dir(world["folder"], 1)
+    manifest = load_json(folder / "layers.json")
+    layer = next(e for e in manifest["layers"] if not e.get("empty"))
+    good = (folder / layer["file"]).read_bytes()
+    (folder / layer["file"]).write_bytes(b"not a png")
+    assert _render_both(world)[0] == 0
+    record = load_json(world["video"] / f"{world['slug']}.json")
+    still = _still_keys(_inputs(world))
+    assert [s["key"] for s in record["sections"]][1] == still[1]  # what the clip was made under
+    assert record["final_key"] is None
+    (folder / layer["file"]).write_bytes(good)  # fixed; layers.json is unchanged
+    code, runner, frames = _render_both(world)
+    assert code == 0
+    assert frames.whats() == ["section page-01"]
+    assert runner.whats("transition ") == [
+        "transition intro__page-01",
+        "transition page-01__page-02",
+    ]
+    assert re_.render_check(world["folder"], world["root"]) == "up_to_date"
+
+
+def test_transitions_follow_the_key_a_fallback_was_recorded_under(world, monkeypatch):  # AC-2.2
+    from video_pipeline.animate import AnimationError
+
+    _animate(world)
+    real = re_.load_page_animation
+
+    def unreadable(*args, **kwargs):
+        raise AnimationError("can't read the layer (a passing glitch)")
+
+    monkeypatch.setattr(re_, "load_page_animation", unreadable)
+    assert _render_both(world)[0] == 0
+    monkeypatch.setattr(re_, "load_page_animation", real)  # same inputs, now readable
+    code, runner, frames = _render_both(world)
+    assert code == 0 and frames.whats() == ["section page-01"]
+    assert runner.whats("transition ") == [
+        "transition intro__page-01",
+        "transition page-01__page-02",
+    ]
 
 
 def test_main_disk_full_outside_render_names_the_video_folder(world, capsys, monkeypatch):
