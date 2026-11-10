@@ -14,6 +14,7 @@ dependencies = [
     "uvicorn>=0.54",
     "jinja2>=3.1",
     "python-multipart>=0.0.33",
+    "coremltools>=8.3,<9",
 ]
 
 [dependency-groups]
@@ -33,8 +34,9 @@ markers = [
     "codex: runs the real Codex (ChatGPT) provider; needs the ChatGPT app logged in",
     "tts: runs the real local voice model (slow; model must be downloaded)",
     "ffmpeg: runs the real ffmpeg binary",
+    "models: runs the real segmentation/fill models (must be downloaded)",
 ]
-addopts = "-m 'not codex and not tts and not ffmpeg'"
+addopts = "-m 'not codex and not tts and not ffmpeg and not models'"
 
 [tool.ruff]
 target-version = "py312"

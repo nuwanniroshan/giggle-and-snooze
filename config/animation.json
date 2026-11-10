@@ -14,5 +14,158 @@
   },
   "cut": {
     "feather_px": 2
+  },
+  "models": {
+    "segmenter": {
+      "repo": "apple/coreml-sam2.1-small",
+      "revision": "883f5787eb0be35ce6965907a8bc1f5320a5a02e",
+      "encoder": "SAM2_1SmallImageEncoderFLOAT16.mlpackage",
+      "prompt_encoder": "SAM2_1SmallPromptEncoderFLOAT16.mlpackage",
+      "decoder": "SAM2_1SmallMaskDecoderFLOAT16.mlpackage",
+      "size": 1024,
+      "compute_units": "CPU_AND_GPU",
+      "io": {
+        "encoder": {
+          "input": {
+            "name": "image",
+            "kind": "rgb_image",
+            "size": [
+              1024,
+              1024
+            ]
+          },
+          "outputs": [
+            "image_embedding",
+            "feats_s0",
+            "feats_s1"
+          ],
+          "shapes": {
+            "image_embedding": [
+              1,
+              256,
+              64,
+              64
+            ],
+            "feats_s0": [
+              1,
+              32,
+              256,
+              256
+            ],
+            "feats_s1": [
+              1,
+              64,
+              128,
+              128
+            ]
+          }
+        },
+        "prompt_encoder": {
+          "inputs": {
+            "points": {
+              "dtype": "float32",
+              "shape": "[1, N, 2]"
+            },
+            "labels": {
+              "dtype": "int32",
+              "shape": "[1, N]"
+            }
+          },
+          "outputs": [
+            "sparse_embeddings",
+            "dense_embeddings"
+          ],
+          "max_points": 14
+        },
+        "decoder": {
+          "inputs": [
+            "image_embedding",
+            "sparse_embedding",
+            "dense_embedding",
+            "feats_s0",
+            "feats_s1"
+          ],
+          "outputs": [
+            "low_res_masks",
+            "scores"
+          ],
+          "shapes": {
+            "sparse_embedding": "[1, N+1, 256], N+1 in 2..15",
+            "low_res_masks": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "scores": [
+              1,
+              3
+            ]
+          }
+        }
+      },
+      "prompt": {
+        "coordinate_space": "1024x1024 (picture pixels * 1024 / picture size, x and y separately)",
+        "labels": {
+          "exclude": 0,
+          "include": 1,
+          "box_origin": 2,
+          "box_end": 3
+        }
+      },
+      "preprocess": {
+        "normalization": "inside the encoder (scale and bias ops); pass a plain 8-bit RGB image",
+        "resize": "stretch to 1024x1024, bilinear"
+      },
+      "postprocess": {
+        "mask_logits": "low_res_masks[0, i], 256x256, float logits",
+        "upsample": "bilinear to picture size, then threshold at 0.0",
+        "select": "largest mask among those with score >= best score - 0.05",
+        "clean": {
+          "close_px": 7,
+          "fill_interior_holes": true
+        }
+      },
+      "license": "Apache-2.0",
+      "source": "https://huggingface.co/apple/coreml-sam2.1-small"
+    },
+    "fill": {
+      "repo": "Carve/LaMa-ONNX",
+      "revision": "c3c0c9e468934d62e79c329e35d82dd09ff8c444",
+      "file": "lama_fp32.onnx",
+      "size": 512,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "io": {
+        "inputs": {
+          "image": {
+            "dtype": "float32",
+            "shape": "[batch, 3, 512, 512]",
+            "range": "0..1 RGB"
+          },
+          "mask": {
+            "dtype": "float32",
+            "shape": "[batch, 1, 512, 512]",
+            "range": "1 = hole, 0 = keep"
+          }
+        },
+        "outputs": {
+          "output": {
+            "dtype": "float32",
+            "shape": "[batch, 3, 512, 512]",
+            "range": "0..255 RGB"
+          }
+        }
+      },
+      "tile": {
+        "dilate_px": 6,
+        "margin_px": 96,
+        "min_crop_px": 512,
+        "paste": "only inside the hole"
+      },
+      "license": "Apache-2.0",
+      "source": "https://huggingface.co/Carve/LaMa-ONNX"
+    }
   }
 }
