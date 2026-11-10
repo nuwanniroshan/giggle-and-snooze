@@ -244,3 +244,38 @@ def test_interrupted_draft_is_marked_and_can_be_written_again(make_studio):  # A
     )
     s.wait()
     assert DraftStore(s.paths.root).get(draft["id"])["state"] == "ready"
+
+
+def test_add_book_page_never_reloads_itself_while_ideas_are_written(make_studio):
+    # A timed reload took the cursor out of the idea field while the user typed.
+    s = make_studio()
+    DraftStore(s.paths.root).new_run("ideas")  # left "writing" with no job running
+    html = s.client.get("/books/new").text
+    assert 'http-equiv="refresh"' not in html
+    assert "stopped before it finished" in html and "Writing ideas" not in html
+
+
+def test_draft_page_never_reloads_itself_while_writing(make_studio):
+    s = make_studio()
+    draft = DraftStore(s.paths.root).new_draft(idea_payload(), 12, "Ann")
+    html = s.client.get(f"/drafts/{draft['id']}").text
+    assert 'http-equiv="refresh"' not in html
+
+
+def test_improve_keeps_the_typed_idea_in_the_field(make_studio):
+    s = make_studio()
+    s.client.post("/ideas/improve", data={"idea": "a teapot who is scared of the dark"})
+    s.wait()
+    html = s.client.get("/books/new").text
+    assert ">a teapot who is scared of the dark</textarea>" in html
+
+
+def test_add_book_page_shows_the_steps_in_order(make_studio):
+    s = make_studio()
+    page = text_of(s.client.get("/books/new").text)
+    first, second, third = (
+        page.index("Choose a story idea"),
+        page.index("Write the book"),
+        page.index("Review your drafts"),
+    )
+    assert first < second < third

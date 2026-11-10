@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Studio{% endblock %} · Episode studio</title>
-<link rel="stylesheet" href="/static/studio.css">
+<link rel="stylesheet" href="{{ static_url('studio.css') }}">
 {% block head %}{% endblock %}
 </head>
 <body data-running-job="{{ running.id if running else '' }}">
@@ -23,6 +23,6 @@
 <main>
 {% block content %}{% endblock %}
 </main>
-<script src="/static/studio.js"></script>
+<script src="{{ static_url('studio.js') }}"></script>
 </body>
 </html>

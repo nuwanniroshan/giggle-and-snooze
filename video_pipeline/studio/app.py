@@ -88,6 +88,13 @@ _PROBLEM_PAGE = re.compile(r"^page (\d+)\b")
 CommandFor = Callable[..., list[str]]
 
 
+def static_url(name: str) -> str:
+    """A /static URL tagged with the file's modification time, so browsers drop stale copies."""
+    path = STUDIO_DIR / "static" / name
+    version = int(path.stat().st_mtime) if path.is_file() else 0
+    return f"/static/{name}?v={version}"
+
+
 def format_duration(seconds: float) -> str:
     """`m:ss`, or `h:mm:ss` from an hour."""
     total = round(seconds)
@@ -202,6 +209,7 @@ class Studio:
             state_word=_state_word,
             stage_labels=sb.STAGE_LABELS,
             format_duration=format_duration,
+            static_url=static_url,
         )
 
     # --- helpers --------------------------------------------------------------------------------
@@ -380,9 +388,12 @@ class Studio:
 
     def add_book_context(self, problems=None, text: str = "", **extra) -> dict:
         settings = self.drafts.settings()
+        candidate = self.drafts.latest_run("candidate")
+        if not text and candidate:
+            text = candidate.get("request") or ""  # keep the typed idea for "Improve again"
         return {
             "ideas": self.drafts.latest_run("ideas"),
-            "candidate": self.drafts.latest_run("candidate"),
+            "candidate": candidate,
             "drafts": self.drafts.list(),
             "problems": problems or [],
             "text": text,

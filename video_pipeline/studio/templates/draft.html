@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import problem_list %}
 {% block title %}{{ draft.idea.title }}{% endblock %}
-{% block head %}{% if draft.state == "writing" %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block content %}
 <h1>{{ draft.idea.title }}</h1>
 <p class="small">{{ draft.idea.age_range }} &middot; Maximum {{ draft.pages }} pages &middot; state: {{ draft.state }} &middot; attempts: {{ draft.attempts }}</p>
@@ -14,7 +13,7 @@
 {% endif %}
 
 {% if draft.state == "writing" %}
-  <p>Writing the book&hellip; this page refreshes when it is ready.</p>
+  <p>Writing the book&hellip; the pages appear here when they are ready.</p>
 {% elif draft.state in ("failed", "interrupted") %}
   <section class="notice">
     <h2>{{ "The book could not be written" if draft.state == "failed" else "Writing was interrupted" }}</h2>
