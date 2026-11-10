@@ -6,6 +6,7 @@ Paints `page_NN.png` for every page, then `cover_front.png` and `cover_back.png`
 `books/<slug>/illustrations/`. Existing files are kept unless `--force`. Page 1 is painted first
 and goes to every later image as a reference so the characters look the same on every page.
 Uses the ChatGPT login of the Codex CLI (the same one the script and story stages use).
+Each freshly painted story page then gets a fresh motion plan (spec 009); covers get none.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from PIL import Image
 
 from video_pipeline.agents import AgentUnavailable, codex_status
 from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
+from video_pipeline.motion_plan import PlanOutcome, load_limits, plan_page
 
 IMAGE_TIMEOUT_S = 600
 MIN_SIDE = 512
@@ -131,8 +133,13 @@ def illustrate(
     force: bool = False,
     paint: Callable[[Path, str, Path | None, Path], None] = paint_one,
     log: Callable[[str], None] = print,
+    plan: Callable[[dict], PlanOutcome] | None = None,
 ) -> list[str]:
-    """Paint what is missing (or everything with force). Returns the stems painted."""
+    """Paint what is missing (or everything with force). Returns the stems painted.
+
+    `plan` is called with the page right after each painted story page (never a kept picture or
+    a cover); a failed plan is logged and painting goes on."""
+    pages = {Path(_page_file(p)).stem: p for p in book["pages"]}
     painted: list[str] = []
     reference: Path | None = None
     for stem, prompt in plan_images(book):
@@ -143,6 +150,10 @@ def illustrate(
             log(f"  {stem}: painting...")
             paint(binary, prompt, reference, target)
             painted.append(stem)
+            if plan is not None and stem in pages:
+                outcome = plan(pages[stem])
+                reason = f" – {outcome.reason}" if outcome.reason else ""
+                log(f"  {stem}: plan {outcome.status}{reason}")
         if reference is None:
             reference = target
     return painted
@@ -162,12 +173,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         folder = book_folder(args.book, args.root)
         book = json.loads(folder.book_json.read_text(encoding="utf-8"))
         binary = codex_status()
+        limits = load_limits(args.root / "config")
+        unplanned: list[str] = []
+
+        def planner(page: dict) -> PlanOutcome:
+            # Only a just-painted page gets here, so any old plan is stale: force (it keeps .bak).
+            outcome = plan_page(
+                folder, page, limits, binary=binary, book=book, root=args.root, force=True
+            )
+            if outcome.status == "failed":
+                unplanned.append(Path(_page_file(page)).stem)
+            return outcome
+
         print(f"painting illustrations into {folder.illustrations}")
-        painted = illustrate(book, folder.illustrations, binary, force=args.force)
+        painted = illustrate(
+            book, folder.illustrations, binary, force=args.force, paint=paint_one, plan=planner
+        )
     except (LibraryError, AgentUnavailable, IllustrateError, OSError, KeyError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"painted {len(painted)} image(s); run again to retry anything that failed")
+    if unplanned:
+        print(
+            f"error: no motion plan for {', '.join(unplanned)} (pictures kept); "
+            f"run `python -m video_pipeline.motion_plan --book {args.book}` to retry",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
