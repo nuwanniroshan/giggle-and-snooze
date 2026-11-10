@@ -1,0 +1,215 @@
+{
+  "license": "CC0 1.0 (public domain dedication): https://creativecommons.org/publicdomain/zero/1.0/",
+  "source": "freesound.org (public 128 kbps preview MP3s)",
+  "downloaded": "2026-11-10",
+  "sounds": {
+    "rain_soft": {
+      "file": "rain_soft.mp3",
+      "title": "Slowly Raining Loop",
+      "author": "unfa",
+      "url": "https://freesound.org/people/unfa/sounds/177479/",
+      "seconds": 73.4,
+      "kind": "ambience"
+    },
+    "rain_indoor": {
+      "file": "rain_indoor.mp3",
+      "title": "Rain from Indoors - Perfect loop",
+      "author": "samesamesame",
+      "url": "https://freesound.org/people/samesamesame/sounds/242889/",
+      "seconds": 48.0,
+      "kind": "ambience"
+    },
+    "thunder_distant": {
+      "file": "thunder_distant.mp3",
+      "title": "Rain and distant thunder",
+      "author": "richwise",
+      "url": "https://freesound.org/people/richwise/sounds/478645/",
+      "seconds": 84.1,
+      "kind": "ambience"
+    },
+    "wind_loop": {
+      "file": "wind_loop.mp3",
+      "title": "Looping Wind & Noise",
+      "author": "kkenny101",
+      "url": "https://freesound.org/people/kkenny101/sounds/852845/",
+      "seconds": 34.8,
+      "kind": "ambience"
+    },
+    "wind_winter": {
+      "file": "wind_winter.mp3",
+      "title": "swirling winter wind gusty grains sand",
+      "author": "kyles",
+      "url": "https://freesound.org/people/kyles/sounds/454213/",
+      "seconds": 113.5,
+      "kind": "ambience"
+    },
+    "fire_crackle": {
+      "file": "fire_crackle.mp3",
+      "title": "Crackling Flames (loop)",
+      "author": "NickTayloe",
+      "url": "https://freesound.org/people/NickTayloe/sounds/813328/",
+      "seconds": 35.0,
+      "kind": "ambience"
+    },
+    "campfire": {
+      "file": "campfire.mp3",
+      "title": "Campfire 01",
+      "author": "HECKFRICKER",
+      "url": "https://freesound.org/people/HECKFRICKER/sounds/729395/",
+      "seconds": 109.0,
+      "kind": "ambience"
+    },
+    "stream": {
+      "file": "stream.mp3",
+      "title": "Forest stream New Zealand 01",
+      "author": "Studio1212",
+      "url": "https://freesound.org/people/Studio1212/sounds/581734/",
+      "seconds": 21.6,
+      "kind": "ambience"
+    },
+    "ocean_waves": {
+      "file": "ocean_waves.mp3",
+      "title": "Ocean_coast_04_092025_0659AM",
+      "author": "YevgVerh",
+      "url": "https://freesound.org/people/YevgVerh/sounds/827530/",
+      "seconds": 181.2,
+      "kind": "ambience"
+    },
+    "birds_morning": {
+      "file": "birds_morning.mp3",
+      "title": "birds on morning",
+      "author": "trezz77",
+      "url": "https://freesound.org/people/trezz77/sounds/546521/",
+      "seconds": 122.6,
+      "kind": "ambience"
+    },
+    "crickets_night": {
+      "file": "crickets_night.mp3",
+      "title": "Crickets At Night - Raw sound",
+      "author": "Defelozedd94",
+      "url": "https://freesound.org/people/Defelozedd94/sounds/522299/",
+      "seconds": 222.6,
+      "kind": "ambience"
+    },
+    "music_box": {
+      "file": "music_box.mp3",
+      "title": "music_box_loosely_mozartish.ogg",
+      "author": "rexior",
+      "url": "https://freesound.org/people/rexior/sounds/678448/",
+      "seconds": 34.3,
+      "kind": "music"
+    },
+    "footsteps_leaves": {
+      "file": "footsteps_leaves.mp3",
+      "title": "Footsteps - leaves, park background",
+      "author": "iliana22",
+      "url": "https://freesound.org/people/iliana22/sounds/832021/",
+      "kind": "ambience",
+      "seconds": 23.1
+    },
+    "footsteps_grass": {
+      "file": "footsteps_grass.mp3",
+      "title": "Hiking Boot Footsteps on Grass",
+      "author": "Fission9",
+      "url": "https://freesound.org/people/Fission9/sounds/521587/",
+      "kind": "sfx",
+      "seconds": 4.4
+    },
+    "door_creak": {
+      "file": "door_creak.mp3",
+      "title": "Wooden_Door_Squeak_04",
+      "author": "BlondPanda",
+      "url": "https://freesound.org/people/BlondPanda/sounds/778462/",
+      "kind": "sfx",
+      "seconds": 1.2
+    },
+    "door_knock": {
+      "file": "door_knock.mp3",
+      "title": "knock on wood door kinda roomy bgsound",
+      "author": "kyles",
+      "url": "https://freesound.org/people/kyles/sounds/637644/",
+      "kind": "sfx",
+      "seconds": 1.5
+    },
+    "bell_chime": {
+      "file": "bell_chime.mp3",
+      "title": "Thin bell ding 2",
+      "author": "Khrinx",
+      "url": "https://freesound.org/people/Khrinx/sounds/333695/",
+      "kind": "sfx",
+      "seconds": 1.4
+    },
+    "magic_sparkle": {
+      "file": "magic_sparkle.mp3",
+      "title": "GLEAM-GLOW-SFX-CHIME",
+      "author": "newagesoup",
+      "url": "https://freesound.org/people/newagesoup/sounds/351408/",
+      "kind": "sfx",
+      "seconds": 5.4
+    },
+    "chimes_sweep": {
+      "file": "chimes_sweep.mp3",
+      "title": "36 Bar Chimes Sweep Ascend 02",
+      "author": "loganzsound",
+      "url": "https://freesound.org/people/loganzsound/sounds/874686/",
+      "kind": "sfx",
+      "seconds": 15.1
+    },
+    "owl_hoot": {
+      "file": "owl_hoot.mp3",
+      "title": "Owl Slow Hoot",
+      "author": "dandman3039",
+      "url": "https://freesound.org/people/dandman3039/sounds/528623/",
+      "kind": "ambience",
+      "seconds": 33.7
+    },
+    "frogs_night": {
+      "file": "frogs_night.mp3",
+      "title": "Night Frogs",
+      "author": "sokworks",
+      "url": "https://freesound.org/people/sokworks/sounds/868875/",
+      "kind": "ambience",
+      "seconds": 49.4
+    },
+    "clock_tick": {
+      "file": "clock_tick.mp3",
+      "title": "Kitchen Wall Clock Ticking 2",
+      "author": "giddster",
+      "url": "https://freesound.org/people/giddster/sounds/434841/",
+      "kind": "ambience",
+      "seconds": 64.3
+    },
+    "piano_calm": {
+      "file": "piano_calm.mp3",
+      "title": "Memories of a sweet summer (music) (loop)",
+      "author": "xkeril",
+      "url": "https://freesound.org/people/xkeril/sounds/826622/",
+      "kind": "music",
+      "seconds": 20.0
+    },
+    "pop": {
+      "file": "pop.mp3",
+      "title": "Cartoon Pop",
+      "author": "Mish7913",
+      "url": "https://freesound.org/people/Mish7913/sounds/741368/",
+      "kind": "sfx",
+      "seconds": 0.5
+    },
+    "boing": {
+      "file": "boing.mp3",
+      "title": "cartoon-sound-double-boing",
+      "author": "sdroliasnick",
+      "url": "https://freesound.org/people/sdroliasnick/sounds/731261/",
+      "kind": "sfx",
+      "seconds": 2.3
+    },
+    "snore": {
+      "file": "snore.mp3",
+      "title": "Snoring during a sleep",
+      "author": "rjkothari",
+      "url": "https://freesound.org/people/rjkothari/sounds/476813/",
+      "kind": "ambience",
+      "seconds": 52.3
+    }
+  }
+}
