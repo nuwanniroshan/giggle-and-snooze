@@ -333,7 +333,7 @@ def mark_reviewed(paths: StudioPaths, book: Book) -> dict:
     if not path.exists():
         raise StudioError(_no_script(book))
     mark = {
-        "script_sha256": sv.sha256_file(path),
+        "script_sha256": sv.script_sha256(path),
         "book_sha256": sv.sha256_file(book.book_path),
         "reviewed_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
@@ -350,7 +350,7 @@ def reviewed_mark(paths: StudioPaths, book: Book) -> dict | None:
         return None
     if mark.get("book_sha256") != sv.sha256_file(book.book_path):
         return None
-    return mark if mark.get("script_sha256") == sv.sha256_file(path) else None
+    return mark if mark.get("script_sha256") == sv.script_sha256(path) else None
 
 
 def reviewed_ok(paths: StudioPaths, book: Book) -> bool:
@@ -432,7 +432,7 @@ def _script_state(paths: StudioPaths, book: Book) -> dict:
     if mark is not None:
         return _state("done", f"reviewed at {mark.get('reviewed_at')}")
     record = _audio_record(paths, book)
-    if record is not None and record.get("script_sha256") == sv.sha256_file(path):
+    if record is not None and record.get("script_sha256") == sv.script_sha256(path):
         # Synthesis (CLI --reviewed) was run on exactly this script, so it was reviewed.
         return _state("done", "the audio was made from this script")
     return _state("needs_review", "review the script, then mark it as reviewed")

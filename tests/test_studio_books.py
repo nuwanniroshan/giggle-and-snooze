@@ -352,6 +352,22 @@ def test_reviewed_mark_goes_stale_when_script_changes_outside(studio, scripted):
     assert not sb.reviewed_ok(studio, scripted)
 
 
+def test_review_mark_survives_an_ambience_edit_but_not_a_text_edit(studio, scripted):  # spec 007
+    from video_pipeline.episode_tools import write_atomic
+
+    path = sb.script_path(studio, scripted)
+    write_atomic(path, load_json(path))
+    sb.mark_reviewed(studio, scripted)
+    data = load_json(path)
+    data["intro"]["ambience"] = ["rain"]
+    data["pages"][0]["ambience"] = ["wind"]
+    write_atomic(path, data)
+    assert sb.reviewed_ok(studio, scripted)
+    data["pages"][0]["lines"][0]["text"] = "Changed narration."
+    write_atomic(path, data)
+    assert not sb.reviewed_ok(studio, scripted)
+
+
 def test_mark_reviewed_without_a_script_is_refused(studio):
     with pytest.raises(sb.StudioError, match="no episode script"):
         sb.mark_reviewed(studio, sb.get_book(studio, PILOT_SLUG))

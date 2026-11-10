@@ -82,3 +82,88 @@ def test_file_written_while_it_is_hashed_is_not_cached(tmp_path, monkeypatch):
     assert not [k for k in fh._cache if k[0] == key]  # neither the old nor the new stat cached
     monkeypatch.setattr(fh, "_digest", real)
     assert fh.sha256_file(path) == hashlib.sha256(b"bbbb").hexdigest()
+
+
+# --- script_sha256: ambience edits do not change the script hash (spec 007) -------------------
+
+import json  # noqa: E402
+
+import pytest  # noqa: E402
+
+from video_pipeline.episode_tools import write_atomic  # noqa: E402
+
+
+def _script() -> dict:
+    return {
+        "title": "T",
+        "intro": {"lines": [{"speaker": "Storyteller", "text": "Hello"}]},
+        "pages": [
+            {"page_number": 1, "lines": [{"speaker": "Storyteller", "text": "One"}]},
+            {"page_number": 2, "lines": [{"speaker": "Storyteller", "text": "Two"}]},
+        ],
+        "outro": {"lines": [{"speaker": "Storyteller", "text": "Bye"}]},
+    }
+
+
+def _write(tmp_path, data):
+    path = tmp_path / "episode_script.json"
+    write_atomic(path, data)
+    return path
+
+
+def test_script_hash_equals_file_hash_without_ambience(tmp_path):
+    path = _write(tmp_path, _script())
+    assert fh.script_sha256(path) == fh.sha256_file(path)
+
+
+@pytest.mark.parametrize("where", ["intro", "outro", 0, 1])
+def test_adding_ambience_keeps_the_script_hash(tmp_path, where):
+    path = _write(tmp_path, _script())
+    before = fh.script_sha256(path)
+    data = _script()
+    block = data[where] if isinstance(where, str) else data["pages"][where]
+    block["ambience"] = ["rain", "wind"]
+    write_atomic(path, data)
+    assert fh.sha256_file(path) != before  # the raw bytes did change
+    assert fh.script_sha256(path) == before
+
+
+def test_ambience_on_every_block_and_edits_to_it_keep_the_hash(tmp_path):
+    path = _write(tmp_path, _script())
+    before = fh.script_sha256(path)
+    data = _script()
+    for block in (data["intro"], data["outro"], *data["pages"]):
+        block["ambience"] = ["rain"]
+    write_atomic(path, data)
+    first = fh.script_sha256(path)
+    data["pages"][0]["ambience"] = []
+    write_atomic(path, data)
+    assert first == before == fh.script_sha256(path)
+
+
+def test_changing_text_changes_the_script_hash_even_with_ambience(tmp_path):
+    path = _write(tmp_path, _script())
+    before = fh.script_sha256(path)
+    data = _script()
+    data["pages"][1]["ambience"] = ["rain"]
+    data["pages"][0]["lines"][0]["text"] = "Uno"
+    write_atomic(path, data)
+    assert fh.script_sha256(path) != before
+
+
+def test_invalid_json_falls_back_to_the_raw_file_hash(tmp_path):
+    path = tmp_path / "episode_script.json"
+    path.write_text('{"ambience": [', encoding="utf-8")
+    assert fh.script_sha256(path) == fh.sha256_file(path)
+    path.write_text(json.dumps([1, 2]), encoding="utf-8")
+    assert fh.script_sha256(path) == fh.sha256_file(path)
+
+
+def test_a_script_saved_without_a_trailing_newline_also_ignores_ambience(tmp_path):
+    path = tmp_path / "episode_script.json"
+    path.write_text(json.dumps(_script(), indent=2, ensure_ascii=False), encoding="utf-8")
+    before = fh.script_sha256(path)
+    data = _script()
+    data["intro"]["ambience"] = ["rain"]
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    assert fh.script_sha256(path) == before

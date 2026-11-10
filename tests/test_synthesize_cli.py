@@ -375,3 +375,26 @@ def test_synthesis_recovers_from_a_corrupt_record(env, name):  # review r1 #3
     assert run(env, "--reviewed") == 0
     assert load_json(env["audio"] / "status.json")["status"] == "pending review"
     assert run(env, command="approve") == 0
+
+
+def test_ambience_edit_keeps_the_approval_but_a_text_edit_drops_it(env, capsys):  # spec 007
+    from video_pipeline.episode_tools import write_atomic
+
+    write_atomic(env["script_path"], env["script"])
+    assert run(env, "--reviewed") == 0
+    assert run(env, command="approve") == 0
+    script = load_json(env["script_path"])
+    script["intro"]["ambience"] = ["rain"]
+    script["pages"][0]["ambience"] = ["wind"]
+    script["outro"]["ambience"] = ["rain"]
+    write_atomic(env["script_path"], script)
+    capsys.readouterr()
+    assert run(env, command="approve") == 0  # still valid: nothing to re-synthesize
+    assert run(env, "--reviewed") == 0
+    assert load_json(env["audio"] / "status.json")["status"] == "approved"
+
+    script["pages"][0]["lines"][0]["text"] = "A changed narration line."
+    write_atomic(env["script_path"], script)
+    capsys.readouterr()
+    assert run(env, command="approve") == 1
+    assert "changed since the audio was synthesized" in capsys.readouterr().err

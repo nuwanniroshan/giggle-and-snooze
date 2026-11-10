@@ -144,7 +144,7 @@ def _script_reviewed(paths: sb.StudioPaths, book: sb.Book) -> bool:
     if sb.reviewed_ok(paths, book):
         return True
     record = _read_json(_audio_paths(paths, book).status)
-    return record is not None and record.get("script_sha256") == sv.sha256_file(script)
+    return record is not None and record.get("script_sha256") == sv.script_sha256(script)
 
 
 def _track_names(audio: sv.AudioPaths) -> list[str]:

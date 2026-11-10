@@ -43,7 +43,7 @@ from video_pipeline.contract import (
 )
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
-from video_pipeline.file_hash import sha256_file
+from video_pipeline.file_hash import script_sha256, sha256_file
 from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
 from video_pipeline.tts import (
     ModelSettings,
@@ -666,7 +666,7 @@ def _validity_problems(
         return [f"episode script not found: {script_path}"]
     since = "approval" if status.get("status") == "approved" else "synthesis"
     problems: list[str] = []
-    if sha256_file(script_path) != status.get("script_sha256"):
+    if script_sha256(script_path) != status.get("script_sha256"):
         problems.append(f"{script_path} changed since the audio was synthesized; {fix}")
     if settings_sha != status.get("settings_sha256"):
         problems.append(f"voice settings changed since the audio was synthesized; {fix}")
@@ -805,7 +805,7 @@ def _synthesize(
     names, rebuilt = build_tracks(outcomes, paths, cfg)
     build_preview(names, paths, cfg)
     any_synthesized = any(o.synthesized for o in outcomes)
-    script_sha, settings_sha = sha256_file(script_path), settings_hash(cfg, script, prons)
+    script_sha, settings_sha = script_sha256(script_path), settings_hash(cfg, script, prons)
     status = next_status(
         paths,
         script_sha,
