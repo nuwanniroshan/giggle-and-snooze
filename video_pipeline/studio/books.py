@@ -22,7 +22,13 @@ from PIL import Image
 
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
-from video_pipeline.cut_layers import MANIFEST, cut_hash, layers_dir, model_ids
+from video_pipeline.cut_layers import (
+    MANIFEST,
+    cut_settings,
+    cut_state,
+    layers_dir,
+    manifest_files,
+)
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import BOOK_FILE, PROJECT_ROOT, BookFolder, list_book_slugs
@@ -457,35 +463,19 @@ def stage_status(paths: StudioPaths, book: Book, latest_job: LatestJob) -> dict:
 # --- animation plans and cuts (spec 009 FR-12) ----------------------------------------------
 
 
-def _cut_settings(paths: StudioPaths) -> tuple[int, dict[str, str]] | None:
-    """The feather and model ids the cut hash depends on, or None when config/animation.json has
-    no usable `cut` or `models` block (cut state then shows as unknown)."""
+def _cut_config(paths: StudioPaths) -> dict | None:
+    """config/animation.json when its `cut` and `models` blocks are usable, else None (cut state
+    then shows as unknown)."""
     config = _read_dict(paths.config_dir / LIMITS_FILE)
     try:
-        return int(config["cut"]["feather_px"]), model_ids(config["models"])
+        cut_settings(config)
     except (TypeError, KeyError, ValueError, AttributeError):
         return None
+    return config
 
 
 def _manifest(folder: BookFolder, page_number: int) -> dict | None:
     return _read_dict(layers_dir(folder, page_number) / MANIFEST)
-
-
-def _manifest_files(manifest: dict) -> list[str]:
-    """Plain file names the manifest lists (layer PNGs and the background); others are ignored."""
-    names = [e.get("file") for e in manifest.get("layers") or [] if isinstance(e, dict)]
-    names.append(manifest.get("background"))
-    return [n for n in names if isinstance(n, str) and _plain_name(n)]
-
-
-def _cut_state(folder: BookFolder, page_number: int, plan, settings) -> str:
-    manifest = _manifest(folder, page_number)
-    if manifest is None or manifest.get("cut_hash") != cut_hash(plan, *settings):
-        return "needs cut"
-    out = layers_dir(folder, page_number)
-    return (
-        "cut" if all((out / name).is_file() for name in _manifest_files(manifest)) else "needs cut"
-    )
 
 
 def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
@@ -515,14 +505,14 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
             }
             for p in sorted(pages, key=lambda p: int(p["page_number"]))
         ]
-    settings = _cut_settings(paths)
+    config = _cut_config(paths)
     rows = []
     for page in sorted(pages, key=lambda p: int(p["page_number"])):
         number = int(page["page_number"])
         st = plan_state(folder, page, limits)
         cut = NO_CUT
-        if st.state == "ok" and settings is not None:
-            cut = _cut_state(folder, number, st.plan, settings)
+        if st.state == "ok" and config is not None:
+            cut = cut_state(folder, st.plan, config)[0]
         manifest = _manifest(folder, number) if cut == "cut" else None
         empty = [
             str(e.get("name"))
@@ -569,7 +559,7 @@ def layer_files(paths: StudioPaths, book: Book, page_number: int) -> dict[str, P
     if manifest is None:
         return {}
     out = layers_dir(folder, page_number)
-    return {n: out / n for n in _manifest_files(manifest) if (out / n).is_file()}
+    return {n: out / n for n in manifest_files(manifest) if (out / n).is_file()}
 
 
 def _plan_layer_order(folder: BookFolder, page_number: int) -> dict[str, int]:

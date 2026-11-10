@@ -125,6 +125,50 @@ def read_config(root: Path) -> dict:
     return json.loads((Path(root) / "config" / LIMITS_FILE).read_text(encoding="utf-8"))
 
 
+def cut_settings(config: dict) -> tuple[int, dict[str, str]]:
+    """The feather and model ids the cut hash depends on, from config/animation.json (KeyError,
+    TypeError, ValueError or AttributeError when its `cut` or `models` block is unusable)."""
+    return int(config["cut"]["feather_px"]), model_ids(config["models"])
+
+
+def _plain_name(name: object) -> bool:
+    return (
+        isinstance(name, str)
+        and name not in ("", ".", "..")
+        and not any(c in name for c in "/\\\0")
+        and Path(name).name == name
+    )
+
+
+def manifest_files(manifest: dict) -> list[str]:
+    """Plain file names a manifest lists (layer PNGs and the background); others are ignored."""
+    names = [e.get("file") for e in manifest.get("layers") or [] if isinstance(e, dict)]
+    names.append(manifest.get("background"))
+    return [n for n in names if _plain_name(n)]
+
+
+def cut_state(folder: BookFolder, plan: MotionPlan, config: dict) -> tuple[str, str]:
+    """("cut", "") when the page's layers.json matches the plan's current cut hash and every file
+    it lists exists, else ("needs cut", why – with the command that fixes it). Shared by the
+    studio and the render; an unusable config raises as `cut_settings` does."""
+    feather, ids = cut_settings(config)
+    out = layers_dir(folder, plan.page_number)
+    fix = f"re-run python -m video_pipeline.cut_layers --book {folder.slug}"
+    try:
+        manifest = json.loads((out / MANIFEST).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return "needs cut", f"needs cut (no {MANIFEST}) – {fix}"
+    except (OSError, ValueError) as exc:
+        return "needs cut", f"needs cut ({MANIFEST} unreadable: {exc}) – {fix}"
+    if not isinstance(manifest, dict) or manifest.get("cut_hash") != cut_hash(plan, feather, ids):
+        return "needs cut", f"needs cut (the cut does not match the plan) – {fix}"
+    missing = [name for name in manifest_files(manifest) if not (out / name).is_file()]
+    if missing or not _plain_name(manifest.get("background")):
+        what = ", ".join(missing) or "background"
+        return "needs cut", f"needs cut (missing {what}) – {fix}"
+    return "cut", ""
+
+
 # -- pure mask maths ----------------------------------------------------------------------------
 
 

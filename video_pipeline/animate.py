@@ -22,16 +22,27 @@ import hashlib
 import json
 import math
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import cv2
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 
-from video_pipeline.cut_layers import MANIFEST
-from video_pipeline.motion_plan import EFFECTS, Effect, Layer, MotionPlan
-from video_pipeline.timeline import AnimationSettings, Camera, EffectDefaults, camera_at
+from video_pipeline.cut_layers import MANIFEST, cut_state, layers_dir, read_config
+from video_pipeline.file_hash import sha256_file
+from video_pipeline.library import BookFolder
+from video_pipeline.motion_plan import (
+    EFFECTS,
+    LIMITS_FILE,
+    Effect,
+    Layer,
+    MotionPlan,
+    load_limits,
+    plan_path,
+    plan_state,
+)
+from video_pipeline.timeline import AnimationSettings, Camera, EffectDefaults, _hash, camera_at
 
 ANIMATION_VERSION = 1
 REFERENCE_SIDE = 1024  # effect sizes in the config are px on a picture with this shorter side
@@ -793,6 +804,87 @@ def load_page_animation(
         rects = [(0, 0, width, height)]
     anim.rects = rects
     return anim
+
+
+# --- eligibility and cache keys (FR-11, FR-13) ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PageEligibility:
+    """Whether a story page renders animated and, when it does, what its key is made from."""
+
+    animated: bool
+    reason: str = ""  # why the page renders still, with the command that fixes it
+    plan: MotionPlan | None = None
+    scale: float = 1.0
+    plan_sha: str = ""
+    manifest_sha: str = ""
+
+
+def page_eligibility(
+    folder: BookFolder,
+    page: dict,
+    script_page: dict,
+    settings: AnimationSettings,
+    root: Path,
+) -> PageEligibility:
+    """Check a page in order: animation off, `animation: false` in the script, the plan (none,
+    unreadable config, stale, invalid, no picture), then the cut. Reads files; never raises for
+    a page that just can't animate (it is still, with the reason)."""
+    if not settings.enabled:
+        return PageEligibility(False, "animation off")
+    override = script_page.get("animation")
+    if override is False:
+        return PageEligibility(False, "animation false in the script")
+    number = int(page["page_number"])
+    plan_cmd = f"python -m video_pipeline.motion_plan --book {folder.slug} --page {number}"
+    path = plan_path(folder, number)
+    if not path.exists():
+        return PageEligibility(False, f"no plan – run {plan_cmd}")
+    try:
+        config = read_config(root)
+        limits = load_limits(Path(root) / "config")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        where = Path(root) / "config" / LIMITS_FILE
+        return PageEligibility(False, f"animation config unreadable – {where}: {exc}")
+    st = plan_state(folder, page, limits)
+    if st.state == "none":  # removed since the check above
+        return PageEligibility(False, f"no plan – run {plan_cmd}")
+    if st.state == "stale":
+        return PageEligibility(False, f"stale plan ({st.detail}) – re-run {plan_cmd}")
+    if st.state == "invalid":
+        return PageEligibility(False, f"invalid plan ({st.detail}) – re-run {plan_cmd}")
+    if st.state == "no_picture" or st.plan is None:
+        return PageEligibility(False, f"no picture ({st.detail})")
+    try:
+        cut, why = cut_state(folder, st.plan, config)
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        where = Path(root) / "config" / LIMITS_FILE
+        return PageEligibility(False, f"animation config unreadable – {where}: no usable {exc}")
+    if cut != "cut":
+        return PageEligibility(False, why)
+    try:
+        plan_sha = sha256_file(path)
+        manifest_sha = sha256_file(layers_dir(folder, number) / MANIFEST)
+    except OSError as exc:  # removed between the checks and the hash
+        return PageEligibility(False, f"files changed while checking ({exc})")
+    scale = settings.intensity * (float(override) if override is not None else 1.0)
+    return PageEligibility(True, "", st.plan, scale, plan_sha, manifest_sha)
+
+
+def animated_key(still_key: str, el: PageEligibility, settings: AnimationSettings) -> str:
+    """An animated section's key: its still key plus the plan and cut identities, the animation
+    settings, the page's scale and the animator version (Global constraints)."""
+    return _hash(
+        {
+            "still": still_key,
+            "plan": el.plan_sha,
+            "manifest": el.manifest_sha,
+            "settings": asdict(settings),
+            "scale": el.scale,
+            "animation_version": ANIMATION_VERSION,
+        }
+    )
 
 
 # --- rendering ----------------------------------------------------------------------------

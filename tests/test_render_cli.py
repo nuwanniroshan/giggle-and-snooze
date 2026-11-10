@@ -382,3 +382,125 @@ def test_real_render_of_the_mini_book(world, capsys):  # AC-1.1, AC-1.2, AC-1.4
     capsys.readouterr()
     assert re_.main(cli_args(world)) == 0
     assert "up to date" in capsys.readouterr().out
+
+
+# --- page eligibility and animated keys (spec 010 Phase 3) ------------------------------------
+
+
+def _animate(world, n: int = 1, **layer):
+    from tests import animation_helpers as ah
+
+    ah.write_plan(world["folder"], n, layers=[ah.layer(**layer)])
+    ah.cut(world["folder"], pages=[n])
+
+
+def _inputs(world):
+    return re_._load_inputs(world["folder"], world["root"])
+
+
+def _named_keys(inputs) -> tuple[dict, dict]:
+    names = [s.name for s in inputs.sections]
+    pairs = [f"{a}__{b}" for a, b in zip(names, names[1:], strict=False)]
+    return dict(zip(names, inputs.keys, strict=True)), dict(
+        zip(pairs, inputs.trans_keys, strict=True)
+    )
+
+
+def _still_keys(inputs) -> list[str]:
+    from video_pipeline.timeline import section_key
+
+    sha = {pid: sv.sha256_file(p) for pid, p in inputs.pictures.files.items()}
+    return [section_key(s, sha[s.picture], inputs.cfg) for s in inputs.sections]
+
+
+def _edit_json(path, change) -> None:
+    data = load_json(path)
+    change(data)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def test_book_without_animation_keys_are_the_still_keys(world, capsys):  # AC-4.2, NFR-5
+    inputs = _inputs(world)
+    assert inputs.keys == _still_keys(inputs)
+    assert not any(el.animated for el in inputs.eligibility.values())
+    assert set(inputs.eligibility) == {page_section_name(n) for n in range(1, 9)}
+    assert render(world)[0] == 0
+    assert "still" not in capsys.readouterr().out
+
+
+def test_animated_page_gets_its_own_key(world):  # FR-13
+    _animate(world)
+    inputs = _inputs(world)
+    still = _still_keys(inputs)
+    assert inputs.eligibility["page-01"].animated
+    assert inputs.keys[1] != still[1]
+    assert inputs.keys[:1] + inputs.keys[2:] == still[:1] + still[2:]
+
+
+def test_override_false_keeps_the_still_key(world):  # AC-3.4
+    _animate(world)
+    _edit_json(world["script_path"], lambda s: s["pages"][0].update(animation=False))
+    inputs = _inputs(world)
+    assert inputs.keys == _still_keys(inputs)
+    assert inputs.eligibility["page-01"].reason == "animation false in the script"
+
+
+def test_motion_edit_changes_only_that_page(world):  # AC-5.2
+    _animate(world)
+    keys, trans = _named_keys(_inputs(world))
+    _animate(world, motions=[{"type": "bob", "amplitude": 1.0, "period_s": 4.0}])
+    new_keys, new_trans = _named_keys(_inputs(world))
+    assert [n for n in keys if keys[n] != new_keys[n]] == ["page-01"]
+    assert [n for n in trans if trans[n] != new_trans[n]] == ["intro__page-01", "page-01__page-02"]
+
+
+def test_override_change_changes_only_that_page(world):  # AC-5.2
+    _animate(world)
+    keys, _ = _named_keys(_inputs(world))
+    _edit_json(world["script_path"], lambda s: s["pages"][0].update(animation=1.5))
+    new_keys, _ = _named_keys(_inputs(world))
+    assert [n for n in keys if keys[n] != new_keys[n]] == ["page-01"]
+
+
+def test_animation_settings_change_only_animated_keys(world):  # AC-5.3
+    _animate(world)
+    keys, _ = _named_keys(_inputs(world))
+    _edit_json(world["config"] / "render.json", lambda c: c["animation"].update(ease_in_s=2.5))
+    new_keys, _ = _named_keys(_inputs(world))
+    assert [n for n in keys if keys[n] != new_keys[n]] == ["page-01"]
+
+
+def test_plan_edit_on_animated_page_is_out_of_date(world):  # AC-5.5, FR-14
+    _animate(world)
+    assert render(world)[0] == 0
+    assert re_.render_check_detail(world["folder"], world["root"]) == ("up_to_date", "")
+    _animate(world, motions=[{"type": "bob", "amplitude": 1.0, "period_s": 4.0}])
+    assert re_.render_check_detail(world["folder"], world["root"])[0] == "out_of_date"
+
+
+def test_override_outside_the_config_range_names_the_page(world, capsys):  # FR-9
+    _edit_json(world["config"] / "render.json", lambda c: c["animation"].update(override_max=1.0))
+    _edit_json(world["script_path"], lambda s: s["pages"][2].update(animation=1.5))
+    with pytest.raises(re_.RenderError, match="page 3"):
+        _inputs(world)
+    code, _ = render(world)
+    assert code == 1 and "page 3" in capsys.readouterr().err
+
+
+def test_still_pages_are_logged_once_with_the_reason(world, capsys):  # AC-4.1
+    _animate(world)
+    assert render(world)[0] == 0
+    out = capsys.readouterr().out
+    slug = world["slug"]
+    line = f"page 02: still – no plan – run python -m video_pipeline.motion_plan --book {slug}"
+    assert out.count(line) == 1
+    assert "page 01: still" not in out
+
+
+def test_animation_off_logs_nothing_and_keeps_still_keys(world, capsys):  # AC-2.4, NFR-5
+    _animate(world)
+    _edit_json(world["config"] / "render.json", lambda c: c["animation"].update(enabled=False))
+    inputs = _inputs(world)
+    assert inputs.keys == _still_keys(inputs)
+    assert render(world)[0] == 0
+    assert "still" not in capsys.readouterr().out

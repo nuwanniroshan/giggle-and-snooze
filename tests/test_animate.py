@@ -572,3 +572,157 @@ def test_renderer_refuses_frames_past_the_section(tmp_path):
 
 def test_module_exports_version():
     assert isinstance(animate.ANIMATION_VERSION, int)
+
+
+# --- eligibility and animated keys (spec 010 Phase 3: FR-11, FR-13, AC-4.1) ---------------------
+
+
+def _eligible_world(tmp_path):
+    from tests import animation_helpers as ah
+    from tests.helpers import make_root
+
+    folder = make_root(tmp_path)
+    for n in (1, 2):
+        ah.write_picture(folder, n)
+    ah.write_plan(folder, 1)
+    ah.cut(folder, pages=[1])
+    return folder, ah
+
+
+def _eligibility(folder, n=1, script_page=None, settings=None):
+    from video_pipeline.animate import page_eligibility
+
+    return page_eligibility(
+        folder,
+        {"page_number": n},
+        script_page if script_page is not None else {"page_number": n},
+        settings or AnimationSettings(),
+        folder.root,
+    )
+
+
+def test_eligible_page_is_animated_with_hashes(tmp_path):  # FR-11
+    from video_pipeline.cut_layers import MANIFEST, layers_dir
+    from video_pipeline.motion_plan import plan_path
+
+    folder, _ah = _eligible_world(tmp_path)
+    el = _eligibility(folder, settings=AnimationSettings(intensity=0.8))
+    assert el.animated and el.reason == ""
+    assert el.plan is not None and el.plan.page_number == 1
+    assert el.scale == pytest.approx(0.8)
+    assert el.plan_sha == hashlib.sha256(plan_path(folder, 1).read_bytes()).hexdigest()
+    manifest = layers_dir(folder, 1) / MANIFEST
+    assert el.manifest_sha == hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+
+def test_override_number_scales_the_intensity(tmp_path):  # FR-9
+    folder, _ah = _eligible_world(tmp_path)
+    el = _eligibility(
+        folder,
+        script_page={"page_number": 1, "animation": 1.5},
+        settings=AnimationSettings(intensity=0.5),
+    )
+    assert el.animated and el.scale == pytest.approx(0.75)
+
+
+def test_animation_off_is_still(tmp_path):
+    folder, _ah = _eligible_world(tmp_path)
+    el = _eligibility(folder, settings=AnimationSettings(enabled=False))
+    assert not el.animated and el.reason == "animation off"
+
+
+def test_override_false_is_still(tmp_path):  # AC-3.4
+    folder, _ah = _eligible_world(tmp_path)
+    el = _eligibility(folder, script_page={"page_number": 1, "animation": False})
+    assert not el.animated and el.reason == "animation false in the script"
+
+
+def test_no_plan_names_the_planning_command(tmp_path):  # AC-4.1
+    folder, _ah = _eligible_world(tmp_path)
+    el = _eligibility(folder, 2)
+    assert not el.animated
+    assert el.reason.startswith("no plan")
+    assert f"python -m video_pipeline.motion_plan --book {folder.slug} --page 2" in el.reason
+
+
+def test_stale_plan_names_the_planning_command(tmp_path):  # AC-4.1
+    folder, ah = _eligible_world(tmp_path)
+    ah.write_picture(folder, 1, colour=(0, 200, 0))
+    el = _eligibility(folder)
+    assert not el.animated and el.reason.startswith("stale plan")
+    assert f"python -m video_pipeline.motion_plan --book {folder.slug} --page 1" in el.reason
+
+
+def test_invalid_plan_names_the_planning_command(tmp_path):  # AC-4.1
+    from video_pipeline.motion_plan import plan_path
+
+    folder, _ah = _eligible_world(tmp_path)
+    plan_path(folder, 1).write_text('{"page_number": 1}', encoding="utf-8")
+    el = _eligibility(folder)
+    assert not el.animated and el.reason.startswith("invalid plan")
+    assert f"python -m video_pipeline.motion_plan --book {folder.slug} --page 1" in el.reason
+
+
+def test_no_picture_is_still(tmp_path):
+    folder, _ah = _eligible_world(tmp_path)
+    (folder.illustrations / "page_01.png").unlink()
+    el = _eligibility(folder)
+    assert not el.animated and "page_01.png" in el.reason
+
+
+def test_uncut_page_names_the_cut_command(tmp_path):  # AC-4.1
+    folder, ah = _eligible_world(tmp_path)
+    ah.write_plan(folder, 2)
+    el = _eligibility(folder, 2)
+    assert not el.animated and el.reason.startswith("needs cut")
+    assert f"python -m video_pipeline.cut_layers --book {folder.slug}" in el.reason
+
+
+def test_mismatched_cut_names_the_cut_command(tmp_path):  # AC-4.1
+    folder, ah = _eligible_world(tmp_path)
+    ah.write_plan(folder, 1, layers=[ah.layer(box=[10, 10, 30, 30])])
+    el = _eligibility(folder)
+    assert not el.animated and el.reason.startswith("needs cut")
+    assert "cut_layers" in el.reason
+
+
+def test_missing_layer_file_names_the_cut_command(tmp_path):  # AC-4.1
+    from video_pipeline.cut_layers import layers_dir
+
+    folder, _ah = _eligible_world(tmp_path)
+    (layers_dir(folder, 1) / "background.png").unlink()
+    el = _eligibility(folder)
+    assert not el.animated and "background.png" in el.reason
+    assert "cut_layers" in el.reason
+
+
+def test_unreadable_animation_config_is_still(tmp_path):
+    folder, _ah = _eligible_world(tmp_path)
+    (folder.root / "config" / "animation.json").write_text("{", encoding="utf-8")
+    el = _eligibility(folder)
+    assert not el.animated and "animation.json" in el.reason
+
+
+def test_animated_key_formula(tmp_path):  # Global constraints: animated key
+    from dataclasses import asdict
+
+    from video_pipeline.animate import ANIMATION_VERSION, animated_key
+    from video_pipeline.timeline import _hash
+
+    folder, _ah = _eligible_world(tmp_path)
+    settings = AnimationSettings()
+    el = _eligibility(folder, settings=settings)
+    expected = _hash(
+        {
+            "still": "abc",
+            "plan": el.plan_sha,
+            "manifest": el.manifest_sha,
+            "settings": asdict(settings),
+            "scale": el.scale,
+            "animation_version": ANIMATION_VERSION,
+        }
+    )
+    assert animated_key("abc", el, settings) == expected
+    assert animated_key("abd", el, settings) != expected
+    assert animated_key("abc", replace(el, scale=0.5), settings) != expected
+    assert animated_key("abc", el, AnimationSettings(ease_in_s=2.0)) != expected

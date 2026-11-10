@@ -31,6 +31,7 @@ import soundfile as sf
 from PIL import Image, UnidentifiedImageError
 
 from video_pipeline import sound_library, timeline
+from video_pipeline.animate import PageEligibility, animated_key, page_eligibility
 from video_pipeline.contract import ConfigError
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
@@ -46,6 +47,7 @@ from video_pipeline.frames import (
     render_caption,
 )
 from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
+from video_pipeline.motion_plan import PLAN_DIR
 from video_pipeline.sound_library import Cue, ambience_problems, build_cues, render_bed
 from video_pipeline.synthesize_voices import (
     AudioPaths,
@@ -561,6 +563,44 @@ class _Inputs:
     paths: VideoPaths
     ambience: list[Cue] = field(default_factory=list)
     ambience_key: list = field(default_factory=list)
+    eligibility: dict[str, PageEligibility] = field(default_factory=dict)
+    still_notes: list[tuple[str, str]] = field(default_factory=list)
+
+
+def _check_overrides(script: dict, cfg: RenderConfig) -> None:
+    """Each page's numeric `animation` override must sit in render.json's narrower range."""
+    lo, hi = cfg.animation.override_min, cfg.animation.override_max
+    for page in script["pages"]:
+        value = page.get("animation")
+        if isinstance(value, int | float) and not isinstance(value, bool) and not lo <= value <= hi:
+            raise RenderError(
+                f"page {int(page['page_number'])}: animation {value!r} is outside "
+                f"animation.override_min–override_max ({lo}–{hi}) in config/render.json"
+            )
+
+
+def _page_eligibility(
+    folder: BookFolder, book: dict, script: dict, cfg: RenderConfig, root: Path
+) -> tuple[dict[str, PageEligibility], list[tuple[str, str]]]:
+    """Eligibility of every story page by section name (spec 010 FR-11), and the still pages to
+    log as ("page NN", "still – reason"): none for a book without an animation folder or with
+    animation off, so existing books render and log exactly as before (NFR-5)."""
+    book_pages = {int(p["page_number"]): p for p in book["pages"]}
+    out: dict[str, PageEligibility] = {}
+    for script_page in script["pages"]:
+        number = int(script_page["page_number"])
+        page = book_pages.get(number, {"page_number": number})
+        out[page_section_name(number)] = page_eligibility(
+            folder, page, script_page, cfg.animation, Path(root)
+        )
+    if not cfg.animation.enabled or not (folder.folder / PLAN_DIR).is_dir():
+        return out, []
+    notes = [
+        (f"page {name.removeprefix('page-')}", f"still – {el.reason}")
+        for name, el in out.items()
+        if not el.animated
+    ]
+    return out, notes
 
 
 def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
@@ -595,7 +635,13 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         sections = build_sections(script, timings, cfg, pictures.by_section)
     except ValueError as exc:
         raise RenderError(str(exc)) from None
-    keys = [section_key(s, picture_sha[s.picture], cfg) for s in sections]
+    _check_overrides(script, cfg)
+    eligibility, still_notes = _page_eligibility(folder, book, script, cfg, Path(root))
+    keys = []
+    for s in sections:
+        key = section_key(s, picture_sha[s.picture], cfg)
+        el = eligibility.get(s.name)
+        keys.append(animated_key(key, el, cfg.animation) if el and el.animated else key)
     trans_keys = [transition_key(a, b, cfg) for a, b in zip(keys, keys[1:], strict=False)]
     paths = VideoPaths(folder.build_dir / "video")
     cues = _load_ambience(script, sections, cfg, Path(root))
@@ -614,6 +660,8 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         paths,
         cues,
         ambience_key,
+        eligibility,
+        still_notes,
     )
 
 
@@ -761,6 +809,9 @@ def render_video(
     sections, keys, trans_keys = inputs.sections, inputs.keys, inputs.trans_keys
     pictures, tracks, sample_rate = inputs.pictures, inputs.tracks, inputs.sample_rate
     pairs = list(zip(sections, sections[1:], strict=False))
+    if on_progress:
+        for name, note in inputs.still_notes:
+            on_progress(name, note)
 
     paths = inputs.paths
     try:

@@ -750,3 +750,17 @@ def test_mask_colours_follow_the_plan_order_not_the_manifest(tmp_path):
     )  # now the manifest lists the layers in plan order too
     fresh = np.asarray(Image.open(io.BytesIO(sb.mask_overlay(paths, book, 1))))
     assert np.array_equal(reordered, fresh)
+
+
+def test_page_animation_uses_the_shared_cut_state(tmp_path, monkeypatch):  # spec 010 Phase 3
+    paths, book, _folder, _ah = _anim_book(tmp_path)
+    calls = []
+
+    def fake(folder, plan, config):
+        calls.append(plan.page_number)
+        return "cut", ""
+
+    monkeypatch.setattr(sb, "cut_state", fake)
+    rows = _rows(paths, book)
+    assert calls == [1, 2, 3]  # the planned pages; page 4 has no plan
+    assert rows[1]["cut_state"] == "cut"
