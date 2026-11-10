@@ -1,0 +1,191 @@
+{
+  "page_number": 7,
+  "picture": {
+    "file": "page_07.png",
+    "sha256": "bc5c40df7d02d94b0f85b53cad6aa19f3a813776a0c0dc135f5a2aca6f6afa88",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:52:32+00:00",
+  "layers": [
+    {
+      "name": "barnaby_left_eye_stalk",
+      "description": "Barnaby's left golden eye-stalk and eye, gently tilting from its base.",
+      "box": [
+        429,
+        220,
+        489,
+        391
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.5,
+      "pivot": [
+        480,
+        383
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eye_stalk",
+      "description": "Barnaby's right golden eye-stalk and eye.",
+      "box": [
+        506,
+        209,
+        548,
+        384
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.5,
+      "pivot": [
+        518,
+        378
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 7.2,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair_tips",
+      "description": "Loose chestnut hair sweeping outward to Clara's right; exclude her face, dress and the ant.",
+      "box": [
+        735,
+        387,
+        880,
+        501
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        744,
+        400
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "millie_antennae",
+      "description": "The ant's two slender curved antennae above her head, leaving her head still.",
+      "box": [
+        849,
+        471,
+        898,
+        530
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        874,
+        522
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.6,
+          "period_s": 5.5,
+          "phase": 0.5,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_leaf_sprig",
+      "description": "Tall green leafy sprig along the right border, with its orange flower buds.",
+      "box": [
+        914,
+        184,
+        1010,
+        574
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.8,
+      "pivot": [
+        973,
+        567
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 8.5,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_daisy",
+      "description": "White daisy and its slender green stem below Clara, excluding adjacent flowers and mushrooms.",
+      "box": [
+        666,
+        855,
+        743,
+        1009
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.95,
+      "pivot": [
+        708,
+        1003
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.5,
+          "phase": 0.8,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          655,
+          531,
+          742,
+          608
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#ffe7a3"
+    }
+  ]
+}

@@ -1,0 +1,209 @@
+{
+  "page_number": 15,
+  "picture": {
+    "file": "page_15.png",
+    "sha256": "636c77844717ec43de3ca790115bffc24f0f06e7e7d15d3ee9db2515ad6b22f7",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:55:43+00:00",
+  "layers": [
+    {
+      "name": "barnaby_left_eyestalk",
+      "description": "Left golden eye-stalk and round eye, gently swaying from its base.",
+      "box": [
+        235,
+        194,
+        305,
+        395
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        284,
+        388
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 7.2,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eyestalk",
+      "description": "Right golden eye-stalk and round eye.",
+      "box": [
+        337,
+        208,
+        428,
+        395
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        347,
+        388
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.8,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair",
+      "description": "Clara's wavy chestnut hair framing her head, excluding her face and dress.",
+      "box": [
+        636,
+        196,
+        849,
+        410
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          712,
+          300
+        ],
+        [
+          719,
+          365
+        ]
+      ],
+      "z": 4,
+      "depth": 0.57,
+      "pivot": [
+        729,
+        222
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.45,
+          "period_s": 8.6,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_falcon",
+      "description": "Large grey-and-white bird at lower right, including yellow eyes and talons; keep feet anchored on moss.",
+      "box": [
+        768,
+        579,
+        978,
+        869
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.8,
+      "pivot": [
+        850,
+        852
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.007,
+          "period_s": 4.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "perched_bird",
+      "description": "Small grey bird on the upper-right branch, with yellow eyes and feet.",
+      "box": [
+        868,
+        341,
+        1003,
+        510
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.53,
+      "pivot": [
+        916,
+        495
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.65,
+          "period_s": 8.4,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "hanging_lantern",
+      "description": "Warm glowing lantern and its hanging loop beside the scroll.",
+      "box": [
+        475,
+        350,
+        531,
+        471
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.61,
+      "pivot": [
+        497,
+        355
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.8,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "fireflies",
+      "region": {
+        "box": [
+          80,
+          70,
+          951,
+          904
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#fff2a0"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "hanging_lantern"
+      },
+      "intensity": 0.18,
+      "colour": "#ffdc7e"
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "c47ce4f08faf069ba1271c6a112e139d38f202f910990f9b03ee91165ac8f1a8",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:50:49+00:00",
+  "layers": [
+    {
+      "name": "clara_hair",
+      "description": "Loose chestnut hair along the right side of Clara's head, leaving her face and book steady.",
+      "box": [
+        775,
+        319,
+        900,
+        457
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        788,
+        325
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 6.8,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_book",
+      "description": "Teal open logbook held between Clara's hands.",
+      "box": [
+        651,
+        389,
+        768,
+        461
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        710,
+        457
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.35,
+          "period_s": 7.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_eye_stalk",
+      "description": "Barnaby's visible tall yellow eye-stalk with its rounded dark eye.",
+      "box": [
+        500,
+        334,
+        581,
+        459
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.5,
+      "pivot": [
+        512,
+        452
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 7.8,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_upper_sprig",
+      "description": "Slender leafy sprig rising along the left edge.",
+      "box": [
+        3,
+        428,
+        111,
+        697
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.75,
+      "pivot": [
+        17,
+        690
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 8.2,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_fern",
+      "description": "Tall fern fronds bordering the right side of the snail's cottage.",
+      "box": [
+        882,
+        647,
+        1023,
+        998
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.9,
+      "pivot": [
+        981,
+        990
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 8.8,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          246,
+          329,
+          275,
+          370
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#fff2bb"
+    }
+  ]
+}

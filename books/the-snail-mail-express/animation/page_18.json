@@ -1,0 +1,228 @@
+{
+  "page_number": 18,
+  "picture": {
+    "file": "page_18.png",
+    "sha256": "095704853056e762c0662128f57330cfcd8b7dc57a53c06ff04954e546d26591",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:56:58+00:00",
+  "layers": [
+    {
+      "name": "barnaby_eye_stalks",
+      "description": "Two golden eye-stalks and eyes, masked separately from forest; keep the lower face still.",
+      "box": [
+        374,
+        290,
+        510,
+        462
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.5,
+      "pivot": [
+        438,
+        455
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 7.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair",
+      "description": "Outer chestnut curls only, excluding face, collar, hands, and shell.",
+      "box": [
+        166,
+        453,
+        350,
+        651
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          266,
+          558
+        ],
+        [
+          268,
+          603
+        ]
+      ],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        263,
+        468
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.5,
+          "period_s": 8.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bramwell_body",
+      "description": "Brown boar head and torso, including tusks and ears; exclude the held teacup, table, stool, and neighboring owl.",
+      "box": [
+        596,
+        408,
+        837,
+        792
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        748,
+        727
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.004,
+          "period_s": 5.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "fergus_body",
+      "description": "Green frog seated on the rock; exclude the rock and teacup.",
+      "box": [
+        616,
+        726,
+        737,
+        868
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 7,
+      "depth": 0.8,
+      "pivot": [
+        677,
+        853
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.007,
+          "period_s": 4.0,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "fleet_folded_wing",
+      "description": "Visible folded gray wing with dark feather tips on the owl-like bird at lower right; exclude face, breast, feet, and log.",
+      "box": [
+        855,
+        706,
+        984,
+        884
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 8,
+      "depth": 0.85,
+      "pivot": [
+        866,
+        725
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 4.5,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_leaves",
+      "description": "Long dark green leaves at the lower right corner, masked from the log and bird.",
+      "box": [
+        895,
+        878,
+        1024,
+        1024
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 10,
+      "depth": 1.0,
+      "pivot": [
+        976,
+        1020
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 8.5,
+          "phase": 0.7,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "fireflies",
+      "region": {
+        "box": [
+          33,
+          25,
+          981,
+          928
+        ],
+        "layer": null
+      },
+      "intensity": 0.22,
+      "colour": "#f5ed96"
+    },
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          113,
+          378,
+          982,
+          611
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#9acacc"
+    },
+    {
+      "type": "smoke",
+      "region": {
+        "box": [
+          438,
+          539,
+          480,
+          581
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#e4e4d0"
+    }
+  ]
+}

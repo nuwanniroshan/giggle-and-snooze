@@ -1,0 +1,205 @@
+{
+  "page_number": 10,
+  "picture": {
+    "file": "page_10.png",
+    "sha256": "0c11e9cccedfc6121301612cca868f15f9faa88298caffff4b8d10a546d693a4",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:53:33+00:00",
+  "layers": [
+    {
+      "name": "clara_hair",
+      "description": "Chestnut hair around Clara's head and shoulders, excluding her face, book and dress.",
+      "box": [
+        248,
+        112,
+        469,
+        299
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.5,
+      "pivot": [
+        365,
+        151
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 6.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_left_eyestalk",
+      "description": "Left golden eyestalk with its brown tip, above Barnaby's head.",
+      "box": [
+        496,
+        192,
+        554,
+        273
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.5,
+      "pivot": [
+        551,
+        268
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 5.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eyestalk",
+      "description": "Right golden eyestalk and brown tip.",
+      "box": [
+        580,
+        187,
+        620,
+        273
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.5,
+      "pivot": [
+        583,
+        268
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.3,
+          "period_s": 6.2,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bramwell",
+      "description": "Brown boar including ears, snout, tusks, arms and held teacup; exclude the table, teapot and pond.",
+      "box": [
+        659,
+        472,
+        961,
+        877
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.85,
+      "pivot": [
+        829,
+        848
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 4.8,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_fern",
+      "description": "Large curled green fern along the upper left edge, excluding Clara and the snail.",
+      "box": [
+        42,
+        170,
+        212,
+        401
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.6,
+      "pivot": [
+        62,
+        394
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_fern",
+      "description": "Small curled green fern beside the pond and above the boar.",
+      "box": [
+        680,
+        336,
+        756,
+        452
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.55,
+      "pivot": [
+        686,
+        447
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 6.5,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          535,
+          490,
+          713,
+          715
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": null
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          450,
+          59,
+          675,
+          441
+        ],
+        "layer": null
+      },
+      "intensity": 0.08,
+      "colour": "#fff2c9"
+    }
+  ]
+}

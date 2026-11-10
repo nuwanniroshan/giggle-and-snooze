@@ -1,0 +1,178 @@
+{
+  "page_number": 8,
+  "picture": {
+    "file": "page_08.png",
+    "sha256": "5d36c7bd459c0b758addfbc1039a90212b6635a98e37b39630896fdb36d2c140",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:52:53+00:00",
+  "layers": [
+    {
+      "name": "left_eye_stalk",
+      "description": "Barnaby's left golden eye-stalk and round dark eye, gently swaying from its base.",
+      "box": [
+        626,
+        232,
+        710,
+        342
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.55,
+      "pivot": [
+        702,
+        334
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_eye_stalk",
+      "description": "Barnaby's right golden eye-stalk with its round dark eye.",
+      "box": [
+        737,
+        219,
+        800,
+        342
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.55,
+      "pivot": [
+        744,
+        334
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 7.2,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_fern",
+      "description": "Tall green fern frond left of Barnaby's shell, moving softly under the rain.",
+      "box": [
+        135,
+        479,
+        214,
+        799
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.7,
+      "pivot": [
+        175,
+        791
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 7.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_fern",
+      "description": "Tall upright fern beside Clara on the right, with paired green leaflets.",
+      "box": [
+        793,
+        489,
+        898,
+        778
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.7,
+      "pivot": [
+        846,
+        772
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.8,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "far_right_fern",
+      "description": "Dark green fern at the right edge of the grove.",
+      "box": [
+        886,
+        575,
+        979,
+        848
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        930,
+        840
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 8.2,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "rain",
+      "region": {
+        "box": [
+          42,
+          43,
+          983,
+          964
+        ],
+        "layer": null
+      },
+      "intensity": 0.23,
+      "colour": "#dce5e4"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          397,
+          692,
+          444,
+          812
+        ],
+        "layer": null
+      },
+      "intensity": 0.14,
+      "colour": "#ffd787"
+    }
+  ]
+}

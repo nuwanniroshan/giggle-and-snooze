@@ -1,0 +1,236 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "e01765443cc5e3cd2e92099e87292ee1691bda8038003f6c614a6d36b8538932",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:51:19+00:00",
+  "layers": [
+    {
+      "name": "left_eye_stalk",
+      "description": "Barnaby's left golden eye-stalk and brown eye tip only, preserving the painted edges.",
+      "box": [
+        640,
+        233,
+        714,
+        345
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.55,
+      "pivot": [
+        709,
+        340
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.3,
+          "period_s": 7.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_eye_stalk",
+      "description": "Barnaby's right golden eye-stalk and brown eye tip only.",
+      "box": [
+        747,
+        225,
+        807,
+        345
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.55,
+      "pivot": [
+        752,
+        340
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 8.5,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair_tip",
+      "description": "The loose outer chestnut hair lock to Clara's left; exclude her face, collar, dress, hand and book.",
+      "box": [
+        309,
+        228,
+        410,
+        372
+      ],
+      "include_points": [
+        [
+          336,
+          321
+        ],
+        [
+          365,
+          286
+        ]
+      ],
+      "exclude_points": [
+        [
+          397,
+          317
+        ]
+      ],
+      "z": 5,
+      "depth": 0.6,
+      "pivot": [
+        398,
+        239
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 8.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_curling_fern",
+      "description": "Large curling green fern along the left edge, including its arched frond and connected stem; exclude the pale background leaves and nearby flowers.",
+      "box": [
+        0,
+        201,
+        255,
+        548
+      ],
+      "include_points": [
+        [
+          178,
+          229
+        ],
+        [
+          223,
+          277
+        ],
+        [
+          100,
+          358
+        ]
+      ],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        16,
+        542
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.55,
+          "period_s": 10.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_curling_fern",
+      "description": "The upper-right curled green fern and its slender connected stem; isolate from the pale tan background leaf.",
+      "box": [
+        897,
+        186,
+        1024,
+        413
+      ],
+      "include_points": [
+        [
+          932,
+          228
+        ],
+        [
+          990,
+          254
+        ]
+      ],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.75,
+      "pivot": [
+        1020,
+        406
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 9.0,
+          "phase": 0.5,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_red_sprig",
+      "description": "Slender red leafy plant rising beside the large lower-right toadstool; exclude the mushroom and white flowers.",
+      "box": [
+        837,
+        814,
+        915,
+        1024
+      ],
+      "include_points": [
+        [
+          878,
+          869
+        ],
+        [
+          858,
+          933
+        ]
+      ],
+      "exclude_points": [],
+      "z": 7,
+      "depth": 1.0,
+      "pivot": [
+        847,
+        1020
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          583,
+          11,
+          891,
+          210
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffe7a3"
+    }
+  ]
+}

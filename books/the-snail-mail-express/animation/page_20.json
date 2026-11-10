@@ -1,0 +1,223 @@
+{
+  "page_number": 20,
+  "picture": {
+    "file": "page_20.png",
+    "sha256": "56da7532eab840068bf2b2b37a9ada1fa9d43ad5dc1826bd6be9b37efd667b2e",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:57:45+00:00",
+  "layers": [
+    {
+      "name": "barnaby_neck",
+      "description": "Barnaby's golden neck and smiling head, softly breathing as he rests; keep Clara and the shell separate.",
+      "box": [
+        514,
+        246,
+        695,
+        863
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          638,
+          460
+        ],
+        [
+          611,
+          572
+        ]
+      ],
+      "z": 2,
+      "depth": 0.55,
+      "pivot": [
+        582,
+        824
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 6.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_eyestalk",
+      "description": "The left golden eye-stalk, from its rounded tip to its base at the head.",
+      "box": [
+        471,
+        133,
+        568,
+        281
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.55,
+      "pivot": [
+        553,
+        273
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_eyestalk",
+      "description": "The right golden eye-stalk with its rounded tip.",
+      "box": [
+        587,
+        115,
+        637,
+        271
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.55,
+      "pivot": [
+        625,
+        264
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 8.0,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair",
+      "description": "Clara's loose chestnut curls behind her head and right shoulder, with her face and dress excluded.",
+      "box": [
+        727,
+        371,
+        875,
+        594
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          754,
+          445
+        ],
+        [
+          784,
+          570
+        ]
+      ],
+      "z": 4,
+      "depth": 0.65,
+      "pivot": [
+        750,
+        388
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.5,
+          "period_s": 7.0,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_bellflower",
+      "description": "The tall purple bellflower at the left edge, including its slender stem and leaves.",
+      "box": [
+        5,
+        460,
+        134,
+        786
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        65,
+        778
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 8.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_bellflower",
+      "description": "The tall purple bellflower on the right, with its stem and long leaves.",
+      "box": [
+        854,
+        473,
+        1019,
+        807
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        944,
+        797
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 9.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          373,
+          285,
+          448,
+          391
+        ],
+        "layer": null
+      },
+      "intensity": 0.22,
+      "colour": "#ffc568"
+    },
+    {
+      "type": "fireflies",
+      "region": {
+        "box": [
+          95,
+          291,
+          931,
+          728
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#f6e575"
+    }
+  ]
+}

@@ -1,0 +1,237 @@
+{
+  "page_number": 16,
+  "picture": {
+    "file": "page_16.png",
+    "sha256": "253d581d716a3bafdc7bc91853194c6db891eab59218b8ec8c0a5093fd7a6473",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:56:07+00:00",
+  "layers": [
+    {
+      "name": "left_eye_stalk",
+      "description": "Barnaby's left tall golden eye-stalk and eye, anchored at its base.",
+      "box": [
+        269,
+        251,
+        332,
+        427
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        315,
+        418
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.5,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_eye_stalk",
+      "description": "Barnaby's right eye-stalk and round eye.",
+      "box": [
+        354,
+        264,
+        438,
+        427
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        365,
+        419
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 6.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "birch_bark_scroll",
+      "description": "Curled pale birch-bark scroll with dark perforations beside the lantern.",
+      "box": [
+        525,
+        406,
+        626,
+        534
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.7,
+      "pivot": [
+        534,
+        420
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 5.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "brass_lantern",
+      "description": "Brass lantern body and handle hanging from the fixed curled hook.",
+      "box": [
+        479,
+        406,
+        527,
+        496
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        502,
+        408
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 6.0,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair_right",
+      "description": "Outer wavy chestnut hair to the right of Clara's face, clear of her face and dress.",
+      "box": [
+        745,
+        316,
+        800,
+        433
+      ],
+      "include_points": [
+        [
+          778,
+          352
+        ],
+        [
+          778,
+          396
+        ]
+      ],
+      "exclude_points": [
+        [
+          746,
+          367
+        ],
+        [
+          752,
+          412
+        ]
+      ],
+      "z": 5,
+      "depth": 0.74,
+      "pivot": [
+        756,
+        325
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 5.5,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "fleet_falcon",
+      "description": "Small yellow-eyed falcon perched on the branch, including body, wings and tail, anchored at the feet.",
+      "box": [
+        826,
+        383,
+        961,
+        531
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.65,
+      "pivot": [
+        863,
+        518
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 4.5,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          451,
+          391,
+          553,
+          521
+        ],
+        "layer": null
+      },
+      "intensity": 0.24,
+      "colour": "#ffd26b"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          472,
+          166,
+          667,
+          408
+        ],
+        "layer": null
+      },
+      "intensity": 0.18,
+      "colour": "#ffe58c"
+    },
+    {
+      "type": "fireflies",
+      "region": {
+        "box": [
+          104,
+          94,
+          923,
+          925
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#e7ec8a"
+    }
+  ]
+}

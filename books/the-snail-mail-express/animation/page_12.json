@@ -1,0 +1,164 @@
+{
+  "page_number": 12,
+  "picture": {
+    "file": "page_12.png",
+    "sha256": "659e00f6dd2d30d7f51e0c9b19a8da2069ac97542d9cb4b0aacd814399659603",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:54:22+00:00",
+  "layers": [
+    {
+      "name": "birch_bark_scroll",
+      "description": "Only the curling white birch-bark scroll and its star-shaped holes; exclude Clara's hands, face and dress.",
+      "box": [
+        501,
+        215,
+        653,
+        394
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        534,
+        346
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 6.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_loose_hair",
+      "description": "Loose chestnut waves trailing to Clara's left, excluding face, collar, hands and dress.",
+      "box": [
+        259,
+        169,
+        417,
+        384
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        397,
+        190
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 7.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_left_eye_stalk",
+      "description": "Barnaby's left eye and its slender golden stalk down to the head; exclude shell and scroll.",
+      "box": [
+        689,
+        224,
+        790,
+        350
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.62,
+      "pivot": [
+        782,
+        341
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 8.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eye_stalk",
+      "description": "Barnaby's right eye and slender golden stalk down to the head.",
+      "box": [
+        817,
+        214,
+        895,
+        347
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.62,
+      "pivot": [
+        824,
+        339
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 8.5,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_meadow_sprig",
+      "description": "Tall olive meadow sprig along the right edge, including its branching leaves; exclude snail and mushrooms.",
+      "box": [
+        877,
+        384,
+        1024,
+        847
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.85,
+      "pivot": [
+        886,
+        835
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 9.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          343,
+          325,
+          557,
+          480
+        ],
+        "layer": null
+      },
+      "intensity": 0.18,
+      "colour": "#ffdc78"
+    }
+  ]
+}

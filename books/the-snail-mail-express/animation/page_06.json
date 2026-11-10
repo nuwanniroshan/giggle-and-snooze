@@ -1,0 +1,178 @@
+{
+  "page_number": 6,
+  "picture": {
+    "file": "page_06.png",
+    "sha256": "1eda89f165e5185fac5213a8b82c8b83bf878bd87c2bfa0d631b79d3fdc9c6ac",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:52:06+00:00",
+  "layers": [
+    {
+      "name": "clara_hair",
+      "description": "Loose wavy chestnut hair along Clara's left side, keeping her face and dress fixed.",
+      "box": [
+        294,
+        158,
+        437,
+        332
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.5,
+      "pivot": [
+        418,
+        174
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 7.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_left_eyestalk",
+      "description": "Barnaby's left eye and golden stalk above his head.",
+      "box": [
+        642,
+        204,
+        735,
+        329
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.52,
+      "pivot": [
+        725,
+        321
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eyestalk",
+      "description": "Barnaby's taller right eye and golden stalk.",
+      "box": [
+        738,
+        174,
+        796,
+        320
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.52,
+      "pivot": [
+        782,
+        313
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 6.8,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "millie_antennae",
+      "description": "Millie's two fine black antennae above her head; exclude the nearby snail and background.",
+      "box": [
+        795,
+        563,
+        839,
+        631
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.75,
+      "pivot": [
+        813,
+        621
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 3.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_foreground_berries",
+      "description": "The slender berry-bearing twig at the lower right, including its dark berries and small leaves.",
+      "box": [
+        829,
+        807,
+        954,
+        1019
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 7,
+      "depth": 0.95,
+      "pivot": [
+        944,
+        1012
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 8.0,
+          "phase": 0.5,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          225,
+          922,
+          873,
+          1018
+        ],
+        "layer": null
+      },
+      "intensity": 0.15,
+      "colour": null
+    },
+    {
+      "type": "fireflies",
+      "region": {
+        "box": [
+          170,
+          415,
+          892,
+          910
+        ],
+        "layer": null
+      },
+      "intensity": 0.08,
+      "colour": "#fff2b0"
+    }
+  ]
+}

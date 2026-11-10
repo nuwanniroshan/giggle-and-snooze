@@ -1,0 +1,214 @@
+{
+  "page_number": 14,
+  "picture": {
+    "file": "page_14.png",
+    "sha256": "88822ec5c01149690a598ea49b2b464653c722c611432604cd53c7e5bbe846e1",
+    "width": 1024,
+    "height": 1024
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T15:55:19+00:00",
+  "layers": [
+    {
+      "name": "willow_left_fronds",
+      "description": "Long golden hanging willow sprays left of the falcon; preserve the snail and bird silhouettes.",
+      "box": [
+        580,
+        74,
+        773,
+        652
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          617,
+          400
+        ],
+        [
+          740,
+          380
+        ]
+      ],
+      "z": 2,
+      "depth": 0.35,
+      "pivot": [
+        715,
+        91
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 8.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "willow_right_fronds",
+      "description": "Golden dangling leaf sprays along the upper right edge, excluding the solid trunk and falcon.",
+      "box": [
+        895,
+        22,
+        1015,
+        588
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.4,
+      "pivot": [
+        951,
+        39
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 9.0,
+          "phase": 0.45,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "fleet_body",
+      "description": "Sad slate-blue and white falcon, including drooping wings and yellow eyes; keep gripping feet anchored to the branch.",
+      "box": [
+        773,
+        251,
+        903,
+        442
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.5,
+      "pivot": [
+        832,
+        430
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 5.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "clara_hair",
+      "description": "Loose chestnut curls on the left of Clara's head and shoulder, excluding face, collar and book.",
+      "box": [
+        151,
+        163,
+        243,
+        296
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.6,
+      "pivot": [
+        221,
+        172
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 7.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_left_eyestalk",
+      "description": "Barnaby's taller left golden eye-stalk with its dark eye tip, hinged where it meets his head.",
+      "box": [
+        519,
+        274,
+        553,
+        379
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.6,
+      "pivot": [
+        544,
+        369
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 7.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "barnaby_right_eyestalk",
+      "description": "Barnaby's slender right eye-stalk and dark eye tip, excluding willow leaves behind it.",
+      "box": [
+        585,
+        281,
+        625,
+        382
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.6,
+      "pivot": [
+        591,
+        375
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 8.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          100,
+          777,
+          708,
+          1008
+        ],
+        "layer": null
+      },
+      "intensity": 0.15,
+      "colour": null
+    },
+    {
+      "type": "fireflies",
+      "region": {
+        "box": [
+          423,
+          155,
+          785,
+          367
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffe8a1"
+    }
+  ]
+}
