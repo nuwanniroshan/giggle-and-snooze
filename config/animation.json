@@ -1,0 +1,18 @@
+{
+  "limits": {
+    "max_layers": 8,
+    "max_effects": 3,
+    "max_rotate_deg": 4.0,
+    "max_shift": 0.02,
+    "min_period_s": 2.0,
+    "max_period_s": 12.0,
+    "max_breathe": 0.03
+  },
+  "planning": {
+    "attempts": 3,
+    "time_limit_s": 600
+  },
+  "cut": {
+    "feather_px": 2
+  }
+}
