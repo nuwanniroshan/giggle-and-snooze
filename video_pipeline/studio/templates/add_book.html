@@ -1,9 +1,21 @@
 {% extends "base.html" %}
 {% from "_macros.html" import problem_list %}
 {% block title %}Add book{% endblock %}
-{% block head %}{% if ideas and ideas.state == "writing" or candidate and candidate.state == "writing" %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ static_url('add_book.css') }}">{% endblock %}
+{% macro write_form(run_id, index=None) %}
+<form method="post" action="/drafts" class="row">
+  <input type="hidden" name="run" value="{{ run_id }}">
+  {% if index is not none %}<input type="hidden" name="index" value="{{ index }}">{% endif %}
+  <label>Author <input type="text" name="author" value="{{ author }}" required></label>
+  <label>Maximum pages
+    <input type="number" name="pages" value="{{ settings.default_pages }}" min="{{ settings.page_range[0] }}" max="{{ settings.page_range[1] }}" required>
+  </label>
+  <button type="submit"{% if running %} disabled{% endif %}>Write this book</button>
+</form>
+{% endmacro %}
 {% block content %}
 <h1>Add a book</h1>
+<p class="lead">Three steps: choose a story idea, write it as a book, then review the draft.</p>
 {% if problems %}
 <section class="notice">
   <h2>Nothing was started</h2>
@@ -11,74 +23,84 @@
 </section>
 {% endif %}
 
-<section class="stack">
-  <h2>Story ideas</h2>
-  <p class="small">The studio suggests a few story ideas. Pick one to write as a book.</p>
-  <form method="post" action="/ideas">
-    <button type="submit">Suggest ideas</button>
-  </form>
-  {% if ideas %}
-    {% if ideas.state == "writing" %}
-      <p>Writing ideas&hellip; this page refreshes when they are ready.</p>
-    {% elif ideas.state == "failed" %}
-      <section class="notice"><h3>The ideas could not be written</h3>{{ problem_list(ideas.problems) }}</section>
-    {% elif ideas.state == "ready" %}
-      {% for idea in ideas.payload.ideas %}
-      <article class="card">
-        <h3>{{ idea.title }}</h3>
-        <p>{{ idea.premise }}</p>
-        <p class="small">{{ idea.age_range }} &middot; Lesson: {{ idea.lesson }}</p>
-        <form method="post" action="/drafts" class="row">
-          <input type="hidden" name="run" value="{{ ideas.id }}">
-          <input type="hidden" name="index" value="{{ loop.index0 }}">
-          <label>Author <input type="text" name="author" value="{{ author }}" required></label>
-          <label>Maximum pages
-            <input type="number" name="pages" value="{{ settings.default_pages }}" min="{{ settings.page_range[0] }}" max="{{ settings.page_range[1] }}" required>
-          </label>
-          <button type="submit">Write this book</button>
-        </form>
-      </article>
-      {% endfor %}
-      <form method="post" action="/ideas"><button type="submit">Suggest more</button></form>
-    {% endif %}
+{% set ideas_ready = ideas and ideas.state == "ready" %}
+{% set candidate_ready = candidate and candidate.state == "ready" %}
+
+<section class="step">
+  <h2><span class="num">1</span> Choose a story idea</h2>
+  <p class="muted">Ask the studio for ideas, or type your own. The ideas show up in step 2.</p>
+  <div class="choices">
+    <section class="stage">
+      <h3>Get suggestions</h3>
+      <p class="small">The studio suggests a few story ideas.</p>
+      {% if ideas and ideas.state == "writing" and running %}
+        <p class="state-line"><span class="state strong">WRITING</span> Writing ideas&hellip;</p>
+      {% elif ideas and ideas.state == "writing" %}
+        <p class="small">The last request stopped before it finished. Ask again.</p>
+      {% elif ideas and ideas.state == "failed" %}
+        <div class="notice compact"><h3>The ideas could not be written</h3>{{ problem_list(ideas.problems) }}</div>
+      {% endif %}
+      <form method="post" action="/ideas">
+        <button type="submit"{% if running %} disabled{% endif %}>{% if ideas_ready %}Suggest more{% else %}Suggest ideas{% endif %}</button>
+      </form>
+    </section>
+    <section class="stage">
+      <h3>Use your own idea</h3>
+      <form method="post" action="/ideas/improve" class="stack">
+        <label for="idea">Your idea
+          <span class="small">The studio turns it into a clear premise.</span>
+        </label>
+        <textarea id="idea" name="idea" rows="4" required data-keep
+          minlength="{{ settings.idea_length[0] }}" maxlength="{{ settings.idea_length[1] }}"
+          aria-describedby="idea-count">{{ text }}</textarea>
+        <span class="small" id="idea-count" data-count-for="idea">{{ settings.idea_length[0] }} to {{ settings.idea_length[1] }} characters</span>
+        {% if candidate and candidate.state == "writing" and running %}
+          <p class="state-line"><span class="state strong">WRITING</span> Improving your idea&hellip;</p>
+        {% elif candidate and candidate.state == "writing" %}
+          <p class="small">The last request stopped before it finished. Improve it again.</p>
+        {% elif candidate and candidate.state == "failed" %}
+          <div class="notice compact"><h3>The idea could not be improved</h3>{{ problem_list(candidate.problems) }}</div>
+        {% endif %}
+        <div><button type="submit"{% if running %} disabled{% endif %}>{% if candidate %}Improve again{% else %}Improve idea{% endif %}</button></div>
+      </form>
+    </section>
+  </div>
+  {% if running %}<p class="small">Buttons come back when the running job finishes. You can keep typing.</p>{% endif %}
+</section>
+
+<section class="step">
+  <h2><span class="num">2</span> Write the book</h2>
+  {% if candidate_ready or ideas_ready %}
+  <p class="muted">Pick one idea, check the author and page count, then press Write this book.</p>
+  {% if candidate_ready %}
+  <article class="card">
+    <p class="kicker">From your idea</p>
+    <h3>{{ candidate.payload.title }}</h3>
+    <p>{{ candidate.payload.premise }}</p>
+    <p class="small">{{ candidate.payload.age_range }} &middot; Lesson: {{ candidate.payload.lesson }}</p>
+    {{ write_form(candidate.id) }}
+  </article>
+  {% endif %}
+  {% if ideas_ready %}
+    {% for idea in ideas.payload.ideas %}
+    <article class="card">
+      <p class="kicker">Suggested</p>
+      <h3>{{ idea.title }}</h3>
+      <p>{{ idea.premise }}</p>
+      <p class="small">{{ idea.age_range }} &middot; Lesson: {{ idea.lesson }}</p>
+      {{ write_form(ideas.id, loop.index0) }}
+    </article>
+    {% endfor %}
+  {% endif %}
+  {% else %}
+  <p class="small">No ideas yet. Start with step 1.</p>
   {% endif %}
 </section>
 
-<section class="stack">
-  <h2>Improve an idea</h2>
-  <p class="small">Type your own idea ({{ settings.idea_length[0] }} to {{ settings.idea_length[1] }} characters). The studio makes it into a clear premise.</p>
-  <form method="post" action="/ideas/improve" class="stack">
-    <label>Your idea
-      <textarea name="idea" rows="4" required>{{ text }}</textarea>
-    </label>
-    <div><button type="submit">{% if candidate %}Improve again{% else %}Improve idea{% endif %}</button></div>
-  </form>
-  {% if candidate %}
-    {% if candidate.state == "writing" %}
-      <p>Improving the idea&hellip;</p>
-    {% elif candidate.state == "failed" %}
-      <section class="notice"><h3>The idea could not be improved</h3>{{ problem_list(candidate.problems) }}</section>
-    {% elif candidate.state == "ready" %}
-      <article class="card">
-        <h3>{{ candidate.payload.title }}</h3>
-        <p>{{ candidate.payload.premise }}</p>
-        <p class="small">{{ candidate.payload.age_range }} &middot; Lesson: {{ candidate.payload.lesson }}</p>
-        <form method="post" action="/drafts" class="row">
-          <input type="hidden" name="run" value="{{ candidate.id }}">
-          <label>Author <input type="text" name="author" value="{{ author }}" required></label>
-          <label>Maximum pages
-            <input type="number" name="pages" value="{{ settings.default_pages }}" min="{{ settings.page_range[0] }}" max="{{ settings.page_range[1] }}" required>
-          </label>
-          <button type="submit">Write this book</button>
-        </form>
-      </article>
-    {% endif %}
-  {% endif %}
-</section>
-
-<section class="stack">
-  <h2>Drafts</h2>
+<section class="step">
+  <h2><span class="num">3</span> Review your drafts</h2>
   {% if drafts %}
+  <p class="muted">Open a draft to read and edit its pages.</p>
   <table>
     <thead><tr><th>Title</th><th>State</th><th>Pages (max)</th></tr></thead>
     <tbody>
@@ -92,7 +114,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="small">No drafts yet.</p>
+  <p class="small">No drafts yet. A draft appears here once you pick an idea in step 2.</p>
   {% endif %}
 </section>
 {% endblock %}

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import book_links, animation_controls %}
 {% block title %}Page {{ row.page_number }} animation: {{ book.title }}{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/animation.css">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ static_url('animation.css') }}">{% endblock %}
 {% block content %}
 <h1>Page {{ row.page_number }}</h1>
 <p class="muted">{{ book.title }}</p>
