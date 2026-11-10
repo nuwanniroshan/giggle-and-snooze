@@ -970,3 +970,26 @@ def test_book_page_survives_missing_animation_config(animated):
     assert s.client.get(f"/books/{PILOT_SLUG}").status_code == 200
     assert s.client.get(f"/books/{PILOT_SLUG}/animation").status_code == 200
     assert s.client.get(f"/books/{PILOT_SLUG}/animation/1").status_code == 200
+
+
+def test_book_page_lists_pages_whose_plans_need_attention(animated):  # AC-5.1
+    s, folder, ah = animated
+    from video_pipeline.motion_plan import plan_path
+
+    ah.write_plan(folder, 2)
+    ah.write_picture(folder, 2, colour=(0, 200, 0))  # page 2 repainted → stale
+    plan_path(folder, 3).write_text('{"page_number": 3}', encoding="utf-8")  # invalid
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}").text)
+    assert "3 of 8 plans, 0 cut" in text
+    assert "Page 2 stale" in text and "page_02.png changed since the plan was written" in text
+    assert "Page 3 invalid" in text and "picture" in text
+    assert "Page 1 " not in text  # ok pages are not listed one by one
+    assert "No plan: pages 4, 5, 6, 7, 8" in text
+
+
+def test_book_page_names_an_unreadable_animation_config_once(animated):
+    s, _folder, _ah = animated
+    (s.paths.config_dir / "animation.json").unlink()
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}").text)
+    assert text.count("Plans cannot be checked") == 1 and "animation.json" in text
+    assert "unavailable" not in text  # one line for the config, not one per page

@@ -195,3 +195,49 @@ def test_main_plans_with_force_and_exits_1_naming_failed_pages(tmp_path, monkeyp
     assert calls and all(force for _, force in calls)
     assert "painted" in out.out
     assert "page_02" in out.err
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        "AgentUnavailable",
+        "OSError",
+        "KeyError",
+        "PlanError",
+        "ValueError",
+    ],
+)
+def test_main_planning_exception_fails_that_page_and_painting_goes_on(
+    tmp_path, monkeypatch, capsys, error
+):
+    from tests.helpers import make_root
+    from video_pipeline import illustrate as module
+    from video_pipeline.agents import AgentUnavailable
+    from video_pipeline.motion_plan import PlanError, PlanOutcome
+
+    errors = {
+        "AgentUnavailable": AgentUnavailable("codex went away"),
+        "OSError": OSError("disk full"),
+        "KeyError": KeyError("planning"),
+        "PlanError": PlanError("plan.json: bad"),
+        "ValueError": ValueError("bad config"),
+    }
+    folder = make_root(tmp_path)
+    planned: list[int] = []
+
+    def fake_plan_page(folder_, page, limits, *, binary, book, root, force=False, provider=None):
+        planned.append(page["page_number"])
+        if page["page_number"] == 2:
+            raise errors[error]
+        return PlanOutcome(page["page_number"], "written")
+
+    monkeypatch.setattr(module, "codex_status", lambda: Path("/fake/codex"))
+    monkeypatch.setattr(module, "paint_one", _paint_real())
+    monkeypatch.setattr(module, "plan_page", fake_plan_page)
+    code = module.main(["--book", folder.slug, "--root", str(tmp_path)])
+    out = capsys.readouterr()
+    assert code == 1
+    assert (folder.illustrations / "cover_back.png").is_file()  # painting went on to the end
+    assert len(planned) > 2  # pages after page 2 were planned too
+    assert "page_02: plan failed" in out.out
+    assert "page_02" in out.err

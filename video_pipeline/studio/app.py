@@ -320,8 +320,10 @@ class Studio:
             "stages": stages,
             "has_script": sb.script_path(self.paths, book).exists(),
             "job": self.last_job(book),
-            "animation": sb.animation_summary(sb.page_animation(self.paths, book)),
         }
+        rows = sb.page_animation(self.paths, book)
+        context["animation"] = sb.animation_summary(rows)
+        context["animation_attention"] = sb.animation_attention(rows)
         return self.render(request, "book.html", context)
 
     async def run_stage(self, request: Request) -> Response:

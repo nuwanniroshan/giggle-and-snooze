@@ -23,7 +23,7 @@ from PIL import Image
 
 from video_pipeline.agents import AgentUnavailable, codex_status
 from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
-from video_pipeline.motion_plan import PlanOutcome, load_limits, plan_page
+from video_pipeline.motion_plan import PlanError, PlanOutcome, load_limits, plan_page
 
 IMAGE_TIMEOUT_S = 600
 MIN_SIDE = 512
@@ -178,9 +178,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         def planner(page: dict) -> PlanOutcome:
             # Only a just-painted page gets here, so any old plan is stale: force (it keeps .bak).
-            outcome = plan_page(
-                folder, page, limits, binary=binary, book=book, root=args.root, force=True
-            )
+            # A planning error fails only this page's plan; painting goes on (FR-13).
+            try:
+                outcome = plan_page(
+                    folder, page, limits, binary=binary, book=book, root=args.root, force=True
+                )
+            except (AgentUnavailable, PlanError, OSError, KeyError, ValueError) as exc:
+                outcome = PlanOutcome(int(page["page_number"]), "failed", str(exc))
             if outcome.status == "failed":
                 unplanned.append(Path(_page_file(page)).stem)
             return outcome

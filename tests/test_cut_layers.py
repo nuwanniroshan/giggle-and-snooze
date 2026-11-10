@@ -245,14 +245,50 @@ def test_force_recuts_bit_exact(book: BookFolder) -> None:
     assert {k: v[1] for k, v in snapshot(layers_dir(book, 1)).items()} == before
 
 
-def test_editing_a_motion_does_not_recut(book: BookFolder) -> None:
+def test_editing_a_motion_or_pivot_does_not_recut(book: BookFolder) -> None:
     run(book)
     path = plan_path(book, 1)
     data = json.loads(path.read_text(encoding="utf-8"))
     data["layers"][0]["motions"][0]["amplitude"] = 3.0
-    data["layers"][0]["z"] = 5
+    data["layers"][0]["depth"] = 0.9
     data["layers"][0]["pivot"] = [30, 30]
     path.write_text(json.dumps(data), encoding="utf-8")
+    results = run(book, load_models=no_models)
+    assert [r.status for r in results if r.page_number == 1] == ["cached"]
+
+
+def _set_z(folder: BookFolder, zs: dict[str, int]) -> None:
+    path = plan_path(folder, 1)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for entry in data["layers"]:
+        entry["z"] = zs.get(entry["name"], entry["z"])
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_swapping_z_of_overlapping_layers_recuts(book: BookFolder) -> None:
+    # occlusion gives the shared pixels to the front layer, so the old cut has stale holes
+    write_plan(
+        book,
+        layers=[
+            layer("back", box=(10, 10, 40, 40), z=1),
+            layer("front", box=(30, 20, 50, 30), z=2),
+        ],
+    )
+    run(book)
+    _set_z(book, {"back": 2, "front": 1})
+    calls: list = []
+    results = run(book, load_models=fake_models(calls))
+    assert [r.status for r in results if r.page_number == 1] == ["cut"]
+    assert calls == [1]
+
+
+def test_changing_z_of_a_non_overlapping_layer_stays_cached(book: BookFolder) -> None:
+    write_plan(
+        book,
+        layers=[layer("left", box=(2, 2, 20, 20), z=1), layer("right", box=(40, 2, 60, 20), z=2)],
+    )
+    run(book)
+    _set_z(book, {"left": 7})
     results = run(book, load_models=no_models)
     assert [r.status for r in results if r.page_number == 1] == ["cached"]
 
@@ -392,6 +428,49 @@ def test_main_exits_1_when_models_missing(book: BookFolder, tmp_path: Path, monk
     assert DOWNLOAD_HINT in capsys.readouterr().err
 
 
+def _fake_models_dir(base: Path, *, without_prompt_weights: bool = False) -> None:
+    """Every file a complete download has (empty placeholders); optionally leave out the prompt
+    encoder's weights, as a download stopped half-way would."""
+    seg, fill = MODELS_CFG["segmenter"], MODELS_CFG["fill"]
+    files = [model_path(base, fill) / fill["file"]]
+    for key in ("encoder", "prompt_encoder", "decoder"):
+        package = model_path(base, seg) / seg[key]
+        data = package / "Data" / "com.apple.CoreML"
+        files += [package / "Manifest.json", data / "model.mlmodel"]
+        if not (without_prompt_weights and key == "prompt_encoder"):
+            files.append(data / "weights" / "weight.bin")
+    for path in files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"x")
+
+
+def test_half_downloaded_package_without_weights_is_missing(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("KIDDO_MODELS_DIR", str(tmp_path / "models"))
+    _fake_models_dir(tmp_path / "models", without_prompt_weights=True)
+    with pytest.raises(ModelsMissing) as err:
+        load_real_models(ROOT, MODELS_CFG)
+    assert "weight.bin" in str(err.value) and DOWNLOAD_HINT in str(err.value)
+    assert MODELS_CFG["segmenter"]["prompt_encoder"] in str(err.value)
+
+
+def test_main_exits_1_with_a_message_when_a_model_fails_to_load(
+    book: BookFolder, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("KIDDO_MODELS_DIR", str(tmp_path / "models"))
+    _fake_models_dir(tmp_path / "models")
+
+    class Broken:
+        def __init__(self, base, cfg):
+            raise RuntimeError("Error reading protobuf spec. validator error: bad file")
+
+    monkeypatch.setattr(cut_layers, "SamCoreML", Broken)
+    assert main(["--book", book.slug, "--root", str(book.root)]) == 1
+    err = capsys.readouterr().err
+    assert "could not load the segmenter model" in err
+    assert "bad file" in err and DOWNLOAD_HINT in err
+    assert "Traceback" not in err
+
+
 def test_models_dir_from_env_or_home(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("KIDDO_MODELS_DIR", str(tmp_path))
     assert models_dir() == tmp_path
@@ -526,7 +605,14 @@ def test_cut_hash_changes_with_cut_inputs_only() -> None:
     assert cut_hash(_plan(), 3, ids) != base
     assert cut_hash(_plan(), 2, {**ids, "segmenter": "x@y:CPU_ONLY"}) != base
     moved = layer(motions=[{"type": "bob", "amplitude": 0.01, "period_s": 3.0}], z=9, depth=0.1)
-    assert cut_hash(_plan(layers=[moved]), 2, ids) == base
+    assert cut_hash(_plan(layers=[moved]), 2, ids) == base  # a lone layer's z occludes nothing
+    back, front = (
+        layer("back", box=(10, 10, 40, 40), z=1),
+        layer("front", box=(30, 20, 50, 30), z=2),
+    )
+    stacked = cut_hash(_plan(layers=[back, front]), 2, ids)
+    swapped = cut_hash(_plan(layers=[{**back, "z": 2}, {**front, "z": 1}]), 2, ids)
+    assert swapped != stacked
 
 
 def test_model_ids_include_compute_unit_and_provider() -> None:

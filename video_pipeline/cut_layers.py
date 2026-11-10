@@ -50,6 +50,10 @@ class ModelsMissing(RuntimeError):
     """The pinned models are not downloaded; the message names the download command."""
 
 
+class ModelLoadError(RuntimeError):
+    """A downloaded model file is there but Core ML / onnxruntime cannot load it."""
+
+
 class SegmenterError(RuntimeError):
     """The segmenter is misconfigured or produced output that cannot be right."""
 
@@ -526,9 +530,22 @@ def _segmenter_files(cfg: dict) -> list[str]:
     return [cfg[k] for k in ("encoder", "prompt_encoder", "decoder")]
 
 
+MLPACKAGE_FILES = (
+    "Manifest.json",
+    "Data/com.apple.CoreML/model.mlmodel",
+    "Data/com.apple.CoreML/weights/weight.bin",
+)
+
+
 def _required(base: Path, models_cfg: dict) -> list[Path]:
+    """Every file a complete download has: each .mlpackage's manifest, spec and weights (a
+    half-finished download can leave the manifest without the weights), and the LaMa file."""
     seg, fill = models_cfg["segmenter"], models_cfg["fill"]
-    paths = [model_path(base, seg) / name / "Manifest.json" for name in _segmenter_files(seg)]
+    paths = [
+        model_path(base, seg) / name / part
+        for name in _segmenter_files(seg)
+        for part in MLPACKAGE_FILES
+    ]
     return [*paths, model_path(base, fill) / fill["file"]]
 
 
@@ -649,7 +666,19 @@ def load_real_models(root: Path, models_cfg: dict) -> tuple[Segmenter, Inpainter
     if missing:
         raise ModelsMissing(f"models not downloaded ({missing[0]} is missing): run {DOWNLOAD_HINT}")
     compute_unit_name(models_cfg["segmenter"])  # refuse the Neural Engine before loading
-    return SamCoreML(base, models_cfg["segmenter"]), LamaOnnx(base, models_cfg["fill"])
+    loaded = []
+    for role, cls in (("segmenter", SamCoreML), ("fill", LamaOnnx)):
+        cfg = models_cfg[role]
+        try:
+            loaded.append(cls(base, cfg))
+        except SegmenterError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - coremltools/onnxruntime raise many kinds
+            raise ModelLoadError(
+                f"could not load the {role} model from {model_path(base, cfg)}: {exc} "
+                f"(a damaged download? delete that folder and run {DOWNLOAD_HINT})"
+            ) from exc
+    return loaded[0], loaded[1]
 
 
 def download(root: Path, *, snapshot: Callable[..., object] | None = None, log=print) -> list[str]:
@@ -714,7 +743,15 @@ def main(argv: list[str] | None = None, load_models: LoadModels | None = None) -
             force=args.force,
             load_models=load_models,
         )
-    except (ModelsMissing, SegmenterError, LibraryError, OSError, KeyError, ValueError) as exc:
+    except (
+        ModelsMissing,
+        ModelLoadError,
+        SegmenterError,
+        LibraryError,
+        OSError,
+        KeyError,
+        ValueError,
+    ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     counts = {s: sum(r.status == s for r in results) for s in ("cut", "cached", "no plan")}

@@ -7,6 +7,7 @@
 **ADRs:** [009-layer-segmentation-runtime](../../adr/009-layer-segmentation-runtime.md) (Accepted), [009-depth-parallax-engine](../../adr/009-depth-parallax-engine.md) (Rejected)
 **Depends on:** specs 004 (studio), 005 (book folders), 006 (idea to book, illustrations), 008 (picture ratios)
 **Feeds:** spec 010 (animate pages)
+**Amended 2026-11-10 after implementation review:** the cut also depends on the front/back order of overlapping layers (FR-9, AC-4.4, AC-4.5), because occlusion gives each overlapping pixel to the front-most layer; the plan command replans stale or invalid plans without force (AC-1.2); a `shift` direction is a non-zero `[dx, dy]` with each part in −1…1 (FR-1).
 
 ---
 
@@ -43,7 +44,7 @@ Every story page in the video is a still picture. The producer wants the picture
 As the producer, I want each story page picture to have a motion plan, so that the layers, motions and effects for that page are written down once and reused.
 
 - [ ] **AC-1.1** Given a book whose page pictures exist and have no plans, When the producer runs the plan command for the book, Then a plan file `books/<slug>/animation/page_NN.json` is written for every story page with a picture, and none for covers or maps.
-- [ ] **AC-1.2** Given a page that already has a plan, When the plan command runs without force, Then that plan file is left byte-for-byte unchanged and the command reports it as kept.
+- [ ] **AC-1.2** Given a page that already has a valid, current plan, When the plan command runs without force, Then that plan file is left byte-for-byte unchanged and the command reports it as kept. A stale or invalid plan is replanned without force (the previous file is kept as `page_NN.json.bak`) and reported as written, "replanned".
 - [ ] **AC-1.3** Given a page that already has a plan, When the plan command runs with force, Then a new plan is written and the previous file is kept as `page_NN.json.bak`.
 - [ ] **AC-1.4** Given a plan was written, When the producer opens it, Then it records the picture's sha256, width and height, and contains 1 to the configured maximum of layers (default 8) and 0 to the configured maximum of effects (default 3).
 - [ ] **AC-1.5** Given a plan command for one page fails (provider error or invalid result after the allowed retries), When the run finishes, Then the other pages' plans are still written, and the failed page is named in the output with the reason, with a non-zero exit code.
@@ -74,8 +75,8 @@ As the producer, I want the picture cut into the planned layers with the backgro
 - [ ] **AC-4.1** Given a valid, non-stale plan and the downloaded models, When the producer runs `cut_layers --book <slug>`, Then for each planned page `books/<slug>/build/layers/page_NN/` contains one transparent PNG per planned layer, a `background.png` of the picture's full size, and a `layers.json` manifest listing each layer's file, offset, size and the cut hash.
 - [ ] **AC-4.2** Given a cut layer PNG, When it is composited at its offset over `background.png`, Then the result matches the original picture inside every layer's mask (within a small tolerance at feathered edges, for example mean absolute difference ≤ 2/255 inside the mask).
 - [ ] **AC-4.3** Given `background.png`, When it is compared with the original picture, Then pixels outside every layer's mask (dilated by the feather width) are unchanged, and pixels inside are filled (not transparent, not black).
-- [ ] **AC-4.4** Given a page was cut and neither the picture, the cut-relevant plan fields (layer names, boxes, points) nor the model ids changed, When `cut_layers` runs again, Then that page is skipped without loading any model, and the output files are unchanged.
-- [ ] **AC-4.5** Given only a motion, effect, depth, z-order or pivot was edited in a plan, When `cut_layers` runs, Then the page is not re-cut.
+- [ ] **AC-4.4** Given a page was cut and neither the picture, the cut-relevant plan fields (layer names, boxes, points, and the front/back order of layers whose boxes overlap) nor the model ids changed, When `cut_layers` runs again, Then that page is skipped without loading any model, and the output files are unchanged.
+- [ ] **AC-4.5** Given only a motion, effect, depth or pivot was edited in a plan, or a z-order change that leaves the front/back order of every pair of overlapping layers as it was, When `cut_layers` runs, Then the page is not re-cut. A z-order change that swaps two overlapping layers re-cuts the page (occlusion: each overlapping pixel belongs to the front-most layer).
 - [ ] **AC-4.6** Given a stale plan, When `cut_layers` runs, Then that page is refused with a message naming the page and saying to re-run the plan command. Other pages are still processed, and the exit code is non-zero.
 - [ ] **AC-4.7** Given a page has no plan, When `cut_layers` runs, Then the page is listed as "no plan" and skipped.
 - [ ] **AC-4.8** Given the models have not been downloaded, When `cut_layers` runs, Then it fails before any work, with a message naming the download command, and makes no network request.
@@ -94,7 +95,7 @@ As the producer, I want to see each page's plan and cut result in the studio, so
 ## Functional Requirements
 
 - **FR-1 Plan vocabulary.** One definition, shared with spec 010.
-  - Motions: `sway`, `bob`, `rotate`, `breathe`, `shift`. Each has an amplitude, a period in seconds and a phase (0–1), and `shift` also has a direction.
+  - Motions: `sway`, `bob`, `rotate`, `breathe`, `shift`. Each has an amplitude, a period in seconds and a phase (0–1), and `shift` also has a direction `[dx, dy]` (each in −1…1, not both 0; spec 010 normalises it).
   - Effects: `rain`, `snow`, `fireflies`, `falling_leaves`, `water_ripple`, `smoke`, `mist`, `glow`. Each has an optional region (a box, or a layer name), an intensity (0–1) and an optional colour hint.
 - **FR-2 Plan contents.**
   - Picture identity: sha256, width, height.
@@ -119,7 +120,7 @@ As the producer, I want to see each page's plan and cut result in the studio, so
   - Mask edges are feathered by a configured width (default 2 px).
   - `background.png` is the full picture size with every layer area filled.
   - `layers.json` records the files, offsets and sizes, the empty flag, the cut hash, the model ids and the picture sha256.
-- **FR-9 Cut hash.** sha256 over the picture sha256, the cut-relevant plan fields (layer names, boxes, include and exclude points, in a stable order), the feather width and the model ids.
+- **FR-9 Cut hash.** sha256 over the picture sha256, the cut-relevant plan fields (layer names, boxes, include and exclude points, in a stable order), the front/back order of every pair of layers whose boxes overlap (occlusion: each overlapping pixel belongs to the front-most layer; equal z on overlapping layers means neither gives up pixels, and is recorded as such), the feather width and the model ids. z values that change no overlapping pair's order do not change the hash.
 - **FR-10 Source of truth.** z-order, depth, pivot, motions and effects are read from the plan only, never from the manifest.
 - **FR-11 Download command.** It fetches the pinned model files once into a local model folder outside `build/` and prints what was stored. Cutting never downloads.
 - **FR-12 Studio.** Adds a per-book plan and cut status, a per-page animation view (AC-5.2/5.3), and two jobs ("Plan pictures", "Cut layers") that use the existing job runner. The studio stays bound to 127.0.0.1, and the images it serves stay on the media whitelist.

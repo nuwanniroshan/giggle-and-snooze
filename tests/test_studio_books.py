@@ -727,3 +727,26 @@ def test_mask_overlay_tints_each_layer(tmp_path):
         )
     assert inside_a != inside_b
     assert inside_a != outside and inside_b != outside
+
+
+def test_mask_colours_follow_the_plan_order_not_the_manifest(tmp_path):
+    # the boxes in the template use the plan's layer order; the masks must use the same colours
+    from video_pipeline.cut_layers import cut_book
+
+    paths, book, folder, ah = _anim_book(tmp_path)
+    square, left = ah.layer(), ah.layer("left", box=[0, 30, 10, 40], z=2)
+    ah.write_plan(folder, 1, layers=[square, left])
+    ah.cut(folder, pages=[1])
+    ah.write_plan(folder, 1, layers=[left, square])  # no overlap: the cut stays cached
+    assert _rows(paths, book)[1]["cut_state"] == "cut"
+    reordered = np.asarray(Image.open(io.BytesIO(sb.mask_overlay(paths, book, 1))))
+    cut_book(
+        folder,
+        root=folder.root,
+        pages=[1],
+        force=True,
+        load_models=ah.fake_models,
+        log=lambda _: None,
+    )  # now the manifest lists the layers in plan order too
+    fresh = np.asarray(Image.open(io.BytesIO(sb.mask_overlay(paths, book, 1))))
+    assert np.array_equal(reordered, fresh)

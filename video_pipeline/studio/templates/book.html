@@ -38,6 +38,14 @@
 <section class="stage">
   <h2>Animation</h2>
   <p>{{ animation }} <a href="/books/{{ book.slug }}/animation">Open the animation view</a></p>
+  {% set att = animation_attention %}
+  {% if att.unavailable %}<p class="strong">Plans cannot be checked: {{ att.unavailable }}</p>{% endif %}
+  {% if att.problems %}
+  <ul class="small">
+    {% for r in att.problems %}<li>Page {{ r.page_number }} <span class="state strong">{{ r.plan_state }}</span> {{ r.detail }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if att.unplanned %}<p class="small muted">No plan: pages {{ att.unplanned|join(', ') }}</p>{% endif %}
 </section>
 
 <section class="stage">

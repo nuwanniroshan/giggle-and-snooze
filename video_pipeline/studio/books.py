@@ -26,7 +26,13 @@ from video_pipeline.cut_layers import MANIFEST, cut_hash, layers_dir, model_ids
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import BOOK_FILE, PROJECT_ROOT, BookFolder, list_book_slugs
-from video_pipeline.motion_plan import LIMITS_FILE, load_limits, page_picture, plan_state
+from video_pipeline.motion_plan import (
+    LIMITS_FILE,
+    load_limits,
+    page_picture,
+    plan_path,
+    plan_state,
+)
 from video_pipeline.render_episode import VideoPaths, render_check_detail
 
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
@@ -544,6 +550,18 @@ def animation_summary(rows: list[dict]) -> str:
     return f"{planned} of {len(rows)} plans, {cut} cut"
 
 
+def animation_attention(rows: list[dict]) -> dict:
+    """What the book page lists under the summary (AC-5.1), compactly: the pages whose plan is
+    stale, invalid or has no picture (with the message), the page numbers with no plan, and the
+    config problem once when the animation config cannot be read. ok pages are not listed."""
+    unavailable = next((r["detail"] for r in rows if r["plan_state"] == "unavailable"), "")
+    return {
+        "problems": [r for r in rows if r["plan_state"] in ("stale", "invalid", "no_picture")],
+        "unplanned": [r["page_number"] for r in rows if r["plan_state"] == "none"],
+        "unavailable": unavailable,
+    }
+
+
 def layer_files(paths: StudioPaths, book: Book, page_number: int) -> dict[str, Path]:
     """The cut files of a page the manifest names (file name → path), existing ones only."""
     folder = folder_of(paths, book)
@@ -554,9 +572,22 @@ def layer_files(paths: StudioPaths, book: Book, page_number: int) -> dict[str, P
     return {n: out / n for n in _manifest_files(manifest) if (out / n).is_file()}
 
 
+def _plan_layer_order(folder: BookFolder, page_number: int) -> dict[str, int]:
+    """Layer name → its index in the plan file (the colour the page view gives its box);
+    empty when the plan cannot be read."""
+    plan = _read_dict(plan_path(folder, page_number)) or {}
+    layers = plan.get("layers")
+    names = (
+        [e.get("name") for e in layers if isinstance(e, dict)] if isinstance(layers, list) else []
+    )
+    return {name: i for i, name in reversed(list(enumerate(names))) if isinstance(name, str)}
+
+
 def mask_overlay(paths: StudioPaths, book: Book, page_number: int) -> bytes | None:
     """A PNG of every cut layer's alpha, tinted with its palette colour at its offset, over the
-    dimmed page picture (transparent where there is no picture). None when the page is not cut."""
+    dimmed page picture (transparent where there is no picture). None when the page is not cut.
+    A layer's colour is picked by its index in the plan (by name), as for its box in the page
+    view; a layer the plan no longer has keeps its manifest index."""
     folder = folder_of(paths, book)
     manifest = _manifest(folder, page_number)
     if manifest is None:
@@ -579,7 +610,10 @@ def mask_overlay(paths: StudioPaths, book: Book, page_number: int) -> bytes | No
     except (StopIteration, BookError, OSError):
         pass
     entries = [e for e in manifest.get("layers") or [] if isinstance(e, dict)]
-    for index, entry in enumerate(entries):
+    order = _plan_layer_order(folder, page_number)
+    for position, entry in enumerate(entries):
+        layer_name = entry.get("name")
+        index = order.get(layer_name, position) if isinstance(layer_name, str) else position
         name, offset = entry.get("file"), entry.get("offset")
         if not (isinstance(name, str) and _plain_name(name) and (out / name).is_file()):
             continue

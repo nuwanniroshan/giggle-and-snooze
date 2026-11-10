@@ -262,6 +262,56 @@ def test_shift_needs_a_direction() -> None:
     assert "layers[0].motions[0].direction" in joined(plan)
 
 
+def test_shift_direction_must_be_a_unit_range_non_zero_vector() -> None:
+    for direction in ([100, 0], [0, 0], [0.5, -1.5]):
+        plan = make_plan()
+        plan["layers"][0]["motions"] = [
+            {"type": "shift", "amplitude": 0.01, "period_s": 6.0, "direction": direction}
+        ]
+        assert "layers[0].motions[0].direction" in joined(plan), direction
+
+
+def test_shift_direction_in_range_is_fine() -> None:
+    for direction in ([1, 0], [-1, 1], [0.0, -0.3]):
+        plan = make_plan()
+        plan["layers"][0]["motions"] = [
+            {"type": "shift", "amplitude": 0.01, "period_s": 6.0, "direction": direction}
+        ]
+        assert problems(plan) == [], direction
+
+
+def test_points_and_pivot_on_the_far_edge_are_outside() -> None:
+    # pixels are 0..w-1, so x == width is off the picture (box ends are exclusive, so they may)
+    plan = make_plan()
+    plan["layers"][0]["include_points"] = [[1024, 5]]
+    plan["layers"][0]["exclude_points"] = [[5, 1024]]
+    plan["layers"][0]["pivot"] = [1024, 1024]
+    text = joined(plan)
+    assert "layers[0].include_points[0]" in text
+    assert "layers[0].exclude_points[0]" in text
+    assert "layers[0].pivot" in text
+    edge = make_plan()
+    edge["layers"][0]["box"] = [0, 0, 1024, 1024]
+    edge["layers"][0]["include_points"] = [[1023, 1023]]
+    edge["layers"][0]["pivot"] = [0, 1023]
+    assert problems(edge) == []
+
+
+def test_effect_region_box_needs_positive_area() -> None:
+    plan = make_plan(
+        effects=[{"type": "rain", "intensity": 0.5, "region": {"box": [500, 10, 100, 50]}}]
+    )
+    assert "effects[0].region.box" in joined(plan)
+    flat = make_plan(
+        effects=[{"type": "rain", "intensity": 0.5, "region": {"box": [0, 10, 100, 10]}}]
+    )
+    assert "effects[0].region.box" in joined(flat)
+    whole = make_plan(
+        effects=[{"type": "rain", "intensity": 0.5, "region": {"box": [0, 0, 1024, 1024]}}]
+    )
+    assert problems(whole) == []
+
+
 def test_duplicate_layer_names_are_named() -> None:
     plan = make_plan(layers=[make_layer("tree"), make_layer("tree", z=2)])
     text = joined(plan)
@@ -449,7 +499,8 @@ def test_cut_hash_changes_when_a_box_point_or_name_changes() -> None:
     assert len(hashes) == 4
 
 
-def test_cut_hash_ignores_motion_effect_z_depth_and_pivot() -> None:
+def test_cut_hash_ignores_motion_effect_depth_pivot_and_a_lone_layers_z() -> None:
+    # z only matters between overlapping layers (occlusion); a single layer has none.
     base = cut_hash(make_plan())
     same = make_plan(
         layers=[
@@ -465,6 +516,42 @@ def test_cut_hash_ignores_motion_effect_z_depth_and_pivot() -> None:
         provider="gemini",
     )
     assert cut_hash(same) == base
+
+
+def test_cut_hash_changes_when_overlapping_layers_swap_z() -> None:
+    # Occlusion gives each overlapping pixel to the front-most layer, so the order is cut input.
+    a = make_layer("a", box=[100, 100, 500, 600], z=1)
+    b = make_layer("b", box=[400, 400, 800, 900], include_points=[[600, 600]], z=2)
+    before = cut_hash(make_plan(layers=[a, b]))
+    after = cut_hash(make_plan(layers=[{**a, "z": 2}, {**b, "z": 1}]))
+    assert before != after
+
+
+def test_cut_hash_keeps_overlapping_order_when_z_values_change_without_reordering() -> None:
+    a = make_layer("a", box=[100, 100, 500, 600], z=1)
+    b = make_layer("b", box=[400, 400, 800, 900], include_points=[[600, 600]], z=2)
+    before = cut_hash(make_plan(layers=[a, b]))
+    assert cut_hash(make_plan(layers=[{**a, "z": -5}, {**b, "z": 40}])) == before
+
+
+def test_cut_hash_tells_equal_z_from_ordered_z_on_overlapping_layers() -> None:
+    # occlude() is strict: equal z means neither layer loses pixels to the other.
+    a = make_layer("a", box=[100, 100, 500, 600], z=1)
+    b = make_layer("b", box=[400, 400, 800, 900], include_points=[[600, 600]], z=2)
+    ordered = cut_hash(make_plan(layers=[a, b]))
+    equal = cut_hash(make_plan(layers=[a, {**b, "z": 1}]))
+    flipped = cut_hash(make_plan(layers=[a, {**b, "z": 0}]))
+    assert len({ordered, equal, flipped}) == 3
+    assert cut_hash(make_plan(layers=[{**b, "z": 7}, {**a, "z": 7}])) == equal
+
+
+def test_cut_hash_ignores_z_of_layers_whose_boxes_do_not_overlap() -> None:
+    a = make_layer("a", box=[100, 100, 500, 600], z=1)
+    far = make_layer("far", box=[600, 700, 900, 1000], include_points=[[700, 800]], z=2)
+    touching = make_layer("touch", box=[500, 100, 600, 200], include_points=[[550, 150]], z=3)
+    before = cut_hash(make_plan(layers=[a, far, touching]))
+    after = cut_hash(make_plan(layers=[{**a, "z": 5}, {**far, "z": 0}, {**touching, "z": 0}]))
+    assert after == before  # box ends are exclusive, so [100..500) and [500..600) do not overlap
 
 
 def test_cut_hash_ignores_layer_order_and_point_order() -> None:
@@ -603,6 +690,43 @@ def test_force_rewrites_and_keeps_a_backup(book_root) -> None:  # AC-1.3
     assert outcomes[0].status == "written"
     assert plan_path(book_root, 2).with_name("page_02.json.bak").read_bytes() == before
     assert load_plan(plan_path(book_root, 2), LIMITS).layers[0].name == "bush"
+
+
+def test_stale_plan_is_replanned_without_force_and_keeps_a_backup(book_root) -> None:
+    _plan_book(book_root, FakeCodex(), pages=[2])
+    before = plan_path(book_root, 2).read_bytes()
+    Image.new("RGB", SIZE, "red").save(book_root.illustrations / "page_02.png")  # repainted
+    fake = FakeCodex()
+    outcomes = _plan_book(book_root, fake, pages=[2])
+    assert (outcomes[0].status, outcomes[0].reason) == ("written", "replanned: stale plan")
+    assert len(fake.commands) == 1
+    assert plan_path(book_root, 2).with_name("page_02.json.bak").read_bytes() == before
+    plan = load_plan(plan_path(book_root, 2), LIMITS)
+    assert plan.picture == picture_identity(book_root.illustrations / "page_02.png")
+
+
+def test_invalid_plan_is_replanned_without_force_and_keeps_a_backup(book_root) -> None:
+    path = plan_path(book_root, 2)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{ not json", encoding="utf-8")
+    outcomes = _plan_book(book_root, FakeCodex(), pages=[2])
+    assert (outcomes[0].status, outcomes[0].reason) == ("written", "replanned: invalid plan")
+    assert path.with_name("page_02.json.bak").read_text(encoding="utf-8") == "{ not json"
+    load_plan(path, LIMITS)
+
+
+def test_main_counts_replanned_pages_as_written(book_root, monkeypatch, capsys) -> None:
+    from video_pipeline import motion_plan
+
+    _plan_book(book_root, FakeCodex(), pages=[2, 3])
+    Image.new("RGB", SIZE, "red").save(book_root.illustrations / "page_02.png")
+    monkeypatch.setattr(motion_plan, "codex_status", lambda: Path("/fake/codex"))
+    monkeypatch.setattr(motion_plan, "run_codex", FakeCodex())
+    args = ["--book", book_root.slug, "--root", str(book_root.root), "--page", "2", "--page", "3"]
+    assert motion_plan.main(args) == 0
+    out = capsys.readouterr().out
+    assert "page 02: written - replanned: stale plan" in out
+    assert "1 written, 1 kept, 0 failed" in out
 
 
 def test_refused_plans_are_retried_with_the_errors(book_root) -> None:  # FR-6 retry

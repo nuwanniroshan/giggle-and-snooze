@@ -129,24 +129,22 @@ That is 8 of 12 clean (counting Clara on page 5 as clean apart from the magnifie
 
 The producer judged the final-configuration masks good enough to build on. The 80% clean-layer target (NFR-7) is still checked on the whole pilot book in Phase 6, after occlusion handling (front-most layer owns each pixel) is in the cutter.
 
-Overlay and cutout files (not committed; in the session scratchpad). Each overlay is the picture with each layer tinted in its own colour and the box outline; each cutout sheet shows every layer on a checkerboard; each background is the LaMa fill.
+Overlay and cutout files were kept outside the repo (a temporary scratch folder, not committed) and are gone; regenerate them with `spike_cut.py` (same boxes, same settings). Each overlay is the picture with each layer tinted in its own colour and the box outline; each cutout sheet shows every layer on a checkerboard; each background is the LaMa fill.
 
-Final configuration (`CPU_AND_GPU`, `--select large --clean`):
-- `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/final_run1/overlay_page_01.png`, `overlay_page_05.png`, `overlay_page_12.png`
-- `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/final_run1/cutouts_page_01.png`, `cutouts_page_05.png`, `cutouts_page_12.png`
-- `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/final_run1/background_page_01.png`, `background_page_05.png`, `background_page_12.png`
-- `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/final_run1/hole_page_NN.png` (the dilated union that was filled), `result.json` (timings, scores, hashes)
-- `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/final_run2/` is the second process (identical hashes).
+Final configuration (`CPU_AND_GPU`, `--select large --clean`), folder `final_run1/`:
+- `overlay_page_01.png`, `overlay_page_05.png`, `overlay_page_12.png`
+- `cutouts_page_01.png`, `cutouts_page_05.png`, `cutouts_page_12.png`
+- `background_page_01.png`, `background_page_05.png`, `background_page_12.png`
+- `hole_page_NN.png` (the dilated union that was filled), `result.json` (timings, scores, hashes)
+- `final_run2/` is the second process (identical hashes).
 
-Comparison runs:
-- Box only, best score (the first run): `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/gpu_cpu_run1/` (shows the patchy snail).
-- Largest mask, no clean-up: `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/box_large/`.
-- Largest mask plus include/exclude points: `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/pts_large/`.
-- `CPU_ONLY`: `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/cpuonly_run1/`, `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/cpuonly_run2/`.
-- LaMa on the CoreML execution provider: `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/gpu_coremlep/`.
-- `ComputeUnit.ALL` (garbage masks): `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike/all_cpu_a/`.
-
-(`/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike` = `/private/tmp/claude-501/-Users-swiveltech-Disk-Swivel-kiddo/11701621-30a1-48a5-8636-6ba824a75caf/scratchpad/spike`)
+Comparison runs (one folder each):
+- Box only, best score (the first run): `gpu_cpu_run1/` (shows the patchy snail).
+- Largest mask, no clean-up: `box_large/`.
+- Largest mask plus include/exclude points: `pts_large/`.
+- `CPU_ONLY`: `cpuonly_run1/`, `cpuonly_run2/`.
+- LaMa on the CoreML execution provider: `gpu_coremlep/`.
+- `ComputeUnit.ALL` (garbage masks): `all_cpu_a/`.
 
 ## What Phase 4 needs from this
 
