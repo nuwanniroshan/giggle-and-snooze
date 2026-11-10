@@ -32,6 +32,7 @@ MOTIONS = ("sway", "bob", "rotate", "breathe", "shift")
 EFFECTS = ("rain", "snow", "fireflies", "falling_leaves", "water_ripple", "smoke", "mist", "glow")
 PLAN_DIR = "animation"
 LIMITS_FILE = "animation.json"
+RESERVED_LAYER_NAMES = frozenset({"background"})  # cut_layers writes background.png
 MAX_SAVES = 3
 SERVER_FIELDS = ("page_number", "picture", "provider", "written_at")
 
@@ -150,6 +151,8 @@ def rule_problems(
     for name in sorted({n for n in names if names.count(n) > 1}):
         out.append(f"layers: duplicate layer name {name!r}")
     for i, layer in enumerate(plan.layers):
+        if layer.name in RESERVED_LAYER_NAMES:
+            out.append(f"layers[{i}].name: {layer.name!r} is reserved for the filled background")
         x0, y0, x1, y1 = layer.box
         if not (x0 < x1 and y0 < y1 and _inside((x0, y0), w, h) and _inside((x1, y1), w, h)):
             out.append(f"layers[{i}].box: {list(layer.box)} is outside the picture {w}x{h}")

@@ -688,3 +688,10 @@ def test_real_plan_page_one(tmp_path: Path) -> None:
     assert outcomes[0].status == "written", outcomes[0].reason
     plan = load_plan(plan_path(folder, 1), limits)
     assert 1 <= len(plan.layers) <= limits.max_layers
+
+
+def test_layer_named_background_is_refused() -> None:
+    # cut_layers writes the filled background as background.png, so a layer can't use that name.
+    text = joined(make_plan(layers=[make_layer("background")]))
+    assert "layers[0].name" in text
+    assert "reserved" in text
