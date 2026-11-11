@@ -22,6 +22,13 @@ from PIL import Image
 
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.animate import page_eligibility
+from video_pipeline.blueprint import (
+    BlueprintError,
+    blueprint_sha256,
+    load_blueprint,
+    load_context,
+    read_use,
+)
 from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
 from video_pipeline.cut_layers import (
     MANIFEST,
@@ -54,6 +61,8 @@ STAGE_LABELS = {
     "plan": "motion planning",
     "cut": "layer cutting",
     "preview": "page preview",
+    "blueprint": "blueprint design",
+    "redesign": "blueprint design",
 }
 # Spec 009: run as studio jobs, but outside the script → voices → render flow.
 ANIMATION_STAGES = ("plan", "cut")
@@ -208,6 +217,28 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
 
 def script_path(paths: StudioPaths, book: Book) -> Path:
     return folder_of(paths, book).script_path
+
+
+def blueprint_status(paths: StudioPaths, book: Book) -> dict:
+    """The book's blueprint for the studio (spec 011 FR-8, FR-9): `present`, the load `error`
+    (file, field and reason), the parsed `view`, and the `stale` outputs, each with the command
+    that refreshes it. Nothing here changes a stage's own status (AC-6.6)."""
+    folder = folder_of(paths, book)
+    if not folder.blueprint_path.exists():
+        return {"present": False, "error": None, "view": None, "stale": []}
+    try:
+        view = load_blueprint(folder.blueprint_path, load_context(Path(paths.root)))
+    except (BlueprintError, ConfigError, OSError, KeyError, ValueError) as exc:
+        return {"present": True, "error": str(exc), "view": None, "stale": []}
+    sha, used = blueprint_sha256(folder.blueprint_path), read_use(folder)
+    stale = []
+    if any(folder.illustrations.glob("*.png")) and used.get("art") != sha:
+        command = f"python -m video_pipeline.illustrate --book {book.slug} --force"
+        stale.append({"output": "pictures", "command": command})
+    if script_path(paths, book).exists() and used.get("script") != sha:
+        command = f"python -m video_pipeline.generate_script --book {book.slug} --force"
+        stale.append({"output": "episode script", "command": command})
+    return {"present": True, "error": None, "view": view, "stale": stale}
 
 
 def reviewed_path(paths: StudioPaths, book: Book) -> Path:

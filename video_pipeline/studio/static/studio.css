@@ -165,8 +165,8 @@ main > table {
 }
 main > table th:first-child, main > table td:first-child { padding-left: 24px; }
 main > table thead th { color: var(--grey); }
-
 .line { margin: 0 0 24px; }
+.swatch { display: inline-block; width: 24px; height: 24px; vertical-align: middle; border: 1px solid var(--ink); border-radius: var(--radius-control); }
 .problems { margin: 8px 0 0; padding-left: 16px; font-weight: 700; }
 .thumb { display: block; width: 240px; max-width: 100%; height: auto; margin: 0 0 16px; border-radius: var(--radius-control); box-shadow: var(--shadow-raised); }
 

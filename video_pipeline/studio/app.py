@@ -47,6 +47,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from video_pipeline import synthesize_voices as sv
+from video_pipeline.blueprint import BlueprintError, rebuild_style_bible
 from video_pipeline.contract import ConfigError
 from video_pipeline.drafts import DraftError, DraftStore
 from video_pipeline.episode import BookError, load_book
@@ -213,6 +214,7 @@ class Studio:
             stage_labels=sb.STAGE_LABELS,
             format_duration=format_duration,
             static_url=static_url,
+            draft_has_blueprint=lambda draft_id: self.drafts.blueprint_path(draft_id).is_file(),
         )
 
     # --- helpers --------------------------------------------------------------------------------
@@ -223,7 +225,9 @@ class Studio:
             return None
         if job["stage"] in ("ideas", "candidate"):
             title = "story ideas"
-        elif job["stage"] == "book":
+        elif job["stage"] in ("book", "blueprint") or (
+            job["stage"] == "redesign" and self.drafts.get(job["book"])
+        ):
             draft = self.drafts.get(job["book"])
             title = draft["idea"]["title"] if draft else "a draft book"
         else:
@@ -288,7 +292,7 @@ class Studio:
     def last_job(
         self, book: sb.Book, stages: tuple[str, ...] | None = None, page: int | None = None
     ) -> dict | None:
-        stages = stages or sb.STAGES + sb.ANIMATION_STAGES
+        stages = stages or sb.STAGES + sb.ANIMATION_STAGES + ("redesign",)
         jobs = [j for s in stages if (j := self.runner.latest(book.slug, s, page))]
         if not jobs:
             return None
@@ -342,6 +346,7 @@ class Studio:
             "stages": stages,
             "has_script": sb.script_path(self.paths, book).exists(),
             "job": self.last_job(book),
+            "blueprint": sb.blueprint_status(self.paths, book),
         }
         rows = sb.page_animation(self.paths, book)
         context["animation"] = sb.animation_summary(rows)
@@ -395,7 +400,12 @@ class Studio:
     def stop_job(self, request: Request) -> Response:
         job = self.runner.current()
         self.runner.stop()
-        target = f"/books/{job['book']}" if job else "/"
+        target = "/"
+        if job:
+            is_draft = job["stage"] in ("book", "blueprint") or (
+                job["stage"] == "redesign" and self.drafts.get(job["book"])
+            )
+            target = f"/drafts/{job['book']}" if is_draft else f"/books/{job['book']}"
         return RedirectResponse(target, status_code=303)
 
     # --- uploads --------------------------------------------------------------------------------
@@ -509,7 +519,7 @@ class Studio:
             return self.render(request, "add_book.html", self.add_book_context(problems), 422)
         with self.write_lock:
             draft = self.drafts.new_draft(idea, pages, author)
-            reason = self._start_story("book", draft["id"], draft["id"])
+            reason = self._start_story("blueprint", draft["id"], draft["id"])
             if reason:
                 self.drafts.discard(draft["id"])
         if reason:
@@ -569,6 +579,9 @@ class Studio:
             problems = ["Confirm the discard to delete this draft and its generation log."]
             return self.render(request, "draft.html", {"draft": draft, "problems": problems}, 422)
         with self.write_lock:
+            job = self.runner.current()
+            if job and job["book"] == draft["id"]:
+                self.runner.stop()  # a designing or writing draft's job ends with it (AC-1.7)
             self.drafts.discard(draft["id"])
         return RedirectResponse("/books/new", status_code=303)
 
@@ -589,11 +602,133 @@ class Studio:
                     {"draft": draft, "problems": [f"Refused: {reason}."]},
                     409,
                 )
-            self.drafts.update(draft["id"], state="writing", attempts=0, problems=[], book=None)
-            reason = self._start_story("book", draft["id"], draft["id"])
+            if draft.get("phase") == "design":
+                self.drafts.update(draft["id"], state="designing", attempts=0, problems=[])
+                stage, failed = "blueprint", "design_failed"
+            else:
+                self.drafts.update(draft["id"], state="writing", attempts=0, problems=[], book=None)
+                stage, failed = "book", "failed"
+            reason = self._start_story(stage, draft["id"], draft["id"])
             if reason:
-                self.drafts.update(draft["id"], state="failed", problems=[f"Refused: {reason}."])
+                self.drafts.update(draft["id"], state=failed, problems=[f"Refused: {reason}."])
         return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    # --- the blueprint (spec 011 FR-9) ---------------------------------------------------------
+
+    def _draft_refusal(self, request: Request, draft: dict, lines: list[str], status: int):
+        return self.render(request, "draft.html", {"draft": draft, "problems": lines}, status)
+
+    async def design_again(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        with self.write_lock:
+            if draft["state"] != "design_failed":
+                lines = ["Only a draft whose design failed can be designed again."]
+            elif reason := self.busy_reason():
+                lines = [f"Refused: {reason}."]
+            else:
+                self.drafts.update(
+                    draft["id"], state="designing", phase="design", attempts=0, problems=[]
+                )
+                if reason := self._start_story("blueprint", draft["id"], draft["id"]):
+                    self.drafts.update(
+                        draft["id"], state="design_failed", problems=[f"Refused: {reason}."]
+                    )
+                    lines = [f"Refused: {reason}."]
+                else:
+                    lines = []
+        if lines:
+            return self._draft_refusal(request, self.drafts.get(draft["id"]), lines, 409)
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    async def write_without_blueprint(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        with self.write_lock:
+            if draft["state"] != "design_failed":
+                lines = ["Only a draft whose design failed can be written without a blueprint."]
+            elif reason := self.busy_reason():
+                lines = [f"Refused: {reason}."]
+            else:
+                self.drafts.update(
+                    draft["id"], state="writing", phase="story", attempts=0, problems=[], book=None
+                )
+                if reason := self._start_story("book", draft["id"], draft["id"]):
+                    self.drafts.update(
+                        draft["id"], state="design_failed", problems=[f"Refused: {reason}."]
+                    )
+                    lines = [f"Refused: {reason}."]
+                else:
+                    lines = []
+        if lines:
+            return self._draft_refusal(request, self.drafts.get(draft["id"]), lines, 409)
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    async def regenerate_draft_blueprint(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        form = await request.form()
+        if form.get("confirm") != "yes":
+            lines = ["Confirm to replace this draft's blueprint with a new design."]
+            return self._draft_refusal(request, draft, lines, 422)
+        with self.write_lock:
+            if not self.drafts.blueprint_path(draft["id"]).is_file():
+                lines = ["This draft has no blueprint to regenerate."]
+            elif draft["state"] != "ready":
+                lines = ["Only a finished draft's blueprint can be regenerated."]
+            elif reason := self._start_story("redesign", f"draft:{draft['id']}", draft["id"]):
+                lines = [f"Refused: {reason}."]
+            else:
+                lines = []
+        if lines:
+            return self._draft_refusal(request, draft, lines, 409)
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    async def regenerate_book_blueprint(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        if book is None:
+            return self.not_found(request)
+        form = await request.form()
+        back = f"/books/{book.slug}"
+        if form.get("confirm") != "yes":
+            lines = ["Confirm to replace this book's blueprint with a new design."]
+            return self.message(request, "Confirm regenerating the blueprint", lines, 422, back)
+        with self.write_lock:
+            if book.error:
+                lines = [f"The book data has a problem: {book.error}"]
+            elif not sb.folder_of(self.paths, book).blueprint_path.exists():
+                lines = ["This book has no blueprint to regenerate."]
+            elif reason := self._start_story("redesign", f"book:{book.slug}", book.slug):
+                lines = [f"Refused: {reason}."]
+            else:
+                lines = []
+        if lines:
+            return self.message(request, "Cannot regenerate the blueprint", lines, 409, back)
+        return RedirectResponse(back, status_code=303)
+
+    async def rebuild_style_bible(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        if book is None:
+            return self.not_found(request)
+        back = f"/books/{book.slug}"
+        with self.write_lock:
+            folder = sb.folder_of(self.paths, book)
+            if not folder.blueprint_path.exists():
+                lines = ["This book has no blueprint."]
+            elif reason := self.busy_reason():
+                lines = [f"Refused: {reason}."]
+            else:
+                try:
+                    rebuild_style_bible(folder)
+                    lines = []
+                except (BlueprintError, ConfigError, OSError, ValueError) as exc:
+                    lines = [str(exc)]
+        if lines:
+            return self.message(request, "Cannot rebuild the style bible", lines, 409, back)
+        return RedirectResponse(back, status_code=303)
 
     # --- the script -----------------------------------------------------------------------------
 
@@ -1011,6 +1146,23 @@ def create_app(
         Route("/drafts/{draft_id}/create", studio.create_book_from_draft, methods=["POST"]),
         Route("/drafts/{draft_id}/discard", studio.discard_draft, methods=["POST"]),
         Route("/drafts/{draft_id}/write-again", studio.write_again, methods=["POST"]),
+        Route("/drafts/{draft_id}/design-again", studio.design_again, methods=["POST"]),
+        Route(
+            "/drafts/{draft_id}/write-without-blueprint",
+            studio.write_without_blueprint,
+            methods=["POST"],
+        ),
+        Route(
+            "/drafts/{draft_id}/blueprint/regenerate",
+            studio.regenerate_draft_blueprint,
+            methods=["POST"],
+        ),
+        Route(
+            "/books/{slug}/blueprint/regenerate",
+            studio.regenerate_book_blueprint,
+            methods=["POST"],
+        ),
+        Route("/books/{slug}/blueprint/style-bible", studio.rebuild_style_bible, methods=["POST"]),
         Route("/books/{slug}", studio.book_page),
         Route("/books/{slug}/run/{stage}", studio.run_stage, methods=["POST"]),
         Route("/books/{slug}/script", studio.script_page),

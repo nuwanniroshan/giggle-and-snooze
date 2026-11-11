@@ -89,11 +89,25 @@ class Job:
         return record
 
 
-STORY_STAGES = ("ideas", "candidate", "book")
+STORY_STAGES = ("ideas", "candidate", "book", "blueprint", "redesign")
 
 
 def story_command(stage: str, subject: str, paths: StudioPaths) -> list[str]:
-    """The CLI argv for a story run (spec 006): `subject` is the run id or the draft id."""
+    """The CLI argv for a story run (spec 006): `subject` is the run id or the draft id. A
+    `blueprint` run designs a draft's blueprint and then writes its story (spec 011); a
+    `redesign` run takes `draft:<id>` or `book:<slug>` and only replaces the blueprint."""
+    module = "video_pipeline.write_story"
+    if stage == "blueprint":
+        return [
+            sys.executable, "-m", module, "blueprint", "--draft", subject,
+            "--then-book", "--root", str(paths.root),
+        ]  # fmt: skip
+    if stage == "redesign":
+        kind, _, ident = subject.partition(":")
+        flag = "--draft" if kind == "draft" else "--book"
+        return [
+            sys.executable, "-m", module, "blueprint", flag, ident, "--root", str(paths.root),
+        ]  # fmt: skip
     flag = "--draft" if stage == "book" else "--run"
     return [
         sys.executable,
