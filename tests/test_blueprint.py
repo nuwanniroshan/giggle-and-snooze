@@ -165,3 +165,46 @@ def test_every_name_is_used_when_palette_is_not_longer_than_the_book():
 )
 def test_clamp_range(lo, hi, low, high, expected):
     assert bp.clamp_range(lo, hi, low, high) == expected
+
+
+# --- others_for (AC-2.8, AC-2.9) -------------------------------------------------------------
+
+
+def _write_book(root, slug, blueprint=True, text=None):
+    import json
+
+    folder = root / "books" / slug
+    folder.mkdir(parents=True)
+    (folder / "book.json").write_text("{}", encoding="utf-8")
+    if text is not None:
+        (folder / "blueprint.json").write_text(text, encoding="utf-8")
+    elif blueprint:
+        (folder / "blueprint.json").write_text(json.dumps(valid_blueprint()), encoding="utf-8")
+
+
+def _write_draft(root, draft_id, title):
+    import json
+
+    folder = root / "drafts" / draft_id
+    folder.mkdir(parents=True)
+    (folder / "draft.json").write_text(
+        json.dumps({"id": draft_id, "idea": {"title": title}}), encoding="utf-8"
+    )
+    (folder / "blueprint.json").write_text(json.dumps(valid_blueprint()), encoding="utf-8")
+
+
+def test_others_for_lists_books_and_drafts_and_honours_exclude(tmp_path):
+    _write_book(tmp_path, "a")
+    _write_book(tmp_path, "b")
+    _write_book(tmp_path, "plain", blueprint=False)
+    _write_draft(tmp_path, "d1", "Draft Title")
+    ctx = context()
+    assert set(bp.others_for(tmp_path, ctx)) == {"a", "b", "Draft Title"}
+    assert set(bp.others_for(tmp_path, ctx, ("book", "a"))) == {"b", "Draft Title"}
+    assert set(bp.others_for(tmp_path, ctx, ("draft", "d1"))) == {"a", "b"}
+
+
+def test_others_for_skips_unreadable_files(tmp_path):
+    _write_book(tmp_path, "a")
+    _write_book(tmp_path, "broken", text="{")
+    assert set(bp.others_for(tmp_path, context())) == {"a"}

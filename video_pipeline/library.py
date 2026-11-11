@@ -66,6 +66,14 @@ class BookFolder:
         return self.episode_dir / "reviewed.json"
 
     @property
+    def blueprint_path(self) -> Path:
+        return self.folder / "blueprint.json"
+
+    @property
+    def used_path(self) -> Path:
+        return self.folder / "blueprint_used.json"
+
+    @property
     def build_dir(self) -> Path:
         return self.folder / "build"
 
