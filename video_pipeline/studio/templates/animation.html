@@ -11,13 +11,14 @@
 </section>
 {% if rows %}
 <table>
-  <thead><tr><th>Page</th><th>Plan</th><th>Cut</th><th>Detail</th></tr></thead>
+  <thead><tr><th>Page</th><th>Plan</th><th>Cut</th><th>Video</th><th>Detail</th></tr></thead>
   <tbody>
   {% for r in rows %}
   <tr>
     <td><a href="/books/{{ book.slug }}/animation/{{ r.page_number }}">Page {{ r.page_number }}</a></td>
     <td><span class="state{% if r.plan_state in ('stale', 'invalid') %} strong{% endif %}">{{ r.plan_state }}</span></td>
     <td>{{ r.cut_state }}</td>
+    <td class="small-cell">{% if r.will_animate %}animated{% else %}<span class="muted">still: {{ r.still_reason }}</span>{% endif %}</td>
     <td class="muted small-cell">{{ r.detail }}{% if r.empty_layers %} Empty layers: {{ r.empty_layers|join(', ') }}.{% endif %}</td>
   </tr>
   {% endfor %}
@@ -34,7 +35,7 @@
     {% if job.exit_code is not none %}<span class="muted">exit code {{ job.exit_code }}</span>{% endif %}</p>
   <pre class="log" id="log" data-job-id="{{ job.id }}" data-offset="{{ job.offset }}"{% if job.live %} data-live="1"{% endif %}>{{ job.log }}</pre>
   {% else %}
-  <p class="muted">Plan pictures or Cut layers has not run for this book in the studio yet.</p>
+  <p class="muted">Plan pictures, Cut layers or a page preview has not run for this book in the studio yet.</p>
   {% endif %}
 </section>
 {% endblock %}

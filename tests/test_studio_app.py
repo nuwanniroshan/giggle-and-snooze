@@ -74,8 +74,8 @@ class Commands:
         self.calls: list[tuple[str, str, bool]] = []
         self.code = code
 
-    def __call__(self, stage, book, paths, force=False):
-        self.calls.append((stage, book.slug, force))
+    def __call__(self, stage, book, paths, force=False, page=None):
+        self.calls.append((stage, book.slug, force) if page is None else (stage, book.slug, page))
         return [sys.executable, "-c", self.code]
 
 
@@ -993,3 +993,130 @@ def test_book_page_names_an_unreadable_animation_config_once(animated):
     text = text_of(s.client.get(f"/books/{PILOT_SLUG}").text)
     assert text.count("Plans cannot be checked") == 1 and "animation.json" in text
     assert "unavailable" not in text  # one line for the config, not one per page
+
+
+# --- page preview (spec 010 Phase 5: FR-16, AC-4.3, AC-6.2) -----------------------------------
+
+
+def _voiced(tmp_path, monkeypatch, commands=None):
+    """A book with voice tracks (audio not approved) and page 4 planned but not cut."""
+    from tests import animation_helpers as ah
+
+    s, world = with_world(tmp_path, monkeypatch, approve=False, commands=commands)
+    ah.write_plan(world["folder"], 4, layers=[ah.layer()])
+    return s, world, ah
+
+
+@pytest.fixture
+def voiced(tmp_path, monkeypatch):
+    s, world, ah = _voiced(tmp_path, monkeypatch)
+    yield s, world, ah
+    if s.runner.current():
+        s.runner.stop()
+
+
+def test_preview_starts_a_job_for_the_page(voiced):  # AC-6.2
+    s, _world, _ah = voiced
+    r = s.client.post(f"/books/{PILOT_SLUG}/animation/4/preview")
+    assert r.status_code == 303
+    assert r.headers["location"] == f"/books/{PILOT_SLUG}/animation/4"
+    s.wait()
+    assert s.commands.calls == [("preview", PILOT_SLUG, 4)]
+    job = s.runner.latest(PILOT_SLUG, "preview", page=4)
+    assert job["state"] == "done" and job["page"] == 4
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation/4").text
+    assert "page preview" in text_of(html).lower() and "finished" in html
+    assert "finished" not in s.client.get(f"/books/{PILOT_SLUG}/animation/5").text
+
+
+def test_preview_command_names_the_page(voiced):  # FR-16
+    s, _world, _ah = voiced
+    cmd = sj.stage_command("preview", s.book(), s.paths, page=4)
+    assert cmd[-2:] == ["--preview-page", "4"]
+
+
+def test_preview_refused_when_busy(tmp_path, monkeypatch):  # AC-6.2
+    s, _world, _ah = _voiced(tmp_path, monkeypatch, Commands("import time; time.sleep(30)"))
+    try:
+        assert s.client.post(f"/books/{PILOT_SLUG}/animation/4/preview").status_code == 303
+        r = s.client.post(f"/books/{PILOT_SLUG}/animation/5/preview")
+        assert r.status_code == 409 and "page preview" in r.text
+        html = s.client.get(f"/books/{PILOT_SLUG}/animation/5").text
+        assert re.search(r"<button[^>]*disabled[^>]*>\s*Preview", html)
+    finally:
+        s.runner.stop()
+    assert len(s.commands.calls) == 1
+
+
+def test_preview_refused_cross_site(voiced):
+    s, _world, _ah = voiced
+    r = s.client.post(
+        f"/books/{PILOT_SLUG}/animation/4/preview", headers={"Origin": "https://evil.example"}
+    )
+    assert r.status_code == 403
+    assert s.commands.calls == []
+
+
+def test_preview_needs_the_page_track_not_approval(voiced):  # AC-6.3
+    s, world, _ah = voiced
+    (world["audio"] / "tracks" / "page-04.wav").unlink()
+    r = s.client.post(f"/books/{PILOT_SLUG}/animation/4/preview")
+    assert r.status_code == 409 and "voice track" in r.text
+    assert f"python -m video_pipeline.synthesize_voices --book {PILOT_SLUG} --reviewed" in r.text
+    assert s.commands.calls == []
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation/4").text
+    assert re.search(r"<button[^>]*disabled[^>]*>\s*Preview", html)
+    assert s.client.post(f"/books/{PILOT_SLUG}/animation/99/preview").status_code == 404
+
+
+def test_animation_view_says_animated_or_still(voiced):  # AC-4.3
+    s, world, ah = voiced
+    ah.write_picture(world["folder"], 4, colour=(0, 200, 0))  # repainted → stale plan
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}/animation").text)
+    assert "still: stale plan" in text
+    assert "still: no plan" in text
+    page = text_of(s.client.get(f"/books/{PILOT_SLUG}/animation/4").text)
+    assert "still: stale plan" in page
+
+
+def test_animation_view_shows_an_animated_page(voiced):  # AC-4.3
+    s, world, ah = voiced
+    ah.cut(world["folder"], pages=[4])
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
+    row = re.search(r"Page 4</a>.*?</tr>", html, re.S).group(0)
+    assert "animated" in text_of(row) and "still" not in text_of(row)
+
+
+def test_page_view_plays_an_existing_preview(voiced):  # AC-6.2
+    s, world, _ah = voiced
+    url = f"/media/{PILOT_SLUG}/preview_video/page_04.mp4"
+    assert "<video" not in s.client.get(f"/books/{PILOT_SLUG}/animation/4").text
+    assert s.client.get(url).status_code == 404
+    args = cli_args(world, "--preview-page", "4")
+    assert re_.main(args, run=FakeRunner()) == 0
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation/4").text
+    assert re.search(r"<video[^>]*controls", html)
+    assert f'src="{url}' in html
+    r = s.client.get(url, headers={"Range": "bytes=0-3"})
+    assert r.status_code == 206
+    assert r.content == (world["video"] / "preview" / "page_04.mp4").read_bytes()[:4]
+    assert "<video" not in s.client.get(f"/books/{PILOT_SLUG}/animation/5").text
+
+
+def test_preview_media_is_whitelisted(voiced):
+    s, world, _ah = voiced
+    assert re_.main(cli_args(world, "--preview-page", "4"), run=FakeRunner()) == 0
+    preview = world["video"] / "preview"
+    (preview / "stray.mp4").write_bytes(b"x")
+    (preview / "page_04.json").write_bytes(b"x")
+    bad = [
+        f"/media/{PILOT_SLUG}/preview_video/stray.mp4",
+        f"/media/{PILOT_SLUG}/preview_video/page_4.mp4",
+        f"/media/{PILOT_SLUG}/preview_video/page_04.json",
+        f"/media/{PILOT_SLUG}/preview_video/page_05.mp4",
+        f"/media/{PILOT_SLUG}/preview_video/..%2Fsections%2Fpage-04.mp4",
+        f"/media/{PILOT_SLUG}/preview_video/../sections/page-04.mp4",
+        f"/media/{PILOT_SLUG}/preview/page_04.mp4",
+    ]
+    for url in bad:
+        assert s.client.get(url).status_code == 404, url

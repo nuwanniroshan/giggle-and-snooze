@@ -167,3 +167,52 @@ def test_a_script_saved_without_a_trailing_newline_also_ignores_ambience(tmp_pat
     data["intro"]["ambience"] = ["rain"]
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     assert fh.script_sha256(path) == before
+
+
+# --- script_sha256: the page animation override is ignored too (spec 010 FR-10) ---------------
+
+
+def test_excluded_block_keys():
+    assert fh.EXCLUDED_BLOCK_KEYS == ("ambience", "animation")
+
+
+@pytest.mark.parametrize("value", [False, 1.5, 0.25])
+def test_adding_changing_and_removing_animation_keeps_the_script_hash(tmp_path, value):
+    path = _write(tmp_path, _script())
+    before = fh.script_sha256(path)
+    data = _script()
+    data["pages"][0]["animation"] = value
+    write_atomic(path, data)
+    assert fh.sha256_file(path) != before
+    assert fh.script_sha256(path) == before
+    data["pages"][0]["animation"] = 2.0
+    data["pages"][1]["animation"] = False
+    write_atomic(path, data)
+    assert fh.script_sha256(path) == before
+    del data["pages"][0]["animation"]
+    write_atomic(path, data)
+    assert fh.script_sha256(path) == before
+    del data["pages"][1]["animation"]
+    write_atomic(path, data)
+    assert fh.script_sha256(path) == fh.sha256_file(path) == before
+
+
+def test_animation_and_ambience_together_keep_the_hash(tmp_path):
+    path = _write(tmp_path, _script())
+    before = fh.script_sha256(path)
+    data = _script()
+    data["intro"]["ambience"] = ["rain"]
+    data["pages"][1]["animation"] = 0.5
+    data["pages"][1]["ambience"] = ["wind"]
+    write_atomic(path, data)
+    assert fh.script_sha256(path) == before
+
+
+def test_text_change_with_animation_changes_the_hash(tmp_path):
+    path = _write(tmp_path, _script())
+    before = fh.script_sha256(path)
+    data = _script()
+    data["pages"][1]["animation"] = False
+    data["pages"][1]["lines"][0]["text"] = "Deux"
+    write_atomic(path, data)
+    assert fh.script_sha256(path) != before

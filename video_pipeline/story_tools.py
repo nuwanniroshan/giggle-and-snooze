@@ -10,6 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from video_pipeline.blueprint import (
+    Blueprint,
+    BlueprintConfig,
+    Context,
+    blueprint_errors,
+    similarity_problems,
+)
 from video_pipeline.contract import (
     find_disallowed,
     load_disallowed_terms,
@@ -141,6 +148,20 @@ def book_errors(book: object, max_pages: int, terms: list[str], gentle: list[str
     return errors
 
 
+def blueprint_check(
+    payload: object,
+    ctx: Context,
+    others: dict[str, Blueprint],
+    cfg: BlueprintConfig,
+    where: str = "blueprint.json",
+) -> list[str]:
+    """Schema, content and distinctness problems of a submitted blueprint (FR-1..FR-4)."""
+    errors = blueprint_errors(payload, ctx, where)
+    if errors:
+        return errors
+    return similarity_problems(Blueprint.model_validate(payload), others, cfg)
+
+
 @dataclass
 class StoryTools:
     """What the writing agent can call: each submit validates, and a valid one is saved to `out`."""
@@ -151,6 +172,9 @@ class StoryTools:
     pages: int = 20
     max_saves: int = MAX_SAVES
     saves: int = 0
+    blueprint_ctx: Context | None = None
+    blueprint_others: dict[str, Blueprint] | None = None
+    blueprint_cfg: BlueprintConfig | None = None
 
     def _submit(self, check, payload: object) -> dict:
         if self.saves >= self.max_saves:
@@ -170,3 +194,11 @@ class StoryTools:
 
     def submit_book(self, payload: object) -> dict:
         return self._submit(lambda p: book_errors(p, self.pages, self.terms, self.gentle), payload)
+
+    def submit_blueprint(self, payload: object) -> dict:
+        def check(p: object) -> list[str]:
+            return blueprint_check(
+                p, self.blueprint_ctx, self.blueprint_others or {}, self.blueprint_cfg
+            )
+
+        return self._submit(check, payload)

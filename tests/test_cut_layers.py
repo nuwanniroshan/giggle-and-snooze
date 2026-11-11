@@ -807,3 +807,30 @@ def test_limit_regions_keeps_boxes_already_under_the_cap() -> None:
     boxes = [(0, 0, 10, 10), (500, 500, 510, 510)]
     assert cut_layers.limit_regions(boxes, 3) == boxes
     assert cut_layers.limit_regions(boxes, 1) == [(0, 0, 510, 510)]
+
+
+# --- cut_state (spec 010 Phase 3: shared by the studio and the render) -------------------------
+
+
+def test_cut_state_follows_the_manifest(tmp_path):
+    from tests import animation_helpers as ah
+    from tests.helpers import make_root
+    from video_pipeline.cut_layers import MANIFEST, cut_state, layers_dir, read_config
+
+    folder = make_root(tmp_path)
+    ah.write_picture(folder, 1)
+    plan = ah.write_plan(folder, 1)
+    config = read_config(folder.root)
+    state, reason = cut_state(folder, plan, config)
+    assert state == "needs cut"
+    assert f"python -m video_pipeline.cut_layers --book {folder.slug}" in reason
+    ah.cut(folder, pages=[1])
+    assert cut_state(folder, plan, config) == ("cut", "")
+    moved = ah.write_plan(folder, 1, layers=[ah.layer(box=[10, 10, 30, 30])])
+    state, reason = cut_state(folder, moved, config)
+    assert state == "needs cut" and "cut_layers" in reason
+    (layers_dir(folder, 1) / "square.png").unlink()
+    state, reason = cut_state(folder, plan, config)
+    assert state == "needs cut" and "square.png" in reason
+    (layers_dir(folder, 1) / MANIFEST).write_text("{", encoding="utf-8")
+    assert cut_state(folder, plan, config)[0] == "needs cut"

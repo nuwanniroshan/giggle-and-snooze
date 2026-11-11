@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import book_links, animation_controls %}
+{% from "_macros.html" import badge, book_links, animation_controls %}
 {% block title %}Page {{ row.page_number }} animation: {{ book.title }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ static_url('animation.css') }}">{% endblock %}
 {% block content %}
@@ -17,6 +17,26 @@
   {% if row.detail %}<p class="strong">{{ row.detail }}</p>{% endif %}
   {% if row.empty_layers %}<p class="strong">Empty layers (the cut found nothing): {{ row.empty_layers|join(', ') }}</p>{% endif %}
   {{ animation_controls(book, controls) }}
+</section>
+<section class="stage">
+  <h2>Preview</h2>
+  <p><span class="muted">Video</span> {% if row.will_animate %}<span class="state">animated</span>{% else %}<span class="state">still: {{ row.still_reason }}</span>{% endif %}</p>
+  <p class="muted">Renders this page with its voice, camera and captions (the voice track is needed, not the audio approval). The full render reuses it.</p>
+  <div class="controls">
+    <form method="post" action="/books/{{ book.slug }}/animation/{{ row.page_number }}/preview" class="inline">
+      <button type="submit"{% if preview_blocked %} disabled{% endif %}>Preview page {{ row.page_number }}</button>
+    </form>
+    {% if preview_blocked %}<span class="reason">{{ preview_blocked }}</span>{% endif %}
+  </div>
+  {% if preview_job %}
+  <p>{{ preview_job.label|capitalize }} {{ badge(preview_job.state) }}
+    <span class="muted"{% if preview_job.live %} data-elapsed="{{ preview_job.elapsed }}"{% endif %}>{{ format_duration(preview_job.elapsed) }}</span>
+    {% if preview_job.exit_code is not none %}<span class="muted">exit code {{ preview_job.exit_code }}</span>{% endif %}</p>
+  <pre class="log" id="log" data-job-id="{{ preview_job.id }}" data-offset="{{ preview_job.offset }}"{% if preview_job.live %} data-live="1"{% endif %}>{{ preview_job.log }}</pre>
+  {% endif %}
+  {% if preview_url %}
+  <video class="preview" controls preload="metadata" src="{{ preview_url }}"></video>
+  {% endif %}
 </section>
 {% if plan is none %}
 <p class="muted">{% if row.plan_state == 'none' %}No plan for this page yet. Run Plan pictures.{% else %}The plan cannot be shown.{% endif %}</p>

@@ -1,0 +1,12 @@
+{
+  "distance": 20,
+  "mediums": {
+    "painted-water-media": ["gouache", "watercolor", "watercolour", "acrylic-wash"],
+    "chalk-pastel": ["pastel", "soft-pastel"],
+    "ink-and-wash": ["ink", "pen-and-wash"],
+    "paper-collage": ["cut-paper", "felt-collage"],
+    "digital-flat": ["vector", "flat-colour"]
+  },
+  "moods": {"sleepy-drift": ["sleepy", "drowsy"], "bouncy-bright": ["bouncy", "excited"]},
+  "formats": {"guessing-game": ["guessing"], "detail-spotting": ["i-spy"], "what-would-you-do": ["choices"]}
+}

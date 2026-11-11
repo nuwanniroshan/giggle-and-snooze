@@ -8,7 +8,7 @@ The builders are pure (they return argument lists or filtergraph strings); `run_
 `probe` are the only places that start a process. `render_video` gates on approved audio, resolves
 the pictures, caches sections/transitions by key and assembles the final video.
 
-Run: uv run python -m video_pipeline.render_episode [--book PATH] [--force]
+Run: uv run python -m video_pipeline.render_episode --book SLUG [--force] [--preview-page N]
 """
 
 from __future__ import annotations
@@ -19,9 +19,11 @@ import hashlib
 import io
 import json
 import os
+import queue
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+import threading
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,7 +33,19 @@ import soundfile as sf
 from PIL import Image, UnidentifiedImageError
 
 from video_pipeline import sound_library, timeline
-from video_pipeline.contract import ConfigError
+from video_pipeline.animate import (
+    AnimationError,
+    PageAnimation,
+    PageEligibility,
+    animated_key,
+    canvas_frames,
+    load_page_animation,
+    page_eligibility,
+    picture_frames,
+    rest_frames,
+)
+from video_pipeline.contract import ANIMATION_OVERRIDE_RANGE, ConfigError, _animation_errors
+from video_pipeline.cut_layers import layers_dir
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.frames import (
@@ -39,6 +53,7 @@ from video_pipeline.frames import (
     PictureError,
     SoundError,
     _read_cache,
+    canvas_parts,
     compose_canvas,
     load_page_turn,
     mix_master,
@@ -46,6 +61,7 @@ from video_pipeline.frames import (
     render_caption,
 )
 from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
+from video_pipeline.motion_plan import PLAN_DIR
 from video_pipeline.sound_library import Cue, ambience_problems, build_cues, render_bed
 from video_pipeline.synthesize_voices import (
     AudioPaths,
@@ -125,17 +141,36 @@ def section_filtergraph(section: Section, caption_count: int, cfg: RenderConfig)
     """The section's filtergraph: upscaled canvas → zoompan camera → caption overlays → (outro)
     fade-out → `[vout]` in yuv420p. Input 0 is the canvas, inputs 1..K the caption stills, in
     the order of `section.captions`; overlay times are section-relative seconds."""
+    _check_caption_count(section, caption_count)
+    w, h, fps = cfg.width, cfg.height, cfg.fps
+    z, x, y = zoompan_expr(section.camera)
+    head = (
+        f"[0:v]{_to_bt709_yuv(cfg.upscale * w, cfg.upscale * h)},"
+        f"zoompan=z='{z}':x='{x}':y='{y}':d={section.frames}:s={w}x{h}:fps={fps}[base]"
+    )
+    return _graph_with_tail(head, section, cfg)
+
+
+def animated_section_filtergraph(section: Section, caption_count: int, cfg: RenderConfig) -> str:
+    """An animated section's filtergraph (spec 010 FR-12): input 0 is the piped rgb24 frames with
+    the camera already applied, converted to BT.709 yuv420p; then the same caption overlays and
+    (outro) fade/tag tail as `section_filtergraph`."""
+    _check_caption_count(section, caption_count)
+    return _graph_with_tail(f"[0:v]{_to_bt709_yuv(cfg.width, cfg.height)}[base]", section, cfg)
+
+
+def _check_caption_count(section: Section, caption_count: int) -> None:
     if caption_count != len(section.captions):
         raise ValueError(
             f"section {section.name} has {len(section.captions)} captions, "
             f"{caption_count} caption inputs given"
         )
-    w, h, fps = cfg.width, cfg.height, cfg.fps
-    z, x, y = zoompan_expr(section.camera)
-    chains = [
-        f"[0:v]{_to_bt709_yuv(cfg.upscale * w, cfg.upscale * h)},"
-        f"zoompan=z='{z}':x='{x}':y='{y}':d={section.frames}:s={w}x{h}:fps={fps}[base]"
-    ]
+
+
+def _graph_with_tail(head: str, section: Section, cfg: RenderConfig) -> str:
+    """`head` (ending in `[base]`), then one overlay per caption, the outro fade and the tags."""
+    fps = cfg.fps
+    chains = [head]
     label = "base"
     for index, card in enumerate(section.captions, start=1):
         # Half-open [start, end): contiguous cards never share a boundary frame. The quotes keep
@@ -172,6 +207,34 @@ def section_command(
     canvas and overlay repeats each caption's frame (`eof_action=repeat`). Looping the full-frame
     captions instead decodes every one of them on every frame (about 3x slower at 1080p)."""
     cmd = ["ffmpeg", "-y", "-loglevel", "error", *_input_still(canvas_png, cfg.fps)]
+    for caption in caption_pngs:
+        cmd += _input_still(caption, cfg.fps)
+    cmd += [
+        "-filter_complex_script",
+        str(script_path),
+        "-map",
+        "[vout]",
+        "-frames:v",
+        str(section.frames),
+        *ENCODE_ARGS(cfg),
+        str(out_path),
+    ]
+    return cmd
+
+
+def animated_section_command(
+    section: Section,
+    caption_pngs: Sequence[Path],
+    script_path: Path,
+    out_path: Path,
+    cfg: RenderConfig,
+) -> list[str]:
+    """FFmpeg arguments encoding an animated section: input 0 is rgb24 W×H frames on stdin (full
+    range by definition; no -color_range on it), inputs 1..K the caption stills, exactly
+    `section.frames` frames out (AC-1.6)."""
+    cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+    cmd += ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{cfg.width}x{cfg.height}"]
+    cmd += ["-framerate", str(cfg.fps), "-i", "pipe:0"]
     for caption in caption_pngs:
         cmd += _input_still(caption, cfg.fps)
     cmd += [
@@ -305,6 +368,17 @@ def _tail(text: str | bytes | None) -> str:
     return (text or "").strip()[-_STDERR_TAIL:]
 
 
+def _ffmpeg_failure(
+    cmd: list[str], what: str, stderr: str | bytes | None, code: int
+) -> RenderError:
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", "replace")
+    if "No space left on device" in (stderr or ""):
+        folder = Path(cmd[-1]).parent
+        return RenderError(f"{what}: not enough disk space to write video in {folder}")
+    return RenderError(f"{what}: {_tail(stderr) or f'ffmpeg exit {code}'}")
+
+
 def run_ffmpeg(cmd: list[str], what: str) -> None:
     """Run an FFmpeg command; a missing binary or a failure becomes RenderError naming `what`."""
     try:
@@ -312,14 +386,63 @@ def run_ffmpeg(cmd: list[str], what: str) -> None:
     except FileNotFoundError:
         raise RenderError(f"{what}: ffmpeg not found; brew install ffmpeg") from None
     except subprocess.CalledProcessError as exc:
-        stderr = (
-            exc.stderr.decode("utf-8", "replace") if isinstance(exc.stderr, bytes) else exc.stderr
+        raise _ffmpeg_failure(cmd, what, exc.stderr, exc.returncode) from None
+
+
+_FRAME_QUEUE = 3  # frames buffered between the drawing loop and the pipe writer
+
+
+def run_ffmpeg_frames(cmd: list[str], frames: Iterable[bytes], what: str) -> None:
+    """Run an FFmpeg command that reads raw frames on stdin (spec 010 FR-12, spike fact 8).
+
+    A writer thread feeds the pipe from a small queue while this thread draws the next frame;
+    stderr is drained on its own thread. Close stdin, then collect stderr, then wait. A failure
+    becomes RenderError naming `what` with the stderr tail, as in `run_ffmpeg`; an error while
+    drawing frames kills FFmpeg and propagates unchanged."""
+    try:
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
         )
-        if "No space left on device" in (stderr or ""):
-            folder = Path(cmd[-1]).parent
-            raise RenderError(f"{what}: not enough disk space to write video in {folder}") from None
-        detail = _tail(stderr) or f"ffmpeg exit {exc.returncode}"
-        raise RenderError(f"{what}: {detail}") from None
+    except FileNotFoundError:
+        raise RenderError(f"{what}: ffmpeg not found; brew install ffmpeg") from None
+    assert proc.stdin is not None and proc.stderr is not None
+    stdin, stderr = proc.stdin, proc.stderr
+    err: list[bytes] = []
+    reader = threading.Thread(target=lambda: err.append(stderr.read()), daemon=True)
+    reader.start()
+    pending: queue.Queue[bytes | None] = queue.Queue(maxsize=_FRAME_QUEUE)
+    broken = threading.Event()
+
+    def write() -> None:
+        while (item := pending.get()) is not None:
+            if broken.is_set():
+                continue  # FFmpeg is gone: drain the queue so the producer never blocks
+            try:
+                stdin.write(item)
+            except OSError:  # BrokenPipeError: FFmpeg exited early; its stderr says why
+                broken.set()
+
+    writer = threading.Thread(target=write, daemon=True)
+    writer.start()
+    try:
+        for frame in frames:
+            if broken.is_set():
+                break
+            pending.put(frame)
+    except BaseException:
+        proc.kill()
+        raise
+    finally:
+        pending.put(None)
+        writer.join()
+        try:
+            stdin.close()
+        except OSError:
+            broken.set()
+        reader.join()
+        code = proc.wait()
+    if code != 0 or broken.is_set():
+        raise _ffmpeg_failure(cmd, what, b"".join(err), code)
 
 
 def probe(path: Path) -> dict:
@@ -369,6 +492,10 @@ class VideoPaths:
     def record(self, slug: str) -> Path:
         return self.root / f"{slug}.json"
 
+    def preview(self, page_number: int) -> Path:
+        """A page preview (spec 010 FR-15): `preview/page_NN.mp4`."""
+        return self.root / "preview" / f"page_{page_number:02d}.mp4"
+
 
 @dataclass(frozen=True)
 class ResolvedPictures:
@@ -385,6 +512,14 @@ def _illustration_file(page: dict) -> str:
     return page.get("illustration_file") or f"page_{int(page['page_number']):02d}.png"
 
 
+def _page_picture(folder: BookFolder, page: dict) -> Path:
+    """A story page's illustration; missing → RenderError naming the page and file."""
+    path = folder.illustrations / _illustration_file(page)
+    if not path.is_file():
+        raise RenderError(f"page {int(page['page_number'])}: illustration not found: {path}")
+    return path
+
+
 def resolve_pictures(book: dict, folder: BookFolder, shared_nooks: Path) -> ResolvedPictures:
     """Every picture the episode shows (FR-1, AC-6.1, AC-6.3).
 
@@ -395,11 +530,7 @@ def resolve_pictures(book: dict, folder: BookFolder, shared_nooks: Path) -> Reso
     illustrations = folder.illustrations
     files: dict[str, Path] = {}
     for page in book["pages"]:
-        number = int(page["page_number"])
-        path = illustrations / _illustration_file(page)
-        if not path.is_file():
-            raise RenderError(f"page {number}: illustration not found: {path}")
-        files[f"page_{number:02d}"] = path
+        files[f"page_{int(page['page_number']):02d}"] = _page_picture(folder, page)
     for cover in ("cover_front", "cover_back"):
         path = illustrations / f"{cover}.png"
         if not path.is_file():
@@ -471,6 +602,7 @@ class RenderResult:
 
 
 Runner = Callable[[list[str], str], None]
+FrameRunner = Callable[[list[str], Iterable[bytes], str], None]
 Progress = Callable[[str, str], None]
 
 
@@ -509,16 +641,92 @@ def _run_to(run: Runner, cmd_for: Callable[[Path], list[str]], out: Path, what: 
         tmp.unlink(missing_ok=True)
 
 
-def _render_section(
-    section: Section, picture: Path, clip: Path, work: Path, cfg: RenderConfig, run: Runner
+def _run_frames_to(
+    frame_run: FrameRunner,
+    cmd_for: Callable[[Path], list[str]],
+    frames: Iterable[bytes],
+    out: Path,
+    what: str,
 ) -> None:
-    canvas = work / "canvas.png"
-    compose_canvas(picture, cfg, canvas)
+    """`_run_to` for a command fed frames on stdin: write to a temporary file, then move it."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _tmp_clip(out)
+    try:
+        frame_run(cmd_for(tmp), frames, what)
+        os.replace(tmp, out)  # noqa: PTH105 - atomic replace
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def animated_canvas_frames(
+    anim: PageAnimation, picture: Path, section: Section, cfg: RenderConfig
+) -> Iterator[bytes]:
+    """The section's rgb24 W×H frames: each animated picture frame placed on the still canvas's
+    backdrop (made once per section) with the section's camera applied (spec 010 FR-12)."""
+    try:
+        with Image.open(picture) as im:
+            rgb = im.convert("RGB")
+    except (OSError, UnidentifiedImageError) as exc:
+        raise PictureError(picture, str(exc)) from None
+    backdrop, size, offset = canvas_parts(rgb, cfg)
+    # frames at rest paste the picture resized exactly as the still canvas does (AC-1.4)
+    rest = np.asarray(rgb.resize(size, Image.Resampling.LANCZOS), dtype=np.uint8)
+    return canvas_frames(
+        picture_frames(anim, section.frames),
+        np.asarray(backdrop, dtype=np.uint8),
+        size,
+        offset,
+        section.camera,
+        section.frames,
+        cfg.width,
+        cfg.height,
+        cfg.upscale,
+        rest,
+        min(rest_frames(anim), section.frames),
+    )
+
+
+def _render_captions(section: Section, work: Path, cfg: RenderConfig) -> list[Path]:
     captions = []
     for number, card in enumerate(section.captions):
         path = work / f"caption_{number:03d}.png"
         render_caption(card.text, cfg, path)
         captions.append(path)
+    return captions
+
+
+def _render_section(
+    section: Section,
+    picture: Path,
+    clip: Path,
+    work: Path,
+    cfg: RenderConfig,
+    run: Runner,
+    frame_run: FrameRunner = run_ffmpeg_frames,
+    anim: PageAnimation | None = None,
+) -> None:
+    """Render one section clip: the still canvas through zoompan, or, given `anim`, the animated
+    frames piped through `frame_run` with the same captions, tail and encoding."""
+    if anim is not None:
+        if anim.frames != section.frames:
+            raise ValueError(f"animation has {anim.frames} frames, section {section.frames}")
+        work.mkdir(parents=True, exist_ok=True)
+        captions = _render_captions(section, work, cfg)
+        graph = work / "graph.txt"
+        graph.write_text(
+            animated_section_filtergraph(section, len(captions), cfg), encoding="utf-8"
+        )
+        _run_frames_to(
+            frame_run,
+            lambda out: animated_section_command(section, captions, graph, out, cfg),
+            animated_canvas_frames(anim, picture, section, cfg),
+            clip,
+            f"section {section.name}",
+        )
+        return
+    canvas = work / "canvas.png"
+    compose_canvas(picture, cfg, canvas)
+    captions = _render_captions(section, work, cfg)
     graph = work / "graph.txt"
     graph.write_text(section_filtergraph(section, len(captions), cfg), encoding="utf-8")
     _run_to(
@@ -561,6 +769,66 @@ class _Inputs:
     paths: VideoPaths
     ambience: list[Cue] = field(default_factory=list)
     ambience_key: list = field(default_factory=list)
+    eligibility: dict[str, PageEligibility] = field(default_factory=dict)
+    still_notes: list[tuple[str, str]] = field(default_factory=list)
+    still_keys: list[str] = field(default_factory=list)  # equal to `keys` for still sections
+
+
+def _check_overrides(script: dict, cfg: RenderConfig) -> None:
+    """The script's `animation` overrides, checked before any work (spec 010 FR-9, AC-3.5): each
+    page's is `false` or a number in the script contract's range, narrowed by render.json's
+    `override_min`–`override_max` while animation is on; the intro and outro carry none."""
+    lo, hi = ANIMATION_OVERRIDE_RANGE
+    narrowed = ""
+    if cfg.animation.enabled:
+        lo, hi = max(lo, cfg.animation.override_min), min(hi, cfg.animation.override_max)
+        if (lo, hi) != ANIMATION_OVERRIDE_RANGE:
+            narrowed = " (animation.override_min–override_max in config/render.json)"
+    errors = [
+        f"{name}: animation is allowed only on story pages, not the {name}"
+        for name in ("intro", "outro")
+        if isinstance(script.get(name), dict) and "animation" in script[name]
+    ]
+    for page in script["pages"]:
+        errors += [
+            error + narrowed
+            for error in _animation_errors(f"page {int(page['page_number'])}", page, lo, hi)
+        ]
+    if errors:
+        raise RenderError("; ".join(errors))
+
+
+def _page_eligibility(
+    folder: BookFolder, book: dict, script: dict, cfg: RenderConfig, root: Path
+) -> tuple[dict[str, PageEligibility], list[tuple[str, str]]]:
+    """Eligibility of every story page by section name (spec 010 FR-11), and the still pages to
+    log as ("page NN", "still – reason"): none for a book without an animation folder or with
+    animation off, so existing books render and log exactly as before (NFR-5)."""
+    book_pages = {int(p["page_number"]): p for p in book["pages"]}
+    out: dict[str, PageEligibility] = {}
+    for script_page in script["pages"]:
+        number = int(script_page["page_number"])
+        page = book_pages.get(number, {"page_number": number})
+        out[page_section_name(number)] = page_eligibility(
+            folder, page, script_page, cfg.animation, Path(root)
+        )
+    if not cfg.animation.enabled or not (folder.folder / PLAN_DIR).is_dir():
+        return out, []
+    notes = [
+        (f"page {name.removeprefix('page-')}", f"still – {el.reason}")
+        for name, el in out.items()
+        if not el.animated
+    ]
+    return out, notes
+
+
+def _read_script(script_path: Path) -> dict:
+    try:
+        return json.loads(script_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise RenderError(f"no episode script: {script_path}") from None
+    except json.JSONDecodeError as exc:
+        raise RenderError(f"episode script is not valid JSON: {script_path} ({exc})") from None
 
 
 def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
@@ -575,10 +843,7 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
     problems = approval_problems(audio, script_path, settings_sha, folder.book_json)
     if problems:
         raise AudioNotApproved("; ".join(problems))
-    try:
-        script = json.loads(script_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise RenderError(f"episode script is not valid JSON: {script_path} ({exc})") from None
+    script = _read_script(script_path)
     cfg = load_render_config(Path(root) / "config" / "render.json")
 
     track_names = [
@@ -595,7 +860,14 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         sections = build_sections(script, timings, cfg, pictures.by_section)
     except ValueError as exc:
         raise RenderError(str(exc)) from None
-    keys = [section_key(s, picture_sha[s.picture], cfg) for s in sections]
+    _check_overrides(script, cfg)
+    eligibility, still_notes = _page_eligibility(folder, book, script, cfg, Path(root))
+    keys, still_keys = [], []
+    for s in sections:
+        key = section_key(s, picture_sha[s.picture], cfg)
+        el = eligibility.get(s.name)
+        still_keys.append(key)
+        keys.append(animated_key(key, el, cfg.animation) if el and el.animated else key)
     trans_keys = [transition_key(a, b, cfg) for a, b in zip(keys, keys[1:], strict=False)]
     paths = VideoPaths(folder.build_dir / "video")
     cues = _load_ambience(script, sections, cfg, Path(root))
@@ -614,6 +886,9 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         paths,
         cues,
         ambience_key,
+        eligibility,
+        still_notes,
+        still_keys,
     )
 
 
@@ -749,18 +1024,26 @@ def render_video(
     run: Runner = run_ffmpeg,
     on_progress: Progress | None = None,
     sfx_dir: Path | None = None,
+    frame_run: FrameRunner = run_ffmpeg_frames,
 ) -> RenderResult:
     """Render the approved episode of one book to `books/<slug>/build/video/<slug>.mp4` (spec 003).
 
     Sections and transitions are cached by key; the final video is reused when the ordered keys,
     the tracks, the page-turn sound and the audio/encode settings are unchanged (AC-7.1, AC-7.2).
     The page-turn sound comes from `sfx_dir` (default `<root>/assets/audio_sfx`).
+
+    An animated page whose layer files can't be loaded renders still and is logged; its clip is
+    recorded under the still key and the video record gets no final key, so the next run tries
+    the animation again instead of calling the still fallback up to date (spec 010 Phase 4).
     """
     inputs = _load_inputs(folder, root)
     slug, cfg = inputs.slug, inputs.cfg
-    sections, keys, trans_keys = inputs.sections, inputs.keys, inputs.trans_keys
+    sections, keys = inputs.sections, inputs.keys
     pictures, tracks, sample_rate = inputs.pictures, inputs.tracks, inputs.sample_rate
     pairs = list(zip(sections, sections[1:], strict=False))
+    if on_progress:
+        for name, note in inputs.still_notes:
+            on_progress(name, note)
 
     paths = inputs.paths
     try:
@@ -785,22 +1068,31 @@ def render_video(
         record_path.unlink(missing_ok=True)  # stale until the new video is complete
 
         rendered = reused = 0
-        for section, key in zip(sections, keys, strict=True):
-            clip = paths.sections / f"{section.name}.mp4"
-            meta = paths.sections / f"{section.name}.json"
-            picture = pictures.files[section.picture]
-            if _reusable(clip, meta, key, force):
-                reused += 1
-                action = "reused"
-            else:
-                meta.unlink(missing_ok=True)
-                _render_section(section, picture, clip, paths.frames / section.name, cfg, run)
-                write_atomic(meta, {"key": key, "frames": section.frames, "picture": str(picture)})
-                rendered += 1
-                action = "rendered"
+        fell_back: list[str] = []
+        made_keys: list[str] = []  # the key each section clip is recorded under
+        work = _SectionWork(paths, cfg, folder, slug, run, frame_run, force, on_progress)
+        for index, (section, key) in enumerate(zip(sections, keys, strict=True)):
+            action, fallback, made_key = _ensure_section(
+                work,
+                section,
+                key,
+                inputs.still_keys[index],
+                inputs.eligibility.get(section.name),
+                pictures.files[section.picture],
+            )
+            made_keys.append(made_key)
+            if fallback is not None:
+                fell_back.append(section.name)
+            rendered += action == "rendered"
+            reused += action == "reused"
             if on_progress:
                 on_progress(section.name, action)
 
+        # Keyed on the clips as made: a transition next to a page that fell back to still is
+        # keyed on the still clip, so it is re-made once the page animates (spec 010 AC-2.2).
+        trans_keys = [
+            transition_key(a, b, cfg) for a, b in zip(made_keys, made_keys[1:], strict=False)
+        ]
         clips: list[Path] = [paths.sections / f"{sections[0].name}.mp4"]
         for (a, b), key in zip(pairs, trans_keys, strict=True):
             clip = paths.transitions / f"{a.name}__{b.name}.mp4"
@@ -837,12 +1129,12 @@ def render_video(
         write_atomic(
             record_path,
             {
-                "final_key": final_key,
+                "final_key": None if fell_back else final_key,
                 "duration": round(duration, 3),
                 "frames": total_frames(sections, cfg),
                 "sections": [
                     {"name": s.name, "key": k, "picture": str(pictures.files[s.picture])}
-                    for s, k in zip(sections, keys, strict=True)
+                    for s, k in zip(sections, made_keys, strict=True)
                 ],
                 **page_turn_fields,
                 "rendered_at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -853,6 +1145,159 @@ def render_video(
         if exc.errno == errno.ENOSPC:
             raise RenderError(f"not enough disk space to write video in {paths.root}") from None
         raise
+
+
+@dataclass(frozen=True)
+class _SectionWork:
+    """What rendering or reusing one section clip needs besides the section itself."""
+
+    paths: VideoPaths
+    cfg: RenderConfig
+    folder: BookFolder
+    slug: str
+    run: Runner
+    frame_run: FrameRunner
+    force: bool
+    on_progress: Progress | None
+
+
+def _ensure_section(
+    work: _SectionWork,
+    section: Section,
+    key: str,
+    still_key: str,
+    el: PageEligibility | None,
+    picture: Path,
+) -> tuple[str, str | None, str]:
+    """Reuse the section clip in `sections/` when its key matches, else render it (animated when
+    `el` says so) and record its key. Returns "reused" or "rendered", why an animated page fell
+    back to still (None when it did not) and the key the clip is recorded under: `still_key`
+    after a fallback, else `key`."""
+    paths = work.paths
+    clip = paths.sections / f"{section.name}.mp4"
+    meta = paths.sections / f"{section.name}.json"
+    if _reusable(clip, meta, key, work.force):
+        return "reused", None, key
+    meta.unlink(missing_ok=True)
+    anim, fallback = _load_animation(work, section, el, picture)
+    if fallback is not None:
+        key = still_key
+        if work.on_progress and el is not None and el.plan is not None:
+            work.on_progress(f"page {el.plan.page_number:02d}", f"still – {fallback}")
+    _render_section(
+        section,
+        picture,
+        clip,
+        paths.frames / section.name,
+        work.cfg,
+        work.run,
+        work.frame_run,
+        anim,
+    )
+    write_atomic(meta, {"key": key, "frames": section.frames, "picture": str(picture)})
+    return "rendered", fallback, key
+
+
+def _load_animation(
+    work: _SectionWork, section: Section, el: PageEligibility | None, picture: Path
+) -> tuple[PageAnimation | None, str | None]:
+    """The section's page animation, or None for a still section; when its files can't be
+    loaded, None and the reason."""
+    if el is None or not el.animated or el.plan is None:
+        return None, None
+    number = el.plan.page_number
+    try:
+        anim = load_page_animation(
+            el.plan,
+            layers_dir(work.folder, number),
+            picture,
+            work.cfg.animation,
+            el.scale,
+            work.slug,
+            number,
+            work.cfg.fps,
+            section.frames,
+        )
+    except AnimationError as exc:
+        fix = f"python -m video_pipeline.cut_layers --book {work.slug} --page {number} --force"
+        return None, f"{exc} – re-run {fix}"
+    return anim, None
+
+
+# --- page preview (spec 010 FR-15) ----------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PreviewResult:
+    path: Path
+    animated: bool
+    reason: str  # why the page is still ("" when animated)
+
+
+def voices_command(slug: str) -> str:
+    return f"python -m video_pipeline.synthesize_voices --book {slug} --reviewed"
+
+
+def render_preview(
+    folder: BookFolder,
+    root: Path,
+    page: int,
+    *,
+    run: Runner = run_ffmpeg,
+    frame_run: FrameRunner = run_ffmpeg_frames,
+    on_progress: Progress | None = None,
+    force: bool = False,
+) -> PreviewResult:
+    """Render one story page's full section with its voice to `video/preview/page_NN.mp4`.
+
+    No approval gate: it needs the script, the render config and that page's track only. The
+    section goes through the same code, cache folder and key as the full render, so a later
+    render reuses it (spec 010 FR-15, AC-6.1, AC-6.3)."""
+    root = Path(root)
+    slug = folder.slug
+    book = load_book(folder.book_json)
+    script = _read_script(folder.script_path)
+    cfg = load_render_config(root / "config" / "render.json")
+    script_page = next((p for p in script["pages"] if int(p["page_number"]) == page), None)
+    if script_page is None:
+        numbers = sorted(int(p["page_number"]) for p in script["pages"])
+        span = f"{numbers[0]}–{numbers[-1]}" if numbers else "none"
+        raise RenderError(f"page {page} is not a story page of {slug} (story pages: {span})")
+    name = page_section_name(page)
+    audio = AudioPaths(folder.build_dir / "audio")
+    if not (audio.track(name).is_file() and audio.track_timing(name).is_file()):
+        raise RenderError(f"no voice track for page {page} – run {voices_command(slug)}")
+    timings, tracks, sample_rate = _load_tracks(audio, [name])
+    book_page = next(
+        (p for p in book["pages"] if int(p["page_number"]) == page), {"page_number": page}
+    )
+    picture = _page_picture(folder, book_page)
+    _check_picture(picture)
+    _check_overrides(script, cfg)
+    try:
+        section = timeline.page_section(script_page, timings[name], cfg, f"page_{page:02d}")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RenderError(f"unusable track timing for {name}: {exc}") from None
+    still_key = section_key(section, sha256_file(picture), cfg)
+    el = page_eligibility(folder, book_page, script_page, cfg.animation, root)
+    key = animated_key(still_key, el, cfg.animation) if el.animated else still_key
+
+    paths = VideoPaths(folder.build_dir / "video")
+    work = _SectionWork(paths, cfg, folder, slug, run, frame_run, force, on_progress)
+    action, fallback, _made = _ensure_section(work, section, key, still_key, el, picture)
+    if on_progress:
+        on_progress(section.name, action)
+    out = paths.preview(page)
+    wav = out.with_suffix(".wav")
+    silent_turn = np.zeros(0, dtype=np.float32)
+    write_wav_atomic(wav, mix_master([section], tracks, silent_turn, cfg, sample_rate), sample_rate)
+    clip = paths.sections / f"{section.name}.mp4"
+    try:
+        _run_to(run, lambda tmp: mux_command(clip, wav, tmp, cfg), out, "mux")
+    finally:
+        wav.unlink(missing_ok=True)
+    animated = el.animated and fallback is None
+    return PreviewResult(out, animated, "" if animated else (fallback or el.reason))
 
 
 # --- CLI ------------------------------------------------------------------------------------
@@ -878,29 +1323,55 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="folder with an optional page_turn.wav (default: <root>/assets/audio_sfx)",
     )
     parser.add_argument("--force", action="store_true", help="re-render every section")
+    parser.add_argument(
+        "--preview-page",
+        type=int,
+        default=None,
+        metavar="N",
+        help="render only story page N with its voice to build/video/preview/page_NN.mp4 "
+        "(needs the page's voice track, not the audio approval)",
+    )
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None, run: Runner | None = None) -> int:
+def main(
+    argv: list[str] | None = None, run: Runner | None = None, frame_run: FrameRunner | None = None
+) -> int:
     args = parse_args(argv)
+    folder: BookFolder | None = None
+    progress: Progress = lambda name, action: print(f"  {name}: {action}", flush=True)  # noqa: E731
     try:
         folder = book_folder(args.book, args.root)
+        if args.preview_page is not None:
+            preview = render_preview(
+                folder,
+                args.root,
+                args.preview_page,
+                run=run or run_ffmpeg,
+                frame_run=frame_run or run_ffmpeg_frames,
+                on_progress=progress,
+                force=args.force,
+            )
+            print(f"preview: {preview.path}")
+            state = "animated" if preview.animated else f"still – {preview.reason}"
+            print(f"page {args.preview_page:02d}: {state}")
+            return 0
         result = render_video(
             folder,
             args.root,
             force=args.force,
             run=run or run_ffmpeg,
-            on_progress=lambda name, action: print(f"  {name}: {action}", flush=True),
+            on_progress=progress,
             sfx_dir=args.sfx_dir,
+            frame_run=frame_run or run_ffmpeg_frames,
         )
     except (RenderError, PictureError, SoundError, BookError, ConfigError, LibraryError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except OSError as exc:
         if exc.errno == errno.ENOSPC:
-            print(
-                f"error: not enough disk space to write video in {args.build_dir}", file=sys.stderr
-            )
+            where = folder.build_dir / "video" if folder is not None else args.root
+            print(f"error: not enough disk space to write video in {where}", file=sys.stderr)
             return 1
         raise
     if result.up_to_date:

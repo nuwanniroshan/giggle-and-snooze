@@ -48,6 +48,40 @@
   {% if att.unplanned %}<p class="small muted">No plan: pages {{ att.unplanned|join(', ') }}</p>{% endif %}
 </section>
 
+{% if blueprint.present %}
+<section class="stage" id="blueprint">
+  <h2>Blueprint</h2>
+  {% if blueprint.error %}
+  <p class="strong">The blueprint cannot be used: {{ blueprint.error }}</p>
+  {% else %}
+  {% set bp = blueprint.view %}
+  <p><span class="strong">{{ bp.mood.label }}</span> <span class="muted">{{ bp.mood.summary }}</span></p>
+  <p><span class="muted">Art medium</span> {{ bp.art.medium_label }}</p>
+  <p>{% for sw in bp.art.palette %}<span class="swatch" style="background:{{ sw.hex }}" title="{{ sw.hex }}"></span> <span class="small">{{ sw.name }}</span> {% endfor %}</p>
+  <p><span class="muted">Q&amp;A format</span> {{ bp.qa.format_label }} <span class="small muted">({{ bp.qa.question_types|join(', ') }})</span></p>
+  <p><span class="muted">Sound palette</span> {{ (bp.sound.ambience + bp.sound.sfx)|join(', ') }}</p>
+  <p><span class="muted">Music direction</span> {{ bp.sound.music_direction }}</p>
+  <p><span class="muted">Animation notes</span> intensity {{ bp.animation.intensity }}{% if bp.animation.effects %}, effects: {{ bp.animation.effects|join(', ') }}{% endif %}</p>
+  {% endif %}
+  {% if blueprint.stale %}
+  <ul class="small">
+    {% for item in blueprint.stale %}<li><span class="state strong">stale</span> {{ item.output }} were made from an older blueprint; to refresh, run <code>{{ item.command }}</code></li>{% endfor %}
+  </ul>
+  {% endif %}
+  <div class="controls">
+    <form method="post" action="/books/{{ book.slug }}/blueprint/regenerate" class="inline">
+      <label class="check"><input type="checkbox" name="confirm" value="yes" required> Replace the blueprint with a new design</label>
+      <button class="secondary" type="submit">Regenerate blueprint</button>
+    </form>
+    {% if not blueprint.error %}
+    <form method="post" action="/books/{{ book.slug }}/blueprint/style-bible" class="inline">
+      <button class="secondary" type="submit">Rebuild style bible</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
 <section class="stage">
   <h2>Last run</h2>
   {% if job %}

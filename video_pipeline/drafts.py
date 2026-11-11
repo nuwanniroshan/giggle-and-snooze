@@ -3,6 +3,7 @@
 Everything lives under `<root>/drafts/` (git-ignored):
 
 - `drafts/<id>/draft.json`: one book in progress (state, idea, pages, attempts, problems, book).
+- `drafts/<id>/blueprint.json`: the designed creative direction (spec 011), if any.
 - `drafts/<id>/agent/`: the writing agent's run logs.
 - `drafts/ideas/<run-id>/result.json`: one suggestion or improvement run (ideas or a candidate).
 
@@ -19,13 +20,19 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from video_pipeline.blueprint import (
+    BLUEPRINT_FILE,
+    BlueprintError,
+    load_blueprint,
+    load_context,
+)
 from video_pipeline.contract import ConfigError, load_disallowed_terms, slugify
 from video_pipeline.episode import book_problems
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import BOOK_FILE, BookFolder
 from video_pipeline.story_tools import book_errors, load_gentle_terms
 
-STATES = ("writing", "ready", "failed", "interrupted")
+STATES = ("designing", "writing", "ready", "failed", "design_failed", "interrupted")
 IDEAS_DIR = "ideas"
 # Slugs a book may not take because a studio route already uses that path (`/books/new`).
 RESERVED_SLUGS = frozenset({"new"})
@@ -96,12 +103,16 @@ class DraftStore:
 
     # --- drafts -------------------------------------------------------------------------------
 
-    def new_draft(self, idea: dict, pages: int, author: str) -> dict:
+    def blueprint_path(self, draft_id: str) -> Path:
+        return self.draft_folder(draft_id) / BLUEPRINT_FILE
+
+    def new_draft(self, idea: dict, pages: int, author: str, state: str = "designing") -> dict:
         draft_id = uuid.uuid4().hex[:12]
         now = _now()
         record = {
             "id": draft_id,
-            "state": "writing",
+            "state": state,
+            "phase": "design",
             "idea": idea,
             "pages": pages,
             "author": author,
@@ -177,7 +188,15 @@ class DraftStore:
             "dedication": book["metadata"].get("dedication", ""),
             "digital_page_count": len(book["pages"]),
         }
-        data = {"metadata": metadata, "style_bible": {}, "pages": book["pages"]}
+        style_bible: dict = {}
+        blueprint_file = self.blueprint_path(draft_id)
+        if blueprint_file.is_file():
+            try:
+                bp = load_blueprint(blueprint_file, load_context(self.root))
+            except BlueprintError as exc:
+                raise DraftError(str(exc)) from None
+            style_bible = {"style_prompt_prefix": bp.art.style_prompt_prefix}
+        data = {"metadata": metadata, "style_bible": style_bible, "pages": book["pages"]}
         problems = book_problems(data, slug)
         if problems:
             raise DraftError(problems[0])
@@ -186,6 +205,8 @@ class DraftStore:
         try:
             (staging / "illustrations").mkdir(parents=True)
             write_atomic(staging / BOOK_FILE, data)
+            if blueprint_file.is_file():
+                shutil.copyfile(blueprint_file, staging / BLUEPRINT_FILE)
             os.replace(staging, folder.folder)  # noqa: PTH105 - one step into place
         finally:
             shutil.rmtree(staging, ignore_errors=True)
@@ -196,10 +217,11 @@ class DraftStore:
         shutil.rmtree(self.draft_folder(draft_id), ignore_errors=True)
 
     def mark_interrupted_all(self) -> int:
-        """Drafts left in `writing` when the studio stopped become `interrupted` (AC-3.7)."""
+        """Drafts left in `writing` or `designing` when the studio stopped become `interrupted`
+        (AC-3.7); their `phase` says which stage was running."""
         count = 0
         for record in self.list():
-            if record["state"] == "writing":
+            if record["state"] in ("writing", "designing"):
                 self.update(record["id"], state="interrupted")
                 count += 1
         return count

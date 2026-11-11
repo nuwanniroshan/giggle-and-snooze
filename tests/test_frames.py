@@ -6,13 +6,14 @@ import subprocess
 import numpy as np
 import pytest
 import soundfile as sf
-from PIL import Image
+from PIL import Image, ImageFilter, ImageOps
 
 from tests.helpers import ROOT
 from video_pipeline import frames
 from video_pipeline.frames import (
     PictureError,
     SoundError,
+    canvas_parts,
     compose_canvas,
     load_page_turn,
     mix_master,
@@ -94,6 +95,47 @@ def test_compose_canvas_unreadable_picture(cfg, tmp_path, make):
     assert str(bad) in str(err.value)
     assert err.value.path == bad
     assert not (tmp_path / "canvas.png").exists()
+
+
+def _old_compose_canvas(picture_path, cfg, out_path):
+    """compose_canvas as it was before spec 010 Phase 4 split out canvas_parts."""
+    size = (cfg.width, cfg.height)
+    with Image.open(picture_path) as im:
+        picture = im.convert("RGB")
+    backdrop = ImageOps.fit(picture, size, Image.Resampling.LANCZOS)
+    backdrop = backdrop.filter(ImageFilter.GaussianBlur(cfg.backdrop.blur))
+    darken = cfg.backdrop.darken
+    backdrop = backdrop.point(lambda v: round(v * darken))
+    front = ImageOps.contain(picture, size, Image.Resampling.LANCZOS)
+    backdrop.paste(front, ((size[0] - front.width) // 2, (size[1] - front.height) // 2))
+    backdrop.save(out_path, format="PNG")
+
+
+@pytest.mark.parametrize("size", [(1024, 1024), (1600, 900), (700, 1000)])
+def test_compose_canvas_bytes_unchanged_by_the_split(cfg, tmp_path, size):  # spec 010 AC-2.4
+    pic = tmp_path / "pic.png"
+    im = Image.new("RGB", size, (220, 30, 30))
+    im.paste((255, 255, 255), (0, 0, size[0] // 2, size[1] // 3))
+    im.paste((10, 200, 90), (size[0] // 3, size[1] // 2, size[0] - 5, size[1] - 7))
+    im.save(pic)
+    old, new = tmp_path / "old.png", tmp_path / "new.png"
+    _old_compose_canvas(pic, cfg, old)
+    compose_canvas(pic, cfg, new)
+    assert new.read_bytes() == old.read_bytes()
+
+
+def test_canvas_parts_backdrop_size_and_offset(cfg, tmp_path):  # spec 010 FR-12
+    with Image.open(_picture(tmp_path / "pic.png")) as im:
+        picture = im.convert("RGB")
+    backdrop, size, offset = canvas_parts(picture, cfg)
+    assert backdrop.size == (1920, 1080) and backdrop.mode == "RGB"
+    assert size == (1080, 1080)
+    assert offset == (420, 0)
+    canvas = backdrop.copy()
+    canvas.paste(picture.resize(size, Image.Resampling.LANCZOS), offset)
+    compose_canvas(tmp_path / "pic.png", cfg, tmp_path / "canvas.png")
+    with Image.open(tmp_path / "canvas.png") as im:
+        assert np.array_equal(np.asarray(im), np.asarray(canvas))
 
 
 # --- render_caption -------------------------------------------------------------------------

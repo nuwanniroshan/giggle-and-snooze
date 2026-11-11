@@ -750,3 +750,74 @@ def test_mask_colours_follow_the_plan_order_not_the_manifest(tmp_path):
     )  # now the manifest lists the layers in plan order too
     fresh = np.asarray(Image.open(io.BytesIO(sb.mask_overlay(paths, book, 1))))
     assert np.array_equal(reordered, fresh)
+
+
+def test_page_animation_uses_the_shared_cut_state(tmp_path, monkeypatch):  # spec 010 Phase 3
+    paths, book, _folder, _ah = _anim_book(tmp_path)
+    calls = []
+
+    def fake(folder, plan, config):
+        calls.append(plan.page_number)
+        return "cut", ""
+
+    monkeypatch.setattr(sb, "cut_state", fake)
+    rows = _rows(paths, book)
+    assert calls == [1, 2, 3]  # the planned pages; page 4 has no plan
+    assert rows[1]["cut_state"] == "cut"
+
+
+# --- will a page animate (spec 010 Phase 5: AC-4.3) -------------------------------------------
+
+
+def test_page_animation_says_whether_each_page_will_animate(tmp_path):  # AC-4.3
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    ah.write_picture(folder, 2, colour=(0, 200, 0))  # page 2 repainted → stale
+    rows = _rows(paths, book)
+    assert rows[1]["will_animate"] is True and rows[1]["still_reason"] == ""
+    assert rows[2]["will_animate"] is False
+    assert rows[2]["still_reason"].startswith("stale plan")
+    assert rows[3]["will_animate"] is False and "cut" in rows[3]["still_reason"]
+    assert rows[4]["still_reason"].startswith("no plan")
+
+
+def test_page_animation_follows_the_script_override(tmp_path):  # AC-4.3
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    script = make_script(MINI_BOOK)
+    script["pages"][0]["animation"] = False
+    write_script(script, folder)
+    row = _rows(paths, book)[1]
+    assert row["will_animate"] is False
+    assert row["still_reason"] == "animation false in the script"
+
+
+@pytest.mark.parametrize("value", ["high", [1], True, None])
+def test_page_animation_with_an_invalid_override_does_not_raise(tmp_path, value):  # AC-3.5
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    script = make_script(MINI_BOOK)
+    script["pages"][0]["animation"] = value
+    write_script(script, folder)
+    row = _rows(paths, book)[1]
+    assert row["will_animate"] is False
+    assert row["still_reason"].startswith("invalid animation value in the script")
+
+
+def test_page_animation_without_render_config_degrades(tmp_path):  # AC-4.3
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    (paths.config_dir / "render.json").unlink()
+    row = _rows(paths, book)[1]
+    assert row["plan_state"] == "ok" and row["will_animate"] is False
+    assert "render.json" in row["still_reason"]
+
+
+def test_page_animation_off_in_the_render_config(tmp_path):  # AC-3.1 (studio status)
+    paths, book, folder, ah = _anim_book(tmp_path)
+    ah.cut(folder, pages=[1])
+    cfg_path = paths.config_dir / "render.json"
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    cfg["animation"]["enabled"] = False
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+    assert {r["still_reason"] for r in _rows(paths, book).values()} == {"animation off"}

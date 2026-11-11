@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from video_pipeline.episode_tools import write_atomic
-from video_pipeline.studio.books import ANIMATION_STAGES, STAGES, StudioPaths
+from video_pipeline.studio.books import ANIMATION_STAGES, PREVIEW_STAGE, STAGES, StudioPaths
 
 STOP_GRACE_SECONDS = 5.0
 LOCK_FILE = "studio.lock"
@@ -46,6 +46,7 @@ STAGE_MODULES = {
     "render": "video_pipeline.render_episode",
     "plan": "video_pipeline.motion_plan",
     "cut": "video_pipeline.cut_layers",
+    PREVIEW_STAGE: "video_pipeline.render_episode",
 }
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 _ANSI = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
@@ -79,6 +80,7 @@ class Job:
     exit_code: int | None = None
     pid: int | None = None
     proc_started: str | None = None
+    page: int | None = None  # the story page of a page preview (spec 010 FR-16)
     _stopping: bool = field(default=False, repr=False)
 
     def to_dict(self) -> dict:
@@ -87,11 +89,25 @@ class Job:
         return record
 
 
-STORY_STAGES = ("ideas", "candidate", "book")
+STORY_STAGES = ("ideas", "candidate", "book", "blueprint", "redesign")
 
 
 def story_command(stage: str, subject: str, paths: StudioPaths) -> list[str]:
-    """The CLI argv for a story run (spec 006): `subject` is the run id or the draft id."""
+    """The CLI argv for a story run (spec 006): `subject` is the run id or the draft id. A
+    `blueprint` run designs a draft's blueprint and then writes its story (spec 011); a
+    `redesign` run takes `draft:<id>` or `book:<slug>` and only replaces the blueprint."""
+    module = "video_pipeline.write_story"
+    if stage == "blueprint":
+        return [
+            sys.executable, "-m", module, "blueprint", "--draft", subject,
+            "--then-book", "--root", str(paths.root),
+        ]  # fmt: skip
+    if stage == "redesign":
+        kind, _, ident = subject.partition(":")
+        flag = "--draft" if kind == "draft" else "--book"
+        return [
+            sys.executable, "-m", module, "blueprint", flag, ident, "--root", str(paths.root),
+        ]  # fmt: skip
     flag = "--draft" if stage == "book" else "--run"
     return [
         sys.executable,
@@ -105,15 +121,21 @@ def story_command(stage: str, subject: str, paths: StudioPaths) -> list[str]:
     ]
 
 
-def stage_command(stage: str, book, paths: StudioPaths, force: bool = False) -> list[str]:
+def stage_command(
+    stage: str, book, paths: StudioPaths, force: bool = False, page: int | None = None
+) -> list[str]:
     """The CLI argv that runs `stage` for `book`, as `python -m video_pipeline.<module> ...`.
-    Story stages take a string subject (a run id or draft id) instead of a book."""
+    Story stages take a string subject (a run id or draft id) instead of a book. The preview
+    stage renders one story `page` (`--preview-page N`, spec 010 FR-16)."""
     if stage in STORY_STAGES:
         return story_command(stage, book if isinstance(book, str) else book.slug, paths)
     if stage not in STAGE_MODULES:
         raise ValueError(
-            f"unknown stage {stage!r}; expected one of {', '.join(STAGES + ANIMATION_STAGES)}"
+            f"unknown stage {stage!r}; expected one of "
+            f"{', '.join((*STAGES, *ANIMATION_STAGES, PREVIEW_STAGE))}"
         )
+    if stage == PREVIEW_STAGE and page is None:
+        raise ValueError("the preview stage needs a page number")
     cmd = [
         sys.executable,
         "-m",
@@ -129,6 +151,8 @@ def stage_command(stage: str, book, paths: StudioPaths, force: bool = False) -> 
         cmd += ["--sfx-dir", str(paths.sfx_dir)]
     if force:
         cmd.append("--force")
+    if stage == PREVIEW_STAGE:
+        cmd += ["--preview-page", str(int(page))]
     return cmd
 
 
@@ -240,9 +264,10 @@ class JobRunner:
 
     # --- running --------------------------------------------------------------------------------
 
-    def start(self, book_slug: str, stage: str, cmd: list[str]) -> Job:
-        """Start `cmd` in the background for (`book_slug`, `stage`). Raises `Busy` when a job is
-        already running. A program that cannot be started gives a `failed` job, not an error."""
+    def start(self, book_slug: str, stage: str, cmd: list[str], page: int | None = None) -> Job:
+        """Start `cmd` in the background for (`book_slug`, `stage`), recording the story `page`
+        it is about, if any. Raises `Busy` when a job is already running. A program that cannot
+        be started gives a `failed` job, not an error."""
         if not _SAFE_ID.fullmatch(book_slug) or not _SAFE_ID.fullmatch(stage):
             raise ValueError(f"unsafe book slug or stage: {book_slug!r}, {stage!r}")
         with self._lock:
@@ -250,7 +275,7 @@ class JobRunner:
                 raise Busy(self._job.to_dict())
             started = _now()
             job_id = f"{started:%Y%m%dT%H%M%S}-{book_slug}-{stage}-{secrets.token_hex(2)}"
-            job = Job(job_id, book_slug, stage, list(cmd), started.isoformat())
+            job = Job(job_id, book_slug, stage, list(cmd), started.isoformat(), page=page)
             self.jobs_dir.mkdir(parents=True, exist_ok=True)
             log = self._log_path(job_id).open("ab")
             env = {**os.environ, **self.env, "PYTHONUNBUFFERED": "1"}
@@ -331,9 +356,16 @@ class JobRunner:
 
     # --- reading --------------------------------------------------------------------------------
 
-    def latest(self, book: str, stage: str) -> dict | None:
-        """The newest record for (`book`, `stage`), read from disk; None if it never ran."""
-        matches = [r for r in self._records() if r.get("book") == book and r.get("stage") == stage]
+    def latest(self, book: str, stage: str, page: int | None = None) -> dict | None:
+        """The newest record for (`book`, `stage`) (and story `page`, when given), read from
+        disk; None if it never ran."""
+        matches = [
+            r
+            for r in self._records()
+            if r.get("book") == book
+            and r.get("stage") == stage
+            and (page is None or r.get("page") == page)
+        ]
         if not matches:
             return None
         return max(matches, key=lambda r: (str(r.get("started_at") or ""), r["id"]))

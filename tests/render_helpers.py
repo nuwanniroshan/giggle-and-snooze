@@ -106,3 +106,24 @@ class FakeRunner:
 
     def whats(self, prefix: str = "") -> list[str]:
         return [what for what, _cmd in self.calls if what.startswith(prefix)]
+
+
+class FakeFrameRunner:
+    """Stands in for `run_ffmpeg_frames`: consumes every frame, records (what, cmd, frame count,
+    distinct frame sizes) and writes placeholder bytes to the output (last argument)."""
+
+    def __init__(self):
+        self.calls: list[tuple[str, list[str], int, set[int]]] = []
+
+    def __call__(self, cmd: list[str], frames, what: str) -> None:
+        count, sizes = 0, set()
+        for frame in frames:
+            count += 1
+            sizes.add(len(frame))
+        self.calls.append((what, cmd, count, sizes))
+        out = Path(cmd[-1])
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"fake animated " + what.encode())
+
+    def whats(self, prefix: str = "") -> list[str]:
+        return [call[0] for call in self.calls if call[0].startswith(prefix)]

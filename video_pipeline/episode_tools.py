@@ -10,6 +10,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from video_pipeline.contract import (
     Banter,
@@ -28,6 +29,9 @@ from video_pipeline.episode import (
 )
 from video_pipeline.library import BookFolder
 from video_pipeline.llm import build_brief
+
+if TYPE_CHECKING:  # blueprint imports write_atomic from here, so import it lazily below
+    from video_pipeline.blueprint import Blueprint
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
@@ -64,10 +68,11 @@ class EpisodeTools:
     out: Path
     force: bool = False
     saves: int = 0
+    blueprint: Blueprint | None = None
     plan: EpisodePlan = field(init=False)
 
     def __post_init__(self) -> None:
-        self.plan = plan_episode(self.book, self.seed)
+        self.plan = plan_episode(self.book, self.seed, self.blueprint)
 
     @classmethod
     def load(
@@ -80,7 +85,12 @@ class EpisodeTools:
         book = load_book(folder.book_json)
         terms = load_disallowed_terms(Path(config_dir) / "disallowed_terms.txt")
         cast = load_cast(Path(config_dir) / "cast.json")
-        return cls(book, cast, terms, seed, folder.script_path, force)
+        from video_pipeline.blueprint import load_blueprint, load_context
+
+        blueprint = None
+        if folder.blueprint_path.is_file():
+            blueprint = load_blueprint(folder.blueprint_path, load_context(Path(config_dir).parent))
+        return cls(book, cast, terms, seed, folder.script_path, force, blueprint=blueprint)
 
     def check(self, banter: dict | str) -> tuple[dict | None, list[str]]:
         """Assemble and validate; returns (script, []) when valid, else (None, errors)."""
@@ -89,9 +99,15 @@ class EpisodeTools:
             parsed = parse_banter(raw)
         except BanterParseError as exc:
             return None, exc.errors
-        script = assemble_script(self.book, self.cast, self.plan, parsed)
+        ambience = allowed = None
+        if self.blueprint is not None:
+            from video_pipeline.blueprint import assign_ambience
+
+            names = self.blueprint.sound.ambience
+            ambience, allowed = assign_ambience(names, len(self.book["pages"])), set(names)
+        script = assemble_script(self.book, self.cast, self.plan, parsed, ambience)
         errors = banter_plan_errors(parsed, self.plan) + validate_script(
-            script, self.book, self.terms
+            script, self.book, self.terms, allowed
         )
         return (None, errors) if errors else (script, [])
 
@@ -109,7 +125,7 @@ class EpisodeTools:
                 {"page_number": number, "kids": list(kids)}
                 for number, kids in sorted(self.plan.qa_speakers.items())
             ],
-            "brief": build_brief(self.book, self.cast, self.plan),
+            "brief": build_brief(self.book, self.cast, self.plan, self.blueprint),
             "banter_schema": Banter.model_json_schema(),
         }
 

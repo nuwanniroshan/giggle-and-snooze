@@ -16,6 +16,7 @@ dependencies = [
     "python-multipart>=0.0.33",
     "coremltools>=8.3,<9",
     "onnxruntime>=1.31,<2",
+    "opencv-python-headless>=4.10,<5",
 ]
 
 [dependency-groups]

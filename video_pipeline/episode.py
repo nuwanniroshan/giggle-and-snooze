@@ -7,6 +7,7 @@ import random
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from video_pipeline.contract import (
     INTRO_EFFECT,
@@ -17,12 +18,16 @@ from video_pipeline.contract import (
     OUTRO_EFFECT,
     Banter,
     BanterLine,
+    qa_bounds,
     qa_schedule_errors,
     slugify,
     split_sentences,
     strip_tags,
     word_count,
 )
+
+if TYPE_CHECKING:
+    from video_pipeline.blueprint import Ambience, Blueprint
 
 MIN_PAGES = 8
 MAX_PAGES = 32
@@ -48,6 +53,7 @@ class BookError(Exception):
 class EpisodePlan:
     qa_speakers: dict[int, tuple[str, ...]]
     motions: tuple[str, ...]
+    notes: tuple[str, ...] = ()
 
 
 def book_problems(book: object, where: str) -> list[str]:
@@ -117,12 +123,17 @@ def split_narration(text: str) -> list[str]:
     return lines
 
 
-def choose_qa_pages(page_count: int, rng: random.Random) -> list[int]:
+def choose_qa_pages(
+    page_count: int, rng: random.Random, window: tuple[int, int] | None = None
+) -> list[int]:
+    """A valid Q&A schedule; `window` (fewest, most) narrows how many pages it may have."""
     for _ in range(10_000):
         pages = [rng.randint(1, 3)]
         while (following := pages[-1] + rng.choice((2, 3))) <= page_count:
             pages.append(following)
-        if not qa_schedule_errors(pages, page_count):
+        if qa_schedule_errors(pages, page_count):
+            continue
+        if window is None or window[0] <= len(pages) <= window[1]:
             return pages
     raise ValueError(f"no valid Q&A schedule found for a {page_count}-page book")
 
@@ -133,13 +144,25 @@ def assign_speakers(count: int, rng: random.Random) -> list[tuple[str, ...]]:
     return picks
 
 
-def plan_episode(book: dict, seed: int) -> EpisodePlan:
+def plan_episode(book: dict, seed: int, blueprint: Blueprint | None = None) -> EpisodePlan:
     rng = random.Random(seed)
     page_count = len(book["pages"])
-    qa_pages = choose_qa_pages(page_count, rng)
+    window: tuple[int, int] | None = None
+    notes: tuple[str, ...] = ()
+    if blueprint is not None:
+        from video_pipeline.blueprint import clamp_range
+
+        wanted = (blueprint.qa.moments_min, blueprint.qa.moments_max)
+        window = clamp_range(*wanted, *qa_bounds(page_count))
+        if window != wanted:
+            notes = (
+                f"blueprint moment range {wanted[0]}-{wanted[1]} clamped to "
+                f"{window[0]}-{window[1]} for {page_count} pages",
+            )
+    qa_pages = choose_qa_pages(page_count, rng, window)
     speakers = assign_speakers(len(qa_pages), rng)
     motions = tuple(rng.choice(NARRATION_MOTIONS) for _ in range(page_count))
-    return EpisodePlan(dict(zip(qa_pages, speakers, strict=True)), motions)
+    return EpisodePlan(dict(zip(qa_pages, speakers, strict=True)), motions, notes)
 
 
 def zoom_target(prompt: str, grounding: str) -> dict:
@@ -168,7 +191,13 @@ def _bookend_line(line: BanterLine) -> dict:
     return {"speaker": line.speaker, "text": line.text}
 
 
-def assemble_script(book: dict, cast: dict, plan: EpisodePlan, banter: Banter) -> dict:
+def assemble_script(
+    book: dict,
+    cast: dict,
+    plan: EpisodePlan,
+    banter: Banter,
+    ambience: Ambience | None = None,
+) -> dict:
     title = book["metadata"]["title"]
     moments = {moment.page_number: moment for moment in banter.moments}
     pages = []
@@ -190,8 +219,10 @@ def assemble_script(book: dict, cast: dict, plan: EpisodePlan, banter: Banter) -
             lines.extend(_qa_line(line) for line in (moment.lines if moment else []))
             entry["qa_grounding"] = grounding
             entry["ffmpeg_camera"]["qa_zoom_target"] = zoom_target(page["prompt"], grounding)
+        if ambience is not None:
+            entry["ambience"] = list(ambience.pages[number - 1])
         pages.append(entry)
-    return {
+    script = {
         "book_slug": slugify(title),
         "title": title,
         "aspect_ratio": "16:9",
@@ -201,6 +232,10 @@ def assemble_script(book: dict, cast: dict, plan: EpisodePlan, banter: Banter) -
         "pages": pages,
         "outro": {"ffmpeg_effect": OUTRO_EFFECT, "lines": [_bookend_line(x) for x in banter.outro]},
     }
+    if ambience is not None:
+        script["intro"]["ambience"] = list(ambience.intro)
+        script["outro"]["ambience"] = list(ambience.outro)
+    return script
 
 
 def banter_plan_errors(banter: Banter, plan: EpisodePlan) -> list[str]:

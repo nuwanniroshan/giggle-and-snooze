@@ -18,7 +18,8 @@ round 2). Only the check and that one write sit inside the lock; stopping a job 
 not take it.
 
 All state comes from `books` (pipeline files) and the `JobRunner`; the gates are the pipeline's
-own: voices need the reviewed script, render needs approved audio (FR-4).
+own: voices need the reviewed script, render needs approved audio (FR-4), a page preview needs
+that page's voice track (spec 010 FR-15).
 """
 
 from __future__ import annotations
@@ -46,13 +47,15 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from video_pipeline import synthesize_voices as sv
+from video_pipeline.blueprint import BlueprintError, rebuild_style_bible
 from video_pipeline.contract import ConfigError
 from video_pipeline.drafts import DraftError, DraftStore
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.library import PROJECT_ROOT
-from video_pipeline.render_episode import VideoPaths
+from video_pipeline.render_episode import VideoPaths, voices_command
 from video_pipeline.studio import books as sb
 from video_pipeline.studio.jobs import Busy, JobRunner, StudioLocked, UnknownJob, stage_command
+from video_pipeline.timeline import page_section_name
 
 STUDIO_DIR = Path(__file__).resolve().parent
 HOST = "127.0.0.1"
@@ -81,6 +84,7 @@ STAGE_BUTTONS = {
 MASK_CACHE_SIZE = 32
 _LAYER_NAME = re.compile(r"^page_(\d+)_(.+)$")
 _MASK_NAME = re.compile(r"^page_(\d+)\.png$")
+_PREVIEW_NAME = re.compile(r"^page_(\d{2,})\.mp4$")
 _PROBLEM_LINE = re.compile(r"^(intro|outro) line (\d+)\b")
 _PROBLEM_PAGE_LINE = re.compile(r"^page (\d+) (narration|Q&A) line (\d+)\b")
 _PROBLEM_PAGE = re.compile(r"^page (\d+)\b")
@@ -210,6 +214,7 @@ class Studio:
             stage_labels=sb.STAGE_LABELS,
             format_duration=format_duration,
             static_url=static_url,
+            draft_has_blueprint=lambda draft_id: self.drafts.blueprint_path(draft_id).is_file(),
         )
 
     # --- helpers --------------------------------------------------------------------------------
@@ -220,7 +225,9 @@ class Studio:
             return None
         if job["stage"] in ("ideas", "candidate"):
             title = "story ideas"
-        elif job["stage"] == "book":
+        elif job["stage"] in ("book", "blueprint") or (
+            job["stage"] == "redesign" and self.drafts.get(job["book"])
+        ):
             draft = self.drafts.get(job["book"])
             title = draft["idea"]["title"] if draft else "a draft book"
         else:
@@ -258,10 +265,19 @@ class Studio:
             return None
         return f"{job['label']} is running for {job['title']}"
 
-    def gate(self, book: sb.Book, stage: str) -> str | None:
-        """Why `stage` cannot start for `book` now (None when it can), busy aside."""
+    def gate(self, book: sb.Book, stage: str, page: int | None = None) -> str | None:
+        """Why `stage` cannot start for `book` now (None when it can), busy aside. A page
+        preview needs that page's voice track, not the audio approval (spec 010 FR-15)."""
         if book.error:
             return f"the book data has a problem: {book.error}"
+        if stage == sb.PREVIEW_STAGE:
+            audio = _audio_paths(self.paths, book)
+            name = page_section_name(int(page or 0))
+            if not (audio.track(name).is_file() and audio.track_timing(name).is_file()):
+                return (
+                    f"no voice track for page {page}: synthesize the voices first – "
+                    f"run {voices_command(book.slug)}"
+                )
         if stage == "voices":
             if not sb.script_path(self.paths, book).exists():
                 return "generate the script first"
@@ -273,9 +289,11 @@ class Studio:
                 return problems[0]
         return None
 
-    def last_job(self, book: sb.Book, stages: tuple[str, ...] | None = None) -> dict | None:
-        stages = stages or sb.STAGES + sb.ANIMATION_STAGES
-        jobs = [j for s in stages if (j := self.runner.latest(book.slug, s))]
+    def last_job(
+        self, book: sb.Book, stages: tuple[str, ...] | None = None, page: int | None = None
+    ) -> dict | None:
+        stages = stages or sb.STAGES + sb.ANIMATION_STAGES + ("redesign",)
+        jobs = [j for s in stages if (j := self.runner.latest(book.slug, s, page))]
         if not jobs:
             return None
         job = max(jobs, key=lambda j: (str(j.get("started_at") or ""), j["id"]))
@@ -328,6 +346,7 @@ class Studio:
             "stages": stages,
             "has_script": sb.script_path(self.paths, book).exists(),
             "job": self.last_job(book),
+            "blueprint": sb.blueprint_status(self.paths, book),
         }
         rows = sb.page_animation(self.paths, book)
         context["animation"] = sb.animation_summary(rows)
@@ -353,12 +372,14 @@ class Studio:
             return self.message(request, title, lines, 409, back)
         return RedirectResponse(back, status_code=303)
 
-    def _start_stage(self, book: sb.Book, stage: str, form) -> tuple[str, list[str]] | None:
-        """Check and start `stage` (call under `write_lock`); the refusal's title and lines, or
-        None when it started."""
+    def _start_stage(
+        self, book: sb.Book, stage: str, form, page: int | None = None
+    ) -> tuple[str, list[str]] | None:
+        """Check and start `stage` (for story `page`, a preview) (call under `write_lock`); the
+        refusal's title and lines, or None when it started."""
         if busy := self.busy_reason():
             return "Busy", [f"Refused: {busy}."]
-        if reason := self.gate(book, stage):
+        if reason := self.gate(book, stage, page):
             return f"Cannot start {sb.STAGE_LABELS[stage]}", [reason]
         force = form.get("force") == "1"
         if stage == "script" and sb.script_path(self.paths, book).exists():
@@ -369,9 +390,9 @@ class Studio:
                 ]
                 return "Confirm regenerating the script", lines
             force = True
-        cmd = self.command_for(stage, book, self.paths, force=force)
+        cmd = self.command_for(stage, book, self.paths, force=force, page=page)
         try:
-            self.runner.start(book.slug, stage, cmd)
+            self.runner.start(book.slug, stage, cmd, page=page)
         except Busy:
             return "Busy", [f"Refused: {self.busy_reason()}."]
         return None
@@ -379,7 +400,17 @@ class Studio:
     def stop_job(self, request: Request) -> Response:
         job = self.runner.current()
         self.runner.stop()
-        target = f"/books/{job['book']}" if job else "/"
+        target = "/"
+        if job:
+            is_draft = job["stage"] in ("book", "blueprint") or (
+                job["stage"] == "redesign" and self.drafts.get(job["book"])
+            )
+            if job["stage"] in ("book", "blueprint"):
+                with self.write_lock:  # a stopped run must not stay "designing" or "writing"
+                    draft = self.drafts.get(job["book"])
+                    if draft and draft["state"] in ("designing", "writing"):
+                        self.drafts.update(draft["id"], state="interrupted")
+            target = f"/drafts/{job['book']}" if is_draft else f"/books/{job['book']}"
         return RedirectResponse(target, status_code=303)
 
     # --- uploads --------------------------------------------------------------------------------
@@ -493,7 +524,7 @@ class Studio:
             return self.render(request, "add_book.html", self.add_book_context(problems), 422)
         with self.write_lock:
             draft = self.drafts.new_draft(idea, pages, author)
-            reason = self._start_story("book", draft["id"], draft["id"])
+            reason = self._start_story("blueprint", draft["id"], draft["id"])
             if reason:
                 self.drafts.discard(draft["id"])
         if reason:
@@ -553,6 +584,9 @@ class Studio:
             problems = ["Confirm the discard to delete this draft and its generation log."]
             return self.render(request, "draft.html", {"draft": draft, "problems": problems}, 422)
         with self.write_lock:
+            job = self.runner.current()
+            if job and job["book"] == draft["id"]:
+                self.runner.stop()  # a designing or writing draft's job ends with it (AC-1.7)
             self.drafts.discard(draft["id"])
         return RedirectResponse("/books/new", status_code=303)
 
@@ -573,11 +607,134 @@ class Studio:
                     {"draft": draft, "problems": [f"Refused: {reason}."]},
                     409,
                 )
-            self.drafts.update(draft["id"], state="writing", attempts=0, problems=[], book=None)
-            reason = self._start_story("book", draft["id"], draft["id"])
+            if draft.get("phase") == "design":
+                self.drafts.update(draft["id"], state="designing", attempts=0, problems=[])
+                stage, failed = "blueprint", "design_failed"
+            else:
+                self.drafts.update(draft["id"], state="writing", attempts=0, problems=[], book=None)
+                stage, failed = "book", "failed"
+            reason = self._start_story(stage, draft["id"], draft["id"])
             if reason:
-                self.drafts.update(draft["id"], state="failed", problems=[f"Refused: {reason}."])
+                self.drafts.update(draft["id"], state=failed, problems=[f"Refused: {reason}."])
         return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    # --- the blueprint (spec 011 FR-9) ---------------------------------------------------------
+
+    def _draft_refusal(self, request: Request, draft: dict, lines: list[str], status: int):
+        return self.render(request, "draft.html", {"draft": draft, "problems": lines}, status)
+
+    async def design_again(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        with self.write_lock:
+            if draft["state"] != "design_failed":
+                lines = ["Only a draft whose design failed can be designed again."]
+            elif reason := self.busy_reason():
+                lines = [f"Refused: {reason}."]
+            else:
+                self.drafts.update(
+                    draft["id"], state="designing", phase="design", attempts=0, problems=[]
+                )
+                if reason := self._start_story("blueprint", draft["id"], draft["id"]):
+                    self.drafts.update(
+                        draft["id"], state="design_failed", problems=[f"Refused: {reason}."]
+                    )
+                    lines = [f"Refused: {reason}."]
+                else:
+                    lines = []
+        if lines:
+            return self._draft_refusal(request, self.drafts.get(draft["id"]), lines, 409)
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    async def write_without_blueprint(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        with self.write_lock:
+            if draft["state"] != "design_failed":
+                lines = ["Only a draft whose design failed can be written without a blueprint."]
+            elif reason := self.busy_reason():
+                lines = [f"Refused: {reason}."]
+            else:
+                self.drafts.blueprint_path(draft["id"]).unlink(missing_ok=True)  # AC-1.5
+                self.drafts.update(
+                    draft["id"], state="writing", phase="story", attempts=0, problems=[], book=None
+                )
+                if reason := self._start_story("book", draft["id"], draft["id"]):
+                    self.drafts.update(
+                        draft["id"], state="design_failed", problems=[f"Refused: {reason}."]
+                    )
+                    lines = [f"Refused: {reason}."]
+                else:
+                    lines = []
+        if lines:
+            return self._draft_refusal(request, self.drafts.get(draft["id"]), lines, 409)
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    async def regenerate_draft_blueprint(self, request: Request) -> Response:
+        draft = self.draft_or_none(request)
+        if draft is None:
+            return self.not_found(request)
+        form = await request.form()
+        if form.get("confirm") != "yes":
+            lines = ["Confirm to replace this draft's blueprint with a new design."]
+            return self._draft_refusal(request, draft, lines, 422)
+        with self.write_lock:
+            if not self.drafts.blueprint_path(draft["id"]).is_file():
+                lines = ["This draft has no blueprint to regenerate."]
+            elif draft["state"] != "ready":
+                lines = ["Only a finished draft's blueprint can be regenerated."]
+            elif reason := self._start_story("redesign", f"draft:{draft['id']}", draft["id"]):
+                lines = [f"Refused: {reason}."]
+            else:
+                lines = []
+        if lines:
+            return self._draft_refusal(request, draft, lines, 409)
+        return RedirectResponse(f"/drafts/{draft['id']}", status_code=303)
+
+    async def regenerate_book_blueprint(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        if book is None:
+            return self.not_found(request)
+        form = await request.form()
+        back = f"/books/{book.slug}"
+        if form.get("confirm") != "yes":
+            lines = ["Confirm to replace this book's blueprint with a new design."]
+            return self.message(request, "Confirm regenerating the blueprint", lines, 422, back)
+        with self.write_lock:
+            if book.error:
+                lines = [f"The book data has a problem: {book.error}"]
+            elif not sb.folder_of(self.paths, book).blueprint_path.exists():
+                lines = ["This book has no blueprint to regenerate."]
+            elif reason := self._start_story("redesign", f"book:{book.slug}", book.slug):
+                lines = [f"Refused: {reason}."]
+            else:
+                lines = []
+        if lines:
+            return self.message(request, "Cannot regenerate the blueprint", lines, 409, back)
+        return RedirectResponse(back, status_code=303)
+
+    async def rebuild_style_bible(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        if book is None:
+            return self.not_found(request)
+        back = f"/books/{book.slug}"
+        with self.write_lock:
+            folder = sb.folder_of(self.paths, book)
+            if not folder.blueprint_path.exists():
+                lines = ["This book has no blueprint."]
+            elif reason := self.busy_reason():
+                lines = [f"Refused: {reason}."]
+            else:
+                try:
+                    rebuild_style_bible(folder)
+                    lines = []
+                except (BlueprintError, ConfigError, OSError, ValueError) as exc:
+                    lines = [str(exc)]
+        if lines:
+            return self.message(request, "Cannot rebuild the style bible", lines, 409, back)
+        return RedirectResponse(back, status_code=303)
 
     # --- the script -----------------------------------------------------------------------------
 
@@ -786,7 +943,7 @@ class Studio:
             "rows": rows,
             "summary": sb.animation_summary(rows),
             "controls": self.animation_controls(book),
-            "job": self.last_job(book, sb.ANIMATION_STAGES),
+            "job": self.last_job(book, (*sb.ANIMATION_STAGES, sb.PREVIEW_STAGE)),
         }
         return self.render(request, "animation.html", context)
 
@@ -813,8 +970,37 @@ class Studio:
             "prev": numbers[at - 1] if at > 0 else None,
             "next": numbers[at + 1] if at + 1 < len(numbers) else None,
             "controls": self.animation_controls(book),
+            "preview_blocked": self.busy_reason() or self.gate(book, sb.PREVIEW_STAGE, number),
+            "preview_job": self.last_job(book, (sb.PREVIEW_STAGE,), number),
+            "preview_url": self.preview_url(book, number),
         }
         return self.render(request, "animation_page.html", context)
+
+    def preview_url(self, book: sb.Book, number: int) -> str | None:
+        """The page preview's media URL (tagged with its modification time), or None."""
+        path = _video_paths(self.paths, book).preview(number)
+        if not path.is_file():
+            return None
+        return f"/media/{book.slug}/preview_video/{path.name}?v={path.stat().st_mtime_ns}"
+
+    async def preview_page(self, request: Request) -> Response:
+        form = await request.form()
+        return await run_in_threadpool(self._preview_page, request, form)
+
+    def _preview_page(self, request: Request, form) -> Response:
+        """Start the page preview job (spec 010 FR-16), back to the page view."""
+        book = self.book_or_none(request)
+        number = request.path_params["number"]
+        rows = sb.page_animation(self.paths, book) if book else []
+        if book is None or not any(r["page_number"] == number for r in rows):
+            return self.not_found(request)
+        back = f"/books/{book.slug}/animation/{number}"
+        with self.write_lock:
+            refused = self._start_stage(book, sb.PREVIEW_STAGE, form, page=number)
+        if refused is not None:
+            title, lines = refused
+            return self.message(request, title, lines, 409, back)
+        return RedirectResponse(back, status_code=303)
 
     def mask_png(self, book: sb.Book, number: int) -> bytes | None:
         """The masks overlay for a cut page, made once per cut (kept in memory by cut hash)."""
@@ -865,6 +1051,9 @@ class Studio:
                 if name == f"{book.slug}.mp4"
                 else None
             )
+        if kind == "preview_video" and (m := _PREVIEW_NAME.match(name)):
+            path = _video_paths(self.paths, book).preview(int(m.group(1)))
+            return path if path.name == name else None
         if kind == "layer" and (m := _LAYER_NAME.match(name)):
             return sb.layer_files(self.paths, book, int(m.group(1))).get(m.group(2))
         return None
@@ -963,6 +1152,23 @@ def create_app(
         Route("/drafts/{draft_id}/create", studio.create_book_from_draft, methods=["POST"]),
         Route("/drafts/{draft_id}/discard", studio.discard_draft, methods=["POST"]),
         Route("/drafts/{draft_id}/write-again", studio.write_again, methods=["POST"]),
+        Route("/drafts/{draft_id}/design-again", studio.design_again, methods=["POST"]),
+        Route(
+            "/drafts/{draft_id}/write-without-blueprint",
+            studio.write_without_blueprint,
+            methods=["POST"],
+        ),
+        Route(
+            "/drafts/{draft_id}/blueprint/regenerate",
+            studio.regenerate_draft_blueprint,
+            methods=["POST"],
+        ),
+        Route(
+            "/books/{slug}/blueprint/regenerate",
+            studio.regenerate_book_blueprint,
+            methods=["POST"],
+        ),
+        Route("/books/{slug}/blueprint/style-bible", studio.rebuild_style_bible, methods=["POST"]),
         Route("/books/{slug}", studio.book_page),
         Route("/books/{slug}/run/{stage}", studio.run_stage, methods=["POST"]),
         Route("/books/{slug}/script", studio.script_page),
@@ -973,6 +1179,9 @@ def create_app(
         Route("/books/{slug}/video", studio.video_page),
         Route("/books/{slug}/animation", studio.animation_page),
         Route("/books/{slug}/animation/{number:int}", studio.animation_page_detail),
+        Route(
+            "/books/{slug}/animation/{number:int}/preview", studio.preview_page, methods=["POST"]
+        ),
         Route("/jobs/stop", studio.stop_job, methods=["POST"]),
         Route("/api/jobs/current", studio.api_current),
         Route("/api/jobs/{job_id}/log", studio.api_log),

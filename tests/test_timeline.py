@@ -357,6 +357,14 @@ def test_build_sections_picture_override(cfg, script, timings):
     assert pictures["page-02"] == "page_02"
 
 
+def test_page_section_is_the_build_sections_entry(cfg, script, timings):  # spec 010 FR-15
+    sections = {s.name: s for s in build_sections(script, timings, cfg)}
+    for page in script["pages"]:
+        name = timeline.page_section_name(int(page["page_number"]))
+        picture = f"page_{int(page['page_number']):02d}"
+        assert timeline.page_section(page, timings[name], cfg, picture) == sections[name]
+
+
 def test_build_sections_captions_shifted(cfg, script, timings):
     sections = {s.name: s for s in build_sections(script, timings, cfg)}
     for name in ["intro", "page-01", "outro"]:
@@ -810,3 +818,130 @@ def test_config_ambience_settings_read_and_default(cfg, tmp_path):
     path.write_text(json.dumps(data), encoding="utf-8")
     audio = load_render_config(path).audio
     assert (audio.ambience_gain_db, audio.ambience_fade, audio.loop_crossfade) == (-14.0, 1.5, 1.0)
+
+
+# --- animation settings (spec 010 FR-8) -------------------------------------------------------
+
+ALL_EFFECTS = (
+    "rain",
+    "snow",
+    "fireflies",
+    "falling_leaves",
+    "water_ripple",
+    "smoke",
+    "mist",
+    "glow",
+)
+
+
+def _write_config(tmp_path, data):
+    path = tmp_path / "render.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_config_animation_block_read(cfg):
+    anim = cfg.animation
+    assert anim.enabled is True
+    assert anim.intensity == pytest.approx(1.0)
+    assert anim.ease_in_s == pytest.approx(1.0)
+    assert anim.parallax_max_shift == pytest.approx(0.006)
+    assert anim.parallax_period_s == pytest.approx(9.0)
+    assert (anim.override_min, anim.override_max) == (0.25, 2.0)
+    assert set(anim.effects) == set(ALL_EFFECTS)
+    for effect in anim.effects.values():
+        assert isinstance(effect, timeline.EffectDefaults)
+        assert re.fullmatch(r"#[0-9a-fA-F]{6}", effect.colour)
+
+
+def test_config_without_animation_block_gives_defaults(tmp_path):
+    data = load_json(RENDER_CONFIG)
+    del data["animation"]
+    anim = load_render_config(_write_config(tmp_path, data)).animation
+    assert anim == timeline.AnimationSettings()
+    assert anim.enabled is True
+    assert anim.effects == timeline.DEFAULT_EFFECTS
+
+
+def test_config_partial_animation_block_uses_field_defaults(tmp_path):
+    data = load_json(RENDER_CONFIG)
+    data["animation"] = {"intensity": 0.5}
+    anim = load_render_config(_write_config(tmp_path, data)).animation
+    assert anim.intensity == pytest.approx(0.5)
+    assert anim.override_max == pytest.approx(2.0)
+    assert anim.effects == timeline.DEFAULT_EFFECTS  # no effects map: the code defaults
+
+
+def test_default_effects_are_the_recommended_config_values():  # FR-8
+    data = load_json(RENDER_CONFIG)["animation"]["effects"]
+    assert set(timeline.DEFAULT_EFFECTS) == set(ALL_EFFECTS)
+    assert {n: timeline.EffectDefaults(**v) for n, v in data.items()} == timeline.DEFAULT_EFFECTS
+    assert timeline.AnimationSettings().effects == timeline.DEFAULT_EFFECTS
+    assert timeline.AnimationSettings().effects is not timeline.DEFAULT_EFFECTS
+
+
+def test_config_effect_defaults_partial_fields_default(tmp_path):
+    data = load_json(RENDER_CONFIG)
+    data["animation"]["effects"]["rain"] = {"count": 10}
+    rain = load_render_config(_write_config(tmp_path, data)).animation.effects["rain"]
+    assert rain == timeline.EffectDefaults(count=10)
+
+
+def _bad_animation(data, dotted, value):
+    parts = dotted.split(".")
+    target = data
+    for part in parts[:-1]:
+        target = target[part]
+    if value is _DELETE:
+        del target[parts[-1]]
+    else:
+        target[parts[-1]] = value
+
+
+_DELETE = object()
+
+
+@pytest.mark.parametrize(
+    ("dotted", "value", "named"),
+    [
+        ("animation.effects.smog", {"count": 1}, "animation.effects.smog"),
+        ("animation.effects.mist", _DELETE, "animation.effects.mist"),
+        ("animation.intensity", 0, "animation.intensity"),
+        ("animation.intensity", -1, "animation.intensity"),
+        ("animation.override_min", 0, "animation.override_min"),
+        ("animation.override_min", 3.0, "animation.override_min"),
+        ("animation.ease_in_s", -0.5, "animation.ease_in_s"),
+        ("animation.effects.glow.colour", "white", "animation.effects.glow.colour"),
+        ("animation.effects.glow.colour", "#ffff", "animation.effects.glow.colour"),
+        ("animation.effects", ["rain"], "animation.effects"),
+        ("animation.effects.rain", 3, "animation.effects.rain"),
+        ("animation.enabled", "yes", "animation.enabled"),
+    ],
+)
+def test_config_bad_animation_names_the_field(tmp_path, dotted, value, named):
+    data = load_json(RENDER_CONFIG)
+    _bad_animation(data, dotted, value)
+    with pytest.raises(ConfigError, match=re.escape(named)):
+        load_render_config(_write_config(tmp_path, data))
+
+
+def test_config_animation_not_an_object(tmp_path):
+    data = load_json(RENDER_CONFIG)
+    data["animation"] = [1]
+    with pytest.raises(ConfigError, match="animation"):
+        load_render_config(_write_config(tmp_path, data))
+
+
+def test_animation_block_does_not_change_cache_keys(cfg, script, timings, tmp_path):
+    """NFR-5: adding (or editing) the animation block changes no section or transition key."""
+    assert timeline.RENDER_VERSION == 3
+    data = load_json(RENDER_CONFIG)
+    data["animation"] = {"enabled": False, "intensity": 0.5}  # differs from the real block
+    plain = load_render_config(_write_config(tmp_path, data))
+    assert plain.animation != cfg.animation
+    for a, b in zip(
+        build_sections(script, timings, cfg), build_sections(script, timings, plain), strict=True
+    ):
+        assert a == b
+        assert section_key(a, "abc", cfg) == section_key(b, "abc", plain)
+    assert transition_key("a", "b", cfg) == transition_key("a", "b", plain)

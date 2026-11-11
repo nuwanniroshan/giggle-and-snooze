@@ -80,6 +80,52 @@ class VideoSettings:
 
 
 @dataclass(frozen=True)
+class EffectDefaults:
+    """Per-effect defaults for the story-page animation (spec 010 FR-8), in the units of the
+    ADR-010 spike (px are at a 1024 px shorter side and scale by side/1024): `count` particles at
+    intensity 1; `speed` short sides per second for moving particles, or Hz / drift rate for
+    distortion and haze; `size` px (streak length, dot, wavelength, noise or glow softness);
+    `strength` opacity 0–1, px displacement (`water_ripple`) or additive gain (`glow`)."""
+
+    count: int = 0
+    speed: float = 0.0
+    size: float = 0.0
+    strength: float = 0.0
+    colour: str = "#ffffff"
+
+
+# The recommended per-effect defaults (tuned in the ADR-010 spike, also in config/render.json),
+# used when render.json's animation block has no `effects` map (spec 010 FR-8).
+DEFAULT_EFFECTS: dict[str, EffectDefaults] = {
+    "rain": EffectDefaults(count=260, speed=1.6, size=40.0, strength=0.6, colour="#dfe6f0"),
+    "snow": EffectDefaults(count=160, speed=0.12, size=3.0, strength=0.85, colour="#ffffff"),
+    "fireflies": EffectDefaults(count=40, speed=0.25, size=7.0, strength=0.9, colour="#ffe08a"),
+    "falling_leaves": EffectDefaults(
+        count=14, speed=0.08, size=14.0, strength=1.0, colour="#c8862e"
+    ),
+    "water_ripple": EffectDefaults(count=0, speed=0.5, size=38.0, strength=4.0, colour="#ffffff"),
+    "smoke": EffectDefaults(count=6, speed=0.03, size=80.0, strength=0.35, colour="#d9d4cc"),
+    "mist": EffectDefaults(count=0, speed=0.01, size=220.0, strength=0.25, colour="#e8eef2"),
+    "glow": EffectDefaults(count=0, speed=0.2, size=60.0, strength=0.25, colour="#fff2c4"),
+}
+
+
+@dataclass(frozen=True)
+class AnimationSettings:
+    """The `animation` block of render.json (spec 010 FR-8). It never enters a cache key here:
+    animated sections add their own plan identity to their keys (spec 010 NFR-5)."""
+
+    enabled: bool = True
+    intensity: float = 1.0
+    ease_in_s: float = 1.0
+    parallax_max_shift: float = 0.006  # fraction of the picture's shorter side
+    parallax_period_s: float = 9.0
+    override_min: float = 0.25
+    override_max: float = 2.0
+    effects: dict[str, EffectDefaults] = field(default_factory=lambda: dict(DEFAULT_EFFECTS))
+
+
+@dataclass(frozen=True)
 class RenderConfig:
     width: int
     height: int
@@ -95,6 +141,7 @@ class RenderConfig:
     captions: CaptionStyle
     audio: AudioSettings
     video: VideoSettings
+    animation: AnimationSettings = field(default_factory=AnimationSettings)
 
 
 _NESTED = {
@@ -127,6 +174,8 @@ def load_render_config(path: Path) -> RenderConfig:
         raise ConfigError(f"render configuration is not valid JSON: {path} ({exc})") from None
     missing: list[str] = []
     for f in fields(RenderConfig):
+        if f.name == "animation":
+            continue  # optional block, parsed by _animation_settings
         if f.name not in data:
             missing.append(f.name)
         elif f.name in _NESTED:
@@ -142,6 +191,7 @@ def load_render_config(path: Path) -> RenderConfig:
     if missing:
         raise ConfigError(f"{path}: missing {', '.join(missing)}")
     nested = {name: _typed(cls, data[name]) for name, cls in _NESTED.items()}
+    nested["animation"] = _animation_settings(path, data.get("animation", {}))
     config = _typed(RenderConfig, data | nested)
     min_card = config.captions.min_card_seconds
     if not math.isfinite(min_card) or min_card < 0:
@@ -149,6 +199,86 @@ def load_render_config(path: Path) -> RenderConfig:
             f"{path}: captions.min_card_seconds must be a number ≥ 0, got {min_card!r}"
         )
     return config
+
+
+_COLOUR_RE = re.compile(r"#[0-9a-fA-F]{6}")
+
+
+def _number(path: Path, dotted: str, value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        raise ConfigError(f"{path}: {dotted} must be a number, got {value!r}")
+    return float(value)
+
+
+def _effect_defaults(path: Path, name: str, block: object) -> EffectDefaults:
+    where = f"animation.effects.{name}"
+    if not isinstance(block, dict):
+        raise ConfigError(f"{path}: {where} must be an object")
+    values: dict[str, object] = {}
+    for key in ("speed", "size", "strength"):
+        if key in block:
+            values[key] = _number(path, f"{where}.{key}", block[key])
+            if values[key] < 0:
+                raise ConfigError(f"{path}: {where}.{key} must be ≥ 0, got {block[key]!r}")
+    if "count" in block:
+        count = block["count"]
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ConfigError(f"{path}: {where}.count must be a whole number ≥ 0, got {count!r}")
+        values["count"] = count
+    if "colour" in block:
+        colour = block["colour"]
+        if not isinstance(colour, str) or not _COLOUR_RE.fullmatch(colour):
+            raise ConfigError(f"{path}: {where}.colour must be #rrggbb, got {colour!r}")
+        values["colour"] = colour
+    return EffectDefaults(**values)
+
+
+def _animation_settings(path: Path, block: object) -> AnimationSettings:
+    """Parse the optional `animation` block (spec 010 FR-8); a bad value raises ConfigError
+    naming the dotted field. A missing block or field takes the dataclass default."""
+    # imported here: motion_plan pulls in the agent runner and Pillow, which timeline must not
+    from video_pipeline.motion_plan import EFFECTS
+
+    if not isinstance(block, dict):
+        raise ConfigError(f"{path}: animation must be an object")
+    values: dict[str, object] = {}
+    if "enabled" in block:
+        if not isinstance(block["enabled"], bool):
+            raise ConfigError(f"{path}: animation.enabled must be true or false")
+        values["enabled"] = block["enabled"]
+    for f in fields(AnimationSettings):
+        if f.name in ("enabled", "effects") or f.name not in block:
+            continue
+        values[f.name] = _number(path, f"animation.{f.name}", block[f.name])
+    settings = AnimationSettings(**values)
+    for name in ("intensity", "parallax_period_s", "override_min"):
+        if getattr(settings, name) <= 0:
+            raise ConfigError(f"{path}: animation.{name} must be > 0, got {block[name]!r}")
+    for name in ("ease_in_s", "parallax_max_shift"):
+        if getattr(settings, name) < 0:
+            raise ConfigError(f"{path}: animation.{name} must be ≥ 0, got {block[name]!r}")
+    if settings.override_min > settings.override_max:
+        raise ConfigError(
+            f"{path}: animation.override_min ({settings.override_min}) must not exceed "
+            f"animation.override_max ({settings.override_max})"
+        )
+    if "effects" not in block:
+        return settings
+    effects = block["effects"]
+    if not isinstance(effects, dict):
+        raise ConfigError(f"{path}: animation.effects must be an object")
+    for name in effects:
+        if name not in EFFECTS:
+            raise ConfigError(
+                f"{path}: unknown effect animation.effects.{name} (one of {', '.join(EFFECTS)})"
+            )
+    missing = [name for name in EFFECTS if name not in effects]
+    if missing:
+        raise ConfigError(
+            f"{path}: missing animation.effects.{', animation.effects.'.join(missing)}"
+        )
+    parsed = {name: _effect_defaults(path, name, effects[name]) for name in EFFECTS}
+    return AnimationSettings(**{**values, "effects": parsed})
 
 
 # --- captions -------------------------------------------------------------------------------
@@ -501,6 +631,43 @@ def _section_captions(timing: dict, cfg: RenderConfig) -> list[CaptionCard]:
     return cards
 
 
+def _track_frames(timing: dict, cfg: RenderConfig) -> int:
+    return _ceil_frames(cfg.lead_in + float(timing["duration"]) + cfg.hold, cfg.fps)
+
+
+def page_section(page: dict, timing: dict, cfg: RenderConfig, picture: str) -> Section:
+    """One story page's section from its script page and its track's timing alone: the same
+    section `build_sections` makes for it (spec 010 FR-15, the page preview)."""
+    name = page_section_name(int(page["page_number"]))
+    frames = _track_frames(timing, cfg)
+    camera_cfg = page.get("ffmpeg_camera", {})
+    motion = camera_cfg.get("narration_motion", "static")
+    start, end = narration_camera(motion, cfg)
+    qa_line = next((line for line in timing["lines"] if line.get("role") != "narration"), None)
+    target = camera_cfg.get("qa_zoom_target")
+    qa_frame = qa_target = None
+    if qa_line is not None and target:
+        qa_frame = round((cfg.lead_in + float(qa_line["start"])) * cfg.fps)
+        qa_target = qa_target_on_canvas(target, cfg)
+    return Section(
+        name,
+        "page",
+        picture,
+        frames,
+        name,
+        _section_captions(timing, cfg),
+        Camera(
+            motion,
+            frames,
+            start,
+            end,
+            qa_frame,
+            qa_target,
+            round(cfg.motion.qa_ease * cfg.fps) if qa_frame is not None else 0,
+        ),
+    )
+
+
 def build_sections(
     script: dict,
     timings: dict[str, dict],
@@ -520,7 +687,7 @@ def build_sections(
         return timings[name]
 
     def frames_for(name: str) -> int:
-        return _ceil_frames(cfg.lead_in + float(timing(name)["duration"]) + cfg.hold, cfg.fps)
+        return _track_frames(timing(name), cfg)
 
     m = cfg.motion
     sections: list[Section] = []
@@ -538,37 +705,7 @@ def build_sections(
     )
     for page in sorted(script["pages"], key=lambda p: int(p["page_number"])):
         name = page_section_name(int(page["page_number"]))
-        frames = frames_for(name)
-        camera_cfg = page.get("ffmpeg_camera", {})
-        motion = camera_cfg.get("narration_motion", "static")
-        start, end = narration_camera(motion, cfg)
-        qa_line = next(
-            (line for line in timing(name)["lines"] if line.get("role") != "narration"), None
-        )
-        target = camera_cfg.get("qa_zoom_target")
-        qa_frame = qa_target = None
-        if qa_line is not None and target:
-            qa_frame = round((cfg.lead_in + float(qa_line["start"])) * cfg.fps)
-            qa_target = qa_target_on_canvas(target, cfg)
-        sections.append(
-            Section(
-                name,
-                "page",
-                chosen[name],
-                frames,
-                name,
-                _section_captions(timing(name), cfg),
-                Camera(
-                    motion,
-                    frames,
-                    start,
-                    end,
-                    qa_frame,
-                    qa_target,
-                    round(m.qa_ease * cfg.fps) if qa_frame is not None else 0,
-                ),
-            )
-        )
+        sections.append(page_section(page, timing(name), cfg, chosen[name]))
     frames = round(cfg.back_cover_seconds * cfg.fps)
     sections.append(
         Section(

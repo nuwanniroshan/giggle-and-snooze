@@ -164,8 +164,13 @@ def load_disallowed_terms(path: Path) -> list[str]:
     return [line for line in stripped if line and not line.startswith("#")]
 
 
+def qa_bounds(page_count: int) -> tuple[int, int]:
+    """The fewest and most Q&A pages spec 001 allows for a book of `page_count` pages."""
+    return math.ceil(page_count / 3), math.floor(page_count / 2.5)
+
+
 def qa_schedule_errors(qa_pages: list[int], page_count: int) -> list[str]:
-    low, high = math.ceil(page_count / 3), math.floor(page_count / 2.5)
+    low, high = qa_bounds(page_count)
     errors: list[str] = []
     if not low <= len(qa_pages) <= high:
         article = "an" if page_count in (8, 11, 18) else "a"
@@ -183,8 +188,13 @@ def qa_schedule_errors(qa_pages: list[int], page_count: int) -> list[str]:
     return errors
 
 
-def validate_script(script: dict, book: dict, terms: list[str]) -> list[str]:
-    """Check a complete episode script against every spec rule; [] means valid."""
+def validate_script(
+    script: dict, book: dict, terms: list[str], allowed_ambience: set[str] | None = None
+) -> list[str]:
+    """Check a complete episode script against every spec rule; [] means valid.
+
+    `allowed_ambience` (the blueprint's sound palette) limits the ambience names; None allows
+    any name (the library check happens at render time)."""
     missing = [key for key in TOP_LEVEL_KEYS if key not in script]
     if missing:
         return [f"missing top-level key: {key}" for key in missing]
@@ -199,9 +209,9 @@ def validate_script(script: dict, book: dict, terms: list[str]) -> list[str]:
     if script["resolution"] != [1920, 1080]:
         errors.append("resolution must be [1920, 1080]")
     errors += _cast_errors(script["cast"])
-    errors += _bookend_errors(script["intro"], "intro", terms, title)
-    errors += _bookend_errors(script["outro"], "outro", terms, title)
-    errors += _page_errors(script["pages"], book, terms)
+    errors += _bookend_errors(script["intro"], "intro", terms, title, allowed_ambience)
+    errors += _bookend_errors(script["outro"], "outro", terms, title, allowed_ambience)
+    errors += _page_errors(script["pages"], book, terms, allowed_ambience)
     return errors
 
 
@@ -236,18 +246,49 @@ def _line_errors(where: str, line: dict, terms: list[str], generated: bool) -> l
     return errors
 
 
-def _ambience_errors(where: str, block: dict) -> list[str]:
+def _ambience_errors(where: str, block: dict, allowed: set[str] | None = None) -> list[str]:
     if "ambience" not in block:
         return []
     names = block["ambience"]
     if not isinstance(names, list) or not all(isinstance(n, str) and n.strip() for n in names):
         return [f"{where}: ambience must be a list of sound names"]
-    return []
+    if allowed is None:
+        return []
+    return [
+        f"{where}: ambience {name!r} is not in the blueprint's sound palette"
+        for name in names
+        if name not in allowed
+    ]
 
 
-def _bookend_errors(block: dict, name: str, terms: list[str], title: str) -> list[str]:
+# spec 010 FR-9: a page may turn its animation off or scale it; render.json may narrow this range
+ANIMATION_OVERRIDE_RANGE = (0.25, 2.0)
+
+
+def _animation_errors(
+    where: str,
+    block: dict,
+    lo: float = ANIMATION_OVERRIDE_RANGE[0],
+    hi: float = ANIMATION_OVERRIDE_RANGE[1],
+) -> list[str]:
+    """A story page's optional `animation` override: `false` or a number from `lo` to `hi`."""
+    if "animation" not in block:
+        return []
+    value = block["animation"]
+    if value is False or (
+        isinstance(value, int | float) and not isinstance(value, bool) and lo <= value <= hi
+    ):
+        return []
+    return [f"{where}: animation must be false or a number from {lo} to {hi} (got {value!r})"]
+
+
+def _bookend_errors(
+    block: dict, name: str, terms: list[str], title: str, allowed: set[str] | None = None
+) -> list[str]:
     lines = block.get("lines", [])
-    errors = _ambience_errors(name, block)
+    errors = _ambience_errors(name, block, allowed)
+    if "animation" in block:
+        errors.append(f"{name}: animation is allowed only on story pages, not the {name}")
     errors += [
         error
         for i, line in enumerate(lines)
@@ -278,7 +319,9 @@ def _bookend_errors(block: dict, name: str, terms: list[str], title: str) -> lis
     return errors
 
 
-def _page_errors(pages: list[dict], book: dict, terms: list[str]) -> list[str]:
+def _page_errors(
+    pages: list[dict], book: dict, terms: list[str], allowed: set[str] | None = None
+) -> list[str]:
     book_pages = book["pages"]
     expected = [page["page_number"] for page in book_pages]
     if [page.get("page_number") for page in pages] != expected:
@@ -292,7 +335,8 @@ def _page_errors(pages: list[dict], book: dict, terms: list[str]) -> list[str]:
         while split < len(lines) and lines[split].get("role") == "narration":
             split += 1
         narration, qa = lines[:split], lines[split:]
-        errors += _ambience_errors(f"page {number}", page)
+        errors += _ambience_errors(f"page {number}", page, allowed)
+        errors += _animation_errors(f"page {number}", page)
         errors += _narration_errors(number, narration, book_page["text"], terms)
         if any(line.get("role") == "narration" for line in qa):
             errors.append(f"page {number}: narration lines must come before Q&A lines")

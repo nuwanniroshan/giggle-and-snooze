@@ -12,7 +12,18 @@
 </section>
 {% endif %}
 
-{% if draft.state == "writing" %}
+{% if draft.state == "designing" %}
+  <p>Designing the look, sound and questions for this book&hellip; the story is written when the blueprint is saved.</p>
+{% elif draft.state == "design_failed" %}
+  <section class="notice">
+    <h2>The blueprint could not be designed</h2>
+    {% if draft.problems %}{{ problem_list(draft.problems) }}{% endif %}
+    <div class="controls">
+      <form method="post" action="/drafts/{{ draft.id }}/design-again" class="inline"><button type="submit">Try the design again</button></form>
+      <form method="post" action="/drafts/{{ draft.id }}/write-without-blueprint" class="inline"><button class="secondary" type="submit">Write without a blueprint</button></form>
+    </div>
+  </section>
+{% elif draft.state == "writing" %}
   <p>Writing the book&hellip; the pages appear here when they are ready.</p>
 {% elif draft.state in ("failed", "interrupted") %}
   <section class="notice">
@@ -20,6 +31,13 @@
     {% if draft.problems %}{{ problem_list(draft.problems) }}{% endif %}
     <form method="post" action="/drafts/{{ draft.id }}/write-again"><button type="submit">Write again</button></form>
   </section>
+{% endif %}
+
+{% if draft.design_problems %}
+<section class="notice">
+  <h2>The blueprint was not replaced</h2>
+  {{ problem_list(draft.design_problems) }}
+</section>
 {% endif %}
 
 {% if draft.book %}
@@ -41,6 +59,12 @@
   {% if draft.state == "ready" %}
   <form method="post" action="/drafts/{{ draft.id }}/create">
     <button type="submit">Create book</button>
+  </form>
+  {% endif %}
+  {% if draft.state == "ready" and draft_has_blueprint(draft.id) %}
+  <form method="post" action="/drafts/{{ draft.id }}/blueprint/regenerate" class="stack">
+    <label class="check"><input type="checkbox" name="confirm" value="yes"> I understand this replaces the blueprint with a new design</label>
+    <div><button class="secondary" type="submit">Regenerate blueprint</button></div>
   </form>
   {% endif %}
   <form method="post" action="/drafts/{{ draft.id }}/discard" class="stack">

@@ -327,6 +327,34 @@ def test_stage_command_render_for_pilot_and_added_book(tmp_path):
     assert re_.parse_args(sj.stage_command("render", added, paths, force=True)[3:]).force
 
 
+def test_stage_command_preview_names_the_page(tmp_path):  # spec 010 FR-16
+    paths, _, added = book_and_added(tmp_path)
+    cmd = sj.stage_command("preview", added, paths, page=4)
+    assert cmd[:3] == [sys.executable, "-m", "video_pipeline.render_episode"]
+    args = re_.parse_args(cmd[3:])
+    assert args.book == added.slug and args.root == paths.root
+    assert args.preview_page == 4 and args.force is False
+    assert cmd[-2:] == ["--preview-page", "4"]
+    with pytest.raises(ValueError, match="page"):
+        sj.stage_command("preview", added, paths)
+    assert "--preview-page" not in sj.stage_command("render", added, paths, page=4)
+
+
+def test_a_job_records_its_page_and_latest_filters_by_it(runner, studio):  # spec 010 FR-16
+    first = runner.start("moon", "preview", py("print('4')"), page=4)
+    assert runner.wait(10)
+    second = runner.start("moon", "preview", py("print('5')"), page=5)
+    assert runner.wait(10)
+    assert read_record(studio, first.id)["page"] == 4
+    assert runner.latest("moon", "preview", page=4)["id"] == first.id
+    assert runner.latest("moon", "preview", page=5)["id"] == second.id
+    assert runner.latest("moon", "preview")["id"] == second.id
+    assert runner.latest("moon", "preview", page=6) is None
+    plain = runner.start("moon", "script", py("print('s')"))
+    assert runner.wait(10)
+    assert read_record(studio, plain.id)["page"] is None
+
+
 def test_stage_command_unknown_stage(tmp_path):
     paths, pilot, _ = book_and_added(tmp_path)
     with pytest.raises(ValueError):

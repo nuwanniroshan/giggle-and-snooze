@@ -21,8 +21,22 @@ import numpy as np
 from PIL import Image
 
 from video_pipeline import synthesize_voices as sv
+from video_pipeline.animate import page_eligibility
+from video_pipeline.blueprint import (
+    BlueprintError,
+    blueprint_sha256,
+    load_blueprint,
+    load_context,
+    read_use,
+)
 from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
-from video_pipeline.cut_layers import MANIFEST, cut_hash, layers_dir, model_ids
+from video_pipeline.cut_layers import (
+    MANIFEST,
+    cut_settings,
+    cut_state,
+    layers_dir,
+    manifest_files,
+)
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import BOOK_FILE, PROJECT_ROOT, BookFolder, list_book_slugs
@@ -34,6 +48,7 @@ from video_pipeline.motion_plan import (
     plan_state,
 )
 from video_pipeline.render_episode import VideoPaths, render_check_detail
+from video_pipeline.timeline import AnimationSettings, load_render_config
 
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
 NOOK_FILES = ("intro_nook.png", "outro_nook.png")
@@ -45,9 +60,14 @@ STAGE_LABELS = {
     "render": "video render",
     "plan": "motion planning",
     "cut": "layer cutting",
+    "preview": "page preview",
+    "blueprint": "blueprint design",
+    "redesign": "blueprint design",
 }
 # Spec 009: run as studio jobs, but outside the script → voices → render flow.
 ANIMATION_STAGES = ("plan", "cut")
+# Spec 010: one story page rendered with its voice; started per page, not from the stage buttons.
+PREVIEW_STAGE = "preview"
 NO_CUT = "—"
 # One fixed tint per layer (in plan order) for the masks overlay; the picture under it is dimmed.
 MASK_PALETTE = (
@@ -199,6 +219,28 @@ def script_path(paths: StudioPaths, book: Book) -> Path:
     return folder_of(paths, book).script_path
 
 
+def blueprint_status(paths: StudioPaths, book: Book) -> dict:
+    """The book's blueprint for the studio (spec 011 FR-8, FR-9): `present`, the load `error`
+    (file, field and reason), the parsed `view`, and the `stale` outputs, each with the command
+    that refreshes it. Nothing here changes a stage's own status (AC-6.6)."""
+    folder = folder_of(paths, book)
+    if not folder.blueprint_path.exists():
+        return {"present": False, "error": None, "view": None, "stale": []}
+    try:
+        view = load_blueprint(folder.blueprint_path, load_context(Path(paths.root)))
+    except (BlueprintError, ConfigError, OSError, KeyError, ValueError) as exc:
+        return {"present": True, "error": str(exc), "view": None, "stale": []}
+    sha, used = blueprint_sha256(folder.blueprint_path), read_use(folder)
+    stale = []
+    if any(folder.illustrations.glob("*.png")) and used.get("art") != sha:
+        command = f"python -m video_pipeline.illustrate --book {book.slug} --force"
+        stale.append({"output": "pictures", "command": command})
+    if script_path(paths, book).exists() and used.get("script") != sha:
+        command = f"python -m video_pipeline.generate_script --book {book.slug} --force"
+        stale.append({"output": "episode script", "command": command})
+    return {"present": True, "error": None, "view": view, "stale": stale}
+
+
 def reviewed_path(paths: StudioPaths, book: Book) -> Path:
     return folder_of(paths, book).reviewed_path
 
@@ -302,7 +344,16 @@ def save_line_edits(paths: StudioPaths, book: Book, edits: dict[str, str]) -> li
         terms = load_disallowed_terms(paths.config_dir / "disallowed_terms.txt")
     except (BookError, ConfigError) as exc:
         return [str(exc)]
-    problems = validate_script(edited, book_data, terms)
+    allowed = None
+    blueprint_file = folder_of(paths, book).blueprint_path
+    if blueprint_file.is_file():
+        from video_pipeline.blueprint import BlueprintError, load_blueprint, load_context
+
+        try:
+            allowed = set(load_blueprint(blueprint_file, load_context(paths.root)).sound.ambience)
+        except BlueprintError as exc:
+            return [str(exc)]
+    problems = validate_script(edited, book_data, terms, allowed)
     if problems:
         return problems
     write_atomic(script_path(paths, book), edited)
@@ -457,41 +508,69 @@ def stage_status(paths: StudioPaths, book: Book, latest_job: LatestJob) -> dict:
 # --- animation plans and cuts (spec 009 FR-12) ----------------------------------------------
 
 
-def _cut_settings(paths: StudioPaths) -> tuple[int, dict[str, str]] | None:
-    """The feather and model ids the cut hash depends on, or None when config/animation.json has
-    no usable `cut` or `models` block (cut state then shows as unknown)."""
+def _cut_config(paths: StudioPaths) -> dict | None:
+    """config/animation.json when its `cut` and `models` blocks are usable, else None (cut state
+    then shows as unknown)."""
     config = _read_dict(paths.config_dir / LIMITS_FILE)
     try:
-        return int(config["cut"]["feather_px"]), model_ids(config["models"])
+        cut_settings(config)
     except (TypeError, KeyError, ValueError, AttributeError):
         return None
+    return config
 
 
 def _manifest(folder: BookFolder, page_number: int) -> dict | None:
     return _read_dict(layers_dir(folder, page_number) / MANIFEST)
 
 
-def _manifest_files(manifest: dict) -> list[str]:
-    """Plain file names the manifest lists (layer PNGs and the background); others are ignored."""
-    names = [e.get("file") for e in manifest.get("layers") or [] if isinstance(e, dict)]
-    names.append(manifest.get("background"))
-    return [n for n in names if isinstance(n, str) and _plain_name(n)]
+def _animation_settings(paths: StudioPaths) -> AnimationSettings | str:
+    """The render config's animation block, or why it cannot be read."""
+    try:
+        return load_render_config(paths.config_dir / "render.json").animation
+    except (ConfigError, OSError, ValueError, KeyError, TypeError) as exc:
+        return f"render config unreadable – {exc}"
 
 
-def _cut_state(folder: BookFolder, page_number: int, plan, settings) -> str:
-    manifest = _manifest(folder, page_number)
-    if manifest is None or manifest.get("cut_hash") != cut_hash(plan, *settings):
-        return "needs cut"
-    out = layers_dir(folder, page_number)
-    return (
-        "cut" if all((out / name).is_file() for name in _manifest_files(manifest)) else "needs cut"
-    )
+def _script_pages(paths: StudioPaths, book: Book) -> dict[int, dict]:
+    """The episode script's pages by number; none when there is no readable script."""
+    try:
+        script = load_script(paths, book)
+    except StudioError:
+        return {}
+    pages = (script or {}).get("pages")
+    if not isinstance(pages, list):
+        return {}
+    out = {}
+    for page in pages:
+        try:
+            out[int(page["page_number"])] = page
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+def _will_animate(
+    paths: StudioPaths,
+    folder: BookFolder,
+    page: dict,
+    script_pages: dict[int, dict],
+    settings: AnimationSettings | str,
+) -> dict:
+    """`will_animate` and `still_reason` for a row, as the render decides (spec 010 AC-4.3)."""
+    if isinstance(settings, str):
+        return {"will_animate": False, "still_reason": settings}
+    number = int(page["page_number"])
+    script_page = script_pages.get(number, {"page_number": number})
+    el = page_eligibility(folder, page, script_page, settings, Path(paths.root))
+    return {"will_animate": el.animated, "still_reason": el.reason}
 
 
 def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
     """Per story page, read from disk on every call (AC-5.5): `page_number`, `plan_state` (none,
     ok, stale, invalid, no_picture, or unavailable when the animation config cannot be read),
-    `detail`, `plan`, `cut_state` ("cut", "needs cut" or "—") and the manifest's `empty_layers`."""
+    `detail`, `plan`, `cut_state` ("cut", "needs cut" or "—"), the manifest's `empty_layers`,
+    and whether the render will animate the page (`will_animate`, else `still_reason`, spec 010
+    AC-4.3; the script's per-page override counts when there is a script)."""
     if book.error:
         return []
     folder = folder_of(paths, book)
@@ -499,6 +578,8 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
         pages = load_book(book.book_path)["pages"]
     except BookError:
         return []
+    settings = _animation_settings(paths)
+    script_pages = _script_pages(paths, book)
     try:
         limits = load_limits(paths.config_dir)
     except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -512,17 +593,18 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "plan": None,
                 "cut_state": NO_CUT,
                 "empty_layers": [],
+                **_will_animate(paths, folder, p, script_pages, settings),
             }
             for p in sorted(pages, key=lambda p: int(p["page_number"]))
         ]
-    settings = _cut_settings(paths)
+    config = _cut_config(paths)
     rows = []
     for page in sorted(pages, key=lambda p: int(p["page_number"])):
         number = int(page["page_number"])
         st = plan_state(folder, page, limits)
         cut = NO_CUT
-        if st.state == "ok" and settings is not None:
-            cut = _cut_state(folder, number, st.plan, settings)
+        if st.state == "ok" and config is not None:
+            cut = cut_state(folder, st.plan, config)[0]
         manifest = _manifest(folder, number) if cut == "cut" else None
         empty = [
             str(e.get("name"))
@@ -538,6 +620,7 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "plan": st.plan,
                 "cut_state": cut,
                 "empty_layers": empty,
+                **_will_animate(paths, folder, page, script_pages, settings),
             }
         )
     return rows
@@ -569,7 +652,7 @@ def layer_files(paths: StudioPaths, book: Book, page_number: int) -> dict[str, P
     if manifest is None:
         return {}
     out = layers_dir(folder, page_number)
-    return {n: out / n for n in _manifest_files(manifest) if (out / n).is_file()}
+    return {n: out / n for n in manifest_files(manifest) if (out / n).is_file()}
 
 
 def _plan_layer_order(folder: BookFolder, page_number: int) -> dict[str, int]:
