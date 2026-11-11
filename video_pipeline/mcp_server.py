@@ -12,6 +12,7 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
+from video_pipeline.blueprint import BlueprintError
 from video_pipeline.contract import ConfigError
 from video_pipeline.episode import BookError
 from video_pipeline.episode_tools import DEFAULT_SEED, EpisodeTools
@@ -59,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         folder = book_folder(args.book, args.root)
         tools = EpisodeTools.load(folder, args.seed, args.root / "config", args.force)
-    except (BookError, ConfigError, LibraryError) as exc:
+    except (BookError, ConfigError, BlueprintError, LibraryError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     create_server(tools).run()

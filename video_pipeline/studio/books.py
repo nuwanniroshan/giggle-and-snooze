@@ -313,7 +313,16 @@ def save_line_edits(paths: StudioPaths, book: Book, edits: dict[str, str]) -> li
         terms = load_disallowed_terms(paths.config_dir / "disallowed_terms.txt")
     except (BookError, ConfigError) as exc:
         return [str(exc)]
-    problems = validate_script(edited, book_data, terms)
+    allowed = None
+    blueprint_file = folder_of(paths, book).blueprint_path
+    if blueprint_file.is_file():
+        from video_pipeline.blueprint import BlueprintError, load_blueprint, load_context
+
+        try:
+            allowed = set(load_blueprint(blueprint_file, load_context(paths.root)).sound.ambience)
+        except BlueprintError as exc:
+            return [str(exc)]
+    problems = validate_script(edited, book_data, terms, allowed)
     if problems:
         return problems
     write_atomic(script_path(paths, book), edited)

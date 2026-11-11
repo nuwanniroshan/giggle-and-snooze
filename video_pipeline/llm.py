@@ -6,9 +6,13 @@ import json
 import os
 import urllib.error
 import urllib.request
+from typing import TYPE_CHECKING
 
 from video_pipeline.contract import Banter, normalize_ws
 from video_pipeline.episode import EpisodePlan
+
+if TYPE_CHECKING:
+    from video_pipeline.blueprint import Blueprint
 
 CLOUD_MODEL = "gemini-2.5-flash"
 GEMINI_KEY_ENV = "GEMINI_API_KEY"
@@ -30,8 +34,42 @@ class LLMUnavailable(Exception):
     """The Gemini API provider cannot be used: no credentials or not reachable."""
 
 
-def build_brief(book: dict, cast: dict, plan: EpisodePlan) -> str:
-    """Everything a writer needs: book, cast, the planned Q&A moments and the rules (no reply format)."""
+_KID_ROLES_LINE = """   kid_older asks curious questions about the plot or guesses at mysteries. kid_younger reacts \
+to funny or cute details in the illustration.
+"""
+_DIRECTION_POINTER = (
+    "   Follow the DIRECTION block below for how each speaker sounds and what the kids ask.\n"
+)
+
+
+def _direction_block(bp: Blueprint) -> str:
+    roles = "\n".join(
+        f"- {role}: pace {r.pace}, energy {r.energy}. {r.quirk}"
+        for role, r in (
+            ("storyteller", bp.mood.roles.storyteller),
+            ("kid_older", bp.mood.roles.kid_older),
+            ("kid_younger", bp.mood.roles.kid_younger),
+        )
+    )
+    return f"""
+DIRECTION (this book's own style; follow it without breaking any rule below)
+Mood: {bp.mood.label}. {bp.mood.summary}
+{roles}
+Q&A format: {bp.qa.format_label}. Question types: {", ".join(bp.qa.question_types)}.
+- kid_older: {bp.qa.kid_notes.kid_older}
+- kid_younger: {bp.qa.kid_notes.kid_younger}
+Intro hook: {bp.qa.intro_hook}
+Outro hook: {bp.qa.outro_hook}
+Ambience palette (chosen automatically for the script): {", ".join(bp.sound.ambience)}
+"""
+
+
+def build_brief(
+    book: dict, cast: dict, plan: EpisodePlan, blueprint: Blueprint | None = None
+) -> str:
+    """Everything a writer needs: book, cast, the planned Q&A moments and the rules (no reply format).
+
+    With a blueprint, the fixed kid-role sentences give way to a DIRECTION block."""
     meta = book["metadata"]
     title = meta["title"]
     cast_lines = "\n".join(f"- {role}: {c['name']}, {c['description']}" for role, c in cast.items())
@@ -47,6 +85,8 @@ def build_brief(book: dict, cast: dict, plan: EpisodePlan) -> str:
         f"     PAGE {number} ILLUSTRATION: {normalize_ws(by_number[number]['prompt'])}"
         for number, kids in sorted(plan.qa_speakers.items())
     )
+    kid_roles = _KID_ROLES_LINE if blueprint is None else _DIRECTION_POINTER
+    direction = "" if blueprint is None else _direction_block(blueprint)
     return f"""You write the spoken banter for a cozy read-aloud storytime video of the children's \
 book "{title}" ({meta.get("age_range", "young children")}). The Storyteller reads every page \
 aloud; you write only the extra dialogue described below.
@@ -64,9 +104,7 @@ One line must say the exact title "{title}".
 {moments}
    Each moment has 2-5 lines. Only the listed kids speak (when both are listed, both speak). \
 The last line is the storyteller answering.
-   kid_older asks curious questions about the plot or guesses at mysteries. kid_younger reacts \
-to funny or cute details in the illustration.
-   "grounding" is 2-6 consecutive words copied character for character from that page's \
+{kid_roles}   "grounding" is 2-6 consecutive words copied character for character from that page's \
 TEXT or ILLUSTRATION, pointing at what the moment is about. It is checked by exact text search, \
 so never summarize, rename or write your own label. Copy it from the PAGE block with the \
 same number as the moment: a phrase found only on another page is wrong, even a character name. \
@@ -75,7 +113,7 @@ under a mossy log", then "under a mossy log" is right and "fox hiding" is wrong.
    Use only what has happened up to that page. Never reveal later pages.
 3. "outro": 3-5 lines after the book closes, with at least one kid line. The last line is the \
 storyteller inviting viewers to subscribe and come back for the next story.
-
+{direction}
 RULES
 - Kid lines are at most 25 words.
 - The only allowed inline tags are <giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>. No other \

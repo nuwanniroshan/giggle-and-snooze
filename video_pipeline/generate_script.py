@@ -20,6 +20,7 @@ from video_pipeline.agents import (
     codex_status,
     run_codex,
 )
+from video_pipeline.blueprint import BlueprintError, blueprint_sha256, record_use
 from video_pipeline.contract import ConfigError, validate_script
 from video_pipeline.episode import BookError
 from video_pipeline.episode_tools import (
@@ -100,13 +101,20 @@ def run_agent(args: argparse.Namespace, tools: EpisodeTools, folder: BookFolder)
     result = run_codex(command, log_path, on_event=_print_event)
     if any(save.get("saved") for save in result.save_results) and tools.out.exists():
         errors = validate_script(
-            json.loads(tools.out.read_text(encoding="utf-8")), tools.book, tools.terms
+            json.loads(tools.out.read_text(encoding="utf-8")),
+            tools.book,
+            tools.terms,
+            _allowed_ambience(tools),
         )
         if not errors:
             return
         raise GenerationFailed(f"saved script failed re-validation; run log: {log_path}", errors)
     reason = result.reason or "the agent did not save a valid script"
     raise GenerationFailed(f"{reason}; run log: {log_path}", _last_save_errors(result.save_results))
+
+
+def _allowed_ambience(tools: EpisodeTools) -> set[str] | None:
+    return None if tools.blueprint is None else set(tools.blueprint.sound.ambience)
 
 
 def _last_save_errors(saves: list[dict]) -> list[str]:
@@ -144,6 +152,8 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
+        for note in tools.plan.notes:
+            print(f"note: {note}")
         if not tools.terms:
             print("warning: the disallowed-terms list is empty; no terms will be checked")
         if args.provider == "gemini-api":
@@ -154,9 +164,12 @@ def main(argv: list[str] | None = None) -> int:
             write_atomic(tools.out, script)
         else:
             run_agent(args, tools, folder)
+        if tools.blueprint is not None:
+            record_use(folder, "script", blueprint_sha256(folder.blueprint_path))
     except (
         BookError,
         ConfigError,
+        BlueprintError,
         LLMUnavailable,
         LLMError,
         AgentUnavailable,

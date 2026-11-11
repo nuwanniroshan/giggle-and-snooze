@@ -22,6 +22,14 @@ from pathlib import Path
 from PIL import Image
 
 from video_pipeline.agents import AgentUnavailable, codex_status
+from video_pipeline.blueprint import (
+    BlueprintError,
+    blueprint_sha256,
+    load_blueprint,
+    load_context,
+    record_use,
+    style_text,
+)
 from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
 from video_pipeline.motion_plan import PlanError, PlanOutcome, load_limits, plan_page
 
@@ -54,12 +62,17 @@ def cover_prompts(book: dict) -> dict[str, str]:
     }
 
 
-def plan_images(book: dict) -> list[tuple[str, str]]:
-    """(file stem, prompt) in painting order: pages by number, then the two covers."""
+def plan_images(book: dict, style: str | None = None) -> list[tuple[str, str]]:
+    """(file stem, prompt) in painting order: pages by number, then the two covers.
+
+    `style` (the blueprint's art text) is put in front of every prompt, covers included."""
     pages = sorted(book["pages"], key=lambda p: p["page_number"])
     items = [(Path(_page_file(p)).stem, p["prompt"]) for p in pages]
     covers = cover_prompts(book)
-    return items + [("cover_front", covers["cover_front"]), ("cover_back", covers["cover_back"])]
+    items += [("cover_front", covers["cover_front"]), ("cover_back", covers["cover_back"])]
+    if style:
+        items = [(stem, f"{style}\n\n{prompt}") for stem, prompt in items]
+    return items
 
 
 def _page_file(page: dict) -> str:
@@ -134,6 +147,7 @@ def illustrate(
     paint: Callable[[Path, str, Path | None, Path], None] = paint_one,
     log: Callable[[str], None] = print,
     plan: Callable[[dict], PlanOutcome] | None = None,
+    style: str | None = None,
 ) -> list[str]:
     """Paint what is missing (or everything with force). Returns the stems painted.
 
@@ -142,7 +156,7 @@ def illustrate(
     pages = {Path(_page_file(p)).stem: p for p in book["pages"]}
     painted: list[str] = []
     reference: Path | None = None
-    for stem, prompt in plan_images(book):
+    for stem, prompt in plan_images(book, style):
         target = folder / f"{stem}.png"
         if target.exists() and not force:
             log(f"  {stem}: kept")
@@ -174,6 +188,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         book = json.loads(folder.book_json.read_text(encoding="utf-8"))
         binary = codex_status()
         limits = load_limits(args.root / "config")
+        style = None
+        if folder.blueprint_path.is_file():
+            style = style_text(load_blueprint(folder.blueprint_path, load_context(args.root)))
         unplanned: list[str] = []
 
         def planner(page: dict) -> PlanOutcome:
@@ -191,9 +208,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         print(f"painting illustrations into {folder.illustrations}")
         painted = illustrate(
-            book, folder.illustrations, binary, force=args.force, paint=paint_one, plan=planner
+            book,
+            folder.illustrations,
+            binary,
+            force=args.force,
+            paint=paint_one,
+            plan=planner,
+            style=style,
         )
-    except (LibraryError, AgentUnavailable, IllustrateError, OSError, KeyError, ValueError) as exc:
+        if style and len(painted) == len(plan_images(book)):
+            record_use(folder, "art", blueprint_sha256(folder.blueprint_path))
+    except (
+        LibraryError,
+        AgentUnavailable,
+        BlueprintError,
+        IllustrateError,
+        OSError,
+        KeyError,
+        ValueError,
+    ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"painted {len(painted)} image(s); run again to retry anything that failed")
