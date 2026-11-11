@@ -60,7 +60,8 @@ Q&A format: {bp.qa.format_label}. Question types: {", ".join(bp.qa.question_type
 - kid_younger: {bp.qa.kid_notes.kid_younger}
 Intro hook: {bp.qa.intro_hook}
 Outro hook: {bp.qa.outro_hook}
-Ambience palette (chosen automatically for the script): {", ".join(bp.sound.ambience)}
+Ambience palette: {", ".join(bp.sound.ambience)}. These are the only names allowed in \
+`ambience` lists; they are assigned to the script automatically, so do not write `ambience` lists.
 """
 
 

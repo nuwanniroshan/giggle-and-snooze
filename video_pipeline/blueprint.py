@@ -40,7 +40,7 @@ Hex = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
 
 
 class _M(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 class Role(_M):
@@ -144,13 +144,14 @@ class Ambience:
     outro: list[str]
 
 
-def _texts(node: object) -> list[str]:
+def _texts(node: object, path: str = "") -> list[tuple[str, str]]:
+    """Every string in the data with its dotted field path (`art.avoid.0`)."""
     if isinstance(node, str):
-        return [node]
+        return [(path, node)]
     if isinstance(node, dict):
-        return [t for v in node.values() for t in _texts(v)]
+        return [t for k, v in node.items() for t in _texts(v, f"{path}.{k}" if path else str(k))]
     if isinstance(node, list):
-        return [t for v in node for t in _texts(v)]
+        return [t for i, v in enumerate(node) for t in _texts(v, f"{path}.{i}" if path else str(i))]
     return []
 
 
@@ -161,13 +162,13 @@ def blueprint_errors(data: object, ctx: Context, where: str) -> list[str]:
     except ValidationError as exc:
         return [f"{where}: {'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()]
     errors: list[str] = []
-    for text in _texts(model.model_dump()):
+    for field, text in _texts(model.model_dump()):
         errors += [
-            f"{where}: '{t}' is not allowed in a children's story"
+            f"{where}: {field}: '{t}' is not allowed in a children's story"
             for t in find_disallowed(text, ctx.terms)
         ]
         errors += [
-            f"{where}: '{t}' is too frightening for this story"
+            f"{where}: {field}: '{t}' is too frightening for this story"
             for t in find_disallowed(text, ctx.gentle)
         ]
     for name in model.sound.ambience:
@@ -257,7 +258,7 @@ def similarity_problems(
         close = [
             s.name
             for s in candidate.art.palette
-            if any(delta_e76(s.hex, o.hex) < cfg.distance for o in other.art.palette)
+            if any(delta_e76(s.hex, o.hex) <= cfg.distance for o in other.art.palette)
         ]
         if len(close) >= 3:
             problems.append(
@@ -337,21 +338,33 @@ def load_context(root: Path) -> Context:
     )
 
 
+def _book_title(folder) -> str:
+    try:
+        data = json.loads(folder.book_json.read_text(encoding="utf-8"))
+        title = data["metadata"]["title"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return folder.slug
+    return title.strip() if isinstance(title, str) and title.strip() else folder.slug
+
+
 def others_for(
     root: Path, ctx: Context, exclude: tuple[str, str] | None = None
 ) -> dict[str, Blueprint]:
-    """Blueprints of every book and every draft, keyed by a display name; `exclude` is
-    ("book", slug) or ("draft", id) (AC-2.8, AC-2.9). Unreadable files are skipped."""
+    """Blueprints of every book and every draft, keyed by the book's title (a draft's idea
+    title); `exclude` is ("book", slug) or ("draft", id) (AC-2.8, AC-2.9). Titles shared by
+    several blueprints get ` (<slug>)` or ` (draft <id start>)` added so none is lost.
+    Unreadable files are skipped."""
     from video_pipeline.drafts import DraftStore
     from video_pipeline.library import BookFolder, list_book_slugs
 
-    found: dict[str, Blueprint] = {}
+    entries: list[tuple[str, str, Blueprint]] = []  # (title, suffix, blueprint)
     slugs, _ = list_book_slugs(root)
     for slug in slugs:
         if exclude == ("book", slug):
             continue
+        folder = BookFolder(slug, Path(root))
         try:
-            found[slug] = load_blueprint(BookFolder(slug, Path(root)).blueprint_path, ctx)
+            entries.append((_book_title(folder), slug, load_blueprint(folder.blueprint_path, ctx)))
         except BlueprintError:
             continue
     store = DraftStore(root)
@@ -361,7 +374,17 @@ def others_for(
             continue
         title = (record.get("idea") or {}).get("title") or record.get("title") or draft_id
         try:
-            found[title] = load_blueprint(store.draft_folder(draft_id) / BLUEPRINT_FILE, ctx)
+            loaded = load_blueprint(store.draft_folder(draft_id) / BLUEPRINT_FILE, ctx)
         except BlueprintError:
             continue
+        entries.append((title, f"draft {draft_id[:6]}", loaded))
+    counts: dict[str, int] = {}
+    for title, _, _ in entries:
+        counts[title] = counts.get(title, 0) + 1
+    found: dict[str, Blueprint] = {}
+    for title, suffix, loaded in entries:
+        label = title if counts[title] == 1 else f"{title} ({suffix})"
+        while label in found:  # a suffixed label can still collide with another title
+            label += f" ({suffix})"
+        found[label] = loaded
     return found

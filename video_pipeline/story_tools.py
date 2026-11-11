@@ -153,7 +153,7 @@ def blueprint_check(
     ctx: Context,
     others: dict[str, Blueprint],
     cfg: BlueprintConfig,
-    where: str = "blueprint",
+    where: str = "blueprint.json",
 ) -> list[str]:
     """Schema, content and distinctness problems of a submitted blueprint (FR-1..FR-4)."""
     errors = blueprint_errors(payload, ctx, where)

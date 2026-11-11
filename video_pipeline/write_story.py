@@ -213,11 +213,12 @@ def generate(
             feedback = errors
         else:
             feedback = [
-                str(event.data["errors"][0])
+                str(error)
                 for event in result.events
                 if event.kind == "tool-result"
                 and isinstance(event.data, dict)
                 and event.data.get("errors")
+                for error in event.data["errors"]
             ] or [result.reason or "the agent saved nothing"]
         outcome.problems = feedback
     return outcome
@@ -386,6 +387,7 @@ def run_blueprint(
         target = store.blueprint_path(draft_id)
         brief_subject = record["idea"]
         regenerating = record["state"] == "ready"
+        previous_phase = record.get("phase")
         if not regenerating:
             store.update(draft_id, state="designing", attempts=0, problems=[])
         store.update(draft_id, phase="design", design_problems=[])
@@ -398,7 +400,7 @@ def run_blueprint(
         folder = book_folder.build_dir / "blueprint"
         target = book_folder.blueprint_path
         metadata = json.loads(book_folder.book_json.read_text(encoding="utf-8")).get("metadata", {})
-        brief_subject = {k: metadata.get(k) for k in ("title", "subtitle", "blurb")}
+        brief_subject = {k: metadata.get(k) for k in ("title", "subtitle", "blurb", "age_range")}
         regenerating = True
     try:
         ctx = load_context(root)
@@ -415,6 +417,8 @@ def run_blueprint(
         )
     except (AgentUnavailable, BlueprintError) as exc:
         outcome = Outcome(payload=None, problems=[str(exc)])
+    if draft_id is not None and regenerating and previous_phase:
+        store.update(draft_id, phase=previous_phase)  # a redesign leaves the draft as it was
     if outcome.payload is None:
         _design_failed(store, draft_id, regenerating, outcome)
         return 1

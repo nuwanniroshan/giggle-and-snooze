@@ -1,7 +1,7 @@
 # Spec 011: Per-book blueprint
 
 **Status:** Approved
-**Version:** 1.1.0
+**Version:** 1.1.1
 **Created:** 2026-11-11
 **Last Updated:** 2026-11-11
 **Branch:** `feat/011-book-blueprint`
@@ -17,6 +17,7 @@
 |---------|------|--------|
 | 1.0.0 | 2026-11-11 | Initial approved spec |
 | 1.1.0 | 2026-11-11 | Added AC-5.5 to AC-5.7 and the matching FR-7 line: a generated script gets `ambience` lists from the blueprint (found while planning: the script writer's output has no `ambience`, so the sound palette would otherwise have no audible effect) |
+| 1.1.1 | 2026-11-11 | Review round 1 (no AC text changed): recorded decisions on `blueprint_used.json`, the inclusive colour check and internal draft/job fields |
 
 ## Problem Statement
 
@@ -280,6 +281,9 @@ A book without `blueprint.json` is handled exactly as before this spec in every 
 - **Regenerate is offered only where a blueprint exists;** this spec does not create blueprints for existing books.
 - **Rejections in the design job only:** hand-edited blueprints are validated (FR-3) but not compared for distinctness (FR-4), so the producer can make deliberate choices.
 - **Stale outputs are marked, never rebuilt,** and editing a blueprint does not withdraw voice approval.
+- **`blueprint_used.json` is kept in the book folder and committed;** it records which blueprint the pictures and the script were made from, so stale outputs can be marked.
+- **The colour check is inclusive:** two colours count as close when their CIE76 distance is less than or equal to the configured value (AC-2.3 says "within").
+- **Internal details:** the draft fields `phase` and `design_problems`, the job stages `blueprint` and `redesign`, and the `--then-book` flag of `write_story blueprint` are implementation details, not part of the spec's interface.
 
 ## Open Questions
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from pathlib import Path
 
 import pytest
 
@@ -69,6 +70,23 @@ def test_picture_request_has_blueprint_art_and_no_blueprint_is_unchanged(book8):
     assert "cover_front" in [s for s, _ in styled]
 
 
+def test_picture_request_has_colour_names_lighting_avoid_and_no_default_style(book20):  # AC-3.1
+    from video_pipeline.illustrate import STYLE_LINE, build_image_command
+
+    bp = parsed_blueprint()
+    default_style = book20["style_bible"]["style_prompt_prefix"]
+    for stem, prompt in plan_images(book20, style=style_text(bp)):
+        request = build_image_command(Path("/fake/codex"), prompt, None)[-1]
+        for swatch in bp.art.palette:
+            assert swatch.name in request and swatch.hex in request, stem
+        assert bp.art.lighting in request and bp.art.style_prompt_prefix in request
+        assert "photographic realism" in request  # the avoid list
+        assert default_style not in request, stem
+        assert request.count(STYLE_LINE) == 1  # the unchanged line, nothing else of the old style
+        styled_part = prompt.split("\n\n")[0]
+        assert "watercolor" not in styled_part and "gouache" not in styled_part
+
+
 def test_rebuild_style_bible_changes_only_that_field(tmp_path):  # AC-3.4
     folder = make_root(tmp_path)
     before = json.loads(folder.book_json.read_text(encoding="utf-8"))
@@ -107,11 +125,14 @@ def test_blueprint_brief_uses_its_format_and_drops_the_fixed_rule(book8):  # AC-
     plan = plan_episode(book8, 7)
     brief = build_brief(book8, CAST, plan, parsed_blueprint())
     assert "Bedtime wonderings" in brief
+    assert "what if" in brief and "who is sleepy" in brief  # question types
     assert "Whispers guesses." in brief and "Counts stars." in brief
     assert "The kids yawn and settle in." in brief and "The kids say goodnight." in brief
     assert "Whispers the big moments." in brief and "hushed" in brief
     assert "kid_older asks curious questions about the plot" not in brief
     assert "crickets_night" in brief and "owl_hoot" in brief
+    assert "only names allowed in `ambience` lists" in brief  # AC-5.1
+    assert "assigned to the script automatically" in brief
     assert "Kid lines are at most 25 words." in brief  # RULES stay
 
 
@@ -168,7 +189,10 @@ def test_hand_edited_ambience_inside_the_palette_keeps_the_voice_hash(book20, tm
 
 def test_ambience_is_checked_against_the_library_only_without_a_blueprint(book20):  # AC-5.3
     script = _script(book20, None)
-    assert validate_script(script, book20, TERMS) == validate_script(script, book20, TERMS, None)
+    script["pages"][0]["ambience"] = ["rain_soft"]  # in no blueprint
+    assert validate_script(script, book20, TERMS, None) == []
+    errors = validate_script(script, book20, TERMS, {"crickets_night", "owl_hoot"})
+    assert any("rain_soft" in e and "page 1" in e for e in errors)
 
 
 def _root_with_blueprint(tmp_path, data=None):
@@ -236,3 +260,51 @@ def test_studio_hand_edit_outside_the_palette_is_refused(tmp_path):  # AC-5.2
     edits = {"intro-01": script["intro"]["lines"][0]["text"] + " Ok."}
     problems = sb.save_line_edits(paths, book, edits)
     assert any("rain_soft" in p for p in problems)
+
+
+def _reviewed_script(tmp_path):
+    from video_pipeline.studio import books as sb
+
+    folder = _root_with_blueprint(tmp_path)
+    tools = EpisodeTools.load(folder, 7, tmp_path / "config")
+    script, _ = tools.check(make_banter(tools.book, tools.plan).model_dump())
+    write_atomic(folder.script_path, script)
+    paths = sb.StudioPaths(tmp_path)
+    book = sb.get_book(paths, folder.slug)
+    sb.mark_reviewed(paths, book)
+    return sb, paths, book, folder, script
+
+
+def test_hand_edit_inside_the_palette_keeps_edit_and_review_mark(tmp_path):  # AC-5.6
+    sb, paths, book, folder, script = _reviewed_script(tmp_path)
+    assert sb.reviewed_mark(paths, book) is not None
+    script["pages"][0]["ambience"] = ["owl_hoot"]  # a hand edit inside the palette
+    write_atomic(folder.script_path, script)
+    assert sb.reviewed_mark(paths, book) is not None and sb.reviewed_path(paths, book).exists()
+    same = {"intro-01": script["intro"]["lines"][0]["text"]}  # no line changes: a no-op check
+    assert sb.save_line_edits(paths, book, same) == []
+    assert json.loads(folder.script_path.read_text(encoding="utf-8"))["pages"][0]["ambience"] == [
+        "owl_hoot"
+    ]
+    assert sb.reviewed_mark(paths, book) is not None
+
+
+def test_studio_refuses_an_invalid_blueprint_naming_file_and_field(tmp_path):  # AC-6.7
+    sb, paths, book, folder, script = _reviewed_script(tmp_path)
+    write_atomic(folder.blueprint_path, valid_blueprint(**{"art.medium_key": "Bad Key"}))
+    problems = sb.save_line_edits(
+        paths, book, {"intro-01": script["intro"]["lines"][0]["text"] + " Ok."}
+    )
+    assert problems and "blueprint.json" in problems[0] and "art.medium_key" in problems[0]
+
+
+def test_illustrate_refuses_an_invalid_blueprint_naming_file_and_field(
+    tmp_path, capsys, monkeypatch
+):  # AC-6.7
+    from video_pipeline import illustrate
+
+    folder = _root_with_blueprint(tmp_path, valid_blueprint(**{"art.medium_key": "Bad Key"}))
+    monkeypatch.setattr(illustrate, "codex_status", lambda: Path("/fake/codex"))
+    assert illustrate.main(["--book", folder.slug, "--root", str(tmp_path)]) == 1
+    err = capsys.readouterr().err
+    assert "blueprint.json" in err and "art.medium_key" in err

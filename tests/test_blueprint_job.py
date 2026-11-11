@@ -73,7 +73,9 @@ def test_blueprint_job_saves_a_valid_blueprint_and_starts_the_story(
     record = store.get(draft["id"])
     assert record["state"] == "ready" and record["book"]
     assert (store.draft_folder(draft["id"]) / "blueprint.json").is_file()
-    assert "Sleepy drift" in prompt_of(fake.commands[1])  # AC-3.3
+    story_prompt = prompt_of(fake.commands[1])  # AC-3.3
+    assert "Sleepy drift" in story_prompt and "Slow, hushed, dreamy." in story_prompt
+    assert valid_blueprint()["art"]["style_prompt_prefix"] in story_prompt
     assert "without naming a painting medium" in prompt_of(fake.commands[1])
 
 
@@ -106,8 +108,8 @@ def test_too_close_blueprint_is_refused_with_the_book_named_then_retried(
     use(monkeypatch, fake)
     draft = DraftStore(root).new_draft(idea(), 20, "A")
     assert ws.run_blueprint(root, draft_id=draft["id"]) == 0
-    assert "too close to 'moon-book'" not in prompt_of(fake.commands[0])
-    assert "too close to 'moon-book'" in prompt_of(fake.commands[1])  # reasons go back
+    assert "too close to 'The Lantern Bug Parade'" not in prompt_of(fake.commands[0])
+    assert "too close to 'The Lantern Bug Parade'" in prompt_of(fake.commands[1])  # reasons go back
 
 
 def test_three_failed_attempts_mark_design_failed_with_reasons(root, monkeypatch):  # AC-1.4
@@ -118,7 +120,7 @@ def test_three_failed_attempts_mark_design_failed_with_reasons(root, monkeypatch
     assert ws.run_blueprint(root, draft_id=draft["id"], then_book=True) == 1
     record = store.get(draft["id"])
     assert record["state"] == "design_failed"
-    assert "moon-book" in close_failure_reasons(record)
+    assert "The Lantern Bug Parade" in close_failure_reasons(record)
     assert not (store.draft_folder(draft["id"]) / "blueprint.json").exists()
 
 
@@ -131,7 +133,10 @@ def test_brief_lists_every_other_blueprint(root, monkeypatch):  # AC-2.10
     draft = DraftStore(root).new_draft(idea(), 20, "A")
     ws.run_blueprint(root, draft_id=draft["id"])
     prompt = prompt_of(fake.commands[0])
-    for label, bp in (("moon-book", valid_blueprint()), ("sun-book", other)):
+    for label, bp in (
+        ("The Lantern Bug Parade (moon-book)", valid_blueprint()),
+        ("The Lantern Bug Parade (sun-book)", other),
+    ):
         assert label in prompt
         for key in (bp["mood"]["key"], bp["art"]["medium_key"], bp["qa"]["format_key"]):
             assert key in prompt
@@ -186,7 +191,9 @@ def test_redesigning_a_ready_draft_keeps_it_ready_and_records_problems(root, mon
     use(monkeypatch, FakeCodex([valid_blueprint()] * 3))
     assert ws.run_blueprint(root, draft_id=draft["id"]) == 1
     record = store.get(draft["id"])
-    assert record["state"] == "ready" and "moon-book" in " ".join(record["design_problems"])
+    assert record["state"] == "ready" and "The Lantern Bug Parade" in " ".join(
+        record["design_problems"]
+    )
 
 
 def test_store_new_draft_starts_designing_and_interrupt_marks_it(root):  # AC-1.1, AC-1.3
@@ -266,3 +273,90 @@ def test_cli_blueprint_command_accepts_draft_with_then_book_or_book():
     assert ws.parse_args(["blueprint", "--book", "moon-book"]).book == "moon-book"
     with pytest.raises(SystemExit):
         ws.parse_args(["blueprint", "--draft", "a", "--book", "b"])
+
+
+# --- review round 1 ------------------------------------------------------------------------
+
+
+def test_every_failed_check_reaches_the_retry_prompt_and_the_draft(root, monkeypatch):  # FR-4
+    write_book_with_blueprint(root, "moon-book", valid_blueprint())
+    fake = FakeCodex([valid_blueprint()] * 3)  # same medium+mood, same format, same palette
+    use(monkeypatch, fake)
+    store = DraftStore(root)
+    draft = store.new_draft(idea(), 20, "A")
+    assert ws.run_blueprint(root, draft_id=draft["id"]) == 1
+    for text in (prompt_of(fake.commands[1]), close_failure_reasons(store.get(draft["id"]))):
+        assert "art.medium_key" in text and "qa.format_key" in text and "palette colours" in text
+
+
+def test_two_drafts_with_the_same_idea_title_both_appear_in_the_brief(root, monkeypatch):
+    store = DraftStore(root)
+    for _ in range(2):
+        other = store.new_draft(idea("Twin Story Title"), 20, "A")
+        write_atomic(store.draft_folder(other["id"]) / "blueprint.json", valid_blueprint())
+    fake = FakeCodex([distinct_blueprint()])
+    use(monkeypatch, fake)
+    mine = store.new_draft(idea("Mine Story Title"), 20, "A")
+    ws.run_blueprint(root, draft_id=mine["id"])
+    assert prompt_of(fake.commands[0]).count("- Twin Story Title (draft ") == 2
+
+
+def test_design_rejections_name_blueprint_json_and_the_field(root, monkeypatch):  # FR-3
+    bad = valid_blueprint(**{"art.palette": [{"name": "a", "hex": "red"}] * 5})
+    use(monkeypatch, FakeCodex([bad] * 3))
+    store = DraftStore(root)
+    draft = store.new_draft(idea(), 20, "A")
+    assert ws.run_blueprint(root, draft_id=draft["id"]) == 1
+    assert "blueprint.json: art.palette.0.hex" in close_failure_reasons(store.get(draft["id"]))
+
+
+@pytest.mark.parametrize("succeeds", [True, False])
+def test_regenerating_a_ready_draft_restores_its_phase(root, monkeypatch, succeeds):
+    write_book_with_blueprint(root, "moon-book", valid_blueprint())
+    store = DraftStore(root)
+    draft = store.new_draft(idea(), 20, "A")
+    store.update(draft["id"], state="ready", phase="story", book=book(8))
+    use(monkeypatch, FakeCodex([distinct_blueprint()] if succeeds else [valid_blueprint()] * 3))
+    assert ws.run_blueprint(root, draft_id=draft["id"]) == (0 if succeeds else 1)
+    record = store.get(draft["id"])
+    assert record["state"] == "ready" and record["phase"] == "story"
+
+
+def test_book_regeneration_brief_has_title_subtitle_blurb_and_age_range(root, monkeypatch):  # FR-2
+    folder = write_book_with_blueprint(root, "moon-book", valid_blueprint())
+    meta = json.loads(folder.book_json.read_text(encoding="utf-8"))["metadata"]
+    meta_blurb = meta.get("blurb")
+    fake = FakeCodex([valid_blueprint()])
+    use(monkeypatch, fake)
+    assert ws.run_blueprint(root, slug="moon-book") == 0
+    prompt = prompt_of(fake.commands[0])
+    assert meta["title"] in prompt and meta["age_range"] in prompt
+    assert '"age_range"' in prompt
+    if meta_blurb:
+        assert meta_blurb in prompt
+
+
+def test_attempts_and_time_limit_come_from_story_json(root, monkeypatch):  # AC-2.5
+    (root / "config" / "story.json").write_text(
+        json.dumps(
+            {
+                **json.loads((root / "config" / "story.json").read_text()),
+                "attempts": 2,
+                "time_limit_s": 7,
+            }
+        ),
+        encoding="utf-8",
+    )
+    timeouts: list[float] = []
+
+    class Recording(FakeCodex):
+        def __call__(self, command, log_path, timeout_s=300, **kwargs):
+            timeouts.append(timeout_s)
+            return super().__call__(command, log_path, timeout_s, **kwargs)
+
+    use(monkeypatch, Recording([valid_blueprint(**{"art.medium_key": "Bad Key"})] * 5))
+    store = DraftStore(root)
+    draft = store.new_draft(idea(), 20, "A")
+    assert ws.run_blueprint(root, draft_id=draft["id"]) == 1
+    assert timeouts == [7.0, 7.0]
+    assert store.get(draft["id"])["attempts"] == 2

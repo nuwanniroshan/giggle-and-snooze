@@ -426,3 +426,55 @@ def test_rebuild_style_bible_refused_without_a_blueprint_or_when_busy(make_studi
     s.runner.start(PILOT_SLUG, "script", [sys.executable, "-c", "import time; time.sleep(30)"])
     assert s.client.post(f"/books/{PILOT_SLUG}/blueprint/style-bible").status_code == 409
     assert folder.book_json.read_bytes() == original
+
+
+# --- review round 1 ------------------------------------------------------------------------------
+
+
+def test_write_without_a_blueprint_deletes_a_leftover_draft_blueprint(make_studio):  # AC-1.5
+    s, commands = make_studio(DesignCommands(slow=True))
+    draft = new_draft(s, "design_failed", problems=["no luck"])
+    leftover = DraftStore(s.paths.root).blueprint_path(draft["id"])
+    write_atomic(leftover, valid_blueprint())
+    assert s.client.post(f"/drafts/{draft['id']}/write-without-blueprint").status_code == 303
+    assert commands.calls == [("book", draft["id"])] and not leftover.exists()
+
+
+def test_stopping_the_design_job_marks_the_draft_interrupted(make_studio):
+    s, _ = make_studio(DesignCommands(slow=True))
+    start_write(s)
+    draft = only_draft(s)
+    assert draft["state"] == "designing"
+    assert s.client.post("/jobs/stop").status_code == 303
+    after = DraftStore(s.paths.root).get(draft["id"])
+    assert after["state"] == "interrupted" and after["phase"] == "design"
+
+
+def test_stopping_the_story_job_marks_the_draft_interrupted(make_studio):
+    s, _ = make_studio(DesignCommands(slow=True))
+    draft = new_draft(s, "design_failed", problems=["no luck"])
+    s.client.post(f"/drafts/{draft['id']}/write-without-blueprint")
+    assert DraftStore(s.paths.root).get(draft["id"])["state"] == "writing"
+    s.client.post("/jobs/stop")
+    after = DraftStore(s.paths.root).get(draft["id"])
+    assert after["state"] == "interrupted" and after["phase"] == "story"
+
+
+def test_a_running_blueprint_job_refuses_every_other_start(make_studio):  # AC-6.8
+    s, commands = make_studio(DesignCommands(slow=True))
+    start_write(s)
+    running = only_draft(s)
+    assert s.runner.current()["stage"] == "blueprint"
+    give_blueprint(s)
+    other = new_draft(s, "ready", book=book_payload(8))
+    write_atomic(DraftStore(s.paths.root).blueprint_path(other["id"]), valid_blueprint())
+    attempts = [
+        f"/books/{PILOT_SLUG}/run/script",
+        f"/books/{PILOT_SLUG}/blueprint/regenerate",
+        f"/drafts/{other['id']}/blueprint/regenerate",
+        f"/books/{PILOT_SLUG}/blueprint/style-bible",
+    ]
+    for url in attempts:
+        assert s.client.post(url, data={"confirm": "yes"}).status_code == 409, url
+    assert commands.calls == [("blueprint", running["id"])]
+    assert s.runner.current()["stage"] == "blueprint"

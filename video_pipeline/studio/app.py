@@ -405,6 +405,11 @@ class Studio:
             is_draft = job["stage"] in ("book", "blueprint") or (
                 job["stage"] == "redesign" and self.drafts.get(job["book"])
             )
+            if job["stage"] in ("book", "blueprint"):
+                with self.write_lock:  # a stopped run must not stay "designing" or "writing"
+                    draft = self.drafts.get(job["book"])
+                    if draft and draft["state"] in ("designing", "writing"):
+                        self.drafts.update(draft["id"], state="interrupted")
             target = f"/drafts/{job['book']}" if is_draft else f"/books/{job['book']}"
         return RedirectResponse(target, status_code=303)
 
@@ -652,6 +657,7 @@ class Studio:
             elif reason := self.busy_reason():
                 lines = [f"Refused: {reason}."]
             else:
+                self.drafts.blueprint_path(draft["id"]).unlink(missing_ok=True)  # AC-1.5
                 self.drafts.update(
                     draft["id"], state="writing", phase="story", attempts=0, problems=[], book=None
                 )

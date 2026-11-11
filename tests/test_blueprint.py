@@ -44,11 +44,28 @@ def test_unknown_field_is_an_error():
     assert any("extra" in e for e in bp.blueprint_errors(data, context(), "f"))
 
 
-def test_disallowed_and_gentle_terms_are_refused():
+def test_disallowed_and_gentle_terms_are_refused_naming_file_field_and_term():  # FR-3
     errors = bp.blueprint_errors(
-        valid_blueprint(**{"rationale": "a gun and a monster"}), context(), "f"
+        valid_blueprint(**{"rationale": "a gun and a monster"}), context(), "books/x/blueprint.json"
     )
-    assert any("'gun'" in e for e in errors) and any("'monster'" in e for e in errors)
+    assert "books/x/blueprint.json: rationale: 'gun' is not allowed in a children's story" in errors
+    assert (
+        "books/x/blueprint.json: rationale: 'monster' is too frightening for this story" in errors
+    )
+
+
+@pytest.mark.parametrize(
+    "changes, field",
+    [
+        ({"art.style_prompt_prefix": "a gun in chalk"}, "art.style_prompt_prefix"),
+        ({"art.avoid": ["a gun"]}, "art.avoid.0"),
+        ({"mood.roles.kid_older.quirk": "a gun fan"}, "mood.roles.kid_older.quirk"),
+        ({"qa.question_types": ["what if", "a gun"]}, "qa.question_types.1"),
+    ],
+)
+def test_term_messages_name_the_nested_field_path(changes, field):  # FR-3
+    errors = bp.blueprint_errors(valid_blueprint(**changes), context(), "f")
+    assert errors == [f"f: {field}: 'gun' is not allowed in a children's story"]
 
 
 def test_unknown_sound_wrong_kind_and_unknown_effect_are_named():  # AC-5.4
@@ -104,7 +121,40 @@ def test_three_close_palette_colours_are_rejected_naming_them():  # AC-2.3
         {"B": other},
         CFG,
     )
-    assert any("palette" in p and "midnight" in p for p in problems)
+    (palette,) = [p for p in problems if "palette" in p]
+    for name in ("midnight", "moon", "lantern", "moss", "rose"):  # all five are close here
+        assert name in palette
+
+
+def test_colour_check_is_inclusive_at_the_distance():  # AC-2.3: "within" the distance
+    other = parsed(
+        **{
+            "art.medium_key": "ink",
+            "mood.key": "x1",
+            "qa.format_key": "f1",
+            "art.palette": [{"name": f"o{i}", "hex": "#336699"} for i in range(5)],
+        }
+    )
+    cand = parsed(
+        **{
+            "art.medium_key": "oil",
+            "mood.key": "x2",
+            "qa.format_key": "f2",
+            "art.palette": [
+                {"name": "c1", "hex": "#406080"},
+                {"name": "c2", "hex": "#406080"},
+                {"name": "c3", "hex": "#406080"},
+                {"name": "far1", "hex": "#ff0000"},
+                {"name": "far2", "hex": "#00ff00"},
+            ],
+        }
+    )
+    delta = bp.delta_e76("#406080", "#336699")
+    cfg = bp.BlueprintConfig(delta, {}, {}, {})
+    (problem,) = bp.similarity_problems(cand, {"B": other}, cfg)
+    assert "c1, c2, c3" in problem and "far" not in problem
+    below = bp.BlueprintConfig(delta - 1e-9, {}, {}, {})
+    assert bp.similarity_problems(cand, {"B": other}, below) == []
 
 
 def test_two_close_colours_pass():
@@ -135,6 +185,33 @@ def test_unknown_but_valid_key_is_compared_as_itself():  # AC-2.7
 def test_delta_e76_known_values():
     assert bp.delta_e76("#336699", "#336699") == pytest.approx(0.0)
     assert bp.delta_e76("#000000", "#ffffff") == pytest.approx(100.0, abs=0.5)
+
+
+@pytest.mark.parametrize(
+    "changes, field",
+    [
+        ({"qa.moments_min": "7"}, "qa.moments_min"),
+        ({"qa.moments_max": 8.0}, "qa.moments_max"),
+        ({"animation.intensity": "0.5"}, "animation.intensity"),
+        ({"version": "1"}, "version"),
+    ],
+)
+def test_the_model_is_strict_about_types(changes, field):  # FR-1
+    errors = bp.blueprint_errors(valid_blueprint(**changes), context(), "f")
+    assert errors and any(field in e for e in errors)
+
+
+def test_an_int_is_fine_for_the_float_field():  # FR-1
+    assert bp.blueprint_errors(valid_blueprint(**{"animation.intensity": 1}), context(), "f") == []
+
+
+def test_similarity_against_100_blueprints_is_fast():  # NFR
+    import time
+
+    others = {f"book {i}": parsed(**{"qa.format_key": f"f{i}"}) for i in range(100)}
+    start = time.perf_counter()
+    bp.similarity_problems(parsed(), others, CFG)
+    assert time.perf_counter() - start < 1.0
 
 
 # --- ambience placement (AC-5.5) and range clamp (AC-4.2) ------------------------------------
@@ -208,3 +285,38 @@ def test_others_for_skips_unreadable_files(tmp_path):
     _write_book(tmp_path, "a")
     _write_book(tmp_path, "broken", text="{")
     assert set(bp.others_for(tmp_path, context())) == {"a"}
+
+
+def _write_titled_book(root, slug, title):
+    import json
+
+    folder = root / "books" / slug
+    folder.mkdir(parents=True)
+    (folder / "book.json").write_text(json.dumps({"metadata": {"title": title}}), encoding="utf-8")
+    (folder / "blueprint.json").write_text(json.dumps(valid_blueprint()), encoding="utf-8")
+
+
+def test_others_for_labels_books_by_their_title(tmp_path):  # AC-2.1, AC-2.10
+    _write_titled_book(tmp_path, "slug-one", "The Moon Book")
+    assert set(bp.others_for(tmp_path, context())) == {"The Moon Book"}
+
+
+def test_equal_titles_are_both_kept_with_a_slug_suffix(tmp_path):
+    _write_titled_book(tmp_path, "one", "Same Title")
+    _write_titled_book(tmp_path, "two", "Same Title")
+    assert set(bp.others_for(tmp_path, context())) == {"Same Title (one)", "Same Title (two)"}
+
+
+def test_a_title_equal_to_a_slug_does_not_overwrite_it(tmp_path):
+    _write_book(tmp_path, "a")  # no title: labelled by its slug
+    _write_titled_book(tmp_path, "other", "a")
+    assert len(bp.others_for(tmp_path, context())) == 2
+
+
+def test_two_drafts_with_the_same_idea_title_are_both_returned(tmp_path):
+    _write_draft(tmp_path, "abcdef1111", "Twin Idea")
+    _write_draft(tmp_path, "uvwxyz2222", "Twin Idea")
+    assert set(bp.others_for(tmp_path, context())) == {
+        "Twin Idea (draft abcdef)",
+        "Twin Idea (draft uvwxyz)",
+    }
