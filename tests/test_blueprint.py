@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.blueprint_helpers import context, valid_blueprint
@@ -174,6 +176,13 @@ def test_synonym_keys_compare_as_their_canonical_key():  # AC-2.6
     a = parsed(**{"art.medium_key": "gouache", "qa.format_key": "f1"})
     b = parsed(**{"art.medium_key": "watercolor", "qa.format_key": "f2"})
     assert any("art.medium_key" in p for p in bp.similarity_problems(a, {"B": b}, CFG))
+
+
+def test_real_config_treats_gouache_and_watercolor_as_one_medium():  # AC-2.6
+    cfg = bp.load_config(Path(__file__).resolve().parent.parent / "config")
+    a = parsed(**{"art.medium_key": "gouache", "qa.format_key": "f1"})
+    b = parsed(**{"art.medium_key": "watercolor", "qa.format_key": "f2"})
+    assert any("art.medium_key" in p for p in bp.similarity_problems(a, {"B": b}, cfg))
 
 
 def test_unknown_but_valid_key_is_compared_as_itself():  # AC-2.7

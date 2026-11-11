@@ -129,6 +129,9 @@ def test_blueprint_brief_uses_its_format_and_drops_the_fixed_rule(book8):  # AC-
     assert "Whispers guesses." in brief and "Counts stars." in brief
     assert "The kids yawn and settle in." in brief and "The kids say goodnight." in brief
     assert "Whispers the big moments." in brief and "hushed" in brief
+    assert "storyteller: pace slow, energy hushed" in brief  # AC-4.1 per-role values
+    assert "kid_older: pace steady, energy calm" in brief
+    assert "kid_younger: pace slow, energy calm" in brief
     assert "kid_older asks curious questions about the plot" not in brief
     assert "crickets_night" in brief and "owl_hoot" in brief
     assert "only names allowed in `ambience` lists" in brief  # AC-5.1
@@ -140,6 +143,13 @@ def test_moment_count_stays_in_blueprint_range_inside_spec_001_bounds(book20):  
     bp = parsed_blueprint(**{"qa.moments_min": 7, "qa.moments_max": 7})
     for seed in range(20):
         assert len(plan_episode(book20, seed, bp).qa_speakers) == 7
+
+
+def test_moment_count_is_stable_per_seed_within_range_7_8(book20):  # AC-4.2
+    bp = parsed_blueprint(**{"qa.moments_min": 7, "qa.moments_max": 8})
+    for seed in range(20):
+        counts = {len(plan_episode(book20, seed, bp).qa_speakers) for _ in range(3)}
+        assert len(counts) == 1 and counts <= {7, 8}
 
 
 def test_out_of_bounds_range_is_clamped_and_noted(book20):  # AC-4.2
