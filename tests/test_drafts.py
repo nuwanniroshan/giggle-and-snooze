@@ -29,7 +29,7 @@ def ready_draft(store: dr.DraftStore, title: str = "The Brave Little Teapot") ->
 def test_new_draft_is_written_and_listed(root):  # FR-4
     store = dr.DraftStore(root)
     record = store.new_draft(idea(), pages=12, author="Test Author")
-    assert record["state"] == "writing" and record["pages"] == 12
+    assert record["state"] == "designing" and record["pages"] == 12
     assert (root / "drafts" / record["id"] / "draft.json").is_file()
     assert [r["id"] for r in store.list()] == [record["id"]]
 

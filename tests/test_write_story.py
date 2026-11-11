@@ -47,6 +47,7 @@ class FakeCodex:
             "ideas": tools.submit_ideas,
             "candidate": tools.submit_candidate,
             "book": tools.submit_book,
+            "blueprint": tools.submit_blueprint,
         }[args.mode]
         events = []
         if self.payloads:
