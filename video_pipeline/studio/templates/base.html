@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>{% block title %}Studio{% endblock %} · Episode studio</title>
+<title>{% block title %}Studio{% endblock %} · Giggle &amp; Snooze</title>
+<link rel="icon" type="image/png" href="{{ static_url('logo.png') }}">
 <link rel="stylesheet" href="{{ static_url('tokens.css') }}">
 <link rel="stylesheet" href="{{ static_url('base.css') }}">
 <link rel="stylesheet" href="{{ static_url('studio.css') }}">
@@ -14,8 +15,7 @@
 <header class="topbar">
   <div class="container bar">
     <a class="brand" href="/">
-      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 5.5C4 4.67 4.67 4 5.5 4H10a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 1 4 16V5.5Zm16 0c0-.83-.67-1.5-1.5-1.5H14a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5h5A1.5 1.5 0 0 0 20 16V5.5Z"/></svg></span>
-      <span class="brand-name">Episode studio</span>
+      <img class="brand-logo" src="{{ static_url('logo.png') }}" alt="Giggle &amp; Snooze" width="288" height="168">
     </a>
     <nav class="topnav" aria-label="Studio">
       <a href="/"{% if nav == 'books' %} aria-current="page"{% endif %}>Books</a>

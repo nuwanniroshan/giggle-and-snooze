@@ -13,8 +13,9 @@
 .topbar .bar { height: 100%; display: flex; align-items: center; gap: var(--s-6); max-width: none; }
 .brand { display: inline-flex; align-items: center; gap: var(--s-3); color: var(--text); font-family: var(--font-display); font-weight: 800; font-size: var(--text-lg); letter-spacing: -0.01em; }
 .brand:hover { color: var(--text); text-decoration: none; }
-.brand-mark { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: linear-gradient(140deg, var(--accent-hi), var(--brand-deep)); color: var(--accent-ink); box-shadow: 0 6px 18px -6px var(--brand-glow); }
-.brand-mark svg { width: 17px; height: 17px; }
+.brand-logo { display: block; height: 48px; width: auto; transition: transform var(--fast) var(--ease); }
+.brand:hover .brand-logo { transform: rotate(-2deg) scale(1.04); }
+@media (prefers-reduced-motion: reduce) { .brand:hover .brand-logo { transform: none; } }
 .topnav { display: flex; gap: var(--s-1); margin-left: auto; }
 .topnav a { padding: 7px 14px; border-radius: var(--r-pill); color: var(--text-2); font-weight: 500; font-size: var(--text-sm); transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease); }
 .topnav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
@@ -349,7 +350,7 @@ details.track td.text { color: var(--text-2); min-width: 240px; }
 @media (max-width: 40rem) {
   h1 { font-size: var(--text-2xl); }
   .topbar .bar { gap: var(--s-3); }
-  .brand-name { display: none; }
+  .brand-logo { height: 42px; }
   .topnav a { padding: 6px 10px; }
   .panel { padding: var(--s-4); }
   .hero { padding: var(--s-5); min-height: 180px; }
