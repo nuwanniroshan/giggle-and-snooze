@@ -1,10 +1,21 @@
 {% extends "base.html" %}
 {% from "_macros.html" import problem_list %}
 {% block title %}{{ draft.idea.title }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ static_url('add_book.css') }}">{% endblock %}
 {% block content %}
-<h1>{{ draft.idea.title }}</h1>
-<p class="small">{{ draft.idea.age_range }} &middot; Maximum {{ draft.pages }} pages &middot; state: {{ draft.state }} &middot; attempts: {{ draft.attempts }}</p>
-<p>{{ draft.idea.premise }}</p>
+<header class="page-head">
+  <div>
+    <span class="eyebrow"><a href="/books/new">Add book</a> · Draft</span>
+    <h1>{{ draft.idea.title }}</h1>
+    <p class="lede">{{ draft.idea.premise }}</p>
+    <p class="small muted" style="margin-top: var(--s-2)">{{ draft.idea.age_range }} &middot; Maximum {{ draft.pages }} pages &middot; state: {{ draft.state }} &middot; attempts: {{ draft.attempts }}</p>
+  </div>
+  {% if draft.state == "ready" %}
+  <div class="head-actions">
+    <form method="post" action="/drafts/{{ draft.id }}/create"><button class="big" type="submit">Create book</button></form>
+  </div>
+  {% endif %}
+</header>
 {% if problems %}
 <section class="notice">
   <h2>Nothing was saved</h2>
@@ -13,7 +24,7 @@
 {% endif %}
 
 {% if draft.state == "designing" %}
-  <p>Designing the look, sound and questions for this book&hellip; the story is written when the blueprint is saved.</p>
+  <p class="running" style="margin:0 0 var(--s-6)"><span class="pulse" aria-hidden="true"></span> Designing the look, sound and questions for this book&hellip; the story is written when the blueprint is saved.</p>
 {% elif draft.state == "design_failed" %}
   <section class="notice">
     <h2>The blueprint could not be designed</h2>
@@ -24,7 +35,7 @@
     </div>
   </section>
 {% elif draft.state == "writing" %}
-  <p>Writing the book&hellip; the pages appear here when they are ready.</p>
+  <p class="running" style="margin:0 0 var(--s-6)"><span class="pulse" aria-hidden="true"></span> Writing the book&hellip; the pages appear here when they are ready.</p>
 {% elif draft.state in ("failed", "interrupted") %}
   <section class="notice">
     <h2>{{ "The book could not be written" if draft.state == "failed" else "Writing was interrupted" }}</h2>
@@ -41,26 +52,23 @@
 {% endif %}
 
 {% if draft.book %}
-<section class="stack">
-  <h2>Pages</h2>
+<section style="margin-bottom: var(--s-8)">
+  <div class="panel-head"><h2>Pages</h2></div>
+  <div class="draft-pages">
   {% for page in draft.book.pages %}
-  <article class="card">
-    <h3>Page {{ page.page_number }}: {{ page.title }}</h3>
+  <article class="panel">
+    <h3><span class="pg num">{{ '%02d'|format(page.page_number) }}</span>Page {{ page.page_number }}: {{ page.title }}</h3>
     <form method="post" action="/drafts/{{ draft.id }}/pages/{{ page.page_number }}" class="stack">
       <textarea name="text" rows="3">{{ page.text }}</textarea>
-      <div><button type="submit">Save page</button></div>
+      <div><button class="secondary" type="submit">Save page</button></div>
     </form>
   </article>
   {% endfor %}
+  </div>
 </section>
 {% endif %}
 
-<section class="stack">
-  {% if draft.state == "ready" %}
-  <form method="post" action="/drafts/{{ draft.id }}/create">
-    <button type="submit">Create book</button>
-  </form>
-  {% endif %}
+<section class="panel stack">
   {% if draft.state == "ready" and draft_has_blueprint(draft.id) %}
   <form method="post" action="/drafts/{{ draft.id }}/blueprint/regenerate" class="stack">
     <label class="check"><input type="checkbox" name="confirm" value="yes"> I understand this replaces the blueprint with a new design</label>
@@ -69,8 +77,8 @@
   {% endif %}
   <form method="post" action="/drafts/{{ draft.id }}/discard" class="stack">
     <label class="check"><input type="checkbox" name="confirm" value="yes"> I understand this deletes the draft and its generation log</label>
-    <div><button type="submit">Discard draft</button></div>
+    <div><button class="danger" type="submit">Discard draft</button></div>
   </form>
-  <p><a href="/books/new">Back to Add book</a></p>
+  <p><a href="/books/new">← Back to Add book</a></p>
 </section>
 {% endblock %}

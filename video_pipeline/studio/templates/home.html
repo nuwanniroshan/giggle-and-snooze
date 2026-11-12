@@ -1,33 +1,55 @@
 {% extends "base.html" %}
 {% from "_macros.html" import badge %}
+{% set nav = 'books' %}
 {% block title %}Books{% endblock %}
 {% block content %}
-<h1>Books</h1>
-{% if rows %}
-<table>
-  <thead><tr><th>Book</th><th>Script</th><th>Voices</th><th>Video</th><th>Next</th></tr></thead>
-  <tbody>
+<header class="page-head">
+  <div>
+    <span class="eyebrow">Library · {{ rows|length }} book{{ '' if rows|length == 1 else 's' }}</span>
+    <h1>Books</h1>
+    <p class="lede">Every book runs the same line: script, voices, animation, video.</p>
+  </div>
+</header>
+<ul class="shelf">
   {% for row in rows %}
   {% set s = row.status %}
   {% set next = s.next_action %}
   {% set slug = row.book.slug %}
-  <tr>
-    <td><a href="/books/{{ slug }}">{{ row.book.title }}</a>{% if row.book.is_pilot %} <span class="muted">pilot</span>{% endif %}
-      {% if row.book.error %}<p class="small">{{ row.book.error }}</p>{% endif %}</td>
-    {% for key in ('script', 'voices', 'video') %}
-    <td>{{ badge(s[key].state) }}</td>
-    {% endfor %}
-    <td>
-      {% if next == 'Review script' %}<a href="/books/{{ slug }}/script">{{ next }}</a>
-      {% elif next == 'Listen and approve' %}<a href="/books/{{ slug }}/audio">{{ next }}</a>
-      {% elif next == 'Watch video' %}<a href="/books/{{ slug }}/video">{{ next }}</a>
-      {% else %}<a href="/books/{{ slug }}">{{ next }}</a>{% endif %}
-    </td>
-  </tr>
+  {% set cover = cover_url(row.book) %}
+  <li class="book-card">
+    <a class="cover" href="/books/{{ slug }}" tabindex="-1" aria-hidden="true">
+      {% if cover %}<img src="{{ cover }}" alt="" loading="lazy" width="640" height="360">{% else %}<span class="cover-blank">{{ row.book.title }}</span>{% endif %}
+    </a>
+    {% if row.book.is_pilot %}<span class="tag">pilot</span>{% endif %}
+    <div class="body">
+      <h2><a href="/books/{{ slug }}">{{ row.book.title }}</a></h2>
+      {% if row.book.error %}<p class="error">{{ row.book.error }}</p>{% endif %}
+      <ol class="progress" aria-label="Pipeline state">
+        {% for step in flow_steps(row.book) if step.key != 'book' %}
+        {% set key = {'audio': 'voices'}.get(step.key, step.key) %}
+        <li class="lane-{{ step.key }} t-{{ step.tone }}">
+          <span class="bar" aria-hidden="true"></span>
+          <span>{{ step.label }}</span>
+          <span class="state-word">{% if step.key == 'animation' %}{{ step.note or state_word(step.state) }}{% else %}{{ state_word(s[key].state) }}{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ol>
+      <div class="foot">
+        <span class="muted">Next</span>
+        {% if next == 'Review script' %}<a class="button" href="/books/{{ slug }}/script">{{ next }}</a>
+        {% elif next == 'Listen and approve' %}<a class="button" href="/books/{{ slug }}/audio">{{ next }}</a>
+        {% elif next == 'Watch video' %}<a class="button secondary" href="/books/{{ slug }}/video">{{ next }}</a>
+        {% else %}<a class="button" href="/books/{{ slug }}">{{ next }}</a>{% endif %}
+      </div>
+    </div>
+  </li>
   {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>No books yet. <a href="/books/new">Add a book</a>.</p>
-{% endif %}
+  <li>
+    <a class="add-card" href="/books/new">
+      <span class="plus" aria-hidden="true">+</span>
+      <strong>Add a book</strong>
+      <span class="small">{% if rows %}Start from a story idea{% else %}No books yet. Start from a story idea{% endif %}</span>
+    </a>
+  </li>
+</ul>
 {% endblock %}

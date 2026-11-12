@@ -1,32 +1,48 @@
-{% extends "base.html" %}
-{% from "_macros.html" import badge, book_links %}
+{% extends "book_base.html" %}
+{% from "_macros.html" import badge %}
+{% set here = 'audio' %}
 {% block title %}Audio: {{ book.title }}{% endblock %}
 {% block content %}
-<h1>Audio</h1>
-<p class="muted">{{ book.title }}</p>
-{{ book_links(book) }}
+<header class="page-head">
+  <div>
+    <span class="eyebrow">Voices</span>
+    <h1>Listen and approve</h1>
+    <p class="lede">Play the full preview. Listen for robotic or garbled speech, wrong names and tags read aloud.</p>
+  </div>
+  {% if record and record.status != 'approved' %}
+  <div class="head-actions">
+    <form method="post" action="/books/{{ book.slug }}/audio/approve" class="inline"><button class="big" type="submit">Approve audio</button></form>
+  </div>
+  {% endif %}
+</header>
 {% if error %}
 <section class="notice"><h2>Not approved</h2><p>{{ error }}</p></section>
 {% endif %}
 {% if record %}
-<section class="stage">
-  <p>{{ badge(record.status) }}
-  {% if record.approved_at %}<span class="muted">approved at {{ record.approved_at }}</span>{% else %}<span class="muted">synthesized at {{ record.synthesized_at }}</span>{% endif %}</p>
-  {% if voices.state == 'out_of_date' %}<p>{{ badge('out_of_date') }} <span class="muted">{{ voices.detail }}</span></p>{% endif %}
-  {% if record.status != 'approved' %}
-  <form method="post" action="/books/{{ book.slug }}/audio/approve" class="inline"><button type="submit">Approve audio</button></form>
+<section class="player">
+  <div class="panel-head">
+    <h2>Full preview</h2>
+    <p>{{ badge(record.status) }}
+    {% if record.approved_at %}<span class="muted small" style="display:inline">approved at {{ record.approved_at }}</span>{% else %}<span class="muted small" style="display:inline">synthesized at {{ record.synthesized_at }}</span>{% endif %}</p>
+  </div>
+  {% if voices.state == 'out_of_date' %}<p class="notice info compact">{{ badge('out_of_date') }} <span>{{ voices.detail }}</span></p>{% endif %}
+  {% if has_preview %}
+  <audio controls preload="metadata" src="/media/{{ book.slug }}/preview/preview.wav"></audio>
+  {% else %}
+  <p class="muted">No preview file.</p>
   {% endif %}
 </section>
-{% if has_preview %}
-<section class="stage">
-  <h2>Full preview</h2>
-  <audio controls preload="metadata" src="/media/{{ book.slug }}/preview/preview.wav"></audio>
-</section>
-{% endif %}
+<div class="tracks">
 {% for track in tracks %}
-<section class="stage">
-  <h2>{{ track.name }}{% if track.duration is not none %} <span class="muted">{{ format_duration(track.duration) }}</span>{% endif %}</h2>
+<details class="track"{% if loop.first %} open{% endif %}>
+  <summary>
+    <h2>{{ track.name }}</h2>
+    {% if track.duration is not none %}<span class="muted num">{{ format_duration(track.duration) }}</span>{% endif %}
+    <span class="count">{{ track.lines|length }} line{{ '' if track.lines|length == 1 else 's' }}</span>
+  </summary>
+  <div class="track-body">
   {% if track.has_wav %}<audio controls preload="none" src="/media/{{ book.slug }}/track/{{ track.name }}.wav"></audio>{% endif %}
+  <div class="scroll">
   <table>
     <thead><tr><th>Line</th><th>Speaker</th><th>Duration (s)</th><th>Peak</th><th>Longest silence (s)</th><th>Words/s</th><th>Attempts</th><th>Text</th></tr></thead>
     <tbody>
@@ -34,18 +50,21 @@
     {% set q = line.quality or {} %}
     <tr>
       <td class="mono">{{ line.line_id }}</td><td>{{ line.speaker }}</td>
-      <td>{{ '%.2f'|format(q.duration) if q.duration is number else '' }}</td>
-      <td>{{ '%.2f'|format(q.peak) if q.peak is number else '' }}</td>
-      <td>{{ '%.2f'|format(q.longest_silence) if q.longest_silence is number else '' }}</td>
-      <td>{{ '%.2f'|format(q.wps) if q.wps is number else '' }}</td>
-      <td>{{ line.attempts }}</td><td>{{ line.text }}</td>
+      <td class="num">{{ '%.2f'|format(q.duration) if q.duration is number else '' }}</td>
+      <td class="num">{{ '%.2f'|format(q.peak) if q.peak is number else '' }}</td>
+      <td class="num">{{ '%.2f'|format(q.longest_silence) if q.longest_silence is number else '' }}</td>
+      <td class="num">{{ '%.2f'|format(q.wps) if q.wps is number else '' }}</td>
+      <td class="num">{{ line.attempts }}</td><td class="text">{{ line.text }}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
-</section>
+  </div>
+  </div>
+</details>
 {% endfor %}
+</div>
 {% else %}
-<p>No synthesized audio yet. <a href="/books/{{ book.slug }}">Synthesize voices</a> first.</p>
+<p class="empty">No synthesized audio yet. <a href="/books/{{ book.slug }}">Synthesize voices</a> first.</p>
 {% endif %}
 {% endblock %}

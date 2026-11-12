@@ -6,6 +6,7 @@ programs run by a real JobRunner; FFmpeg and the voice model never run."""
 
 import io
 import json
+import os
 import re
 import socket
 import sys
@@ -160,21 +161,20 @@ def test_home_states_for_an_approved_book(approved):
     assert "Render video" in page
 
 
-def test_pages_use_only_local_assets_and_the_black_and_white_palette(bare):
+def test_pages_use_only_local_assets_and_the_bloom_tokens(bare):
     html = bare.client.get("/").text
     assert not re.search(r"(src|href)=\"(https?:)?//", html)
-    css = (STATIC / "studio.css").read_text(encoding="utf-8")
-    colours = {c.lower() for c in re.findall(r"#[0-9a-fA-F]{3,6}\b", css)}
-    assert colours <= {"#000", "#fff", "#6b6b6b", "#e5e5e5"}
-    assert "gradient" not in css and "rgba" not in css and "hsl" not in css
-    # Spec 004 v1.1.0: subtle depth, black shadows only, at most 12% opacity, 2-4px radii.
-    alphas = re.findall(r"rgb\(\s*0\s+0\s+0\s*/\s*([0-9.]+)\s*\)", css)
-    assert len(alphas) == css.count("rgb(") and alphas
-    assert all(float(a) <= 0.12 for a in alphas)
-    assert "box-shadow" in css
-    radii = {int(r) for r in re.findall(r"radius[-a-z]*:\s*(\d+)px", css)}
-    assert radii and radii <= {0, 2, 3, 4}
-    assert len(css.splitlines()) < 200
+    first = (STATIC / "studio.css").read_text(encoding="utf-8").lstrip().splitlines()[0]
+    assert first.startswith("/* Episode studio (spec 014)")  # every colour lives in tokens.css
+    for name in ("studio.css", "add_book.css", "animation.css", "base.css"):
+        css = (STATIC / name).read_text(encoding="utf-8")
+        assert not re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|oklch\(", css), name
+        assert "transition: all" not in css
+        assert not re.search(r"font-family:(?!\s*var\()", css), name
+    tokens = (STATIC / "tokens.css").read_text(encoding="utf-8")
+    assert "--color-ink" in tokens and "--font-display" in tokens
+    assert "https://" not in tokens
+    assert bare.client.get("/static/tokens.css").status_code == 200
     assert bare.client.get("/static/studio.css").status_code == 200
     assert bare.client.get("/static/studio.js").status_code == 200
 
@@ -1083,7 +1083,7 @@ def test_animation_view_shows_an_animated_page(voiced):  # AC-4.3
     s, world, ah = voiced
     ah.cut(world["folder"], pages=[4])
     html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
-    row = re.search(r"Page 4</a>.*?</tr>", html, re.S).group(0)
+    row = re.search(r"Page 4</a>.*?</li>", html, re.S).group(0)
     assert "animated" in text_of(row) and "still" not in text_of(row)
 
 
@@ -1120,3 +1120,54 @@ def test_preview_media_is_whitelisted(voiced):
     ]
     for url in bad:
         assert s.client.get(url).status_code == 404, url
+
+
+# --- spec 014: thumbnails, covers and the book sidebar -----------------------------------------
+
+
+def big_cover(s) -> Path:
+    path = pilot_folder(s.paths.root).illustrations / "cover_front.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (1600, 900), (200, 120, 40)).save(path)
+    return path
+
+
+def test_thumb_serves_a_small_jpeg_of_a_listed_picture(bare):
+    big_cover(bare)
+    r = bare.client.get(f"/media/{PILOT_SLUG}/thumb/cover_front.png")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/jpeg"
+    with Image.open(io.BytesIO(r.content)) as im:
+        assert im.width <= 640 and im.format == "JPEG"
+
+
+def test_thumb_refuses_names_the_book_does_not_list(bare):
+    for name in ("not_listed.png", "book_data.json", "..%2F..%2Fbook_data.json"):
+        assert bare.client.get(f"/media/{PILOT_SLUG}/thumb/{name}").status_code == 404, name
+
+
+def test_thumb_follows_a_changed_picture(bare):
+    path = big_cover(bare)
+    first = bare.client.get(f"/media/{PILOT_SLUG}/thumb/cover_front.png").content
+    Image.new("RGB", (1200, 900), (10, 40, 200)).save(path)
+    os.utime(path, ns=(time.time_ns() + 10**9, time.time_ns() + 10**9))
+    assert bare.client.get(f"/media/{PILOT_SLUG}/thumb/cover_front.png").content != first
+
+
+def test_home_shows_each_cover_as_a_thumb(bare):
+    big_cover(bare)
+    assert f"/media/{PILOT_SLUG}/thumb/cover_front.png" in bare.client.get("/").text
+
+
+def test_book_screens_share_the_sidebar_with_the_current_place_marked(approved):
+    s, _world = approved
+    pages = {
+        f"/books/{PILOT_SLUG}": f"/books/{PILOT_SLUG}",
+        f"/books/{PILOT_SLUG}/script": f"/books/{PILOT_SLUG}/script",
+        f"/books/{PILOT_SLUG}/audio": f"/books/{PILOT_SLUG}/audio",
+        f"/books/{PILOT_SLUG}/video": f"/books/{PILOT_SLUG}/video",
+    }
+    for url, here in pages.items():
+        html = s.client.get(url).text
+        assert 'class="book-side"' in html, url
+        assert re.search(rf'href="{re.escape(here)}"[^>]*aria-current="page"', html), url

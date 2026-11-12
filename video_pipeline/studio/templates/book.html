@@ -1,96 +1,130 @@
-{% extends "base.html" %}
-{% from "_macros.html" import badge, book_links %}
+{% extends "book_base.html" %}
+{% from "_macros.html" import badge, tone_of, job_log %}
+{% set here = 'book' %}
 {% block title %}{{ book.title }}{% endblock %}
 {% block content %}
-<h1>{{ book.title }}</h1>
-{{ book_links(book) }}
-{% if book.error %}<p class="strong">{{ book.error }}</p>{% endif %}
-<p><span class="muted">Next</span> {{ status.next_action }}</p>
-
-{% for item in stages %}
-{% set key = 'video' if item.stage == 'render' else item.stage %}
-<section class="stage">
-  <h2>{{ stage_labels[item.stage]|capitalize }}</h2>
-  <p>{{ badge(status[key].state) }} <span class="muted">{{ status[key].detail }}</span></p>
-  <div class="controls">
-  {% if item.stage == 'script' and has_script %}
-    <form method="post" action="/books/{{ book.slug }}/run/script" class="inline">
-      <label class="check"><input type="checkbox" name="confirm" value="1" required{% if item.blocked %} disabled{% endif %}> Overwrite the hand-edited script</label>
-      <button class="secondary" type="submit"{% if item.blocked %} disabled{% endif %}>Regenerate script</button>
-    </form>
-    <a href="/books/{{ book.slug }}/script">Review script</a>
-  {% else %}
-    <form method="post" action="/books/{{ book.slug }}/run/{{ item.stage }}" class="inline">
-      <button type="submit"{% if item.blocked %} disabled{% endif %}>{{ item.button }}</button>
-    </form>
-    {% if item.stage != 'script' %}
-    <form method="post" action="/books/{{ book.slug }}/run/{{ item.stage }}" class="inline">
-      <input type="hidden" name="force" value="1">
-      <button class="secondary" type="submit"{% if item.blocked %} disabled{% endif %}>{{ 'Re-synthesize every line' if item.stage == 'voices' else 'Re-render everything' }} (force)</button>
-    </form>
-    {% endif %}
-  {% endif %}
-  {% if item.blocked %}<span class="reason">{{ item.blocked }}</span>{% endif %}
+{% set steps = flow_steps(book) %}
+{% set anim_step = steps|selectattr('key', 'equalto', 'animation')|first %}
+{% set focus = {'script': 'script', 'audio': 'voices', 'animation': 'animation', 'video': 'render'}.get((steps|selectattr('current')|map(attribute='key')|first) or '') %}
+{% set cover = cover_url(book) %}
+<header class="hero">
+  {% if cover %}<div class="hero-art" aria-hidden="true"><img src="{{ cover|replace('/thumb/', '/illustration/') }}" alt=""></div>{% endif %}
+  <div>
+    <span class="eyebrow">Overview</span>
+    <h1>{{ book.title }}</h1>
+    <p class="next-line"><span class="label">Next</span> <span>{{ status.next_action }}</span></p>
   </div>
-</section>
+  {% if focus %}<a class="button big" href="#stage-{{ focus }}">Go to next step</a>
+  {% elif status.next_action == 'Watch video' %}<a class="button big" href="/books/{{ book.slug }}/video">▶ Watch video</a>{% endif %}
+</header>
+{% if book.error %}<div class="notice"><p class="strong">{{ book.error }}</p></div>{% endif %}
+
+<div class="split">
+<div>
+<ol class="rail" aria-label="Pipeline">
+{% for item in stages %}
+{% if item.stage == 'render' %}
+  <li class="t-{{ anim_step.tone }}{% if focus == 'animation' %} is-next{% endif %}" id="stage-animation">
+    <span class="node" aria-hidden="true"></span>
+    <section class="panel{% if focus == 'animation' %} is-next{% endif %}">
+      <div class="stage-title">
+        <h2>Animation</h2>
+        {% if anim_step.note %}<span class="state t-attention">{{ anim_step.note }}</span>{% else %}{{ badge(anim_step.state) }}{% endif %}
+        <a class="open" href="/books/{{ book.slug }}/animation">Open the animation view →</a>
+      </div>
+      <p class="stage-detail">{{ animation }}</p>
+      {% set att = animation_attention %}
+      {% if att.unavailable %}<p class="strong">Plans cannot be checked: {{ att.unavailable }}</p>{% endif %}
+      {% if att.problems %}
+      <ul class="attention">
+        {% for r in att.problems %}<li>Page {{ r.page_number }} <span class="state strong">{{ r.plan_state }}</span> {{ r.detail }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+      {% if att.unplanned %}<p class="small muted">No plan: pages {{ att.unplanned|join(', ') }}</p>{% endif %}
+    </section>
+  </li>
+{% endif %}
+{% set key = 'video' if item.stage == 'render' else item.stage %}
+{% set open_href = {'script': '/script', 'voices': '/audio', 'render': '/video'}[item.stage] %}
+  <li class="t-{{ tone_of(status[key].state) }}{% if focus == item.stage %} is-next{% endif %}" id="stage-{{ item.stage }}">
+    <span class="node" aria-hidden="true"></span>
+    <section class="panel{% if focus == item.stage %} is-next{% endif %}">
+      <div class="stage-title">
+        <h2>{{ stage_labels[item.stage]|capitalize }}</h2>
+        {{ badge(status[key].state) }}
+        <a class="open" href="/books/{{ book.slug }}{{ open_href }}">{{ {'script': 'Review script', 'voices': 'Listen', 'render': 'Watch'}[item.stage] }} →</a>
+      </div>
+      {% if status[key].detail %}<p class="stage-detail">{{ status[key].detail }}</p>{% endif %}
+      <div class="controls">
+      {% if item.stage == 'script' and has_script %}
+        <details class="more">
+          <summary>Regenerate script</summary>
+          <form method="post" action="/books/{{ book.slug }}/run/script" class="inline">
+            <label class="check"><input type="checkbox" name="confirm" value="1" required{% if item.blocked %} disabled{% endif %}> Overwrite the hand-edited script</label>
+            <button class="secondary" type="submit"{% if item.blocked %} disabled{% endif %}>Regenerate script</button>
+          </form>
+        </details>
+      {% else %}
+        <form method="post" action="/books/{{ book.slug }}/run/{{ item.stage }}" class="inline">
+          <button{% if focus != item.stage %} class="secondary"{% endif %} type="submit"{% if item.blocked %} disabled{% endif %}>{{ item.button }}</button>
+        </form>
+        {% if item.stage != 'script' %}
+        <form method="post" action="/books/{{ book.slug }}/run/{{ item.stage }}" class="inline">
+          <input type="hidden" name="force" value="1">
+          <button class="secondary" type="submit"{% if item.blocked %} disabled{% endif %}>{{ 'Re-synthesize every line' if item.stage == 'voices' else 'Re-render everything' }} (force)</button>
+        </form>
+        {% endif %}
+      {% endif %}
+      {% if item.blocked %}<span class="reason">{{ item.blocked }}</span>{% endif %}
+      </div>
+    </section>
+  </li>
 {% endfor %}
+</ol>
+{{ job_log(job, 'Last run', 'No stage has run for this book in the studio yet.') }}
+</div>
 
-<section class="stage">
-  <h2>Animation</h2>
-  <p>{{ animation }} <a href="/books/{{ book.slug }}/animation">Open the animation view</a></p>
-  {% set att = animation_attention %}
-  {% if att.unavailable %}<p class="strong">Plans cannot be checked: {{ att.unavailable }}</p>{% endif %}
-  {% if att.problems %}
-  <ul class="small">
-    {% for r in att.problems %}<li>Page {{ r.page_number }} <span class="state strong">{{ r.plan_state }}</span> {{ r.detail }}</li>{% endfor %}
-  </ul>
-  {% endif %}
-  {% if att.unplanned %}<p class="small muted">No plan: pages {{ att.unplanned|join(', ') }}</p>{% endif %}
-</section>
-
+<div>
 {% if blueprint.present %}
-<section class="stage" id="blueprint">
-  <h2>Blueprint</h2>
+<section class="panel" id="blueprint">
+  <div class="panel-head"><h2>Blueprint</h2><span class="eyebrow" style="margin:0">Creative direction</span></div>
   {% if blueprint.error %}
   <p class="strong">The blueprint cannot be used: {{ blueprint.error }}</p>
   {% else %}
   {% set bp = blueprint.view %}
-  <p><span class="strong">{{ bp.mood.label }}</span> <span class="muted">{{ bp.mood.summary }}</span></p>
-  <p><span class="muted">Art medium</span> {{ bp.art.medium_label }}</p>
-  <p>{% for sw in bp.art.palette %}<span class="swatch" style="background:{{ sw.hex }}" title="{{ sw.hex }}"></span> <span class="small">{{ sw.name }}</span> {% endfor %}</p>
-  <p><span class="muted">Q&amp;A format</span> {{ bp.qa.format_label }} <span class="small muted">({{ bp.qa.question_types|join(', ') }})</span></p>
-  <p><span class="muted">Sound palette</span> {{ (bp.sound.ambience + bp.sound.sfx)|join(', ') }}</p>
-  <p><span class="muted">Music direction</span> {{ bp.sound.music_direction }}</p>
-  <p><span class="muted">Animation notes</span> intensity {{ bp.animation.intensity }}{% if bp.animation.effects %}, effects: {{ bp.animation.effects|join(', ') }}{% endif %}</p>
+  <p class="mood"><strong>{{ bp.mood.label }}</strong> <span>{{ bp.mood.summary }}</span></p>
+  <div class="palette">
+    {% for sw in bp.art.palette %}<span class="chip"><span class="swatch" style="background:{{ sw.hex }}" title="{{ sw.hex }}"></span><span>{{ sw.name }}</span></span>{% endfor %}
+  </div>
+  <dl class="facts">
+    <dt>Art medium</dt><dd>{{ bp.art.medium_label }}</dd>
+    <dt>Q&amp;A format</dt><dd>{{ bp.qa.format_label }} <span class="muted">({{ bp.qa.question_types|join(', ') }})</span></dd>
+    <dt>Sound palette</dt><dd>{{ (bp.sound.ambience + bp.sound.sfx)|join(', ') }}</dd>
+    <dt>Music direction</dt><dd>{{ bp.sound.music_direction }}</dd>
+    <dt>Animation notes</dt><dd>intensity {{ bp.animation.intensity }}{% if bp.animation.effects %}, effects: {{ bp.animation.effects|join(', ') }}{% endif %}</dd>
+  </dl>
   {% endif %}
   {% if blueprint.stale %}
-  <ul class="small">
+  <ul class="stale-list">
     {% for item in blueprint.stale %}<li><span class="state strong">stale</span> {{ item.output }} were made from an older blueprint; to refresh, run <code>{{ item.command }}</code></li>{% endfor %}
   </ul>
   {% endif %}
   <div class="controls">
-    <form method="post" action="/books/{{ book.slug }}/blueprint/regenerate" class="inline">
-      <label class="check"><input type="checkbox" name="confirm" value="yes" required> Replace the blueprint with a new design</label>
-      <button class="secondary" type="submit">Regenerate blueprint</button>
-    </form>
     {% if not blueprint.error %}
     <form method="post" action="/books/{{ book.slug }}/blueprint/style-bible" class="inline">
       <button class="secondary" type="submit">Rebuild style bible</button>
     </form>
     {% endif %}
   </div>
+  <details class="more">
+    <summary>Regenerate blueprint</summary>
+    <form method="post" action="/books/{{ book.slug }}/blueprint/regenerate" class="inline">
+      <label class="check"><input type="checkbox" name="confirm" value="yes" required> Replace the blueprint with a new design</label>
+      <button class="secondary" type="submit">Regenerate blueprint</button>
+    </form>
+  </details>
 </section>
 {% endif %}
-
-<section class="stage">
-  <h2>Last run</h2>
-  {% if job %}
-  <p>{{ job.label|capitalize }} {{ badge(job.state) }}
-    <span class="muted"{% if job.live %} data-elapsed="{{ job.elapsed }}"{% endif %}>{{ format_duration(job.elapsed) }}</span>
-    {% if job.exit_code is not none %}<span class="muted">exit code {{ job.exit_code }}</span>{% endif %}</p>
-  <pre class="log" id="log" data-job-id="{{ job.id }}" data-offset="{{ job.offset }}"{% if job.live %} data-live="1"{% endif %}>{{ job.log }}</pre>
-  {% else %}
-  <p class="muted">No stage has run for this book in the studio yet.</p>
-  {% endif %}
-</section>
+</div>
+</div>
 {% endblock %}

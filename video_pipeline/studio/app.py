@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import io
 import json
 import re
 import socket
@@ -36,6 +37,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import uvicorn
+from PIL import Image
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
@@ -82,6 +84,8 @@ STAGE_BUTTONS = {
     "cut": "Cut layers",
 }
 MASK_CACHE_SIZE = 32
+THUMB_WIDTH = 640  # spec 014 FR-1: covers and page pictures in lists
+THUMB_CACHE_SIZE = 96
 _LAYER_NAME = re.compile(r"^page_(\d+)_(.+)$")
 _MASK_NAME = re.compile(r"^page_(\d+)\.png$")
 _PREVIEW_NAME = re.compile(r"^page_(\d{2,})\.mp4$")
@@ -205,6 +209,7 @@ class Studio:
         self.write_lock = threading.Lock()  # serialises every check-then-act (module docstring)
         self.masks: dict[tuple[str, int, str], bytes] = {}  # (slug, page, cut_hash) → PNG
         self.masks_lock = threading.Lock()
+        self.thumbs: dict[tuple[str, int], bytes] = {}  # (path, mtime_ns) → JPEG (spec 014)
         self.drafts = DraftStore(paths.root)
         self.allowed_origins = {f"http://{HOST}:{port}", f"http://localhost:{port}"}
         self.templates = Jinja2Templates(directory=STUDIO_DIR / "templates")
@@ -215,6 +220,8 @@ class Studio:
             format_duration=format_duration,
             static_url=static_url,
             draft_has_blueprint=lambda draft_id: self.drafts.blueprint_path(draft_id).is_file(),
+            flow_steps=self.flow_steps,
+            cover_url=self.cover_url,
         )
 
     # --- helpers --------------------------------------------------------------------------------
@@ -255,6 +262,70 @@ class Studio:
 
     def book_or_none(self, request: Request) -> sb.Book | None:
         return sb.get_book(self.paths, request.path_params["slug"])
+
+    def flow_steps(self, book: sb.Book) -> list[dict]:
+        """The book's pipeline as the studio's top strip: one step per page, in pipeline order.
+
+        `tone` groups the stage state for styling; the first unfinished stage is `current`."""
+        status = self.status_of(book)
+        tones = {
+            "done": "done", "approved": "done", "running": "running", "failed": "failed",
+            "interrupted": "failed", "needs_review": "attention", "out_of_date": "attention",
+        }
+        base = f"/books/{book.slug}"
+        try:
+            rows = sb.page_animation(self.paths, book)
+        except Exception:  # a book with broken data: the strip still renders
+            rows = []
+        cut = sum(r["cut_state"] == "cut" for r in rows)
+        animated = bool(rows) and cut == len(rows)
+        animation = {
+            "state": "done" if animated else "not_started",
+            "note": f"{cut} of {len(rows)} pages cut" if rows and not animated else None,
+        }
+        stages = [
+            ("script", "Script", f"{base}/script", status["script"]["state"], None),
+            ("audio", "Voices", f"{base}/audio", status["voices"]["state"], None),
+            ("animation", "Animation", f"{base}/animation", animation["state"], animation["note"]),
+            ("video", "Video", f"{base}/video", status["video"]["state"], None),
+        ]
+        required = [(k, st) for k, _l, _h, st, _n in stages if k != "animation"]
+        current = next((k for k, st in required if st not in ("done", "approved")), None)
+        if current == "video" and not animated:
+            current = "animation"  # the pass that comes just before the render
+        steps = [{"key": "book", "label": "Book", "href": base, "state": None, "note": None,
+                  "tone": "idle", "current": False}]
+        for key, label, href, state, note in stages:
+            steps.append({"key": key, "label": label, "href": href, "state": state, "note": note,
+                          "tone": tones.get(state, "idle"), "current": key == current})
+        return steps
+
+    def cover_url(self, book: sb.Book) -> str | None:
+        """The front cover's thumbnail URL, or None when the book has no cover file yet."""
+        path = self.media_path(book, "illustration", "cover_front.png")
+        if path is None or not path.is_file():
+            return None
+        return f"/media/{book.slug}/thumb/cover_front.png?v={path.stat().st_mtime_ns}"
+
+    def thumb_jpeg(self, path: Path) -> bytes:
+        """A JPEG of `path` at most THUMB_WIDTH wide, cached by path and modification time."""
+        key = (str(path), path.stat().st_mtime_ns)
+        with self.masks_lock:
+            if (data := self.thumbs.get(key)) is not None:
+                return data
+        with Image.open(path) as im:
+            im = im.convert("RGB")
+            if im.width > THUMB_WIDTH:
+                height = round(im.height * THUMB_WIDTH / im.width)
+                im = im.resize((THUMB_WIDTH, height), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality=82, optimize=True)
+        data = buf.getvalue()
+        with self.masks_lock:
+            if len(self.thumbs) >= THUMB_CACHE_SIZE:
+                self.thumbs.pop(next(iter(self.thumbs)))
+            self.thumbs[key] = data
+        return data
 
     def status_of(self, book: sb.Book) -> dict:
         return sb.stage_status(self.paths, book, self.runner.latest)
@@ -1069,6 +1140,14 @@ class Studio:
             if data is None:
                 return Response("not found", status_code=404)
             return Response(data, media_type="image/png", headers={"Cache-Control": "no-store"})
+        if kind == "thumb":
+            path = self.media_path(book, "illustration", name)
+            if path is None or not path.is_file():
+                return Response("not found", status_code=404)
+            return Response(
+                self.thumb_jpeg(path), media_type="image/jpeg",
+                headers={"Cache-Control": "private, max-age=3600"},
+            )
         path = self.media_path(book, kind, name)
         if path is None or not path.is_file():
             return Response("not found", status_code=404)
