@@ -18,6 +18,7 @@ from video_pipeline.timeline import (
     build_sections,
     camera_at,
     caption_cards,
+    chapter_starts,
     load_render_config,
     narration_camera,
     qa_target_on_canvas,
@@ -437,6 +438,25 @@ def test_section_times_and_total(cfg, script, timings):
         # the gap between sections is exactly one transition: no section starts inside it
         assert next_start - prev_end == pytest.approx(tf / cfg.fps)
     assert times[-1][1] == pytest.approx(total_frames(sections, cfg) / cfg.fps)
+
+
+def test_chapter_starts_without_clips_match_section_times(cfg, script, timings):  # spec 024 AC-2.3
+    sections = build_sections(script, timings, cfg)
+    chapters = chapter_starts(sections, cfg, 0.0)
+    assert [c["name"] for c in chapters] == [s.name for s in sections]
+    assert chapters[0]["start"] == 0.0
+    for chapter, (start, _) in zip(chapters, section_times(sections, cfg), strict=True):
+        assert chapter["start"] == round(start, 3)
+
+
+def test_chapter_starts_shift_by_opening_clips_minus_blend(cfg, script, timings):  # AC-2.3
+    sections = build_sections(script, timings, cfg)
+    plain = chapter_starts(sections, cfg, 0.0)
+    shifted = chapter_starts(sections, cfg, 12.5)
+    assert shifted[0]["start"] == 12.5
+    for a, b in zip(plain, shifted, strict=True):
+        assert b["start"] == pytest.approx(a["start"] + 12.5, abs=0.001)
+        assert b["start"] == round(b["start"], 3)
 
 
 # --- keys -----------------------------------------------------------------------------------

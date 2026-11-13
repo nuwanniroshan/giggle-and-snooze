@@ -892,6 +892,15 @@ def section_times(sections: list[Section], cfg: RenderConfig) -> list[tuple[floa
     return times
 
 
+def chapter_starts(sections: list[Section], cfg: RenderConfig, offset_s: float) -> list[dict]:
+    """Each section's name and start in the final video (spec 024 AC-2.3): its body start
+    shifted by `offset_s`, the length of what plays before the body, rounded to 3 places."""
+    return [
+        {"name": section.name, "start": round(start + offset_s, 3)}
+        for section, (start, _) in zip(sections, section_times(sections, cfg), strict=True)
+    ]
+
+
 def total_frames(sections: list[Section], cfg: RenderConfig) -> int:
     return sum(s.frames for s in sections) + max(0, len(sections) - 1) * transition_frames(cfg)
 
