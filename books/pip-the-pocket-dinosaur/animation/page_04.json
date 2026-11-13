@@ -1,0 +1,122 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "ed4ff7622c5ee6441802892eb1ea7ae9eb99f5e3630540718d4a99af4ed3bea6",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T18:55:28+00:00",
+  "layers": [
+    {
+      "name": "pip_breathing",
+      "description": "Pear-green Pip curled in the nest, including his head, tucked tail, cream cheek and rounded back bumps; exclude surrounding dry leaves.",
+      "box": [
+        681,
+        568,
+        1000,
+        803
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        846,
+        795
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.009,
+          "period_s": 5.8,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "ada_held_leaf",
+      "description": "The single dry golden leaf hanging from Ada's fingertips beside Pip; preserve her hand and Pip's face.",
+      "box": [
+        610,
+        672,
+        685,
+        772
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        622,
+        679
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_fern",
+      "description": "Arching fern frond above the sheltered root, with its narrow leaflets; exclude the tree root and pears.",
+      "box": [
+        804,
+        242,
+        1218,
+        383
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.35,
+      "pivot": [
+        810,
+        375
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 8.5,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_fern",
+      "description": "The large fern spray at the right edge, behind the white flowers; isolate the green fronds from the dusk background.",
+      "box": [
+        1282,
+        348,
+        1672,
+        668
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.45,
+      "pivot": [
+        1623,
+        660
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 9.5,
+          "phase": 0.7,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

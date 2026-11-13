@@ -1,0 +1,150 @@
+{
+  "page_number": 7,
+  "picture": {
+    "file": "page_07.png",
+    "sha256": "2dc6c694a645c5b9c61865ba5751d4fae942a7b630e6dfcc1e5853f0e0467fe0",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T19:46:12+00:00",
+  "layers": [
+    {
+      "name": "pip_head",
+      "description": "Pip's white head and orange beak, making a tiny settling nod beside the lamp shade.",
+      "box": [
+        859,
+        218,
+        978,
+        311
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.55,
+      "pivot": [
+        949,
+        298
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.7,
+          "period_s": 6.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "mira_hair",
+      "description": "Loose outer curls of Mira's dark hair stirring softly in the sea breeze; keep face and coat fixed.",
+      "box": [
+        185,
+        480,
+        489,
+        732
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          405,
+          586
+        ],
+        [
+          434,
+          636
+        ],
+        [
+          364,
+          674
+        ]
+      ],
+      "z": 5,
+      "depth": 0.7,
+      "pivot": [
+        371,
+        526
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 7.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "scarf_tails",
+      "description": "Two blue scarf ends extending left behind Mira, moving gently from their attachment at her neck.",
+      "box": [
+        161,
+        702,
+        337,
+        878
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.68,
+      "pivot": [
+        326,
+        716
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 7.0,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_coastal_grass",
+      "description": "Fine grass tips on the right hillside, with the lighthouse and rocks held still.",
+      "box": [
+        1138,
+        569,
+        1253,
+        849
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.6,
+      "pivot": [
+        1202,
+        842
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 8.0,
+          "phase": 0.5,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          0,
+          703,
+          186,
+          1017
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#f7cd83"
+    }
+  ]
+}

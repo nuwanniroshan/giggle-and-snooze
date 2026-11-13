@@ -6,6 +6,7 @@ store, so the studio runs the same job, state and file paths as in use."""
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 import pytest
@@ -18,12 +19,18 @@ from video_pipeline.drafts import DraftStore
 from video_pipeline.library import PROJECT_ROOT
 from video_pipeline.studio import app as sa
 from video_pipeline.studio import books as sb
+from video_pipeline.studio.jobs import Busy
 
 
 class StoryCommands:
     """Stands in for the story stage commands: each run writes its result (or failure)."""
 
-    def __init__(self, ideas=None, candidate=None, book=None, failure=None):
+    def __init__(
+        self, ideas=None, candidate=None, book=None, failure=None, paint_code=None,
+        autopilot_code=None,
+    ):  # fmt: skip
+        self.paint_code = paint_code
+        self.autopilot_code = autopilot_code
         self.ideas = (
             ideas
             if ideas is not None
@@ -36,8 +43,14 @@ class StoryCommands:
         self.failure = failure
         self.calls: list[str] = []
 
-    def __call__(self, stage, subject, paths, force=False):
+    def __call__(self, stage, subject, paths, force=False, page=None):
         self.calls.append(stage)
+        if stage == "autopilot":  # spec 021: prints only (the real CLI is tested on its own)
+            code = self.autopilot_code or f"print('autopilot for {subject}')"
+            return [sys.executable, "-c", code]
+        if stage == "paint":  # spec 016: Create book paints the new book's pictures
+            code = self.paint_code or f"print('painting {subject.slug}')"
+            return [sys.executable, "-c", code]
         if stage == "ideas":
             update = (
                 f"store.update_run({subject!r}, state=STATE, payload=PAYLOAD, problems=PROBLEMS)"
@@ -142,7 +155,7 @@ def test_write_book_refuses_pages_outside_the_range_before_any_job(make_studio):
             "author": "A",
         },
     )
-    assert r.status_code == 422 and "8 to 32" in r.text
+    assert r.status_code == 422 and "5 to 32" in r.text
     assert commands.calls == ["ideas"]
     assert DraftStore(s.paths.root).list() == []
 
@@ -203,11 +216,74 @@ def test_create_book_makes_the_book_and_removes_the_draft(make_studio):  # AC-3.
     assert DraftStore(s.paths.root).get(draft["id"]) is None
 
 
+def ready_draft(s: Studio, title: str = "The Moon Kite Race") -> dict:
+    store = DraftStore(s.paths.root)
+    draft = store.new_draft(idea_payload(title), pages=8, author="Test Author")
+    return store.update(draft["id"], state="ready", book=book_payload(8))
+
+
+def test_create_book_starts_painting_its_pictures(make_studio):  # AC-1.1
+    s = make_studio(
+        StoryCommands(paint_code="import time; print('painting', flush=True); time.sleep(30)")
+    )
+    draft = ready_draft(s)
+    r = s.client.post(f"/drafts/{draft['id']}/create", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/books/the-brave-little-teapot"
+    job = s.runner.current()
+    assert job["stage"] == "paint" and job["book"] == "the-brave-little-teapot"
+    page = text_of(s.client.get("/books/the-brave-little-teapot").text)
+    assert "RUNNING" in page and "picture painting" in page
+
+
+def test_create_book_never_starts_script_voices_or_render(make_studio):  # FR-5
+    commands = StoryCommands()
+    s = make_studio(commands)
+    draft = ready_draft(s)
+    s.client.post(f"/drafts/{draft['id']}/create")
+    s.wait()
+    assert commands.calls == ["paint"]
+    for stage in ("script", "voices", "render", "plan", "cut"):
+        assert s.runner.latest("the-brave-little-teapot", stage) is None
+    assert s.runner.latest("the-brave-little-teapot", "paint")["state"] == "done"
+
+
+@pytest.mark.parametrize("error", [Busy({"id": "other"}), ValueError("unsafe")])
+def test_create_book_keeps_the_book_when_painting_cannot_start(make_studio, monkeypatch, error):
+    s = make_studio()  # AC-1.2
+
+    def refuse(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(s.runner, "start", refuse)
+    draft = ready_draft(s)
+    r = s.client.post(f"/drafts/{draft['id']}/create", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/books/the-brave-little-teapot"
+    assert sb.get_book(s.paths, "the-brave-little-teapot") is not None
+    assert DraftStore(s.paths.root).get(draft["id"]) is None
+    page = s.client.get("/books/the-brave-little-teapot").text
+    assert "0 of 8 pages, 0 of 2 covers" in text_of(page)
+    assert re.search(r"<button[^>]*>\s*Paint pictures", page)
+    assert not re.search(r"<button[^>]*disabled[^>]*>\s*Paint pictures", page)
+
+
+def test_create_book_refused_while_a_job_runs_keeps_the_draft(make_studio):  # AC-1.3
+    commands = StoryCommands()
+    s = make_studio(commands)
+    s.runner.start("other", "script", [sys.executable, "-c", "import time; time.sleep(30)"])
+    draft = ready_draft(s)
+    r = s.client.post(f"/drafts/{draft['id']}/create")
+    assert r.status_code == 409 and "is running" in r.text
+    assert DraftStore(s.paths.root).get(draft["id"]) is not None
+    assert sb.get_book(s.paths, "the-brave-little-teapot") is None
+    assert commands.calls == [] and s.runner.current()["stage"] == "script"
+
+
 def test_create_refused_for_an_existing_book_keeps_the_draft(make_studio):  # AC-3.6
     s = make_studio()
     first = DraftStore(s.paths.root).new_draft(idea_payload(), pages=8, author="Test Author")
     DraftStore(s.paths.root).update(first["id"], state="ready", book=book_payload(8))
     s.client.post(f"/drafts/{first['id']}/create")
+    s.wait()  # spec 016: creating the first book started its paint job
     second = DraftStore(s.paths.root).new_draft(idea_payload(), pages=8, author="Test Author")
     DraftStore(s.paths.root).update(second["id"], state="ready", book=book_payload(8))
     r = s.client.post(f"/drafts/{second['id']}/create")
@@ -279,3 +355,125 @@ def test_add_book_page_shows_the_steps_in_order(make_studio):
         page.index("Review your drafts"),
     )
     assert first < second < third
+
+
+# --- character sheet (spec 018: AC-3.2) -------------------------------------------------------
+
+
+def test_draft_page_lists_the_sheet_and_each_pages_characters(make_studio):  # AC-3.2
+    from tests.test_story_tools import OWL, TEAPOT
+
+    s = make_studio()
+    draft = ready_draft(s)
+    html = s.client.get(f"/drafts/{draft['id']}").text
+    page = text_of(html)
+    assert 'id="characters"' in html
+    for entry in (TEAPOT, OWL):
+        assert entry["name"] in page and entry["look"] in page
+    assert page.count("Characters: Tilly, Hoot") == 4  # the even pages of book(8)
+    assert page.count("Characters: Tilly ") == 4  # the odd pages
+
+
+def test_pre_018_draft_renders_without_the_characters_panel(make_studio):
+    s = make_studio()
+    payload = book_payload(8)
+    del payload["characters"]
+    for p in payload["pages"]:
+        del p["characters_on_page"]
+    store = DraftStore(s.paths.root)
+    draft = store.new_draft(idea_payload(), pages=8, author="Test Author")
+    store.update(draft["id"], state="ready", book=payload)
+    r = s.client.get(f"/drafts/{draft['id']}")
+    assert r.status_code == 200 and 'id="characters"' not in r.text
+    assert "Characters:" not in text_of(r.text)
+
+
+# --- autopilot from the Add book page (spec 021 Phase 4, AC-1.1) ------------------------------
+
+
+def _choose(s: Studio, **extra):
+    s.client.post("/ideas")
+    s.wait()
+    run = DraftStore(s.paths.root).latest_run("ideas")["id"]
+    data = {"run": run, "index": "0", "pages": "8", "author": "Test Author", **extra}
+    return s.client.post("/drafts", data=data)
+
+
+def test_autopilot_checkbox_is_on_by_default(make_studio):  # AC-1.1
+    s = make_studio()
+    s.client.post("/ideas")
+    s.wait()
+    html = s.client.get("/books/new").text
+    assert re.search(r'<input type="checkbox" name="autopilot" value="1" checked>', html)
+    assert "Autopilot" in text_of(html)
+
+
+def test_choosing_an_idea_with_autopilot_starts_the_autopilot_job(make_studio):  # AC-1.1
+    commands = StoryCommands()
+    s = make_studio(commands)
+    r = _choose(s, autopilot="1")
+    draft = only_draft(s)
+    assert r.status_code == 303 and r.headers["location"] == f"/drafts/{draft['id']}"
+    assert commands.calls == ["ideas", "autopilot"]  # no blueprint job, no paint job
+    s.wait()
+    job = s.runner.latest(draft["id"], "autopilot")
+    assert job is not None and job["state"] == "done"
+    assert job["cmd"][-1] == f"print('autopilot for {draft['id']}')"
+
+
+def test_choosing_an_idea_without_autopilot_starts_the_blueprint_job(make_studio):
+    commands = StoryCommands()
+    s = make_studio(commands)
+    assert _choose(s).status_code == 303
+    assert commands.calls == ["ideas", "blueprint"]
+
+
+def test_autopilot_refused_while_busy_discards_the_new_draft(make_studio):
+    s = make_studio()
+    s.client.post("/ideas")
+    s.wait()
+    run = DraftStore(s.paths.root).latest_run("ideas")["id"]
+    s.runner.start("busy", "script", [sys.executable, "-c", "import time; time.sleep(30)"])
+    r = s.client.post(
+        "/drafts",
+        data={"run": run, "index": "0", "pages": "8", "author": "A", "autopilot": "1"},
+    )
+    assert r.status_code == 409 and "Refused" in r.text
+    assert DraftStore(s.paths.root).list() == []
+
+
+def test_stop_during_autopilot_story_marks_the_draft_interrupted(make_studio):  # AC-1.3
+    s = make_studio(StoryCommands(autopilot_code="import time; time.sleep(30)"))
+    _choose(s, autopilot="1")
+    draft = only_draft(s)
+    assert draft["state"] == "designing"
+    r = s.client.post("/jobs/stop")
+    assert r.status_code == 303 and r.headers["location"] == f"/drafts/{draft['id']}"
+    assert only_draft(s)["state"] == "interrupted"
+
+
+def test_draft_page_says_autopilot_will_create_the_book(make_studio):
+    s = make_studio(StoryCommands(autopilot_code="import time; time.sleep(30)"))
+    _choose(s, autopilot="1")
+    draft = only_draft(s)
+    page = text_of(s.client.get(f"/drafts/{draft['id']}").text)
+    assert "Autopilot will create the book when the story is written" in page
+    assert "Create book" not in page
+
+
+def test_draft_page_links_the_book_once_created(make_studio):  # AC-1.1
+    from video_pipeline import autopilot as ap
+    from video_pipeline.episode_tools import write_atomic
+
+    s = make_studio()
+    store = DraftStore(s.paths.root)
+    draft = store.new_draft(idea_payload(), pages=8, author="Test Author")
+    store.update(draft["id"], state="ready", book=book_payload(8))
+    slug = store.create_book(draft["id"])  # as the autopilot does; the draft is gone
+    write_atomic(
+        ap.run_path(s.paths, slug),
+        {"book": slug, "draft": draft["id"], "job_id": None, "state": "finished", "steps": []},
+    )
+    r = s.client.get(f"/drafts/{draft['id']}")
+    assert r.status_code == 303 and r.headers["location"] == f"/books/{slug}"
+    assert s.client.get("/drafts/unknown0").status_code == 404

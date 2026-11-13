@@ -74,6 +74,7 @@ STATE_WORDS = {
     "interrupted": "INTERRUPTED",
     "out_of_date": "OUT OF DATE",
     "stopped": "STOPPED",
+    "finished": "FINISHED",
     "pending review": "PENDING REVIEW",
 }
 STAGE_BUTTONS = {
@@ -82,6 +83,8 @@ STAGE_BUTTONS = {
     "render": "Render video",
     "plan": "Plan pictures",
     "cut": "Cut layers",
+    sb.PAINT_STAGE: "Paint pictures",
+    sb.BUILD_STAGE: "Build book",
 }
 MASK_CACHE_SIZE = 32
 THUMB_WIDTH = 640  # spec 014 FR-1: covers and page pictures in lists
@@ -118,6 +121,16 @@ def _elapsed(job: dict) -> float:
     except (KeyError, TypeError, ValueError):
         return 0.0
     return max((end - start).total_seconds(), 0.0)
+
+
+def human_size(size: int) -> str:
+    """`size` bytes for people: "512 B", "2.0 KB", "3.4 MB"."""
+    value = float(size)
+    for unit in ("B", "KB", "MB"):
+        if value < 1024 or unit == "MB":
+            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GB"  # pragma: no cover - the loop returns at MB
 
 
 def _state_word(state: str | None) -> str:
@@ -220,8 +233,10 @@ class Studio:
             format_duration=format_duration,
             static_url=static_url,
             draft_has_blueprint=lambda draft_id: self.drafts.blueprint_path(draft_id).is_file(),
+            draft_autopilot=self.draft_autopilot,
             flow_steps=self.flow_steps,
             cover_url=self.cover_url,
+            human_size=human_size,
         )
 
     # --- helpers --------------------------------------------------------------------------------
@@ -233,12 +248,15 @@ class Studio:
         if job["stage"] in ("ideas", "candidate"):
             title = "story ideas"
         elif job["stage"] in ("book", "blueprint") or (
-            job["stage"] == "redesign" and self.drafts.get(job["book"])
+            job["stage"] in ("redesign", sb.AUTOPILOT_STAGE) and self.drafts.get(job["book"])
         ):
             draft = self.drafts.get(job["book"])
             title = draft["idea"]["title"] if draft else "a draft book"
         else:
             book = sb.get_book(self.paths, job["book"])
+            if book is None and job["stage"] == sb.AUTOPILOT_STAGE and job["book"].isalnum():
+                run = sb.autopilot_run_for_draft(self.paths, job["book"], job)  # spec 021
+                book = sb.get_book(self.paths, run["book"]) if run and run.get("book") else None
             title = book.title if book else job["book"]
         return {
             **job,
@@ -283,14 +301,20 @@ class Studio:
             "state": "done" if animated else "not_started",
             "note": f"{cut} of {len(rows)} pages cut" if rows and not animated else None,
         }
+        pictures = status["pictures"]
+        painted = not pictures["missing"] and pictures["state"] != "running"
         stages = [
+            ("pictures", "Pictures", f"{base}#stage-paint", pictures["state"], None),
             ("script", "Script", f"{base}/script", status["script"]["state"], None),
             ("audio", "Voices", f"{base}/audio", status["voices"]["state"], None),
             ("animation", "Animation", f"{base}/animation", animation["state"], animation["note"]),
             ("video", "Video", f"{base}/video", status["video"]["state"], None),
+            ("editions", "Editions", f"{base}#stage-build", status["editions"]["state"], None),
         ]
-        required = [(k, st) for k, _l, _h, st, _n in stages if k != "animation"]
+        required = [(k, st) for k, _l, _h, st, _n in stages if k not in ("animation", "pictures")]
         current = next((k for k, st in required if st not in ("done", "approved")), None)
+        if not painted and status["script"]["state"] not in ("done", "approved", "needs_review"):
+            current = "pictures"  # painted before the script is generated (spec 016)
         if current == "video" and not animated:
             current = "animation"  # the pass that comes just before the render
         steps = [{"key": "book", "label": "Book", "href": base, "state": None, "note": None,
@@ -328,7 +352,21 @@ class Studio:
         return data
 
     def status_of(self, book: sb.Book) -> dict:
-        return sb.stage_status(self.paths, book, self.runner.latest)
+        return sb.stage_status(self.paths, book, self.runner.latest, self.autopilot_of(book))
+
+    def autopilot_of(self, book: sb.Book) -> dict | None:
+        """The book's last autopilot run as shown (a dead `running` one is `interrupted`)."""
+        return sb.autopilot_run(self.paths, book.slug, self.runner.current())
+
+    def autopilot_reason(self, book: sb.Book) -> str | None:
+        """Why the book's script and audio cannot be changed now: autopilot runs for it (FR-3)."""
+        job = self.runner.current()
+        if job is None or job["stage"] != sb.AUTOPILOT_STAGE:
+            return None
+        run = self.autopilot_of(book)
+        if job["book"] == book.slug or (run is not None and run.get("state") == "running"):
+            return "autopilot is running for this book; wait for it or stop it"
+        return None
 
     def busy_reason(self) -> str | None:
         job = self.running()
@@ -358,16 +396,32 @@ class Studio:
             problems = _approval_problems(self.paths, book)
             if problems:
                 return problems[0]
+        if stage == sb.BUILD_STAGE:
+            missing = sb.paint_state(self.paths, book)["missing"]
+            if missing:
+                return f"paint the missing pictures first: {', '.join(missing)}"
         return None
 
     def last_job(
         self, book: sb.Book, stages: tuple[str, ...] | None = None, page: int | None = None
     ) -> dict | None:
-        stages = stages or sb.STAGES + sb.ANIMATION_STAGES + ("redesign",)
+        stages = stages or (
+            *sb.STAGES,
+            *sb.ANIMATION_STAGES,
+            sb.PAINT_STAGE,
+            sb.REPAINT_STAGE,
+            sb.BUILD_STAGE,
+            sb.AUTOPILOT_STAGE,
+            "redesign",
+        )
         jobs = [j for s in stages if (j := self.runner.latest(book.slug, s, page))]
         if not jobs:
             return None
         job = max(jobs, key=lambda j: (str(j.get("started_at") or ""), j["id"]))
+        return self.job_view(job)
+
+    def job_view(self, job: dict) -> dict:
+        """A job record with its label, elapsed time and log tail, for the `job_log` panel."""
         try:
             text, offset = self.runner.log(job["id"], 0)
         except UnknownJob:
@@ -411,18 +465,51 @@ class Studio:
                     "blocked": busy or self.gate(book, stage),
                 }
             )
+        status = self.status_of(book)
         context = {
             "book": book,
-            "status": self.status_of(book),
+            "status": status,
             "stages": stages,
             "has_script": sb.script_path(self.paths, book).exists(),
             "job": self.last_job(book),
             "blueprint": sb.blueprint_status(self.paths, book),
+            "characters": sb.character_sheet(self.paths, book),
+            "paint": status["pictures"],
+            "paint_button": STAGE_BUTTONS[sb.PAINT_STAGE],
+            "paint_blocked": busy or self.gate(book, sb.PAINT_STAGE),
+            "cover_sides": sb.COVER_SIDES,
+            "editions": status["editions"],
+            "build_button": STAGE_BUTTONS[sb.BUILD_STAGE],
+            "build_blocked": busy or self.gate(book, sb.BUILD_STAGE),
+            "autopilot": self.autopilot_panel(book, status, busy),
         }
+        last, own = context["job"], context["autopilot"]["job"]
+        if last and own and last["id"] == own["id"]:
+            context["autopilot"]["job"] = None  # shown once, as the last run (one #log)
         rows = sb.page_animation(self.paths, book)
         context["animation"] = sb.animation_summary(rows)
         context["animation_attention"] = sb.animation_attention(rows)
         return self.render(request, "book.html", context)
+
+    def autopilot_panel(self, book: sb.Book, status: dict, busy: str | None) -> dict:
+        """The book page's Autopilot panel (spec 021): the last run, its job's log (looked up by
+        job id: a run started from a draft is recorded under the draft id) and the button."""
+        run = self.autopilot_of(book)
+        record = self.runner.record(run.get("job_id")) if run and run.get("job_id") else None
+        stage = (run or {}).get("stage")
+        label = sb.STAGE_LABELS.get(stage, stage) if stage else None
+        if stage in ("review", "approve", "story", "create"):
+            label = {"review": "automatic review mark", "approve": "automatic audio approval",
+                     "story": "blueprint design and story writing",
+                     "create": "book creation"}[stage]  # fmt: skip
+        return {
+            "run": run,
+            "stage_label": label,
+            "job": self.job_view(record) if record else None,
+            "blocked": busy or self.gate(book, sb.AUTOPILOT_STAGE),
+            "resume": bool(run) and run.get("state") in ("failed", "stopped", "interrupted"),
+            "video": status["video"]["state"] == "done",
+        }
 
     async def run_stage(self, request: Request) -> Response:
         form = await request.form()
@@ -431,7 +518,10 @@ class Studio:
     def _run_stage(self, request: Request, form) -> Response:
         book = self.book_or_none(request)
         stage = request.path_params["stage"]
-        if book is None or stage not in sb.STAGES + sb.ANIMATION_STAGES:
+        runnable = (
+            *sb.STAGES, *sb.ANIMATION_STAGES, sb.PAINT_STAGE, sb.BUILD_STAGE, sb.AUTOPILOT_STAGE,
+        )  # fmt: skip
+        if book is None or stage not in runnable:
             return self.not_found(request)
         back = f"/books/{book.slug}"
         if stage in sb.ANIMATION_STAGES:
@@ -444,15 +534,23 @@ class Studio:
         return RedirectResponse(back, status_code=303)
 
     def _start_stage(
-        self, book: sb.Book, stage: str, form, page: int | None = None
+        self, book: sb.Book, stage: str, form, page: int | None = None, cover: str | None = None
     ) -> tuple[str, list[str]] | None:
-        """Check and start `stage` (for story `page`, a preview) (call under `write_lock`); the
-        refusal's title and lines, or None when it started."""
+        """Check and start `stage` (for story `page`, a preview or a repaint; for a `cover`, a
+        repaint) (call under `write_lock`); the refusal's title and lines, or None when it
+        started."""
         if busy := self.busy_reason():
             return "Busy", [f"Refused: {busy}."]
         if reason := self.gate(book, stage, page):
             return f"Cannot start {sb.STAGE_LABELS[stage]}", [reason]
+        if stage == sb.REPAINT_STAGE and form.get("confirm") != "1":
+            what = f"the {cover} cover" if cover else f"page {page}"
+            lines = [f"Repainting replaces {what} (one picture of ChatGPT image quota); confirm."]
+            return "Confirm repainting this picture", lines
         force = form.get("force") == "1"
+        if stage == sb.PAINT_STAGE and force and form.get("confirm") != "1":
+            lines = ["Repainting replaces every picture (ChatGPT image quota); confirm to repaint."]
+            return "Confirm repainting every picture", lines
         if stage == "script" and sb.script_path(self.paths, book).exists():
             if form.get("confirm") != "1":
                 lines = [
@@ -461,7 +559,8 @@ class Studio:
                 ]
                 return "Confirm regenerating the script", lines
             force = True
-        cmd = self.command_for(stage, book, self.paths, force=force, page=page)
+        extra = {"cover": cover} if cover is not None else {}
+        cmd = self.command_for(stage, book, self.paths, force=force, page=page, **extra)
         try:
             self.runner.start(book.slug, stage, cmd, page=page)
         except Busy:
@@ -472,6 +571,8 @@ class Studio:
         job = self.runner.current()
         self.runner.stop()
         target = "/"
+        if job and job["stage"] == sb.AUTOPILOT_STAGE:  # spec 021 AC-1.3
+            return RedirectResponse(self._stopped_autopilot(job), status_code=303)
         if job:
             is_draft = job["stage"] in ("book", "blueprint") or (
                 job["stage"] == "redesign" and self.drafts.get(job["book"])
@@ -483,6 +584,21 @@ class Studio:
                         self.drafts.update(draft["id"], state="interrupted")
             target = f"/drafts/{job['book']}" if is_draft else f"/books/{job['book']}"
         return RedirectResponse(target, status_code=303)
+
+    def _stopped_autopilot(self, job: dict) -> str:
+        """Record a stopped autopilot job's run as `stopped` (if the CLI could not) and its draft,
+        if it was still being written, as `interrupted`; the page to go back to."""
+        with self.write_lock:
+            run = sb.stop_autopilot_run(self.paths, job["id"])
+            draft = self.drafts.get(job["book"])
+            if draft and draft["state"] in ("designing", "writing"):
+                self.drafts.update(draft["id"], state="interrupted")
+        slug = (run or {}).get("book")
+        if slug and sb.get_book(self.paths, slug):
+            return f"/books/{slug}"
+        if draft:
+            return f"/drafts/{draft['id']}"
+        return f"/books/{job['book']}" if sb.get_book(self.paths, job["book"]) else "/"
 
     # --- uploads --------------------------------------------------------------------------------
 
@@ -593,9 +709,12 @@ class Studio:
             problems.append(problem)
         if problems:
             return self.render(request, "add_book.html", self.add_book_context(problems), 422)
+        # Spec 021 AC-1.1: with Autopilot on, one autopilot job writes the draft, creates the book
+        # (no draft review stop, and no separate paint job) and runs every stage after it.
+        stage = sb.AUTOPILOT_STAGE if form.get("autopilot") == "1" else "blueprint"
         with self.write_lock:
             draft = self.drafts.new_draft(idea, pages, author)
-            reason = self._start_story("blueprint", draft["id"], draft["id"])
+            reason = self._start_story(stage, draft["id"], draft["id"])
             if reason:
                 self.drafts.discard(draft["id"])
         if reason:
@@ -610,8 +729,21 @@ class Studio:
     def draft_page(self, request: Request) -> Response:
         draft = self.draft_or_none(request)
         if draft is None:
+            # Spec 021: autopilot turned the draft into a book; its run file names both.
+            draft_id = request.path_params["draft_id"]
+            run = None
+            if draft_id.isalnum():
+                run = sb.autopilot_run_for_draft(self.paths, draft_id, None)
+            slug = (run or {}).get("book")
+            if slug and sb.get_book(self.paths, slug):
+                return RedirectResponse(f"/books/{slug}", status_code=303)
             return self.not_found(request)
         return self.render(request, "draft.html", {"draft": draft, "problems": []})
+
+    def draft_autopilot(self, draft: dict) -> bool:
+        """Whether an autopilot job is running for this draft (it creates the book itself)."""
+        job = self.runner.current()
+        return bool(job and job["stage"] == sb.AUTOPILOT_STAGE and job["book"] == draft["id"])
 
     async def save_page(self, request: Request) -> Response:
         draft = self.draft_or_none(request)
@@ -644,7 +776,21 @@ class Studio:
                 return self.render(
                     request, "draft.html", {"draft": draft, "problems": [str(exc)]}, 409
                 )
+            self._paint_new_book(slug)
         return RedirectResponse(f"/books/{slug}", status_code=303)
+
+    def _paint_new_book(self, slug: str) -> None:
+        """Start painting a just-created book's pictures (spec 016 FR-2; call under `write_lock`).
+        Nothing else starts by itself (FR-5), and a start that fails never undoes the book: its
+        page shows the missing pictures and offers Paint (AC-1.2)."""
+        book = sb.get_book(self.paths, slug)
+        if book is None or book.error or self.busy_reason() is not None:
+            return
+        try:
+            cmd = self.command_for(sb.PAINT_STAGE, book, self.paths)
+            self.runner.start(slug, sb.PAINT_STAGE, cmd)
+        except (Busy, ValueError):
+            pass
 
     async def discard_draft(self, request: Request) -> Response:
         draft = self.draft_or_none(request)
@@ -829,6 +975,15 @@ class Studio:
             if target:
                 by_target.setdefault(target, []).append(problem)
         ids = iter(sb.script_lines(script))
+        names = sb.feeling_names(self.paths)
+
+        def feeling_of(line_id: str, line: dict) -> dict | None:
+            """The line's feeling and the choices (spec 017 AC-4.1); None for narration."""
+            if line.get("role") == "narration":
+                return None
+            current = attempted.get(sb.EMOTION_FIELD + line_id, line.get("emotion")) or "neutral"
+            choices = list(names) if current in names else [*names, current]
+            return {"current": current, "choices": choices}
 
         def entries(lines):
             out = []
@@ -840,6 +995,7 @@ class Studio:
                         "speaker": line.get("speaker"),
                         "role": line.get("role"),
                         "text": attempted.get(line_id, line.get("text", "")),
+                        "feeling": feeling_of(line_id, line),
                         "problems": by_target.get(line_id, []),
                     }
                 )
@@ -883,7 +1039,7 @@ class Studio:
         job = self.runner.current()
         if job and job["book"] == book.slug and job["stage"] in ("script", "voices"):
             return f"{sb.STAGE_LABELS[job['stage']]} is running for this book; wait for it"
-        return None
+        return self.autopilot_reason(book)
 
     async def save_script(self, request: Request) -> Response:
         form = await request.form()
@@ -962,6 +1118,8 @@ class Studio:
             job = self.runner.current()
             if job and job["book"] == book.slug and job["stage"] == "voices":
                 error = "voice synthesis is still running"
+            elif reason := self.autopilot_reason(book):
+                error = reason
             else:
                 try:
                     cfg = sv.load_voice_config(self.paths.config_dir / "voices.json")
@@ -1019,12 +1177,23 @@ class Studio:
         return self.render(request, "animation.html", context)
 
     def animation_page_detail(self, request: Request) -> Response:
+        return self._page_view(request)
+
+    def _page_view(
+        self,
+        request: Request,
+        prompt: str | None = None,
+        problems: list[str] | None = None,
+        status: int = 200,
+    ) -> Response:
+        """The page view; `prompt` and `problems` show a refused prompt edit (spec 019)."""
         book = self.book_or_none(request)
         number = request.path_params["number"]
         rows = sb.page_animation(self.paths, book) if book else []
         row = next((r for r in rows if r["page_number"] == number), None)
         if book is None or row is None:
             return self.not_found(request)
+        busy = self.busy_reason()
         numbers = [r["page_number"] for r in rows]
         at = numbers.index(number)
         cut = row["cut_state"] == "cut"
@@ -1044,8 +1213,84 @@ class Studio:
             "preview_blocked": self.busy_reason() or self.gate(book, sb.PREVIEW_STAGE, number),
             "preview_job": self.last_job(book, (sb.PREVIEW_STAGE,), number),
             "preview_url": self.preview_url(book, number),
+            "prompt": prompt if prompt is not None else sb.page_prompt(self.paths, book, number),
+            "prompt_problems": problems or [],
+            "prompt_blocked": self.painting_reason(book),
+            "repaint_blocked": busy or self.gate(book, sb.REPAINT_STAGE, number),
+            "repaint_job": self.last_job(book, (sb.REPAINT_STAGE,), number),
         }
-        return self.render(request, "animation_page.html", context)
+        return self.render(request, "animation_page.html", context, status)
+
+    # --- repaint one picture and edit its prompt (spec 019) -------------------------------------
+
+    def painting_reason(self, book: sb.Book) -> str | None:
+        """Why the book's picture prompts cannot be saved now: a paint or repaint job runs."""
+        job = self.runner.current()
+        if job and job["book"] == book.slug and job["stage"] in (sb.PAINT_STAGE, sb.REPAINT_STAGE):
+            return f"{sb.STAGE_LABELS[job['stage']]} is running for this book; wait for it"
+        return None
+
+    async def repaint_page(self, request: Request) -> Response:
+        form = await request.form()
+        return await run_in_threadpool(self._repaint_page, request, form)
+
+    def _repaint_page(self, request: Request, form) -> Response:
+        """Repaint, replan and recut one story page as one job (AC-1.1), back to its page view."""
+        book = self.book_or_none(request)
+        number = request.path_params["number"]
+        rows = sb.page_animation(self.paths, book) if book else []
+        if book is None or not any(r["page_number"] == number for r in rows):
+            return self.not_found(request)
+        back = f"/books/{book.slug}/animation/{number}"
+        with self.write_lock:
+            refused = self._start_stage(book, sb.REPAINT_STAGE, form, page=number)
+        if refused is not None:
+            title, lines = refused
+            return self.message(request, title, lines, 409, back)
+        return RedirectResponse(back, status_code=303)
+
+    async def repaint_cover(self, request: Request) -> Response:
+        form = await request.form()
+        return await run_in_threadpool(self._repaint_cover, request, form)
+
+    def _repaint_cover(self, request: Request, form) -> Response:
+        """Repaint one cover, without a plan or a cut (AC-1.4), back to the book page."""
+        book = self.book_or_none(request)
+        cover = str(form.get("cover") or "")
+        if book is None or cover not in sb.COVER_SIDES:
+            return self.not_found(request)
+        back = f"/books/{book.slug}"
+        with self.write_lock:
+            refused = self._start_stage(book, sb.REPAINT_STAGE, form, cover=cover)
+        if refused is not None:
+            title, lines = refused
+            return self.message(request, title, lines, 409, back)
+        return RedirectResponse(back, status_code=303)
+
+    async def save_prompt(self, request: Request) -> Response:
+        form = await request.form()
+        text = form.get("prompt")
+        return await run_in_threadpool(
+            self._save_prompt, request, text if isinstance(text, str) else ""
+        )
+
+    def _save_prompt(self, request: Request, text: str) -> Response:
+        """Save a story page's picture prompt in book.json (AC-1.2); no repaint starts."""
+        book = self.book_or_none(request)
+        number = request.path_params["number"]
+        if book is None or sb.page_prompt(self.paths, book, number) is None:
+            return self.not_found(request)
+        back = f"/books/{book.slug}/animation/{number}"
+        with self.write_lock:
+            if reason := self.painting_reason(book):
+                problems = None
+            else:
+                problems = sb.save_page_prompt(self.paths, book, number, text)
+        if problems is None:
+            return self.message(request, "Busy", [reason], 409, back)
+        if problems:
+            return self._page_view(request, text, problems, 422)
+        return RedirectResponse(back, status_code=303)
 
     def preview_url(self, book: sb.Book, number: int) -> str | None:
         """The page preview's media URL (tagged with its modification time), or None."""
@@ -1153,6 +1398,26 @@ class Studio:
             return Response("not found", status_code=404)
         return FileResponse(path)
 
+    # --- editions and the flipbook (spec 019 FR-4, AC-2.4) ------------------------------------
+
+    def edition(self, request: Request) -> Response:
+        """One file the book builder wrote, only when `edition_files` lists it (FR-4)."""
+        book = self.book_or_none(request)
+        path = sb.edition_path(self.paths, book, request.path_params["name"]) if book else None
+        if path is None:
+            return Response("not found", status_code=404)
+        return FileResponse(path, headers={"Cache-Control": "no-store"})
+
+    def book_illustration(self, request: Request) -> Response:
+        """A book picture for the flipbook, which loads `../illustrations/<name>` from
+        `/books/{slug}/editions/index.html`; only the names the book defines (`media_path`)."""
+        book = self.book_or_none(request)
+        name = request.path_params["name"]
+        path = self.media_path(book, "illustration", name) if book else None
+        if path is None or name in sb.NOOK_FILES or not path.is_file():
+            return Response("not found", status_code=404)
+        return FileResponse(path)
+
     # --- JSON for live progress -----------------------------------------------------------------
 
     def api_current(self, request: Request) -> Response:
@@ -1210,6 +1475,7 @@ def create_app(
     runner = runner or JobRunner(paths.studio_dir, cwd=PROJECT_ROOT)
     studio = Studio(paths, runner, command_for, port)
     studio.drafts.mark_interrupted_all()  # a draft still writing belonged to a stopped studio
+    sb.mark_autopilot_interrupted(paths)  # so did a running autopilot run (spec 021 AC-4.3)
 
     @contextlib.asynccontextmanager
     async def lifespan(app):
@@ -1261,6 +1527,13 @@ def create_app(
         Route(
             "/books/{slug}/animation/{number:int}/preview", studio.preview_page, methods=["POST"]
         ),
+        Route(
+            "/books/{slug}/animation/{number:int}/repaint", studio.repaint_page, methods=["POST"]
+        ),
+        Route("/books/{slug}/animation/{number:int}/prompt", studio.save_prompt, methods=["POST"]),
+        Route("/books/{slug}/repaint-cover", studio.repaint_cover, methods=["POST"]),
+        Route("/books/{slug}/editions/{name}", studio.edition),
+        Route("/books/{slug}/illustrations/{name}", studio.book_illustration),
         Route("/jobs/stop", studio.stop_job, methods=["POST"]),
         Route("/api/jobs/current", studio.api_current),
         Route("/api/jobs/{job_id}/log", studio.api_log),

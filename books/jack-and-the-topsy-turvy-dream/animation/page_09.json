@@ -1,0 +1,140 @@
+{
+  "page_number": 9,
+  "picture": {
+    "file": "page_09.png",
+    "sha256": "9e3743f9a14d773b586c26ff990d8a9c3c246f99ff83a90a5dd36b191c81de8f",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-13T00:47:51+00:00",
+  "layers": [
+    {
+      "name": "blue_quilt",
+      "description": "Blue quilt only, excluding Jack's hands and pajamas, the red car, and the friend's hands; a very gentle sleeping breath.",
+      "box": [
+        598,
+        454,
+        1577,
+        790
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.85,
+      "pivot": [
+        1080,
+        780
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 6.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "friend_left_antenna",
+      "description": "Friend's left round antenna and short stem, isolated from the sky and head.",
+      "box": [
+        1081,
+        127,
+        1179,
+        220
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        1155,
+        216
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 7.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "friend_right_antenna",
+      "description": "Friend's upper right round antenna and stem, isolated from the sky and head.",
+      "box": [
+        1219,
+        80,
+        1318,
+        185
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        1263,
+        181
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 7.0,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "distant_cloud",
+      "description": "Pale elongated cloud at the top center, retaining its soft painted edges.",
+      "box": [
+        629,
+        9,
+        962,
+        123
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.1,
+      "pivot": [
+        795,
+        70
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 12.0,
+          "phase": 0.15,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1424,
+          17,
+          1556,
+          153
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#fff2ac"
+    }
+  ]
+}

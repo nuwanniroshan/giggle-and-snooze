@@ -49,7 +49,7 @@ def ceil_frames(seconds, fps):
 
 def test_config_loads(cfg):
     assert (cfg.width, cfg.height, cfg.fps, cfg.upscale) == (1920, 1080, 30, 4)
-    assert cfg.motion.push_zoom == pytest.approx(1.12)
+    assert cfg.motion.push_zoom == pytest.approx(1.22)
     assert cfg.captions.max_chars == 44
     assert cfg.captions.max_lines == 2
     assert cfg.video.audio_rate == 48000
@@ -804,7 +804,8 @@ def test_caption_cards_pilot_never_ends_mid_sentence_needlessly(cfg):
 
 def test_config_ambience_settings_read_and_default(cfg, tmp_path):
     """Spec 007 FR-3: level, fade and loop crossfade come from `audio`; all three are optional."""
-    assert cfg.audio.ambience_gain_db == pytest.approx(-14.0)
+    assert cfg.audio.ambience_gain_db == pytest.approx(-20.0)  # spec 012 FR-7 (was -14)
+    assert cfg.audio.voice_gain_db == pytest.approx(6.0)  # spec 012 FR-6
     assert cfg.audio.ambience_fade == pytest.approx(1.5)
     assert cfg.audio.loop_crossfade == pytest.approx(1.0)
     data = load_json(RENDER_CONFIG)
@@ -817,7 +818,7 @@ def test_config_ambience_settings_read_and_default(cfg, tmp_path):
         del data["audio"][key]
     path.write_text(json.dumps(data), encoding="utf-8")
     audio = load_render_config(path).audio
-    assert (audio.ambience_gain_db, audio.ambience_fade, audio.loop_crossfade) == (-14.0, 1.5, 1.0)
+    assert (audio.ambience_gain_db, audio.ambience_fade, audio.loop_crossfade) == (-20.0, 1.5, 1.0)
 
 
 # --- animation settings (spec 010 FR-8) -------------------------------------------------------

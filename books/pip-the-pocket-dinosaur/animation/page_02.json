@@ -1,0 +1,156 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "348bec7a2729619aaaff7aa0242f39689a29c9fe0f3ab91f8117c195610f60cc",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T18:52:45+00:00",
+  "layers": [
+    {
+      "name": "ada_pajama_breath",
+      "description": "Mustard pajama chest and broad front pocket, preserving the hands and Pip as separate foreground details.",
+      "box": [
+        337,
+        433,
+        1240,
+        934
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.65,
+      "pivot": [
+        796,
+        899
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.004,
+          "period_s": 6.5,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip_sleepy_snuggle",
+      "description": "Tiny pear-green Pip with closed eyelids, cream belly, small paws and rounded back spikes above the pocket rim.",
+      "box": [
+        823,
+        550,
+        1058,
+        740
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        939,
+        731
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.007,
+          "period_s": 5.5,
+          "phase": 0.2,
+          "direction": null
+        },
+        {
+          "type": "rotate",
+          "amplitude": 0.45,
+          "period_s": 8.0,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_outer_fern",
+      "description": "Arching fern frond at the left edge, its leaflets sweeping right toward Ada.",
+      "box": [
+        0,
+        378,
+        456,
+        602
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.6,
+      "pivot": [
+        13,
+        592
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 9.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_upper_fern",
+      "description": "Long bright fern frond curving from the right edge down toward the middle of the scene.",
+      "box": [
+        1236,
+        191,
+        1671,
+        599
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.65,
+      "pivot": [
+        1655,
+        224
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.55,
+          "period_s": 10.0,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "berry_red_bud",
+      "description": "Small berry-red closed flower bud and slender supporting stem in the lower right.",
+      "box": [
+        1370,
+        729,
+        1447,
+        925
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.9,
+      "pivot": [
+        1440,
+        918
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 8.5,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

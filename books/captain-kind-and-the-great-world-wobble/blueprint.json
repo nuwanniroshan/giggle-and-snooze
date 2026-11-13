@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "kindhearted-wobble",
+    "label": "Kindhearted Wobble",
+    "summary": "Affectionate superhero comedy gently settles into a communal bedtime lullaby.",
+    "roles": {
+      "storyteller": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Treats every bouncing pea with affectionate seriousness."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "lively",
+        "quirk": "Suggests helpful superhero theories and celebrates small kindnesses."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "bouncy",
+        "quirk": "Notices tiny funny details and whispers a delighted hic."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "layered-felt-applique",
+    "medium_label": "Layered Felt Appliqué",
+    "palette": [
+      {
+        "name": "midnight-plum",
+        "hex": "#382E50"
+      },
+      {
+        "name": "warm-apricot",
+        "hex": "#F3AE78"
+      },
+      {
+        "name": "sea-glass",
+        "hex": "#7DBBB0"
+      },
+      {
+        "name": "buttercream",
+        "hex": "#F9E8B7"
+      },
+      {
+        "name": "raspberry",
+        "hex": "#C85675"
+      }
+    ],
+    "line": "Rounded cut-felt edges and delicate blanket stitching with embroidered faces.",
+    "lighting": "Warm diffuse lamplight; a soft buttercream moon; gently dim toward bedtime.",
+    "composition": "One readable focal action per spread, generous quiet space, clearly visible round objects and a recognizable towel cape.",
+    "style_prompt_prefix": "Handcrafted layered felt-appliqué picture-book illustration, tactile wool fibers, blanket stitches, rounded friendly shapes, embroidered faces, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light.",
+    "avoid": [
+      "Threatening imagery",
+      "Photorealism",
+      "Neon colors",
+      "Busy backgrounds",
+      "Embedded text",
+      "Destructive bouncing"
+    ]
+  },
+  "qa": {
+    "format_key": "kindness-mission-pauses",
+    "format_label": "Captain Kind's Tiny Missions",
+    "question_types": [
+      "notice-and-point",
+      "kindness-choice",
+      "predict-and-check"
+    ],
+    "intro_hook": "Join the kindness crew! Can you spot something round that might wobble?",
+    "outro_hook": "What tiny kindness could you share tomorrow? Say it, point, or think it quietly.",
+    "moments_min": 3,
+    "moments_max": 4,
+    "kid_notes": {
+      "kid_older": "Invite a brief prediction or kind solution; accept thoughtful ideas without scoring.",
+      "kid_younger": "Invite pointing or a quiet hic; participation is optional. Model a comfortable breath without holding; pretend sipping is welcome."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "birds_morning",
+      "crickets_night"
+    ],
+    "sfx": [
+      "boing",
+      "pop",
+      "magic_sparkle"
+    ],
+    "music_direction": "Soft pizzicato and mellow wooden notes slow into a warm lullaby. Sparse quiet boings, one tiny final pop, bedtime crickets; keep cues below voices and the shared pause nearly silent."
+  },
+  "animation": {
+    "intensity": 0.45,
+    "effects": [
+      "water_ripple",
+      "glow"
+    ]
+  },
+  "rationale": "Tactile felt makes the worldwide wobble feel safe and playful. Optional kindness missions invite noticing and helping. Gentle bounces settle as everyone pauses together, making cooperation the satisfying solution. Reserve glow for the moon and a brief water ripple for the sip; keep the final bedtime passage calm."
+}

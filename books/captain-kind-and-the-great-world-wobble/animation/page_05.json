@@ -1,0 +1,97 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "0026824ddf25b39a28bd4a26123df0be38ba83e1051deeed1ff615a1bbb6512e",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:27:13+00:00",
+  "layers": [
+    {
+      "name": "sea_glass_ball",
+      "description": "The round sea-glass felt ball with its buttercream stitched rim; exclude the drawn bounce marks and ground shadow.",
+      "box": [
+        817,
+        928,
+        959,
+        1069
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.85,
+      "pivot": [
+        888,
+        1000
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.008,
+          "period_s": 3.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "captain_kind",
+      "description": "The whole seated child, including curls, relaxed hands, crossed legs and the pooled apricot cape, breathing almost imperceptibly.",
+      "box": [
+        24,
+        460,
+        732,
+        1198
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.8,
+      "pivot": [
+        479,
+        1182
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.003,
+          "period_s": 6.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1013,
+          739,
+          1098,
+          840
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffd894"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          80,
+          747,
+          160,
+          839
+        ],
+        "layer": null
+      },
+      "intensity": 0.1,
+      "colour": "#ffd894"
+    }
+  ]
+}

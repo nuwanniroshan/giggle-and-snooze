@@ -11,6 +11,13 @@
   <div>
     <p class="who meta"><strong>{{ who[1] }}</strong>{% if line.role %} <span>{{ line.role }}</span>{% endif %} <span class="id">{{ line.id }}</span> <span class="visually-hidden">{{ line.speaker }}</span></p>
     <textarea name="{{ line.id }}" rows="{{ [2, (line.text|length // 70) + 1]|max }}" aria-label="{{ who[1] }} line {{ line.id }}">{{ line.text }}</textarea>
+    {% if line.feeling %}
+    <label class="feeling meta">Feeling
+      <select name="emotion:{{ line.id }}" aria-label="Feeling for line {{ line.id }}">
+        {% for name in line.feeling.choices %}<option value="{{ name }}"{% if name == line.feeling.current %} selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
     {{ problem_list(line.problems, line.id) }}
   </div>
 </div>
@@ -20,7 +27,6 @@
 {% block content %}
 <header class="page-head">
   <div>
-    <span class="eyebrow">Script</span>
     <h1>Episode script</h1>
     <p class="lede">Read every line beside its picture, fix what is wrong, then mark it as reviewed.</p>
   </div>
@@ -37,7 +43,10 @@
 </section>
 {% endif %}
 <div class="sticky-bar{% if not script.reviewed %} is-todo{% endif %}">
-  {% if script.reviewed %}
+  {% if script.reviewed and script.reviewed.by == 'autopilot' %}
+  <span class="state t-done">REVIEWED</span>
+  <span class="grow">Reviewed automatically by autopilot at {{ script.reviewed.reviewed_at }}; mark it as reviewed to confirm.</span>
+  {% elif script.reviewed %}
   <span class="state t-done">REVIEWED</span>
   <span class="grow">at {{ script.reviewed.reviewed_at }}</span>
   {% else %}

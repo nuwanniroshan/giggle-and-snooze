@@ -23,6 +23,13 @@ def idea(title: str = "The Brave Little Teapot", **changes) -> dict:
     return data
 
 
+TEAPOT = {
+    "name": "Tilly",
+    "look": "A small round teapot, sky blue with white polka dots and a gold lid.",
+}
+OWL = {"name": "Hoot", "look": "A fluffy grey owl with big amber eyes and a striped red scarf."}
+
+
 def book(pages: int = 8, **changes) -> dict:
     data = {
         "metadata": {
@@ -34,6 +41,7 @@ def book(pages: int = 8, **changes) -> dict:
             "dedication": "For every little explorer.",
         },
         "style_bible": {"note": "set in spec 008"},
+        "characters": [dict(TEAPOT), dict(OWL)],
         "pages": [
             {
                 "page_number": n,
@@ -42,6 +50,7 @@ def book(pages: int = 8, **changes) -> dict:
                 "layout": "image_top_text_bottom",
                 "prompt": "A small teapot on a hill at dusk.",
                 "illustration_file": f"page_{n:02d}.png",
+                "characters_on_page": ["Tilly"] if n % 2 else ["Tilly", "Hoot"],
             }
             for n in range(1, pages + 1)
         ],
@@ -107,9 +116,9 @@ def test_book_longer_than_the_maximum_is_refused():  # AC-3.2
     assert any("more than the maximum" in e for e in st.book_errors(book(12), 10, TERMS, GENTLE))
 
 
-def test_book_shorter_than_eight_pages_is_refused():  # AC-3.2
-    errors = st.book_errors(book(7), 20, TERMS, GENTLE)
-    assert any("at least 8 pages" in e for e in errors)
+def test_book_shorter_than_five_pages_is_refused():  # AC-3.2
+    errors = st.book_errors(book(4), 20, TERMS, GENTLE)
+    assert any("at least 5 pages" in e for e in errors)
 
 
 def test_page_numbers_must_be_consecutive():  # AC-3.2
@@ -148,6 +157,83 @@ def test_book_metadata_title_must_be_present():
     data = book(8)
     data["metadata"]["title"] = ""
     assert any("title" in e for e in st.book_errors(data, 20, TERMS, GENTLE))
+
+
+# --- the character sheet (spec 018: AC-1.1..1.3) --------------------------------------------
+
+
+def test_book_without_characters_is_refused_naming_the_field():  # AC-1.2
+    data = book(8)
+    del data["characters"]
+    assert any(e.startswith("characters:") for e in st.book_errors(data, 20, TERMS, GENTLE))
+
+
+@pytest.mark.parametrize("count", [0, 7])
+def test_book_needs_one_to_six_characters(count):  # AC-1.1
+    sheet = [{"name": f"Friend {n}", "look": OWL["look"]} for n in range(count)]
+    errors = st.book_errors(book(8, characters=sheet), 20, TERMS, GENTLE)
+    assert any("characters: must hold 1 to 6 characters" in e for e in errors), errors
+
+
+@pytest.mark.parametrize(
+    ("entry", "message"),
+    [
+        ({"name": "N" * 41, "look": OWL["look"]}, "characters[2].name: must be 1 to 40"),
+        ({"name": "Hoot", "look": "L" * 19}, "characters[2].look: must be 20 to 300"),
+        ({"name": "Hoot", "look": "L" * 301}, "characters[2].look: must be 20 to 300"),
+        (
+            {"name": "Hoot", "look": "A grey owl here. Amber eyes shine. A red scarf too."},
+            "characters[2].look: must be 1 to 2 sentences",
+        ),
+        (
+            {"name": "Hoot", "look": "A grey owl with a monster mask and amber eyes."},
+            "characters[2].look: 'monster'",
+        ),
+        ({"name": "Tilly", "look": OWL["look"]}, "characters[2].name: duplicate name 'Tilly'"),
+        ({"name": "Hoot"}, "characters[2].look"),
+    ],
+)
+def test_character_entries_are_checked(entry, message):  # AC-1.1, AC-1.2
+    errors = st.book_errors(book(8, characters=[dict(TEAPOT), entry]), 20, TERMS, GENTLE)
+    assert any(message in e for e in errors), errors
+
+
+def test_page_without_characters_on_page_is_refused_naming_the_page():  # AC-1.3
+    data = book(8)
+    del data["pages"][3]["characters_on_page"]
+    errors = st.book_errors(data, 20, TERMS, GENTLE)
+    assert any(e.startswith("page 4: characters_on_page") for e in errors), errors
+
+
+def test_unknown_character_on_a_page_is_refused_naming_page_and_name():  # AC-1.3
+    data = book(8)
+    data["pages"][6]["characters_on_page"] = ["Tilly", "Zib"]
+    errors = st.book_errors(data, 20, TERMS, GENTLE)
+    assert "page 7: characters_on_page names unknown character 'Zib'" in errors, errors
+
+
+def test_scenery_page_may_list_no_characters():
+    data = book(8)
+    data["pages"][0]["characters_on_page"] = []
+    assert st.book_errors(data, 20, TERMS, GENTLE) == []
+
+
+def test_characters_are_optional_only_when_not_required():  # pre-018 drafts stay editable
+    data = book(8)
+    del data["characters"]
+    for page in data["pages"]:
+        del page["characters_on_page"]
+    assert st.book_errors(data, 20, TERMS, GENTLE, require_characters=False) == []
+
+
+def test_submit_book_saves_a_valid_book_and_refuses_one_without_a_sheet(tmp_path):  # AC-1.2
+    tools = st.StoryTools(TERMS, GENTLE, tmp_path / "book.json", pages=20)
+    bad = book(8)
+    del bad["characters"]
+    assert tools.submit_book(bad)["saved"] is False
+    assert not (tmp_path / "book.json").exists()
+    assert tools.submit_book(book(8)) == {"saved": True, "errors": []}
+    assert (tmp_path / "book.json").exists()
 
 
 # --- the submit tools and the attempt limit (FR-7) -------------------------------------------

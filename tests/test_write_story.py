@@ -167,3 +167,26 @@ def test_run_logs_stay_with_the_draft(root, monkeypatch):  # FR-9
     use(monkeypatch, FakeCodex([book(8)]))
     ws.run_book(root, draft["id"])
     assert list((store.draft_folder(draft["id"]) / "agent").glob("*-codex.jsonl"))
+
+
+# --- the character sheet (spec 018: AC-1.1..1.3, FR-1) ----------------------------------------
+
+
+def test_book_prompt_asks_for_the_sheet_and_page_names():  # FR-1
+    assert '"characters"' in ws.BOOK_PROMPT and '"characters_on_page"' in ws.BOOK_PROMPT
+    assert "look" in ws.BOOK_PROMPT
+
+
+def test_submit_book_tool_describes_the_sheet():  # FR-1
+    import inspect
+
+    source = inspect.getsource(story_mcp.create_server)
+    assert "characters_on_page" in source and '"characters"' in source
+
+
+def test_validate_payload_refuses_a_book_without_a_sheet(root):  # AC-1.2
+    data = book(8)
+    del data["characters"]
+    problems = ws.validate_payload("book", data, 20, root)
+    assert any(p.startswith("characters:") for p in problems)
+    assert ws.validate_payload("book", book(8), 20, root) == []

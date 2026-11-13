@@ -42,7 +42,7 @@
   --spk-kid-younger: oklch(83% 0.12 125);
 
   /* one-off paints, kept here so every colour lives in this file */
-  --paint-light: oklch(98% 0 0);
+  --paint-light: oklch(98% 0.006 268);
   --shade-deep: oklch(0% 0 0 / 0.9);
   --accent-line: oklch(81% 0.145 72 / 0.35);
   --run-ring-0: oklch(76% 0.11 235 / 0);
@@ -59,15 +59,10 @@
   --bad-edge: oklch(70% 0.17 25 / 0.5);
   --bad-line: oklch(70% 0.17 25 / 0.4);
   --player-tint: oklch(30% 0.05 280);
-  --glass-90: oklch(24% 0.015 268 / 0.9);
-  --glass-88: oklch(24% 0.015 268 / 0.88);
   --avatar-ink: oklch(20% 0.03 268);
-  --topbar-glass: oklch(15.5% 0.012 268 / 0.82);
-  --tag-glass: oklch(15% 0.01 268 / 0.75);
   --veil-94: oklch(13% 0.012 268 / 0.94);
   --veil-20: oklch(13% 0.012 268 / 0.2);
   --swatch-edge: oklch(100% 0 0 / 0.15);
-  --black: #000;
   --color-ink: var(--text);  /* name the older guard tests look for */
 
   /* type */

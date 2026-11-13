@@ -13,6 +13,7 @@ from video_pipeline.episode import EpisodePlan
 
 if TYPE_CHECKING:
     from video_pipeline.blueprint import Blueprint
+    from video_pipeline.emotions import EmotionSettings
 
 CLOUD_MODEL = "gemini-2.5-flash"
 GEMINI_KEY_ENV = "GEMINI_API_KEY"
@@ -65,12 +66,34 @@ Ambience palette: {", ".join(bp.sound.ambience)}. These are the only names allow
 """
 
 
+def _feelings_block(feelings: EmotionSettings, moments: int) -> str:
+    gen = feelings.generation
+    low, high = moments * gen.tags_per_moment_min, moments * gen.tags_per_moment_max
+    need = gen.feelings_per_moment_min
+    return f"""
+FEELINGS
+- Sound tags make the cast sound alive: put <giggle> <laugh> <chuckle> <gasp> <sigh> <yawn> \
+where they fit, spread across the intro, moments and outro. Use at least {low} and at most \
+{high} tags in the whole banter ({moments} moments), never more than one in a line \
+(one tag per line at most). Example: "<giggle> Look at his tiny hat!"
+- Give each intro, moment and outro line an "emotion" saying how it is spoken, from: \
+{", ".join(feelings.names)}. Leave it out (neutral) for plain lines. Every moment needs at \
+least {need} line(s) with a feeling other than neutral that fits what is happening.
+"""
+
+
 def build_brief(
-    book: dict, cast: dict, plan: EpisodePlan, blueprint: Blueprint | None = None
+    book: dict,
+    cast: dict,
+    plan: EpisodePlan,
+    blueprint: Blueprint | None = None,
+    feelings: EmotionSettings | None = None,
 ) -> str:
     """Everything a writer needs: book, cast, the planned Q&A moments and the rules (no reply format).
 
-    With a blueprint, the fixed kid-role sentences give way to a DIRECTION block."""
+    With a blueprint, the fixed kid-role sentences give way to a DIRECTION block. With feelings
+    (spec 017), a FEELINGS block asks for sound tags and per-line feelings; without them the
+    brief is exactly as before."""
     meta = book["metadata"]
     title = meta["title"]
     cast_lines = "\n".join(f"- {role}: {c['name']}, {c['description']}" for role, c in cast.items())
@@ -88,6 +111,9 @@ def build_brief(
     )
     kid_roles = _KID_ROLES_LINE if blueprint is None else _DIRECTION_POINTER
     direction = "" if blueprint is None else _direction_block(blueprint)
+    if feelings is not None:
+        direction += _feelings_block(feelings, len(plan.qa_speakers))
+    tags_hint = "" if feelings is None else " Use them where they fit."
     return f"""You write the spoken banter for a cozy read-aloud storytime video of the children's \
 book "{title}" ({meta.get("age_range", "young children")}). The Storyteller reads every page \
 aloud; you write only the extra dialogue described below.
@@ -117,8 +143,8 @@ storyteller inviting viewers to subscribe and come back for the next story.
 {direction}
 RULES
 - Kid lines are at most 25 words.
-- The only allowed inline tags are <giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>. No other \
-tags, markup or stage directions: no asterisks (*giggles*), no square brackets ([laughs]), no \
+- The only allowed inline tags are <giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>.{tags_hint} \
+No other tags, markup or stage directions: no asterisks (*giggles*), no square brackets ([laughs]), no \
 parenthesised directions ((whispering)) and no underscores (_softly_).
 - Everything is gentle and suitable for young children. Do not invent story events that are \
 not in the book.
@@ -126,11 +152,15 @@ not in the book.
 
 
 def build_prompt(
-    book: dict, cast: dict, plan: EpisodePlan, feedback: list[str] | None = None
+    book: dict,
+    cast: dict,
+    plan: EpisodePlan,
+    feedback: list[str] | None = None,
+    feelings: EmotionSettings | None = None,
 ) -> str:
     """One-shot prompt (Gemini API): the brief plus the JSON reply format and any feedback."""
     prompt = (
-        build_brief(book, cast, plan)
+        build_brief(book, cast, plan, feelings=feelings)
         + "\nREPLY\nReply with JSON only, matching this JSON schema:\n"
         + json.dumps(Banter.model_json_schema())
         + "\n"

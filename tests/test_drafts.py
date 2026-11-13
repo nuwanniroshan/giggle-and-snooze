@@ -64,7 +64,7 @@ def test_create_book_writes_the_book_folder_and_removes_the_draft(root):  # AC-3
     assert slug == "the-brave-little-teapot"
     data = json.loads(folder.book_json.read_text(encoding="utf-8"))
     assert data["metadata"]["author"] == "Test Author"
-    assert data["metadata"]["publisher"] == "Whisperwood Storybook Press"  # from defaults
+    assert data["metadata"]["publisher"] == "Giggle & Snooze"  # from defaults
     assert data["metadata"]["digital_page_count"] == 8
     assert len(data["pages"]) == 8
     assert folder.illustrations.is_dir()
@@ -108,3 +108,57 @@ def test_idea_runs_keep_their_result(root):  # FR-4: suggestions and candidates
     assert store.read_run(run_id)["state"] == "writing"
     store.update_run(run_id, state="ready", payload={"ideas": []}, problems=[])
     assert store.read_run(run_id)["payload"] == {"ideas": []}
+
+
+# --- the character sheet (spec 018: AC-1.4) ---------------------------------------------------
+
+
+def test_create_book_stores_the_character_sheet_and_page_names(root):  # AC-1.4
+    store = dr.DraftStore(root)
+    draft_id = ready_draft(store)
+    sent = store.get(draft_id)["book"]
+    data = json.loads(BookFolder(store.create_book(draft_id), root).book_json.read_text("utf-8"))
+    assert data["style_bible"]["characters"] == sent["characters"]
+    assert "characters" not in data
+    assert [p["characters_on_page"] for p in data["pages"]] == [
+        p["characters_on_page"] for p in sent["pages"]
+    ]
+
+
+def test_create_book_with_a_blueprint_keeps_both(root):  # AC-1.4 with spec 011
+    from tests.blueprint_helpers import valid_blueprint
+    from video_pipeline.episode_tools import write_atomic
+    from video_pipeline.library import PROJECT_ROOT
+
+    (root / "assets").mkdir(exist_ok=True)
+    (root / "assets" / "sound_library").symlink_to(PROJECT_ROOT / "assets" / "sound_library")
+    store = dr.DraftStore(root)
+    draft_id = ready_draft(store)
+    write_atomic(store.blueprint_path(draft_id), valid_blueprint())
+    data = json.loads(BookFolder(store.create_book(draft_id), root).book_json.read_text("utf-8"))
+    assert data["style_bible"]["style_prompt_prefix"]
+    assert [c["name"] for c in data["style_bible"]["characters"]] == ["Tilly", "Hoot"]
+
+
+def pre_018_book() -> dict:
+    data = book(8)
+    del data["characters"]
+    for page in data["pages"]:
+        del page["characters_on_page"]
+    return data
+
+
+def test_draft_written_before_spec_018_still_becomes_a_book(root):  # AC-2.3
+    store = dr.DraftStore(root)
+    record = store.new_draft(idea(), pages=8, author="Test Author")
+    store.update(record["id"], state="ready", book=pre_018_book(), attempts=1, problems=[])
+    data = json.loads(BookFolder(store.create_book(record["id"]), root).book_json.read_text("utf-8"))
+    assert "characters" not in data["style_bible"]
+    assert all("characters_on_page" not in p for p in data["pages"])
+
+
+def test_draft_written_before_spec_018_can_still_be_edited(root):
+    store = dr.DraftStore(root)
+    record = store.new_draft(idea(), pages=8, author="Test Author")
+    store.update(record["id"], state="ready", book=pre_018_book(), attempts=1, problems=[])
+    assert store.update_page_text(record["id"], 2, "The teapot sang a happy song.") == []

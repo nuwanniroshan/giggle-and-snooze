@@ -1,0 +1,124 @@
+{
+  "page_number": 8,
+  "picture": {
+    "file": "page_08.png",
+    "sha256": "19114ccc0370e7fd7383dfb67409ca5695e3a736ceb93a565ec820406560a30d",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T19:47:34+00:00",
+  "layers": [
+    {
+      "name": "pip",
+      "description": "White gull Pip with spread wings, orange beak and dangling feet.",
+      "box": [
+        697,
+        478,
+        867,
+        614
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        786,
+        551
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.003,
+          "period_s": 4.8,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "mira_scarf_tail",
+      "description": "Two blue scarf tails flowing left behind Mira; keep her coat and hair fixed.",
+      "box": [
+        618,
+        740,
+        719,
+        816
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        710,
+        760
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 5.6,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "lighthouse",
+      "description": "Entire smiling lighthouse including red roof, lantern room, tower and both tiny stone feet; move together in a very gentle walking bob.",
+      "box": [
+        896,
+        299,
+        1201,
+        839
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.78,
+      "pivot": [
+        1044,
+        809
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.0012,
+          "period_s": 5.8,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1047,
+          374,
+          1158,
+          450
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#ffd888"
+    },
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          174,
+          920,
+          387,
+          1084
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": null
+    }
+  ]
+}

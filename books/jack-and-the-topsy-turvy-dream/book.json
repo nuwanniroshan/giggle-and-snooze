@@ -1,0 +1,107 @@
+{
+  "metadata": {
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 10,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Giggle & Snooze",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "Jack and the Topsy-Turvy Dream",
+    "subtitle": "A Little Listening, a New Friend",
+    "author": "Giggle & Snooze",
+    "age_range": "Ages 3-6",
+    "blurb": "When Jack’s favourite toy car slips away in a topsy-turvy dream, a puzzling call follows him down the road. One little pause helps him hear the start of a friendship.",
+    "dedication": "For little listeners and the friends they find."
+  },
+  "style_bible": {
+    "style_prompt_prefix": "Wax-crayon resist watercolour on textured paper, rounded friendly shapes, airy washes, playful curved perspective, expressive gentle faces."
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "Snug as Can Be",
+      "text": "Jack snuggled under his quilt with his favourite red toy car. He gave its wheels one sleepy spin. Round and round—and into a dream.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Cosy bedroom at bedtime, Jack a young child with short dark curls and warm brown skin, wearing pale yellow star pyjamas, tucked beneath a soft blue quilt. His hand cradles a small red toy car with four yellow wheels. A warm bedside lamp and soft moonlight make the room welcoming. Rounded shapes and gentle expression.",
+      "illustration_file": "page_01.png"
+    },
+    {
+      "page_number": 2,
+      "title": "Up, Down, All Around",
+      "text": "In Jack’s dream, flowers nodded upside down. A curly road looped over a cushion hill. Jack followed the curl—and his car slipped from his pocket.",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "Jack in the same star pyjamas steps onto a broad lavender road curling through a spacious dream landscape. Flowers hang upside down from arching stems, soft cushion hills rise gently, and a small red car with yellow wheels slips from his pyjama pocket onto the road behind him. Playful curved perspective, airy pastel sky, clear open area upper left.",
+      "illustration_file": "page_02.png"
+    },
+    {
+      "page_number": 3,
+      "title": "A Wobbly Hello",
+      "text": "A little three-eyed friend found the car. Wobble, wobble, patter-pat! It hurried after Jack, calling, “You dropped your car!”",
+      "layout": "image_top_text_bottom",
+      "prompt": "A small friendly pear-shaped mint-green dream creature with three gentle eyes in a row, tiny rounded feet, short arms and a lilac scarf holds Jack’s red toy car carefully. It follows Jack along a softly curving road, smiling with an open friendly mouth. Jack is just ahead looking at the landscape. Creature is cuddly and welcoming, no sharp features.",
+      "illustration_file": "page_03.png"
+    },
+    {
+      "page_number": 4,
+      "title": "What Was That?",
+      "text": "Jack heard a call, but not the words. He took two quicker steps, and the friend took two quicker steps too. Then Jack stopped and turned; the friend stopped with a smile.",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "Jack pauses on a wide level bend in the lavender road and turns toward the small mint-green three-eyed friend. Both have relaxed, curious expressions, and the friend smiles while holding the red car where Jack can see it. Cushion hills and upside-down flowers in the distance, generous open sky upper right.",
+      "illustration_file": "page_04.png"
+    },
+    {
+      "page_number": 5,
+      "title": "Listen a Little",
+      "text": "Jack stood still and listened. “You dropped your car!” said the friend, holding it out. “Oh!” said Jack. “Thank you!”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Warm close scene of Jack bending a little to listen to the friendly mint-green creature with three eyes and lilac scarf. The creature offers the red car with yellow wheels in both hands. Jack’s face brightens with recognition and gratitude. Soft curved dream garden behind them, focus on gentle eye contact and offered toy.",
+      "illustration_file": "page_05.png"
+    },
+    {
+      "page_number": 6,
+      "title": "Room for Two",
+      "text": "“I’m Jack. Shall we play?” The friend nodded so happily that its scarf bobbed. Jack set the car between them, and together they gave it a push.",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "Jack and the mint-green three-eyed friend kneel beside each other on a broad lavender road. They each touch the red car with one finger to start it rolling, smiling together. The lilac scarf lifts in a tiny happy bob. The road curls toward soft cushion hills, open light sky upper left.",
+      "illustration_file": "page_06.png"
+    },
+    {
+      "page_number": 7,
+      "title": "Round the Curl",
+      "text": "Round the curl rolled the little red car. Jack pushed, then his friend pushed. Taking turns kept it rolling—round and round!",
+      "layout": "image_top_text_bottom",
+      "prompt": "A wide overhead curved view of a playful lavender road forming a loose spiral at ground level. The red car rolls between Jack and the friend (the same small pear-shaped mint-green dream creature with three gentle eyes in a row, tiny rounded feet, short arms and a lilac scarf) as they take turns nudging it. Both are delighted and relaxed. Tiny upside-down bell flowers border the road, with airy space and rounded forms.",
+      "illustration_file": "page_07.png"
+    },
+    {
+      "page_number": 8,
+      "title": "Over the Cushion Hill",
+      "text": "At a cushion hill, the car slowed to a stop. “Together?” asked Jack. Push, push, up—and wheee down the other side!",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "A low soft peach cushion hill with a broad gentle slope. Jack and the small three-eyed friend stand together at its rounded crest after helping the red car climb; the toy is rolling down the short gentle slope toward a level lavender road. Both laugh softly, lilac scarf trailing gently. Plenty of open sky upper right.",
+      "illustration_file": "page_08.png"
+    },
+    {
+      "page_number": 9,
+      "title": "A Soft Little Goodbye",
+      "text": "The road curled back to a bed-shaped cloud. Jack yawned, and his friend placed the car in his hand. “Goodnight, friend,” whispered Jack.",
+      "layout": "full_bleed_card_bottom_left",
+      "prompt": "Jack sits sleepily on a low fluffy bed-shaped cloud under a blue quilt, while his mint-green three-eyed friend with lilac scarf gently places the little red car into his open hand. Cushion hills fade softly into a lavender evening sky. Quiet smiles and a crescent moon, uncluttered darker pastel space bottom left for a text card.",
+      "illustration_file": "page_09.png"
+    },
+    {
+      "page_number": 10,
+      "title": "Safe and Cosy",
+      "text": "Jack woke safe and cosy, his car in his hand. He listened to the soft hush of his room and smiled. “Next time, we’ll take turns again,” he whispered.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Return to the same warm bedroom. Jack with short dark curls and warm brown skin lies tucked under his blue quilt in pale yellow star pyjamas, awake with a peaceful smile, holding the red toy car with yellow wheels. Gentle early morning light at the window, warm familiar furnishings, a lilac scarf-shaped cloud far outside as a subtle dream echo. Tender cosy ending.",
+      "illustration_file": "page_10.png"
+    }
+  ]
+}

@@ -18,8 +18,10 @@ import errno
 import hashlib
 import io
 import json
+import math
 import os
 import queue
+import shutil
 import subprocess
 import sys
 import threading
@@ -32,6 +34,7 @@ import numpy as np
 import soundfile as sf
 from PIL import Image, UnidentifiedImageError
 
+from video_pipeline import channel_blend as blend
 from video_pipeline import sound_library, timeline
 from video_pipeline.animate import (
     AnimationError,
@@ -45,6 +48,7 @@ from video_pipeline.animate import (
     rest_frames,
 )
 from video_pipeline.contract import ANIMATION_OVERRIDE_RANGE, ConfigError, _animation_errors
+from video_pipeline.cover_design import CoverPalette, compose_cover, cover_palette
 from video_pipeline.cut_layers import layers_dir
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
@@ -60,6 +64,18 @@ from video_pipeline.frames import (
     page_turn_sound,
     render_caption,
 )
+from video_pipeline.grade import (
+    Loudness,
+    LoudnessError,
+    grade_command,
+    grade_key,
+    is_active,
+    loudness_command,
+    measure_command,
+    parse_ebur128_summary,
+    parse_loudnorm_report,
+    resolve_grade,
+)
 from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
 from video_pipeline.motion_plan import PLAN_DIR
 from video_pipeline.sound_library import Cue, ambience_problems, build_cues, render_bed
@@ -72,6 +88,7 @@ from video_pipeline.synthesize_voices import (
     write_wav_atomic,
 )
 from video_pipeline.timeline import (
+    GradeSettings,
     RenderConfig,
     Section,
     build_sections,
@@ -389,6 +406,17 @@ def run_ffmpeg(cmd: list[str], what: str) -> None:
         raise _ffmpeg_failure(cmd, what, exc.stderr, exc.returncode) from None
 
 
+def measure_ffmpeg(cmd: list[str], what: str) -> str:
+    """Run an FFmpeg command whose result is its report on stderr (spec 013 loudness steps)."""
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except FileNotFoundError:
+        raise RenderError(f"{what}: ffmpeg not found; brew install ffmpeg") from None
+    except subprocess.CalledProcessError as exc:
+        raise _ffmpeg_failure(cmd, what, exc.stderr, exc.returncode) from None
+    return result.stderr
+
+
 _FRAME_QUEUE = 3  # frames buffered between the drawing loop and the pipe writer
 
 
@@ -491,6 +519,11 @@ class VideoPaths:
 
     def record(self, slug: str) -> Path:
         return self.root / f"{slug}.json"
+
+    def ungraded(self, slug: str) -> Path:
+        """The joined video before the final grade (spec 013): kept so a regrade re-runs only
+        the grading step."""
+        return self.root / f"{slug}.ungraded.mp4"
 
     def preview(self, page_number: int) -> Path:
         """A page preview (spec 010 FR-15): `preview/page_NN.mp4`."""
@@ -604,6 +637,7 @@ class RenderResult:
 Runner = Callable[[list[str], str], None]
 FrameRunner = Callable[[list[str], Iterable[bytes], str], None]
 Progress = Callable[[str, str], None]
+Measurer = Callable[[list[str], str], str]  # runs FFmpeg and returns its stderr (loudness reports)
 
 
 def _digest(payload: object) -> str:
@@ -772,6 +806,9 @@ class _Inputs:
     eligibility: dict[str, PageEligibility] = field(default_factory=dict)
     still_notes: list[tuple[str, str]] = field(default_factory=list)
     still_keys: list[str] = field(default_factory=list)  # equal to `keys` for still sections
+    channel_intro_sha: str = ""  # sha256 of the channel intro clip, "" when there is none
+    bookend_clips: list[ChannelClip] = field(default_factory=list)  # spec 012: open, then close
+    grade: GradeSettings = field(default_factory=GradeSettings)  # spec 013: shared + the book's
 
 
 def _check_overrides(script: dict, cfg: RenderConfig) -> None:
@@ -853,6 +890,9 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
     ]
     timings, tracks, sample_rate = _load_tracks(audio, track_names)
     pictures = resolve_pictures(book, folder, Path(root) / "assets" / "nook")
+    cover_notes: list[tuple[str, str]] = []
+    if folder.blueprint_path.is_file():
+        cover_notes = _use_titled_cover(book, folder, cfg, pictures, Path(root))
     for path in pictures.files.values():
         _check_picture(path)
     picture_sha = {pid: sha256_file(path) for pid, path in pictures.files.items()}
@@ -862,6 +902,7 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         raise RenderError(str(exc)) from None
     _check_overrides(script, cfg)
     eligibility, still_notes = _page_eligibility(folder, book, script, cfg, Path(root))
+    still_notes = cover_notes + still_notes
     keys, still_keys = [], []
     for s in sections:
         key = section_key(s, picture_sha[s.picture], cfg)
@@ -889,7 +930,429 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
         eligibility,
         still_notes,
         still_keys,
+        sha256_file(intro) if (intro := _channel_intro_file(cfg, Path(root))) else "",
+        _bookend_clips(cfg, Path(root)),
+        resolve_grade(cfg.grade, book, folder.book_json),
     )
+
+
+COVER_RECIPE = 3  # bump when the cover design changes (spec 015 FR-3)
+
+
+def cover_key(
+    cover_sha: str,
+    words: list[str],
+    palette: CoverPalette,
+    logo_sha: str,
+    size: tuple[int, int],
+) -> str:
+    """The lettered cover's cache key: picture, words, palette, logo and design version."""
+    return _digest(
+        {
+            "recipe": COVER_RECIPE,
+            "cover": cover_sha,
+            "words": words,
+            "palette": [f"#{r:02X}{g:02X}{b:02X}" for r, g, b in asdict(palette).values()],
+            "logo": logo_sha,
+            "size": list(size),
+        }
+    )
+
+
+def _blueprint_data(folder: BookFolder) -> dict | None:
+    """The book's blueprint as plain data; None when it is missing or not JSON."""
+    try:
+        data = json.loads(folder.blueprint_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _use_titled_cover(
+    book: dict, folder: BookFolder, cfg: RenderConfig, pictures: ResolvedPictures, root: Path
+) -> list[tuple[str, str]]:
+    """Letter the book's front cover like a picture book (spec 015): title plate, subtitle and
+    the channel logo badge, in the blueprint's palette.
+
+    Books made from a blueprint get a cover painted without lettering; the lettering is drawn
+    here (Pillow), so it is always spelled right. The lettered cover is a derived file under
+    `build/video/frames/`, rebuilt only when the cover, the words, the palette, the logo or the
+    design change. Returns render-log notes (a missing logo, AC-1.8)."""
+    meta = book["metadata"]
+    cover = pictures.files["cover_front"]
+    words = [meta.get("title", ""), meta.get("subtitle", "")]
+    palette = cover_palette(_blueprint_data(folder))
+    notes: list[tuple[str, str]] = []
+    logo: Path | None = None
+    if cfg.channel_logo:
+        logo = Path(root) / cfg.channel_logo
+        if not logo.is_file():
+            notes.append(("cover", f"logo not found: {logo} (cover made without the badge)"))
+            logo = None
+    stamp = cover_key(
+        sha256_file(cover),
+        words,
+        palette,
+        sha256_file(logo) if logo else "",
+        (cfg.width, cfg.height),
+    )
+    out = folder.build_dir / "video" / "frames" / "cover_front_titled.png"
+    marker = out.with_suffix(".json")
+    if not (out.is_file() and (_read_json(marker) or {}).get("key") == stamp):
+        compose_cover(cover, words[0], words[1], palette, logo, cfg, out)
+        write_atomic(marker, {"key": stamp})
+    pictures.files["cover_front"] = out
+    return notes
+
+
+def _channel_intro_file(cfg: RenderConfig, root: Path) -> Path | None:
+    if not cfg.channel_intro:
+        return None
+    path = Path(root) / cfg.channel_intro
+    if not path.is_file():
+        raise RenderError(f"channel intro not found: {path}")
+    return path
+
+
+@dataclass(frozen=True)
+class ChannelClip:
+    """A shared brand clip joined to the episode (spec 012): `role` is "open" or "close"."""
+
+    role: str
+    path: Path
+    sha256: str
+
+
+def _bookend_clips(cfg: RenderConfig, root: Path) -> list[ChannelClip]:
+    """The configured opening and ending clips, in that order. A configured file that does not
+    exist raises RenderError naming it, before anything is encoded (spec 012 AC-3.4)."""
+    clips: list[ChannelClip] = []
+    for role, setting, label in (
+        ("open", cfg.channel_open_clip, "opening clip"),
+        ("close", cfg.channel_close_clip, "ending clip"),
+    ):
+        if not setting:
+            continue
+        path = Path(root) / setting
+        if not path.is_file():
+            raise RenderError(f"{label} not found: {path}")
+        clips.append(ChannelClip(role, path, sha256_file(path)))
+    return clips
+
+
+def channel_intro_command(
+    src: Path, out_path: Path, cfg: RenderConfig, has_audio: bool = True
+) -> list[str]:
+    """FFmpeg arguments re-encoding a brand clip to the episode's exact video format (size, frame
+    rate, BT.709, timescale) and stereo AAC, so it can be joined to the episode untouched.
+
+    A source without an audio track gets silence as long as its picture (`has_audio=False`)."""
+    encode = [a for a in ENCODE_ARGS(cfg) if a != "-an"]
+    graph = (
+        f"scale={cfg.width}:{cfg.height}:flags=lanczos:force_original_aspect_ratio=decrease,"
+        f"pad={cfg.width}:{cfg.height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,"
+        f"{_to_bt709_yuv(cfg.width, cfg.height)}"
+    )
+    if has_audio:
+        inputs = ["-i", str(src)]
+        maps = ["-map", "0:v:0", "-map", "0:a:0?"]
+        tail: list[str] = []
+    else:
+        silence = f"anullsrc=channel_layout=stereo:sample_rate={cfg.video.audio_rate}"
+        inputs = ["-i", str(src), "-f", "lavfi", "-i", silence]
+        maps = ["-map", "0:v:0", "-map", "1:a:0"]
+        tail = ["-shortest"]
+    return [
+        "ffmpeg", "-y", "-loglevel", "error", *inputs,
+        *maps, "-vf", graph, *encode,
+        "-c:a", "aac", "-b:a", cfg.video.audio_bitrate, "-ar", str(cfg.video.audio_rate),
+        "-ac", "2", *tail, "-f", "mp4", str(out_path),
+    ]  # fmt: skip
+
+
+def _conform_clip(
+    role: str, src: Path, cfg: RenderConfig, work: Path, run: Runner
+) -> tuple[Path, float]:
+    """The clip re-encoded once to the episode's format (cached next to the video by the clip's
+    sha256 and the encode settings) and its length in seconds."""
+    prepared, meta = work / f"channel_{role}.mp4", work / f"channel_{role}.json"
+    key = _digest(
+        {
+            "src": sha256_file(src),
+            "size": [cfg.width, cfg.height, cfg.fps],
+            "video": asdict(cfg.video),
+            "version": timeline.RENDER_VERSION,
+        }
+    )
+    if not _reusable(prepared, meta, key, False):
+        meta.unlink(missing_ok=True)
+        has_audio = any(s.get("codec_type") == "audio" for s in probe(src).get("streams", []))
+        _run_to(
+            run,
+            lambda out: channel_intro_command(src, out, cfg, has_audio),
+            prepared,
+            f"clip {role}",
+        )
+        write_atomic(meta, {"key": key})
+    return prepared, float(probe(prepared)["format"]["duration"])
+
+
+def video_frame_count(path: Path, fps: int) -> int:
+    """Whole frames in the first video stream of `path`: its frame count, else its stream length
+    (not the container's, which an audio track can stretch)."""
+    info = probe(path)
+    stream = next((s for s in info.get("streams", []) if s.get("codec_type") == "video"), {})
+    if str(stream.get("nb_frames", "")).isdigit() and int(stream["nb_frames"]) > 0:
+        return int(stream["nb_frames"])
+    seconds = float(stream.get("duration") or info["format"]["duration"])
+    return round(seconds * fps)
+
+
+def keyframe_frames(path: Path, fps: int) -> list[int]:
+    """Frame numbers of the keyframes of the first video stream of `path` (packets only, no
+    decoding)."""
+    cmd = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "packet=pts_time,flags", "-of", "csv=p=0", str(path),
+    ]  # fmt: skip
+    try:
+        out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+    except FileNotFoundError:
+        raise RenderError("ffprobe not found; brew install ffmpeg") from None
+    except subprocess.CalledProcessError as exc:
+        raise RenderError(
+            f"probe {path}: {_tail(exc.stderr) or f'ffprobe exit {exc.returncode}'}"
+        ) from None
+    frames: set[int] = set()
+    for line in out.splitlines():
+        time, _, flags = line.partition(",")
+        if time and "K" in flags:
+            frames.add(round(float(time) * fps))
+    return sorted(frames | {0})
+
+
+def blend_copy_command(src: Path, cut: blend.Cut, out_path: Path, cfg: RenderConfig) -> list[str]:
+    """Cut frames [start, end) of `src` without re-encoding; `start` must be a keyframe. The seek
+    time is its time rounded up to the microsecond: rounding down could land on the keyframe
+    before, and any larger step would shorten the piece."""
+    return [
+        "ffmpeg", "-y", "-loglevel", "error", "-ss", f"{math.ceil(cut.start / cfg.fps * 1e6) / 1e6:.6f}",
+        "-i", str(src), "-map", "0:v:0", "-frames:v", str(cut.frames), "-c", "copy", "-an",
+        "-video_track_timescale", str(VIDEO_TIMESCALE), "-f", "mp4", str(out_path),
+    ]  # fmt: skip
+
+
+def blend_window_command(
+    sources: Sequence[Path], step: blend.Step, out_path: Path, cfg: RenderConfig
+) -> list[str]:
+    """Re-encode one small blend window: its cuts dissolved into each other (picture only)."""
+    cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+    for src, cut in zip(sources, step.cuts, strict=True):
+        cmd += [
+            "-ss", f"{max(0.0, cut.start - 0.25) / cfg.fps:.6f}",
+            "-t", f"{(cut.frames - 0.25) / cfg.fps:.6f}", "-i", str(src),
+        ]  # fmt: skip
+    norm = f"{_to_bt709_yuv(cfg.width, cfg.height)},fps={cfg.fps},settb=AVTB"
+    graph = blend.video_blend_graph(
+        [c.frames for c in step.cuts], blend_size(cfg), cfg.fps, norm, _OUTPUT_FORMAT
+    )
+    return [
+        *cmd, "-filter_complex", graph, "-map", "[vout]",
+        "-frames:v", str(blend.blend_frames([c.frames for c in step.cuts], blend_size(cfg))),
+        *ENCODE_ARGS(cfg), "-f", "mp4", str(out_path),
+    ]  # fmt: skip
+
+
+def blend_size(cfg: RenderConfig) -> int:
+    """The dissolve length in whole frames (`channel_blend_seconds`, at least one frame)."""
+    return max(1, round(cfg.channel_blend_seconds * cfg.fps))
+
+
+def blend_join_command(
+    listing: Path, audio_sources: Sequence[Path], script: Path, out_path: Path, cfg: RenderConfig
+) -> list[str]:
+    """Join the picture pieces with `-c copy` and add the sound: every part's audio cross-faded
+    by the filtergraph in `script`, encoded once as stereo AAC."""
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(listing)]
+    for src in audio_sources:
+        cmd += ["-i", str(src)]
+    return [
+        *cmd, "-filter_complex_script", str(script), "-map", "0:v:0", "-map", "[aout]",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", cfg.video.audio_bitrate,
+        "-ar", str(cfg.video.audio_rate), "-ac", "2", "-movflags", "+faststart",
+        "-f", "mp4", str(out_path),
+    ]  # fmt: skip
+
+
+def join_channel_clips(
+    body: Path,
+    before: Sequence[tuple[str, Path]],
+    after: Sequence[tuple[str, Path]],
+    out_path: Path,
+    cfg: RenderConfig,
+    work: Path,
+    run: Runner,
+    body_audio: Path | None = None,
+) -> dict[str, float]:
+    """Join the finished episode `body` between brand clips: `before` plays first, `after` last.
+
+    Each (role, source) clip is conformed (and cached) by `_conform_clip`. Neighbouring parts
+    are cross-dissolved over `channel_blend_seconds` (spec 012 FR-5): only the windows around
+    the joins are re-encoded, the rest is cut at keyframes and joined with `-c copy`, and the
+    sound is one `acrossfade` chain. `body_audio` (default: the body's own track) is the body's
+    sound. Returns each clip's own length in seconds by role."""
+    lengths: dict[str, float] = {}
+    prepared: dict[str, Path] = {}
+    for role, src in (*before, *after):
+        prepared[role], _ = _conform_clip(role, src, cfg, work, run)
+    parts = [prepared[r] for r, _ in before] + [body] + [prepared[r] for r, _ in after]
+    frames = [video_frame_count(p, cfg.fps) for p in parts]
+    roles = [r for r, _ in before] + [None] + [r for r, _ in after]
+    for role, count in zip(roles, frames, strict=True):
+        if role is not None:
+            lengths[role] = count / cfg.fps
+    keys = [keyframe_frames(p, cfg.fps) for p in parts]
+    size = blend_size(cfg)
+    try:
+        steps = blend.plan_blend(frames, keys, size)
+    except blend.BlendError as exc:
+        raise RenderError(f"channel clips: {exc}") from None
+    scratch = work / "blend"
+    shutil.rmtree(scratch, ignore_errors=True)
+    scratch.mkdir(parents=True)
+    try:
+        pieces: list[Path] = []
+        for number, step in enumerate(steps):
+            piece = scratch / f"{number:02d}_{step.kind}.mp4"
+            if step.kind == "copy":
+                cut = step.cuts[0]
+                cmd_for = lambda out, cut=cut: blend_copy_command(parts[cut.part], cut, out, cfg)  # noqa: E731
+            else:
+                sources = [parts[c.part] for c in step.cuts]
+                cmd_for = lambda out, s=step, src=sources: blend_window_command(src, s, out, cfg)  # noqa: E731
+            _run_to(
+                run,
+                cmd_for,
+                piece,
+                f"blend {number + 1}" if step.kind == "blend" else f"cut {number + 1}",
+            )
+            pieces.append(piece)
+        listing = work / "channel_join.txt"
+        write_concat_list(pieces, listing)
+        script = scratch / "audio_blend.txt"
+        script.write_text(
+            blend.audio_blend_graph(frames, size, cfg.fps, cfg.video.audio_rate), encoding="utf-8"
+        )
+        audio = list(parts)
+        audio[len(before)] = body_audio or body
+        cmd_for = lambda out: blend_join_command(listing, audio, script, out, cfg)  # noqa: E731
+        _run_to(run, cmd_for, out_path, "join clips")
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    return lengths
+
+
+def grade_video(
+    src: Path,
+    out: Path,
+    settings: GradeSettings,
+    duration: float,
+    cfg: RenderConfig,
+    run: Runner,
+    measure: Measurer,
+) -> Loudness:
+    """The final grade (spec 013): one re-encode of `src` into `out`, with the loudness measured
+    first (pass one) and applied as one gain (pass two), then the result measured for the record.
+    A failure raises RenderError with FFmpeg's message and leaves `src` and any earlier `out`."""
+    measured: Loudness | None = None
+    try:
+        if settings.sound:
+            report = measure(measure_command(str(src), settings, duration, cfg), "measure loudness")
+            measured = parse_loudnorm_report(report)
+        _run_to(
+            run,
+            lambda tmp: grade_command(str(src), str(tmp), settings, duration, cfg, measured),
+            out,
+            "grade",
+        )
+        return parse_ebur128_summary(measure(loudness_command(str(out)), "measure result"))
+    except LoudnessError as exc:
+        raise RenderError(f"grade: {exc}") from None
+
+
+def _loudness_record(result: Loudness) -> dict:
+    return {
+        "integrated_lufs": result.integrated,
+        "true_peak_dbfs": result.true_peak,
+        "loudness_range": result.loudness_range,
+    }
+
+
+_GRADE_FIELDS = ("ungraded_sha256", "grade_key", "grade", "loudness", "graded_at")
+
+
+def _grade_is_current(record: dict, inputs: _Inputs, active: bool) -> bool:
+    """Whether the video the record describes carries the grade that is now asked for."""
+    if not active:
+        return not any(record.get(k) for k in _GRADE_FIELDS)
+    sha = record.get("ungraded_sha256")
+    return bool(sha) and record.get("grade_key") == grade_key(sha, inputs.grade, inputs.cfg)
+
+
+def _copy_atomic(src: Path, dst: Path) -> None:
+    tmp = _tmp_clip(dst)
+    try:
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, dst)  # noqa: PTH105 - atomic replace
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _regrade(
+    inputs: _Inputs,
+    record: dict,
+    active: bool,
+    run: Runner,
+    measure: Measurer,
+    on_progress: Progress | None,
+) -> bool:
+    """Spec 013 AC-4.2: the sections are current and only the grade changed: grade (or restore)
+    from the kept ungraded video and update the record. False when that video is missing or
+    changed, so the caller renders in full."""
+    paths, slug, cfg = inputs.paths, inputs.slug, inputs.cfg
+    final, ungraded, record_path = paths.final(slug), paths.ungraded(slug), paths.record(slug)
+    base = {k: v for k, v in record.items() if k not in _GRADE_FIELDS}
+    if record.get("ungraded_sha256"):
+        if not ungraded.exists() or sha256_file(ungraded) != record["ungraded_sha256"]:
+            return False
+    elif final.exists():  # a plain render: the video is its own ungraded source
+        _copy_atomic(final, ungraded)
+    else:
+        return False
+    record_path.unlink(missing_ok=True)  # stale until the new video is complete
+    if not active:
+        _copy_atomic(ungraded, final)
+        ungraded.unlink(missing_ok=True)
+        write_atomic(record_path, base)
+        return True
+    sha = sha256_file(ungraded)
+    write_atomic(record_path, {**base, "ungraded_sha256": sha})
+    result = grade_video(ungraded, final, inputs.grade, float(base["duration"]), cfg, run, measure)
+    write_atomic(record_path, _graded_record(inputs, base, sha, result))
+    if on_progress:
+        on_progress("grade", "rendered")
+    return True
+
+
+def _graded_record(inputs: _Inputs, base: dict, sha: str, result: Loudness) -> dict:
+    return {
+        **base,
+        "ungraded_sha256": sha,
+        "grade_key": grade_key(sha, inputs.grade, inputs.cfg),
+        "grade": asdict(inputs.grade),
+        "loudness": _loudness_record(result),
+        "graded_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
 
 
 def _load_ambience(script: dict, sections: list[Section], cfg: RenderConfig, root: Path) -> list:
@@ -950,6 +1413,17 @@ def _final_key(inputs: _Inputs, page_turn_sha: str) -> str:
             "audio": asdict(inputs.cfg.audio),
             "video": asdict(inputs.cfg.video),
             **({"ambience": inputs.ambience_key} if inputs.ambience_key else {}),
+            **({"channel_intro": inputs.channel_intro_sha} if inputs.channel_intro_sha else {}),
+            **(
+                {"channel_blend_seconds": inputs.cfg.channel_blend_seconds}
+                if inputs.channel_intro_sha or inputs.bookend_clips
+                else {}
+            ),
+            **(
+                {"bookend_clips": {c.role: c.sha256 for c in inputs.bookend_clips}}
+                if inputs.bookend_clips
+                else {}
+            ),
         }
     )
 
@@ -1012,7 +1486,9 @@ def render_check_detail(
         page_turn_sha = record["page_turn_sha256"]
     else:
         return "out_of_date", ""
-    if record.get("final_key") == _final_key(inputs, page_turn_sha):
+    if record.get("final_key") == _final_key(inputs, page_turn_sha) and _grade_is_current(
+        record, inputs, is_active(inputs.grade)
+    ):
         return "up_to_date", ""
     return "out_of_date", ""
 
@@ -1025,6 +1501,8 @@ def render_video(
     on_progress: Progress | None = None,
     sfx_dir: Path | None = None,
     frame_run: FrameRunner = run_ffmpeg_frames,
+    measure: Measurer = measure_ffmpeg,
+    no_grade: bool = False,
 ) -> RenderResult:
     """Render the approved episode of one book to `books/<slug>/build/video/<slug>.mp4` (spec 003).
 
@@ -1035,6 +1513,10 @@ def render_video(
     An animated page whose layer files can't be loaded renders still and is logged; its clip is
     recorded under the still key and the video record gets no final key, so the next run tries
     the animation again instead of calling the still fallback up to date (spec 010 Phase 4).
+
+    The finished joined video then gets the final grade (spec 013) unless it is switched off or
+    `no_grade` is set: the ungraded video is kept beside the result, so changing only a grade
+    setting re-runs just that pass (the record's `grade_key` covers its checksum and settings).
     """
     inputs = _load_inputs(folder, root)
     slug, cfg = inputs.slug, inputs.cfg
@@ -1058,12 +1540,16 @@ def render_video(
         duration = total_frames(sections, cfg) / cfg.fps
         final, record_path = paths.final(slug), paths.record(slug)
         record = _read_json(record_path)
-        if not force and final.exists() and record and record.get("final_key") == final_key:
-            stale = any(record.get(k) != v for k, v in page_turn_fields.items())
-            if stale and page_turn_fields["page_turn_file_sha256"] is not None:
-                # Records written before spec 004 lack these; render_check needs them.
-                write_atomic(record_path, {**record, **page_turn_fields})
-            return RenderResult(final, duration, 0, len(sections), True)
+        active = is_active(inputs.grade, no_grade)
+        if not force and record and record.get("final_key") == final_key:
+            if final.exists() and _grade_is_current(record, inputs, active):
+                stale = any(record.get(k) != v for k, v in page_turn_fields.items())
+                if stale and page_turn_fields["page_turn_file_sha256"] is not None:
+                    # Records written before spec 004 lack these; render_check needs them.
+                    write_atomic(record_path, {**record, **page_turn_fields})
+                return RenderResult(final, duration, 0, len(sections), True)
+            if _regrade(inputs, record, active, run, measure, on_progress):
+                return RenderResult(final, duration, 0, len(sections), False)
         decoded = _decode_sounds(inputs)  # fail on a bad sound before any encoding
         record_path.unlink(missing_ok=True)  # stale until the new video is complete
 
@@ -1121,25 +1607,57 @@ def render_video(
         list_file = paths.root / "concat.txt"
         write_concat_list(clips, list_file)
         joined = paths.root / f"{slug}.joined.mp4"
+        # With the grade on, the join is kept as the ungraded video and graded into `final`.
+        join_out = paths.ungraded(slug) if active else final
+        if not active:
+            paths.ungraded(slug).unlink(missing_ok=True)
+        clip_seconds: dict[str, float] = {}
         try:
             _run_to(run, lambda out: concat_command(list_file, out), joined, "join")
-            _run_to(run, lambda out: mux_command(joined, master, out, cfg), final, "mux")
+            intro_src = _channel_intro_file(cfg, root)
+            before = [("intro", intro_src)] if intro_src is not None else []
+            before += [(c.role, c.path) for c in inputs.bookend_clips if c.role == "open"]
+            after = [(c.role, c.path) for c in inputs.bookend_clips if c.role == "close"]
+            if not (before or after):
+                _run_to(run, lambda out: mux_command(joined, master, out, cfg), join_out, "mux")
+            else:
+                clip_seconds = join_channel_clips(
+                    joined, before, after, join_out, cfg, paths.root, run, body_audio=master
+                )
+                duration += sum(clip_seconds.values())
+                duration -= (len(before) + len(after)) * blend_size(cfg) / cfg.fps
         finally:
             joined.unlink(missing_ok=True)
-        write_atomic(
-            record_path,
-            {
-                "final_key": None if fell_back else final_key,
-                "duration": round(duration, 3),
-                "frames": total_frames(sections, cfg),
-                "sections": [
-                    {"name": s.name, "key": k, "picture": str(pictures.files[s.picture])}
-                    for s, k in zip(sections, made_keys, strict=True)
-                ],
-                **page_turn_fields,
-                "rendered_at": datetime.now(UTC).isoformat(timespec="seconds"),
-            },
-        )
+        base_record = {
+            "final_key": None if fell_back else final_key,
+            "duration": round(duration, 3),
+            "frames": total_frames(sections, cfg),
+            "sections": [
+                {"name": s.name, "key": k, "picture": str(pictures.files[s.picture])}
+                for s, k in zip(sections, made_keys, strict=True)
+            ],
+            **page_turn_fields,
+            **(
+                {
+                    "bookend_clips": {
+                        c.role: {"sha256": c.sha256, "seconds": round(clip_seconds[c.role], 3)}
+                        for c in inputs.bookend_clips
+                    }
+                }
+                if inputs.bookend_clips
+                else {}
+            ),
+            "rendered_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        if not active:
+            write_atomic(record_path, base_record)
+            return RenderResult(final, duration, rendered, reused, False)
+        sha = sha256_file(join_out)
+        write_atomic(record_path, {**base_record, "ungraded_sha256": sha})  # kept if grading fails
+        result = grade_video(join_out, final, inputs.grade, duration, cfg, run, measure)
+        write_atomic(record_path, _graded_record(inputs, base_record, sha, result))
+        if on_progress:
+            on_progress("grade", "rendered")
         return RenderResult(final, duration, rendered, reused, False)
     except OSError as exc:
         if exc.errno == errno.ENOSPC:
@@ -1324,6 +1842,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--force", action="store_true", help="re-render every section")
     parser.add_argument(
+        "--no-grade",
+        action="store_true",
+        help="skip the final grade (colour, sharpness, fades, loudness; spec 013)",
+    )
+    parser.add_argument(
         "--preview-page",
         type=int,
         default=None,
@@ -1335,7 +1858,10 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 
 def main(
-    argv: list[str] | None = None, run: Runner | None = None, frame_run: FrameRunner | None = None
+    argv: list[str] | None = None,
+    run: Runner | None = None,
+    frame_run: FrameRunner | None = None,
+    measure: Measurer | None = None,
 ) -> int:
     args = parse_args(argv)
     folder: BookFolder | None = None
@@ -1364,6 +1890,8 @@ def main(
             on_progress=progress,
             sfx_dir=args.sfx_dir,
             frame_run=frame_run or run_ffmpeg_frames,
+            no_grade=args.no_grade,
+            measure=measure or measure_ffmpeg,
         )
     except (RenderError, PictureError, SoundError, BookError, ConfigError, LibraryError) as exc:
         print(f"error: {exc}", file=sys.stderr)

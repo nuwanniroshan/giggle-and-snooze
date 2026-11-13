@@ -1,0 +1,183 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "ca6e638bb0fd90d0189afe8aacd0fc1956ee5c063fc0eeb64c7a5d4462dedaa1",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T19:40:06+00:00",
+  "layers": [
+    {
+      "name": "lighthouse",
+      "description": "Friendly lighthouse with red roof, face, door and stone feet; a tiny reassuring shiver while crossing.",
+      "box": [
+        531,
+        34,
+        898,
+        706
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        712,
+        666
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.45,
+          "period_s": 5.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip",
+      "description": "White and gray seagull on the right bridge railing, with feet anchored to the stone.",
+      "box": [
+        932,
+        403,
+        1086,
+        544
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.63,
+      "pivot": [
+        1026,
+        537
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.006,
+          "period_s": 3.8,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "mira_scarf_tail",
+      "description": "Two loose blue scarf tails streaming left of Mira; exclude her hair, hand and yellow coat.",
+      "box": [
+        238,
+        421,
+        380,
+        541
+      ],
+      "include_points": [
+        [
+          284,
+          460
+        ],
+        [
+          291,
+          503
+        ]
+      ],
+      "exclude_points": [
+        [
+          361,
+          439
+        ],
+        [
+          368,
+          522
+        ]
+      ],
+      "z": 4,
+      "depth": 0.65,
+      "pivot": [
+        374,
+        437
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.6,
+          "period_s": 5.8,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_right_leaves",
+      "description": "Overhanging leafy twigs at the upper right, excluding the thick tree trunk.",
+      "box": [
+        894,
+        1,
+        1237,
+        194
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.8,
+      "pivot": [
+        1217,
+        43
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.55,
+          "period_s": 8.0,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "rain",
+      "region": {
+        "box": [
+          0,
+          0,
+          1254,
+          1254
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": null
+    },
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          280,
+          966,
+          1094,
+          1240
+        ],
+        "layer": null
+      },
+      "intensity": 0.22,
+      "colour": null
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          698,
+          119,
+          852,
+          222
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffd483"
+    }
+  ]
+}

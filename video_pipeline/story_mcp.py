@@ -75,7 +75,8 @@ def create_server(tools: StoryTools, mode: str) -> MCPServer:
         @server.tool()
         def submit_book(book: dict) -> dict:
             """Submit the whole book: {"metadata": {title, subtitle, age_range, blurb, dedication},
-            "pages": [{page_number, title, text, layout, prompt, illustration_file}]}.
+            "characters": [{name, look}], "pages": [{page_number, title, text, layout, prompt,
+            illustration_file, characters_on_page}]}.
             Returns {saved, errors}; fix every error and submit again."""
             return tools.submit_book(book)
 

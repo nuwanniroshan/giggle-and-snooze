@@ -1,16 +1,15 @@
 {% extends "book_base.html" %}
-{% from "_macros.html" import badge, tone_of, job_log %}
+{% from "_macros.html" import badge, tone_of, job_log, problem_list %}
 {% set here = 'book' %}
 {% block title %}{{ book.title }}{% endblock %}
 {% block content %}
 {% set steps = flow_steps(book) %}
 {% set anim_step = steps|selectattr('key', 'equalto', 'animation')|first %}
-{% set focus = {'script': 'script', 'audio': 'voices', 'animation': 'animation', 'video': 'render'}.get((steps|selectattr('current')|map(attribute='key')|first) or '') %}
+{% set focus = {'pictures': 'paint', 'script': 'script', 'audio': 'voices', 'animation': 'animation', 'video': 'render', 'editions': 'build'}.get((steps|selectattr('current')|map(attribute='key')|first) or '') %}
 {% set cover = cover_url(book) %}
 <header class="hero">
   {% if cover %}<div class="hero-art" aria-hidden="true"><img src="{{ cover|replace('/thumb/', '/illustration/') }}" alt=""></div>{% endif %}
   <div>
-    <span class="eyebrow">Overview</span>
     <h1>{{ book.title }}</h1>
     <p class="next-line"><span class="label">Next</span> <span>{{ status.next_action }}</span></p>
   </div>
@@ -21,7 +20,75 @@
 
 <div class="split">
 <div>
+{% set ap = autopilot %}
+<section class="panel" id="autopilot">
+  <div class="stage-title">
+    <h2>Autopilot</h2>
+    {% if ap.run %}{{ badge(ap.run.state) }}{% endif %}
+  </div>
+  {% if not ap.run %}
+  <p class="stage-detail">Runs every unfinished stage in order, without stopping: pictures, plans, layers, script, an automatic review mark, voices, an automatic approval, the video and the editions.</p>
+  {% elif ap.run.state == 'running' %}
+  <p class="stage-detail">Running {{ ap.stage_label or 'the first stage' }}&hellip; started at {{ ap.run.started_at }}. Stop ends the current stage and starts nothing after it.</p>
+  {% elif ap.run.state == 'finished' %}
+  <p class="stage-detail">Finished by autopilot at {{ ap.run.finished_at }}.</p>
+  <p class="small">{% if ap.video %}<a href="/books/{{ book.slug }}/video">Watch the video</a> &middot; {% endif %}<a href="/books/{{ book.slug }}#stage-build">The editions</a>{% if editions.files|selectattr('name', 'equalto', 'index.html')|list %} &middot; <a href="/books/{{ book.slug }}/editions/index.html" target="_blank" rel="noopener">Open the flipbook</a>{% endif %}</p>
+  {% elif ap.run.state == 'failed' %}
+  <p class="stage-detail strong">Stopped at {{ ap.stage_label }}.</p>
+  {% if ap.run.reason %}{{ problem_list(ap.run.reason.splitlines()) }}{% endif %}
+  {% elif ap.run.state == 'stopped' %}
+  <p class="stage-detail">Stopped at {{ ap.stage_label or 'the start' }} by the producer.</p>
+  {% elif ap.run.state == 'interrupted' %}
+  <p class="stage-detail">Interrupted at {{ ap.stage_label or 'the start' }} when the studio or its job stopped; it does not resume by itself.</p>
+  {% endif %}
+  <div class="controls">
+    {% if not ap.run or ap.run.state != 'running' %}
+    <form method="post" action="/books/{{ book.slug }}/run/autopilot" class="inline">
+      <button{% if not ap.resume %} class="secondary"{% endif %} type="submit"{% if ap.blocked %} disabled{% endif %}>{% if ap.resume %}Resume autopilot{% elif ap.run and ap.run.state == 'finished' %}Run autopilot again{% else %}Run autopilot{% endif %}</button>
+    </form>
+    {% if ap.blocked %}<span class="reason">{{ ap.blocked }}</span>{% endif %}
+    {% endif %}
+  </div>
+  {% if ap.job %}{{ job_log(ap.job, 'Autopilot log', '') }}{% endif %}
+</section>
 <ol class="rail" aria-label="Pipeline">
+  <li class="t-{{ tone_of(paint.state) }}{% if focus == 'paint' %} is-next{% endif %}" id="stage-paint">
+    <span class="node" aria-hidden="true"></span>
+    <section class="panel{% if focus == 'paint' %} is-next{% endif %}">
+      <div class="stage-title">
+        <h2>Pictures</h2>
+        {{ badge(paint.state) }}
+      </div>
+      <p class="stage-detail">{{ paint.detail }}</p>
+      {% if paint.missing %}<p class="small muted">Missing: {{ paint.missing|join(', ') }}</p>{% endif %}
+      <div class="controls">
+        {% if paint.missing %}
+        <form method="post" action="/books/{{ book.slug }}/run/paint" class="inline">
+          <button{% if focus != 'paint' %} class="secondary"{% endif %} type="submit"{% if paint_blocked %} disabled{% endif %}>{{ paint_button }}</button>
+        </form>
+        {% endif %}
+        <details class="more">
+          <summary>Repaint all</summary>
+          <form method="post" action="/books/{{ book.slug }}/run/paint" class="inline">
+            <input type="hidden" name="force" value="1">
+            <label class="check"><input type="checkbox" name="confirm" value="1" required{% if paint_blocked %} disabled{% endif %}> Replace every picture with a new one</label>
+            <button class="secondary" type="submit"{% if paint_blocked %} disabled{% endif %}>Repaint all</button>
+          </form>
+        </details>
+        {% for side in cover_sides %}
+        <details class="more">
+          <summary>Repaint {{ side }} cover</summary>
+          <form method="post" action="/books/{{ book.slug }}/repaint-cover" class="inline">
+            <input type="hidden" name="cover" value="{{ side }}">
+            <label class="check"><input type="checkbox" name="confirm" value="1" required{% if paint_blocked %} disabled{% endif %}> Replace the {{ side }} cover (one picture)</label>
+            <button class="secondary" type="submit"{% if paint_blocked %} disabled{% endif %}>Repaint {{ side }} cover</button>
+          </form>
+        </details>
+        {% endfor %}
+        {% if paint_blocked %}<span class="reason">{{ paint_blocked }}</span>{% endif %}
+      </div>
+    </section>
+  </li>
 {% for item in stages %}
 {% if item.stage == 'render' %}
   <li class="t-{{ anim_step.tone }}{% if focus == 'animation' %} is-next{% endif %}" id="stage-animation">
@@ -30,7 +97,7 @@
       <div class="stage-title">
         <h2>Animation</h2>
         {% if anim_step.note %}<span class="state t-attention">{{ anim_step.note }}</span>{% else %}{{ badge(anim_step.state) }}{% endif %}
-        <a class="open" href="/books/{{ book.slug }}/animation">Open the animation view →</a>
+        <a class="open" href="/books/{{ book.slug }}/animation">Open the animation view</a>
       </div>
       <p class="stage-detail">{{ animation }}</p>
       {% set att = animation_attention %}
@@ -52,7 +119,7 @@
       <div class="stage-title">
         <h2>{{ stage_labels[item.stage]|capitalize }}</h2>
         {{ badge(status[key].state) }}
-        <a class="open" href="/books/{{ book.slug }}{{ open_href }}">{{ {'script': 'Review script', 'voices': 'Listen', 'render': 'Watch'}[item.stage] }} →</a>
+        <a class="open" href="/books/{{ book.slug }}{{ open_href }}">{{ {'script': 'Review script', 'voices': 'Listen', 'render': 'Watch'}[item.stage] }}</a>
       </div>
       {% if status[key].detail %}<p class="stage-detail">{{ status[key].detail }}</p>{% endif %}
       <div class="controls">
@@ -80,6 +147,31 @@
     </section>
   </li>
 {% endfor %}
+  <li class="t-{{ tone_of(editions.state) }}{% if focus == 'build' %} is-next{% endif %}" id="stage-build">
+    <span class="node" aria-hidden="true"></span>
+    <section class="panel{% if focus == 'build' %} is-next{% endif %}">
+      <div class="stage-title">
+        <h2>Editions</h2>
+        {{ badge(editions.state) }}
+        {% if editions.files|selectattr('name', 'equalto', 'index.html')|list %}<a class="open" href="/books/{{ book.slug }}/editions/index.html" target="_blank" rel="noopener">Open the flipbook</a>{% endif %}
+      </div>
+      {% if editions.detail %}<p class="stage-detail">{{ editions.detail }}</p>{% endif %}
+      <p class="small muted">PDF, EPUB, KDP print files and the flipbook, built into <code>books/{{ book.slug }}/build/</code>.</p>
+      <div class="controls">
+        <form method="post" action="/books/{{ book.slug }}/run/build" class="inline">
+          <button{% if focus != 'build' %} class="secondary"{% endif %} type="submit"{% if build_blocked %} disabled{% endif %}>{{ build_button }}</button>
+        </form>
+        {% if build_blocked %}<span class="reason">{{ build_blocked }}</span>{% endif %}
+      </div>
+      {% if editions.files %}
+      <ul class="editions">
+        {% for f in editions.files %}
+        <li>{% if f.name == 'index.html' %}<a href="/books/{{ book.slug }}/editions/{{ f.name }}" target="_blank" rel="noopener">{{ f.name }}</a>{% else %}<a href="/books/{{ book.slug }}/editions/{{ f.name }}" download>{{ f.name }}</a>{% endif %} <span class="muted">{{ human_size(f.size) }}</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+  </li>
 </ol>
 {{ job_log(job, 'Last run', 'No stage has run for this book in the studio yet.') }}
 </div>
@@ -87,7 +179,7 @@
 <div>
 {% if blueprint.present %}
 <section class="panel" id="blueprint">
-  <div class="panel-head"><h2>Blueprint</h2><span class="eyebrow" style="margin:0">Creative direction</span></div>
+  <div class="panel-head"><h2>Blueprint</h2><span class="muted">Creative direction</span></div>
   {% if blueprint.error %}
   <p class="strong">The blueprint cannot be used: {{ blueprint.error }}</p>
   {% else %}
@@ -123,6 +215,15 @@
       <button class="secondary" type="submit">Regenerate blueprint</button>
     </form>
   </details>
+</section>
+{% endif %}
+{% if characters %}
+<section class="panel" id="characters">
+  <div class="panel-head"><h2>Characters</h2><span class="muted">How they look on every page</span></div>
+  <dl class="facts">
+    {% for c in characters %}<dt>{{ c.name }}</dt><dd>{{ c.look }}</dd>{% endfor %}
+  </dl>
+  <p class="small muted">Edit in <code>books/{{ book.slug }}/book.json</code> (style_bible.characters); pictures are not repainted automatically.</p>
 </section>
 {% endif %}
 </div>

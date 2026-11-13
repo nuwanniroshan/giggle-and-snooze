@@ -318,3 +318,15 @@ def test_illustrate_refuses_an_invalid_blueprint_naming_file_and_field(
     assert illustrate.main(["--book", folder.slug, "--root", str(tmp_path)]) == 1
     err = capsys.readouterr().err
     assert "blueprint.json" in err and "art.medium_key" in err
+
+
+def test_rebuild_style_bible_keeps_the_character_sheet(tmp_path):  # spec 018: FR-3
+    folder = make_root(tmp_path)
+    before = json.loads(folder.book_json.read_text(encoding="utf-8"))
+    sheet = [{"name": "Dot", "look": "A tiny ladybird with seven black spots and a satchel."}]
+    before.setdefault("style_bible", {})["characters"] = sheet
+    write_atomic(folder.book_json, before)
+    write_atomic(folder.blueprint_path, valid_blueprint())
+    rebuild_style_bible(folder, parsed_blueprint())
+    after = json.loads(folder.book_json.read_text(encoding="utf-8"))
+    assert after["style_bible"]["characters"] == sheet

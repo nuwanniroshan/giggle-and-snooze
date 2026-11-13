@@ -1,0 +1,107 @@
+{
+  "metadata": {
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 10,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Giggle & Snooze",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "Captain Kind and the Great World Wobble",
+    "subtitle": "A Little Sip, a Soft Breath, a Big Kindness",
+    "author": "Giggle & Snooze",
+    "age_range": "Ages 4-7",
+    "blurb": "When peas, oranges, and even the moon begin to bounce, a towel-caped hero discovers the world has hiccups. A little kindness brings the neighborhood together for a gentle pause before bedtime.",
+    "dedication": "For every little helper who makes room for someone."
+  },
+  "style_bible": {
+    "style_prompt_prefix": "Handcrafted layered felt-appliqué picture-book illustration, tactile wool fibers, blanket stitches, rounded friendly shapes, embroidered faces, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light."
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "Peas, Please!",
+      "text": "At supper, one pea bounced off Captain Kind’s spoon.\nThen every pea bounced—boing, boing, boing!\n“Stay for supper!” giggled the captain.",
+      "layout": "image_top_text_bottom",
+      "prompt": "A curly-haired child with warm brown skin wears raspberry pajamas and an apricot towel cape at a cozy kitchen table; green peas bounce over a buttercream bowl, and the child laughs with spoon in hand. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_01.png"
+    },
+    {
+      "page_number": 2,
+      "title": "A Round Surprise",
+      "text": "Outside, balls and oranges bounced too.\nEven the moon bobbed above the roofs.\nCaptain Kind tied the towel cape: “A wobble needs a helper!”",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "The same child ties the towel cape loosely at the shoulders in a garden doorway; oranges and a ball bounce above grass while a friendly moon bobs over warm neighborhood roofs. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_02.png"
+    },
+    {
+      "page_number": 3,
+      "title": "The Catching Plan",
+      "text": "Captain Kind held a basket under the bouncing oranges.\nBoing, they popped right out again!\n“Catching won’t stop this wobble,” said the captain.",
+      "layout": "image_top_text_bottom",
+      "prompt": "The same child kneels with a shallow basket as three oranges gently bounce out onto soft grass; a friendly neighbor smiles beside a sea-glass garden gate. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_03.png"
+    },
+    {
+      "page_number": 4,
+      "title": "Hic, Little World",
+      "text": "Captain Kind put an ear to the grass.\n“Hic!” said the ground—and up went every round thing.\n“The world has hiccups!” whispered the captain.",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "The same child rests an ear against grass, smiling with discovery; a round pebble, ball, and oranges lift slightly together, with a gently curved horizon and bobbing moon. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_04.png"
+    },
+    {
+      "page_number": 5,
+      "title": "A Little Pause",
+      "text": "“When I have hiccups, I take a quiet pause,” said Captain Kind.\nSo the captain sat beside the bouncing ball.\n“Pause with me, little world.”",
+      "layout": "image_top_text_bottom",
+      "prompt": "The same child sits cross-legged beside a softly bouncing sea-glass ball, hands relaxed on knees; the apricot towel cape pools behind them and cozy houses glow nearby. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_05.png"
+    },
+    {
+      "page_number": 6,
+      "title": "A Sip to Share",
+      "text": "“And a little sip of water feels nice.”\nCaptain Kind brought a jug and cups for the neighbors.\n“Your own cup, a little sip—come sit with me.”",
+      "layout": "full_bleed_card_bottom_left",
+      "prompt": "The same child places a small jug and separate cups on a low garden table; a child with glasses and an older neighbor gather on cushions, and one neighbor pours water for another. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_06.png"
+    },
+    {
+      "page_number": 7,
+      "title": "Make Room",
+      "text": "One neighbor called another, and another brought a cushion.\nSoon the street was sitting together.\n“Room for you, a sip for you, a pause for everyone.”",
+      "layout": "image_top_text_bottom",
+      "prompt": "The same captain welcomes diverse families into a cushion circle along a pedestrian garden lane; a wheelchair user sits comfortably among the neighbors, someone offers a cushion, and everyone has their own cup. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_07.png"
+    },
+    {
+      "page_number": 8,
+      "title": "In…and Out",
+      "text": "“Breathe in, like smelling a flower.”\n“Breathe out, like cooling your soup.”\nTogether they breathed, slow and soft—and the bouncing grew smaller.",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "The same captain and neighbors sit with relaxed shoulders and peaceful faces; a flower pot and soup bowl sit on a windowsill, while a ball barely lifts from the grass and oranges nearly settle. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_08.png"
+    },
+    {
+      "page_number": 9,
+      "title": "One Tiny Hic",
+      "text": "The peas rested, the balls rested, and the oranges rested.\nThe moon gave one last tiny hic!\nThen it settled into a cloud, and everyone whispered, “Good night, world.”",
+      "layout": "full_bleed_card_bottom_right",
+      "prompt": "A smiling round moon nestles against a curved buttercream cloud with one tiny motion arc; the captain and neighbors wave softly below, oranges and ball rest on grass, and peas rest in a bowl through a kitchen window. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_09.png"
+    },
+    {
+      "page_number": 10,
+      "title": "Captain Cozy",
+      "text": "Captain Kind hung up the towel cape and snuggled into bed.\n“A little kindness brought us together,” the captain murmured.\nOutside, the world was still, and inside, the captain slept.",
+      "layout": "image_top_text_bottom",
+      "prompt": "The same curly-haired child sleeps in raspberry pajamas beneath a sea-glass quilt; the apricot towel cape hangs on a rounded hook, a water cup rests on the bedside table, and the calm moon shines through the window. Rounded friendly shapes, affectionate expressions, plum-apricot-sea-glass-buttercream-raspberry palette, cozy diffuse light. Leave a calm uncluttered area for text in the specified layout.",
+      "illustration_file": "page_10.png"
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "0cde3a28b4b3d6af205abdb574fe6521f4581ccda609d510811dbf2743f631e4",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T14:11:22+00:00",
+  "layers": [
+    {
+      "name": "guardian_and_cape",
+      "description": "The complete floating child, including curly hair, lilac pajamas, bare feet, outstretched hands, and glowing rose blanket cape; preserve as one connected silhouette.",
+      "box": [
+        44,
+        215,
+        853,
+        684
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.75,
+      "pivot": [
+        591,
+        449
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.005,
+          "period_s": 7.0,
+          "phase": 0.0,
+          "direction": null
+        },
+        {
+          "type": "rotate",
+          "amplitude": 0.5,
+          "period_s": 9.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_lilac_cloud",
+      "description": "The lilac cloud cluster entering at the upper left, excluding the crescent moon.",
+      "box": [
+        0,
+        151,
+        237,
+        335
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.25,
+      "pivot": [
+        104,
+        247
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 12.0,
+          "phase": 0.1,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "right_upper_cloud",
+      "description": "The small lilac cloud bank along the upper right edge.",
+      "box": [
+        1493,
+        184,
+        1672,
+        315
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.2,
+      "pivot": [
+        1593,
+        255
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 11.0,
+          "phase": 0.4,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "right_lower_cloud",
+      "description": "The long lilac cloud bank above the distant hills on the right.",
+      "box": [
+        1035,
+        441,
+        1672,
+        679
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.35,
+      "pivot": [
+        1391,
+        592
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 12.0,
+          "phase": 0.65,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          183,
+          43,
+          431,
+          296
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#dddfff"
+    }
+  ]
+}

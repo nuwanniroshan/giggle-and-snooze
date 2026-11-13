@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "drowsy-starlight-care",
+    "label": "Drowsy Starlight Care",
+    "summary": "A tender bedtime journey that grows slower and sleepier with each gentle rescue.",
+    "roles": {
+      "storyteller": {
+        "pace": "slow",
+        "energy": "hushed",
+        "quirk": "Pauses softly whenever a rescued star settles."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Offers tiny comforting rescue ideas."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "hushed",
+        "quirk": "Wonders whether each star needs a little pillow."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "luminous-cyanotype",
+    "medium_label": "Luminous Cyanotype Dream Prints",
+    "palette": [
+      {
+        "name": "Midnight Ink",
+        "hex": "#102A43"
+      },
+      {
+        "name": "Moonlit Blue",
+        "hex": "#486FA8"
+      },
+      {
+        "name": "Sleepy Lilac",
+        "hex": "#B8A1D9"
+      },
+      {
+        "name": "Starlight White",
+        "hex": "#F2F6FF"
+      },
+      {
+        "name": "Dream Rose",
+        "hex": "#DAA6BC"
+      }
+    ],
+    "line": "Feathered print silhouettes and delicate white contour marks.",
+    "lighting": "Diffuse moonlight and soft pearl-white star halos.",
+    "composition": "Spacious skies, one clear rescue per spread, rounded readable figures, increasingly restful horizontal arrangements.",
+    "style_prompt_prefix": "Handcrafted cyanotype bedtime picture-book print, midnight blue ground, lilac and dusty rose hand-tinting, luminous white stars, soft print textures, tiny friendly guardian in a glowing blanket cape.",
+    "avoid": [
+      "Felt applique",
+      "Neon glare",
+      "Frightening peril",
+      "Busy compositions",
+      "Hard angular faces",
+      "Embedded text"
+    ]
+  },
+  "qa": {
+    "format_key": "whisper-notice-and-tuck",
+    "format_label": "Whisper, Notice, and Tuck",
+    "question_types": [
+      "visual noticing",
+      "two-choice comfort decisions",
+      "optional tuck-in gestures"
+    ],
+    "intro_hook": "Can you spot the sleepy star? Point, whisper, or just listen.",
+    "outro_hook": "Shall we rest our hands and whisper goodnight to our little guardian?",
+    "moments_min": 3,
+    "moments_max": 4,
+    "kid_notes": {
+      "kid_older": "Offer simple comfort choices; welcome every caring answer.",
+      "kid_younger": "Invite pointing or a tiny tuck-in gesture; silent participation is welcome."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "crickets_night",
+      "wind_loop"
+    ],
+    "sfx": [
+      "magic_sparkle",
+      "bell_chime"
+    ],
+    "music_direction": "Sparse, soft celesta over a warm pad; no percussion or swells. Keep cues delicate and ambience beneath voices; fade gradually to silence at bedtime."
+  },
+  "animation": {
+    "intensity": 0.35,
+    "effects": [
+      "glow"
+    ]
+  },
+  "rationale": "Cyanotype prints and a blue–lilac–rose palette distinguish this from felt applique. A hushed bedtime mood and optional noticing and tuck-in games support gentle care and a peaceful ending."
+}

@@ -1,0 +1,172 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "3938f7c4ff4807654b977de03eed16fcf1e6ee976e2ce681688ee4be72e570b9",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:08:45+00:00",
+  "layers": [
+    {
+      "name": "mira_hair",
+      "description": "Dark outer curls behind Mira's face; keep face, neck, and pajamas excluded.",
+      "box": [
+        475,
+        159,
+        866,
+        471
+      ],
+      "include_points": [
+        [
+          551,
+          337
+        ],
+        [
+          616,
+          240
+        ],
+        [
+          726,
+          193
+        ],
+        [
+          834,
+          288
+        ]
+      ],
+      "exclude_points": [
+        [
+          740,
+          349
+        ],
+        [
+          685,
+          422
+        ]
+      ],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        739,
+        272
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 6.8,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "golden_ticket",
+      "description": "Golden ticket with house symbol, held at its lower left corner; preserve the house symbol.",
+      "box": [
+        874,
+        313,
+        1044,
+        441
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.7,
+      "pivot": [
+        898,
+        420
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.7,
+          "period_s": 5.8,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "doorway_vine",
+      "description": "Green leafy vine draped over the top left of the golden doorway.",
+      "box": [
+        441,
+        0,
+        728,
+        240
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        652,
+        7
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 8.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bedside_trailing_leaves",
+      "description": "Trailing green leaves from the orange bedside pot, excluding the pot and furniture.",
+      "box": [
+        0,
+        429,
+        161,
+        656
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        54,
+        468
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 7.6,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "golden_ticket"
+      },
+      "intensity": 0.18,
+      "colour": "#ffd65a"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          973,
+          527,
+          1610,
+          895
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffe279"
+    }
+  ]
+}

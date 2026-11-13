@@ -1,0 +1,197 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "e8b94983a622d7f66d1ae5768598e73581733036c91c8f8456d492561ec3bd68",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T19:43:30+00:00",
+  "layers": [
+    {
+      "name": "offshore_clouds",
+      "description": "Rounded purple rain clouds offshore, keeping the sunset and shelter clear.",
+      "box": [
+        0,
+        330,
+        580,
+        613
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.08,
+      "pivot": [
+        290,
+        475
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 12.0,
+          "phase": 0.2,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sheltered_sea",
+      "description": "Blue sea surface below the horizon, excluding rocks, shore, and characters.",
+      "box": [
+        0,
+        632,
+        636,
+        949
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          173,
+          887
+        ],
+        [
+          530,
+          762
+        ],
+        [
+          602,
+          690
+        ]
+      ],
+      "z": 2,
+      "depth": 0.2,
+      "pivot": [
+        280,
+        760
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 8.0,
+          "phase": 0.3,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mira_coat",
+      "description": "Mira's yellow coat and torso with folded hands; keep her seated hips and boots anchored.",
+      "box": [
+        455,
+        799,
+        678,
+        1028
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.7,
+      "pivot": [
+        566,
+        1018
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.004,
+          "period_s": 5.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip_body",
+      "description": "Pip's white and gray feathered body tucked close to Mira, excluding feet and beak.",
+      "box": [
+        360,
+        838,
+        479,
+        1019
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.73,
+      "pivot": [
+        421,
+        1007
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.005,
+          "period_s": 5.0,
+          "phase": 0.45,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_grass_right",
+      "description": "Slender grass tips at the lower right edge, excluding rocks and daisies.",
+      "box": [
+        1155,
+        826,
+        1254,
+        1060
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 7,
+      "depth": 0.9,
+      "pivot": [
+        1220,
+        1055
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 7.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          813,
+          234,
+          1124,
+          408
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#ffd477"
+    },
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          0,
+          642,
+          423,
+          811
+        ],
+        "layer": null
+      },
+      "intensity": 0.1,
+      "colour": "#f5d394"
+    }
+  ]
+}

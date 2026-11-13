@@ -2,7 +2,7 @@
   "metadata": {
     "title": "The Snail Mail Express",
     "subtitle": "A Whisperwood Hollow Story",
-    "author": "Swivel Kids Press",
+    "author": "Giggle & Snooze",
     "illustrator": "Illustrated in Cozy Whimsical Gouache",
     "age_range": "Ages 6–8",
     "grade_level": "Grades 1–3",
@@ -11,7 +11,7 @@
     "kdp_page_count": 24,
     "digital_page_count": 20,
     "isbn_placeholder": "979-8-00000-000-0",
-    "publisher": "Whisperwood Storybook Press",
+    "publisher": "Giggle & Snooze",
     "publication_year": 2026,
     "dedication": "For every curious traveler who knows that the slowest path has the most wonders to show.",
     "blurb": "In the bustling canopy of Whisperwood Hollow, everyone is in a hurry—except eight-year-old Clara and her giant, cottage-shelled snail, Barnaby! Together, they run The Snail Mail Express, delivering lost forest treasures that speedy creatures leave behind. When three mysterious, unaddressed parcels appear in the mossy drop-box—a silver dewdrop thimble, a ticking acorn watch, and a perforated birch-bark melody—Clara and Barnaby set out down Fern-Fiddle Lane. Along the way, they prove that slowing down isn't falling behind: it's the secret to noticing what matters most."
@@ -22,6 +22,50 @@
     "style_prompt_prefix": "Cozy whimsical children's picture book illustration in warm hand-painted gouache and watercolor texture on soft cream paper, visible expressive brushstrokes, cottagecore woodland aesthetic, warm golden and earthy color palette with muted greens, berry reds, ochre yellows, and warm browns, soft rounded character shapes, gentle storybook lighting, NO TEXT OR LETTERS IN IMAGE. ",
     "clara_description": "Clara, a sweet 8-year-old girl with wavy chestnut-brown hair, round rosy cheeks, warm dark eyes, wearing a cozy berry-red long-sleeved dress with a white collar and delicate white wavy hem trim, white knee-high socks, and red shoes, holding a small teal-green hardcover book",
     "barnaby_description": "Barnaby, a friendly giant golden-yellow garden snail with two tall eye-stalks, a gentle smiling face with rosy cheeks, and a large warm spiraled brown shell that has a tiny whitewashed wooden cottage built into its side with a red pitched roof and a round-arched brown wooden door, with tiny red-and-white toadstool mushrooms growing along his yellow foot"
+  },
+  "print_extras": {
+    "bookplate_label": "EX LIBRIS • OFFICIAL POSTMASTER LOG",
+    "front_footer": "Whisperwood Hollow Postal Service • Established under the Great Oak",
+    "back_cover_headline": "“No Rush, No Fuss—Always Delivered!”",
+    "copyright_genre": "Juvenile Fiction / Animals / Woodland",
+    "map": {
+      "file": "map_whisperwood.png",
+      "title": "Map of Whisperwood Hollow",
+      "subtitle": "The Daily Route of Clara & Barnaby's Snail Mail Express",
+      "legend": [
+        "1. The Great Oak Post Office (Start)     2. Bramble Pond & Millie's Rock",
+        "3. Whispering Birch Grove (Tea Stop)     4. The Great Hollow Elm (Bramwell's Bakery)",
+        "5. Mist-Stone Bridge (Fergus's Crossing)  6. The Old Weeping Willow (Fleet's Perch)"
+      ]
+    },
+    "activity": {
+      "title": "The Junior Postmaster's Field Guide",
+      "subtitle": "Did you spot all the woodland treasures along Fern-Fiddle Lane?",
+      "items": [
+        {
+          "title": "The Silver Dewdrop Thimble",
+          "text": "Returned to Millie the Seamstress Ant at Bramble Pond so she could stitch her maple-leaf boat sail."
+        },
+        {
+          "title": "The Ticking Acorn Pocket-Watch",
+          "text": "Cleaned and wound inside Barnaby's cottage shell, then delivered to Bramwell the Truffle Boar right on time."
+        },
+        {
+          "title": "The Birch-Bark Wind-Chime Scroll",
+          "text": "Hung beside Barnaby's glowing lantern so the evening breeze could play Fleet the Falcon's lost lullaby."
+        },
+        {
+          "title": "Clara's Teal Postmaster Logbook",
+          "text": "Where every clue, thread, and thankful neighbor in Whisperwood Hollow is carefully recorded!"
+        }
+      ],
+      "questions_title": "Bedtime Questions for Young Readers",
+      "questions": [
+        "Why was Clara able to spot the red polka-dot thread when faster animals missed it?",
+        "Which room inside Barnaby's cozy cottage shell would be your favorite place to visit?",
+        "What is something special you noticed today when you took your time and looked closely?"
+      ]
+    }
   },
   "pages": [
     {

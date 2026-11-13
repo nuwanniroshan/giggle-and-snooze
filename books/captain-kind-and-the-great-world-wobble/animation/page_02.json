@@ -1,0 +1,209 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "1e0826778d70cdd2f5816eb8609e518a0cca245b5b62c663cb49d9554543bf30",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:22:32+00:00",
+  "layers": [
+    {
+      "name": "friendly_moon",
+      "description": "Round buttercream felt moon with its sleepy smiling face; leave surrounding motion marks behind.",
+      "box": [
+        1000,
+        431,
+        1141,
+        570
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.15,
+      "pivot": [
+        1070,
+        501
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.006,
+          "period_s": 5.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_orange",
+      "description": "Upper floating orange with its attached green stem and leaves.",
+      "box": [
+        883,
+        744,
+        1009,
+        857
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.55,
+      "pivot": [
+        944,
+        803
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.009,
+          "period_s": 3.8,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_orange",
+      "description": "Lower left floating orange including its attached stem and leaves.",
+      "box": [
+        717,
+        820,
+        806,
+        952
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        762,
+        901
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.01,
+          "period_s": 4.2,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_orange",
+      "description": "Right floating orange with its stem and two green leaves.",
+      "box": [
+        1034,
+        857,
+        1163,
+        973
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.68,
+      "pivot": [
+        1098,
+        918
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.008,
+          "period_s": 4.6,
+          "phase": 0.85,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "striped_ball",
+      "description": "Sea glass and buttercream striped ball above the grass, excluding its shadow and motion marks.",
+      "box": [
+        823,
+        955,
+        921,
+        1050
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.76,
+      "pivot": [
+        872,
+        1002
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.008,
+          "period_s": 3.6,
+          "phase": 0.35,
+          "direction": null
+        },
+        {
+          "type": "rotate",
+          "amplitude": 1.5,
+          "period_s": 7.2,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "cape_left_flap",
+      "description": "Loose apricot towel cape on the child's left side, from shoulder down to the hanging hem; exclude hair, hands, raspberry pajamas and doorway.",
+      "box": [
+        147,
+        704,
+        434,
+        1047
+      ],
+      "include_points": [
+        [
+          266,
+          857
+        ],
+        [
+          209,
+          967
+        ],
+        [
+          302,
+          784
+        ]
+      ],
+      "exclude_points": [
+        [
+          348,
+          889
+        ],
+        [
+          295,
+          689
+        ],
+        [
+          167,
+          771
+        ]
+      ],
+      "z": 7,
+      "depth": 0.85,
+      "pivot": [
+        424,
+        744
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 6.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

@@ -1,0 +1,168 @@
+{
+  "page_number": 9,
+  "picture": {
+    "file": "page_09.png",
+    "sha256": "e5edc5772295168684c44d32915094b3657179411e15626121d44e1c6277b5a3",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:33:03+00:00",
+  "layers": [
+    {
+      "name": "moon",
+      "description": "Smiling golden moon above the cloud; preserve the cloud overlap and leave the tiny stitched motion arc static.",
+      "box": [
+        871,
+        57,
+        1096,
+        249
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          1012,
+          258
+        ],
+        [
+          1091,
+          220
+        ]
+      ],
+      "z": 1,
+      "depth": 0.15,
+      "pivot": [
+        984,
+        227
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.004,
+          "period_s": 6.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "buttercream_cloud",
+      "description": "Soft curved cloud cradling the moon, including all scalloped edges.",
+      "box": [
+        805,
+        144,
+        1205,
+        321
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.2,
+      "pivot": [
+        1004,
+        251
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 8.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "captain_waving_hand",
+      "description": "Captain's raised hand and short raspberry cuff, with the hinge at the wrist.",
+      "box": [
+        565,
+        598,
+        642,
+        708
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        590,
+        685
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.6,
+          "period_s": 5.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "child_waving_hand",
+      "description": "Child's raised hand with the end of the cream sleeve, hinged at the wrist.",
+      "box": [
+        826,
+        712,
+        889,
+        797
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.65,
+      "pivot": [
+        842,
+        778
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.4,
+          "period_s": 6.0,
+          "phase": 0.45,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "dog_waving_paw",
+      "description": "Dog's raised paw and upper foreleg, keeping the face and ear still.",
+      "box": [
+        1007,
+        823,
+        1073,
+        943
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.7,
+      "pivot": [
+        1024,
+        924
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 6.5,
+          "phase": 0.7,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "moon"
+      },
+      "intensity": 0.12,
+      "colour": "#ffe1a0"
+    }
+  ]
+}

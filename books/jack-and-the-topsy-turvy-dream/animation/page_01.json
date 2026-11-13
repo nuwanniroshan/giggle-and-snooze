@@ -1,0 +1,110 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "fc84dd9f70c733d9d53d24689579223ea22eb26ef4df3a38b989df53d7ac3526",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-13T00:37:04+00:00",
+  "layers": [
+    {
+      "name": "quilt_breathing",
+      "description": "The central blue quilt over Jack's torso rises and settles almost imperceptibly with his sleepy breathing.",
+      "box": [
+        495,
+        625,
+        1145,
+        921
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        820,
+        900
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 5.5,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "front_toy_wheel",
+      "description": "The fully visible yellow wheel at the lower left of the red toy car makes a tiny sleepy rocking turn, keeping its centre fixed.",
+      "box": [
+        778,
+        584,
+        828,
+        633
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.85,
+      "pivot": [
+        803,
+        608
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 3.0,
+          "period_s": 7.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "plant_hanging_leaf",
+      "description": "The lowermost dangling green leaf on the bedside plant gently sways from its stem.",
+      "box": [
+        1539,
+        475,
+        1591,
+        534
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.5,
+      "pivot": [
+        1549,
+        479
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 8.0,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          43,
+          299,
+          320,
+          521
+        ],
+        "layer": null
+      },
+      "intensity": 0.13,
+      "colour": "#ffdb78"
+    }
+  ]
+}

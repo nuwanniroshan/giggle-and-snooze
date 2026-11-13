@@ -5,12 +5,13 @@
 {% block content %}
 <header class="page-head">
   <div>
-    <span class="eyebrow"><a href="/books/new">Add book</a> · Draft</span>
+    <p class="back"><a href="/books/new">Add book</a></p>
     <h1>{{ draft.idea.title }}</h1>
     <p class="lede">{{ draft.idea.premise }}</p>
-    <p class="small muted" style="margin-top: var(--s-2)">{{ draft.idea.age_range }} &middot; Maximum {{ draft.pages }} pages &middot; state: {{ draft.state }} &middot; attempts: {{ draft.attempts }}</p>
+    <p class="small muted" style="margin-top: var(--s-2)">{{ draft.idea.age_range }}, at most {{ draft.pages }} pages. State: {{ draft.state }}, attempts: {{ draft.attempts }}.</p>
   </div>
-  {% if draft.state == "ready" %}
+  {% set autopilot_on = draft_autopilot(draft) %}
+  {% if draft.state == "ready" and not autopilot_on %}
   <div class="head-actions">
     <form method="post" action="/drafts/{{ draft.id }}/create"><button class="big" type="submit">Create book</button></form>
   </div>
@@ -23,6 +24,9 @@
 </section>
 {% endif %}
 
+{% if autopilot_on %}
+  <p class="running" style="margin:0 0 var(--s-6)"><span class="pulse" aria-hidden="true"></span> Autopilot will create the book when the story is written, then paint, voice, render and build it without stopping.</p>
+{% endif %}
 {% if draft.state == "designing" %}
   <p class="running" style="margin:0 0 var(--s-6)"><span class="pulse" aria-hidden="true"></span> Designing the look, sound and questions for this book&hellip; the story is written when the blueprint is saved.</p>
 {% elif draft.state == "design_failed" %}
@@ -51,6 +55,15 @@
 </section>
 {% endif %}
 
+{% if draft.book and draft.book.characters %}
+<section class="panel" id="characters" style="margin-bottom: var(--s-8)">
+  <div class="panel-head"><h2>Characters</h2><span class="muted">How they look on every page</span></div>
+  <dl class="facts">
+    {% for c in draft.book.characters %}<dt>{{ c.name }}</dt><dd>{{ c.look }}</dd>{% endfor %}
+  </dl>
+</section>
+{% endif %}
+
 {% if draft.book %}
 <section style="margin-bottom: var(--s-8)">
   <div class="panel-head"><h2>Pages</h2></div>
@@ -58,6 +71,7 @@
   {% for page in draft.book.pages %}
   <article class="panel">
     <h3><span class="pg num">{{ '%02d'|format(page.page_number) }}</span>Page {{ page.page_number }}: {{ page.title }}</h3>
+    {% if page.characters_on_page %}<p class="small muted">Characters: {{ page.characters_on_page|join(', ') }}</p>{% endif %}
     <form method="post" action="/drafts/{{ draft.id }}/pages/{{ page.page_number }}" class="stack">
       <textarea name="text" rows="3">{{ page.text }}</textarea>
       <div><button class="secondary" type="submit">Save page</button></div>
@@ -79,6 +93,6 @@
     <label class="check"><input type="checkbox" name="confirm" value="yes"> I understand this deletes the draft and its generation log</label>
     <div><button class="danger" type="submit">Discard draft</button></div>
   </form>
-  <p><a href="/books/new">← Back to Add book</a></p>
+  <p><a href="/books/new">Back to Add book</a></p>
 </section>
 {% endblock %}

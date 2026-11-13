@@ -54,10 +54,12 @@ uv run python -m video_pipeline.motion_plan --book <slug> [--page N] [--force]  
 uv run python -m video_pipeline.cut_layers download                              # one-time: SAM 2.1 Core ML + LaMa ONNX to ~/.cache/kiddo/models
 uv run python -m video_pipeline.cut_layers --book <slug> [--page N] [--force]    # build/layers/page_NN/ (layers, background.png, layers.json)
 uv run pytest -m models                                                          # real segmentation/fill models
+uv run python -m video_pipeline.illustrate --book <slug> [--page N [--cut] | --cover front|back]   # repaint one picture (old kept as .bak), spec 019
+uv run python -m video_pipeline.autopilot --book <slug>    # spec 021: paint → cut → script → auto review → voices → auto approve → render → editions (marks recorded "by": "autopilot")
 uv run python -m video_pipeline.studio [--port 8765]   # local web UI at http://127.0.0.1:8765 (this Mac only)
 ```
 
-`build_book.py` outputs (all in `books/<slug>/build/`): front/back cover PNGs (300 DPI), KDP wrap cover PDF/PNG, 20-page digital PDF (8.5"×8.5"), complete reader PDF (covers + 20 pages), 24-page KDP print interior PDF (with bleed), EPUB 3, and `index.html` flipbook (references `../assets/illustrations/` by relative path, so open it from `build/`).
+`build_book.py` outputs (all in `books/<slug>/build/`; N = story pages, P = KDP interior pages): front/back cover PNGs (300 DPI), KDP wrap cover PDF/PNG (spine width from P), `<Title>_<N>Page_Digital_Edition.pdf` (8.5"×8.5"), complete reader PDF (covers + N pages), `<Title>_KDP_<P>Page_Print_Interior.pdf` (with bleed; P = max(24, front + N + back) rounded up to even, padded with "My drawing" pages; map page only when the book has `illustrations/map_*.png`), EPUB 3, and `index.html` flipbook (references `../illustrations/` by relative path, so open it from `build/`). Edition PDFs with other page counts are removed on rebuild. Book-specific front/back matter (bookplate label, map legend, activity page, back-cover headline, genre) comes from the book's optional `print_extras` object (the pilot's lives there), over the generic templates in `config/book_extras.json` (spec 020).
 
 `ffmpeg` (Homebrew, no rubberband) is installed on the host for the video pipeline. The Codex CLI ships inside the ChatGPT app (`/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`, logged in with ChatGPT).
 

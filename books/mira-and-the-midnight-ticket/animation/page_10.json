@@ -1,0 +1,151 @@
+{
+  "page_number": 10,
+  "picture": {
+    "file": "page_10.png",
+    "sha256": "8d4a4cdc8d8dc8b8fee3ead4dfb8c83c518fd001a1014ed3a1dcadfd3b673681",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:18:02+00:00",
+  "layers": [
+    {
+      "name": "bus_and_mira",
+      "description": "The complete mint floating bus together with Mira, keeping her seated pose and contact with the step and handrail intact.",
+      "box": [
+        814,
+        30,
+        1672,
+        870
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.7,
+      "pivot": [
+        1240,
+        650
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.003,
+          "period_s": 6.5,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "robot_waving_hand",
+      "description": "Robot's raised mint hand and short forearm, hinged at the elbow.",
+      "box": [
+        540,
+        558,
+        638,
+        686
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.75,
+      "pivot": [
+        553,
+        670
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.0,
+          "period_s": 3.8,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "robot_antenna",
+      "description": "Thin mint antenna and orange ball above the robot's head.",
+      "box": [
+        365,
+        445,
+        414,
+        521
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.74,
+      "pivot": [
+        406,
+        517
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.6,
+          "period_s": 4.5,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "potted_plant_leaves",
+      "description": "Soft green leaves above and beside the orange pot at the left edge; keep the pot still.",
+      "box": [
+        12,
+        503,
+        257,
+        711
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.85,
+      "pivot": [
+        126,
+        635
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          209,
+          191,
+          463,
+          407
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#ffda78"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1237,
+          623,
+          1649,
+          785
+        ],
+        "layer": null
+      },
+      "intensity": 0.1,
+      "colour": "#ffe18a"
+    }
+  ]
+}

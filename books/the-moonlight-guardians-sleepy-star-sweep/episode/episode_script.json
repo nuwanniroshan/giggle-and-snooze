@@ -1,0 +1,217 @@
+{
+  "book_slug": "the-moonlight-guardians-sleepy-star-sweep",
+  "title": "The Moonlight Guardian's Sleepy Star Sweep",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "orpheus",
+      "voice": "tara",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "orpheus",
+      "voice": "zac",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "orpheus",
+      "voice": "zoe",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Snuggle close for The Moonlight Guardian's Sleepy Star Sweep. Can you spot the sleepy star? Point, whisper, or just listen."
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "I’ll look very softly. Maybe a sleepy star needs a little pillow."
+      },
+      {
+        "speaker": "kid_older",
+        "text": "I’m ready to help our little guardian look."
+      }
+    ],
+    "ambience": [
+      "crickets_night"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The Moonlight Guardian peeked out from a glowing blanket cape and saw three empty spots in the sky. Three little stars had dozed off somewhere!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“A little lift, a little tuck,” whispered the tiny helper, and up went the cape."
+        }
+      ],
+      "ambience": [
+        "crickets_night"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "One star was snoring in a cloud’s fluffy curl. The Guardian gave it a little lift and a little tuck, and its sky spot twinkled again."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Home and cozy,” whispered the Guardian—with a little yawn."
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "That cloud has a little star dent. Does the star need a tiny pillow? Can we tuck it in with one finger?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "The fluffy cloud was its soft resting place. Now it’s settled in its sky spot... You can make a tiny tuck with one finger, or just watch quietly."
+        }
+      ],
+      "qa_grounding": "a cloud’s fluffy curl",
+      "ambience": [
+        "crickets_night"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Another star slept in the moon’s slipper, with one point poking out. A little lift, a little tuck—and its sky spot shone again."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Home and cozy,” whispered the Guardian, with a longer yaaawn."
+        }
+      ],
+      "ambience": [
+        "crickets_night"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The last star made a tiny snuffle inside the Guardian’s own cape pocket. A slow little lift, a soft little tuck—and every sky spot twinkled."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Home and cozy,” breathed the Guardian, with the biggest ya-a-aawn."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Those eyelids look so heavy. Shall we give the tired guardian a quiet thank-you or a tiny goodnight wave?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Either is a kind choice. Every star is tucked into place now... Our guardian looks so sleepy. A quiet thank-you or a tiny wave can be gentle."
+        }
+      ],
+      "qa_grounding": "very heavy eyelids",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "With every star home, the Guardian floated down to bed before the sun woke. The glowing cape became a blanket: a little lift, a little tuck."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Home and cozy,” murmured the Guardian, and slept beneath the softly shining, sleeping stars."
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Shall we rest our hands and whisper goodnight to our little guardian?"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "Goodnight, little guardian. Your blanket looks so cozy. <yawn>"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "Goodnight, stars. Everyone can rest now."
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Rest well, little listeners. Please subscribe and come back for our next story."
+      }
+    ],
+    "ambience": [
+      "wind_loop"
+    ]
+  }
+}

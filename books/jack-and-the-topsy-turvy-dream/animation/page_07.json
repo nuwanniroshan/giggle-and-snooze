@@ -1,0 +1,201 @@
+{
+  "page_number": 7,
+  "picture": {
+    "file": "page_07.png",
+    "sha256": "33c51b623e4beb7782d4d65477da463d57f23fe28ff69c4a4227aa5be388df55",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-13T01:53:31+00:00",
+  "layers": [
+    {
+      "name": "red_car",
+      "description": "The little red toy car, including its yellow wheels and blue windows, rocking gently between the two friends.",
+      "box": [
+        742,
+        525,
+        953,
+        655
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.75,
+      "pivot": [
+        848,
+        643
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.006,
+          "period_s": 5.0,
+          "phase": 0.0,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        },
+        {
+          "type": "rotate",
+          "amplitude": 0.6,
+          "period_s": 5.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "jack",
+      "description": "Jack's full curly-haired figure in yellow star pajamas, including both hands and feet; a very gentle breathing motion.",
+      "box": [
+        288,
+        175,
+        799,
+        671
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.7,
+      "pivot": [
+        549,
+        640
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 5.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "dream_friend",
+      "description": "The full mint-green pear-shaped friend with three closed eyes, small arms and feet, curled top and lilac scarf.",
+      "box": [
+        896,
+        235,
+        1411,
+        662
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        1152,
+        636
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.007,
+          "period_s": 5.5,
+          "phase": 0.5,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_bell_left",
+      "description": "The foreground lavender bell flower and its curved stem just left of center, excluding surrounding bushes.",
+      "box": [
+        220,
+        678,
+        436,
+        821
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.9,
+      "pivot": [
+        289,
+        809
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.4,
+          "period_s": 6.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_bell_center",
+      "description": "The lavender bell flower on a curved green stem at the bottom center-left.",
+      "box": [
+        499,
+        731,
+        729,
+        876
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.95,
+      "pivot": [
+        571,
+        866
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.3,
+          "period_s": 6.5,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_bell_right",
+      "description": "The foreground lavender bell flower and green curved stem at bottom center-right.",
+      "box": [
+        859,
+        724,
+        1095,
+        858
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.95,
+      "pivot": [
+        938,
+        849
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 7.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1185,
+          17,
+          1315,
+          143
+        ],
+        "layer": null
+      },
+      "intensity": 0.15,
+      "colour": "#fff4aa"
+    }
+  ]
+}

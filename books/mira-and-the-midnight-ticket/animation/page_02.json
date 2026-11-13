@@ -1,0 +1,144 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "dd52f4ebc3f71062a47fe8e0c6834b07d275f595ec22d40e20797209b2ff75b6",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:07:24+00:00",
+  "layers": [
+    {
+      "name": "glowing_ticket",
+      "description": "The golden ticket between Mira's hands, preserving her hands and fingers.",
+      "box": [
+        458,
+        517,
+        658,
+        650
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.85,
+      "pivot": [
+        558,
+        585
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.008,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "future_cloud",
+      "description": "The small pale mint cloud above the future city's tree.",
+      "box": [
+        1057,
+        537,
+        1198,
+        612
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.25,
+      "pivot": [
+        1127,
+        576
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 9.0,
+          "phase": 0.3,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "trailing_plant",
+      "description": "The hanging green leaves to the right of the bedside plant pot.",
+      "box": [
+        841,
+        318,
+        917,
+        483
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.55,
+      "pivot": [
+        858,
+        329
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 6.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "future_tree_crown",
+      "description": "The rounded bright green canopy of the tree inside the future vignette, excluding its trunk and the yellow arrow.",
+      "box": [
+        1004,
+        609,
+        1169,
+        733
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          1013,
+          679
+        ],
+        [
+          1057,
+          728
+        ]
+      ],
+      "z": 3,
+      "depth": 0.35,
+      "pivot": [
+        1085,
+        714
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 7.0,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "glowing_ticket"
+      },
+      "intensity": 0.24,
+      "colour": "#ffe58a"
+    }
+  ]
+}

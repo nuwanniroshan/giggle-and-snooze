@@ -1,0 +1,146 @@
+{
+  "page_number": 6,
+  "picture": {
+    "file": "page_06.png",
+    "sha256": "0d32dac48f3546b61d29a0d0a9eb99c4adf5a0591615ab8b1e4eb677acbc5a56",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:28:37+00:00",
+  "layers": [
+    {
+      "name": "captain_kind",
+      "description": "Seated curly-haired child at left, including orange cape and hands; keep jug and table fixed.",
+      "box": [
+        18,
+        620,
+        446,
+        1138
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        250,
+        1103
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.005,
+          "period_s": 5.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "child_with_glasses",
+      "description": "Child with glasses, hands tucked against cheeks, green cardigan and purple knees.",
+      "box": [
+        393,
+        590,
+        623,
+        953
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.65,
+      "pivot": [
+        511,
+        941
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 6.4,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "older_neighbor",
+      "description": "Smiling seated older neighbor with silver hair and buttercream shawl; exclude the held cup so the pour remains aligned.",
+      "box": [
+        854,
+        627,
+        1239,
+        1135
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          906,
+          875
+        ],
+        [
+          924,
+          898
+        ]
+      ],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        1046,
+        1110
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.004,
+          "period_s": 7.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "hanging_lamp",
+      "description": "Woven apricot pendant shade and glowing bulb, hinged where the shade meets its cord.",
+      "box": [
+        7,
+        85,
+        211,
+        246
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.3,
+      "pivot": [
+        107,
+        91
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.5,
+          "period_s": 8.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          8,
+          158,
+          215,
+          282
+        ],
+        "layer": null
+      },
+      "intensity": 0.15,
+      "colour": "#ffcf78"
+    }
+  ]
+}

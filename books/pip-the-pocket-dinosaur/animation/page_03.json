@@ -1,0 +1,149 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "e45235cc2bc5cbc10b1a9b3fb34f8508ccffdbdd3581a54e5d14734e839b13dd",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T18:54:11+00:00",
+  "layers": [
+    {
+      "name": "pip_sleepy_head",
+      "description": "Pip's green head and tiny paws above the pocket rim; preserve the pocket and Ada's pajamas.",
+      "box": [
+        485,
+        399,
+        615,
+        507
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        552,
+        494
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.009,
+          "period_s": 5.6,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_midground_fern",
+      "description": "Arching fern frond to the left of Ada's curls, isolated from the background and Ada.",
+      "box": [
+        0,
+        199,
+        365,
+        343
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.4,
+      "pivot": [
+        20,
+        328
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 7.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_path_fern",
+      "description": "Fern spray at the right edge above the berries, keeping the soil and all footprints outside the moving mask.",
+      "box": [
+        1316,
+        451,
+        1672,
+        713
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        1663,
+        674
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.55,
+          "period_s": 8.4,
+          "phase": 0.58,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_pear_leaves",
+      "description": "Leaf spray hanging around the prominent upper pear, excluding the tree trunk and pear fruit.",
+      "box": [
+        1038,
+        31,
+        1251,
+        230
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.35,
+      "pivot": [
+        1220,
+        54
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.5,
+          "period_s": 9.2,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_berry_leaves",
+      "description": "Broad foreground leaves beneath the red berries and right white flower, excluding berries, flowers, and trail.",
+      "box": [
+        1177,
+        780,
+        1572,
+        941
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.95,
+      "pivot": [
+        1453,
+        936
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.4,
+          "period_s": 9.8,
+          "phase": 0.72,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

@@ -1,0 +1,149 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "147266085ccd673de26e5a2ac7edc1c3739caa2bb9fe2a9c2b25d5225d670e6e",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:24:16+00:00",
+  "layers": [
+    {
+      "name": "orange_by_basket",
+      "description": "The airborne orange and its green leaves just outside the basket.",
+      "box": [
+        555,
+        938,
+        668,
+        1054
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.85,
+      "pivot": [
+        610,
+        1000
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.008,
+          "period_s": 3.2,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "middle_orange",
+      "description": "The middle bouncing orange with its small stem and leaves.",
+      "box": [
+        689,
+        1021,
+        799,
+        1134
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.9,
+      "pivot": [
+        741,
+        1082
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.009,
+          "period_s": 3.2,
+          "phase": 0.32,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_orange",
+      "description": "The lowest orange and its green leaves above the grass.",
+      "box": [
+        849,
+        1083,
+        952,
+        1206
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 7,
+      "depth": 0.97,
+      "pivot": [
+        899,
+        1199
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.005,
+          "period_s": 3.2,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_gate_flowers",
+      "description": "The three cream flowers and their slender green stems and leaves beside the left gatepost.",
+      "box": [
+        645,
+        708,
+        803,
+        1000
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        747,
+        990
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 5.8,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_gate_flowers",
+      "description": "The cream flowers, leaves and stems climbing the right gatepost.",
+      "box": [
+        1162,
+        821,
+        1253,
+        1095
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        1219,
+        1081
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 6.2,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

@@ -1,0 +1,149 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "8488730d05b2d3dd35ef38e057263d7c5729859050517f0b4fbcb63de88422c1",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-13T00:41:28+00:00",
+  "layers": [
+    {
+      "name": "jack",
+      "description": "Jack crouching in yellow star pajamas, including his curls and bare feet.",
+      "box": [
+        358,
+        218,
+        775,
+        847
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.78,
+      "pivot": [
+        566,
+        830
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 5.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "mint_friend",
+      "description": "The smiling mint-green three-eyed friend, including antennae, arms and the red toy car held steady.",
+      "box": [
+        811,
+        316,
+        1253,
+        822
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        1044,
+        803
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.007,
+          "period_s": 5.8,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "purple_hanging_flower",
+      "description": "Large upper purple bell flower with its curved green stem, hanging from the overhead branch.",
+      "box": [
+        362,
+        51,
+        522,
+        219
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        427,
+        56
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 7.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_hanging_flower",
+      "description": "Purple bell flower at the left, with its slender curved stem.",
+      "box": [
+        175,
+        107,
+        339,
+        296
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        227,
+        116
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 7.8,
+          "phase": 0.45,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "yellow_hanging_flower",
+      "description": "Upper yellow bell flower and short green stem beneath the leafy canopy.",
+      "box": [
+        541,
+        34,
+        665,
+        158
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.6,
+      "pivot": [
+        597,
+        40
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.8,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

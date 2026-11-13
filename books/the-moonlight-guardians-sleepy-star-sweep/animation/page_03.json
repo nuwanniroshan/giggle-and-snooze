@@ -1,0 +1,164 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "7168efcec1613188acc57462703761ba51c5180a63c98e92d36266788e2408f8",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T14:14:33+00:00",
+  "layers": [
+    {
+      "name": "guardian_and_sleepy_star",
+      "description": "Curly-haired yawning Guardian in lilac pajamas, including hands, feet, and the cradled white star; exclude trailing cape.",
+      "box": [
+        473,
+        136,
+        877,
+        616
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        670,
+        380
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.003,
+          "period_s": 6.0,
+          "phase": 0.0,
+          "direction": null
+        },
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 6.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "blanket_cape",
+      "description": "Flowing luminous lilac cape behind the Guardian, from the shoulder toward its rightmost curled tip.",
+      "box": [
+        624,
+        258,
+        1194,
+        505
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        643,
+        367
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 7.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_right_cloud",
+      "description": "Soft lavender cloud bank along the upper right edge.",
+      "box": [
+        1218,
+        0,
+        1536,
+        181
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.15,
+      "pivot": [
+        1384,
+        92
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 12.0,
+          "phase": 0.3,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "right_middle_cloud",
+      "description": "Lavender cloud entering from the right edge below the scattered stars.",
+      "box": [
+        1295,
+        347,
+        1536,
+        500
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.2,
+      "pivot": [
+        1432,
+        431
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 11.0,
+          "phase": 0.65,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1004,
+          61,
+          1164,
+          210
+        ],
+        "layer": null
+      },
+      "intensity": 0.18,
+      "colour": "#fff2d9"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          474,
+          330,
+          615,
+          472
+        ],
+        "layer": null
+      },
+      "intensity": 0.1,
+      "colour": "#fff4dd"
+    }
+  ]
+}

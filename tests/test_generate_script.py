@@ -252,7 +252,7 @@ def test_success_prints_review_notice(monkeypatch, tmp_path, capsys):  # AC-7.4
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda b: b["pages"].pop(), "supported range is 8-32"),
+        (lambda b: b.update(pages=b["pages"][:4]), "supported range is 5-32"),
         (lambda b: b["pages"][2].pop("prompt"), "page 3: 'prompt' is missing or empty"),
         (lambda b: b["pages"][4].update(page_number=9), "page 5: page_number must be 5"),
     ],

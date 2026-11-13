@@ -1,0 +1,110 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "81fb7c5e3e52db9b47633b2186ea5b69b0f310855c9ec27ff52d9ff04c0a8128",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T18:56:40+00:00",
+  "layers": [
+    {
+      "name": "ada_quilt_breath",
+      "description": "Upper pear-green quilt over Ada's sleeping torso; preserve stitched texture and keep the face and pillow still.",
+      "box": [
+        593,
+        659,
+        1130,
+        935
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.95,
+      "pivot": [
+        850,
+        925
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.005,
+          "period_s": 5.8,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip_sleeping",
+      "description": "Pip's rounded sleeping body, head, feet and back bumps, excluding the dry-leaf nest.",
+      "box": [
+        1072,
+        417,
+        1343,
+        550
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.6,
+      "pivot": [
+        1200,
+        543
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.009,
+          "period_s": 5.2,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "sheltering_fern",
+      "description": "Long arching fern above Pip; isolate its frond and leaflets from the dark garden behind it.",
+      "box": [
+        884,
+        239,
+        1516,
+        506
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.5,
+      "pivot": [
+        1500,
+        493
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.35,
+          "period_s": 9.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          0,
+          548,
+          163,
+          824
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffd38a"
+    }
+  ]
+}

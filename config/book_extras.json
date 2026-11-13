@@ -1,0 +1,21 @@
+{
+  "bookplate_label": "EX LIBRIS",
+  "bookplate_line": "This storybook belongs to:",
+  "front_footer": "",
+  "back_cover_headline": "",
+  "copyright_genre": "Juvenile Fiction",
+  "map_title": "Map of {title}",
+  "activity_title": "Can you find…?",
+  "activity_subtitle": "Look back through the pages and tick each one you spot.",
+  "questions_title": "Questions to Talk About",
+  "question_templates": [
+    "How do you think {character} felt at the end of {title}?",
+    "What was your favourite part of {title}, and why?",
+    "If you could spend a day with {character} and {character2}, what would you do together?",
+    "Which picture in {title} would you most like to step inside?",
+    "What would you do if you were in this story?"
+  ],
+  "max_characters": 6,
+  "max_questions": 3,
+  "drawing_caption": "My drawing"
+}

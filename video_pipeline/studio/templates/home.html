@@ -5,9 +5,8 @@
 {% block content %}
 <header class="page-head">
   <div>
-    <span class="eyebrow">Library · {{ rows|length }} book{{ '' if rows|length == 1 else 's' }}</span>
     <h1>Books</h1>
-    <p class="lede">Every book runs the same line: script, voices, animation, video.</p>
+    <p class="lede">{{ rows|length }} book{{ '' if rows|length == 1 else 's' }}. Every book runs the same line: script, voices, animation, video.</p>
   </div>
 </header>
 <ul class="shelf">
@@ -20,7 +19,6 @@
     <a class="cover" href="/books/{{ slug }}" tabindex="-1" aria-hidden="true">
       {% if cover %}<img src="{{ cover }}" alt="" loading="lazy" width="640" height="360">{% else %}<span class="cover-blank">{{ row.book.title }}</span>{% endif %}
     </a>
-    {% if row.book.is_pilot %}<span class="tag">pilot</span>{% endif %}
     <div class="body">
       <h2><a href="/books/{{ slug }}">{{ row.book.title }}</a></h2>
       {% if row.book.error %}<p class="error">{{ row.book.error }}</p>{% endif %}
@@ -42,6 +40,7 @@
         {% else %}<a class="button" href="/books/{{ slug }}">{{ next }}</a>{% endif %}
       </div>
     </div>
+    {% if row.book.is_pilot %}<span class="tag">pilot</span>{% endif %}
   </li>
   {% endfor %}
   <li>

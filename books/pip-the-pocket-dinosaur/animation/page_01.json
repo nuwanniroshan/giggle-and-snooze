@@ -1,0 +1,140 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "c9d4d68dce273a8e5e888755b2cd0b485cf010dc27a7083af48204bcd9d4ad73",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T18:51:29+00:00",
+  "layers": [
+    {
+      "name": "upper_arching_fern",
+      "description": "Long upper fern frond arching across the top, with its fine leaflets moving together.",
+      "box": [
+        778,
+        1,
+        1532,
+        331
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.45,
+      "pivot": [
+        1520,
+        300
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 8.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "central_hanging_fern",
+      "description": "Bright drooping fern frond above the space between Ada and Pip; preserve the child's silhouette.",
+      "box": [
+        770,
+        113,
+        1402,
+        557
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.55,
+      "pivot": [
+        1390,
+        230
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.4,
+          "phase": 0.38,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_hanging_fern",
+      "description": "Right-hand fern frond with downward pointing leaflets, above the white flowers.",
+      "box": [
+        1358,
+        230,
+        1619,
+        653
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.65,
+      "pivot": [
+        1604,
+        298
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 8.8,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip_body",
+      "description": "Pip's rounded torso, cream belly, feet, back bumps and tail; exclude his head and Ada's finger so the sniffing contact stays steady.",
+      "box": [
+        949,
+        634,
+        1298,
+        844
+      ],
+      "include_points": [
+        [
+          1080,
+          740
+        ],
+        [
+          1217,
+          791
+        ]
+      ],
+      "exclude_points": [
+        [
+          977,
+          625
+        ],
+        [
+          856,
+          631
+        ]
+      ],
+      "z": 5,
+      "depth": 0.75,
+      "pivot": [
+        1073,
+        828
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.008,
+          "period_s": 4.8,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

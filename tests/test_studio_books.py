@@ -379,7 +379,7 @@ def test_status_of_a_new_book(studio):
     slug = add_book_from_draft(studio.root)
     status = status_of(studio, sb.get_book(studio, slug))
     assert states(status) == ("not_started", "not_started", "not_started")
-    assert status["next_action"] == "Generate script"  # AC-2.3
+    assert status["next_action"] == "Paint pictures"  # AC-2.3; spec 016: a book with no pictures
 
 
 def test_status_script_needs_review_then_reviewed(studio, scripted):
@@ -418,7 +418,7 @@ def test_status_approved_then_rendered_then_out_of_date(tmp_path, monkeypatch):
     assert re_.main(cli_args(world, "--sfx-dir", str(paths.sfx_dir)), run=FakeRunner()) == 0
     status = status_of(paths, book)
     assert states(status) == ("done", "approved", "done")
-    assert status["next_action"] == "Watch video"
+    assert status["next_action"] == "Build book"  # spec 019: the editions come after the video
 
     picture(world["folder"].illustrations / "page_02.png", (9, 9, 9))
     status = status_of(paths, book)
@@ -475,6 +475,8 @@ def test_finished_job_does_not_override(studio, scripted, state):
 
 def test_failed_script_job_without_a_script_says_generate(studio):
     book = sb.get_book(studio, PILOT_SLUG)
+    for name in ["cover_front.png", "cover_back.png", *(f"page_{n:02d}.png" for n in range(1, 9))]:
+        picture(pilot_folder(studio.root).illustrations / name)  # spec 016: painted books only
     status = status_of(studio, book, jobs_with(script={"state": "failed", "exit_code": 2}))
     assert status["script"]["state"] == "failed"
     assert status["next_action"] == "Generate script"
@@ -483,7 +485,13 @@ def test_failed_script_job_without_a_script_says_generate(studio):
 def test_latest_job_is_asked_per_book_and_stage(studio, scripted):
     asked = []
     sb.stage_status(studio, scripted, lambda slug, stage: asked.append((slug, stage)))
-    assert asked == [(PILOT_SLUG, "script"), (PILOT_SLUG, "voices"), (PILOT_SLUG, "render")]
+    assert asked == [
+        (PILOT_SLUG, "script"),
+        (PILOT_SLUG, "voices"),
+        (PILOT_SLUG, "render"),
+        (PILOT_SLUG, "paint"),  # spec 016
+        (PILOT_SLUG, "build"),  # spec 019
+    ]
 
 
 def test_stage_names():
@@ -821,3 +829,21 @@ def test_page_animation_off_in_the_render_config(tmp_path):  # AC-3.1 (studio st
     cfg["animation"]["enabled"] = False
     cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
     assert {r["still_reason"] for r in _rows(paths, book).values()} == {"animation off"}
+
+
+# --- character sheet (spec 018: AC-3.1) -------------------------------------------------------
+
+
+def test_character_sheet_of_a_book_from_a_draft(studio):  # AC-3.1
+    from tests.test_story_tools import OWL, TEAPOT
+
+    slug = add_book_from_draft(studio.root, "A Zebra Named Quill")
+    book = sb.get_book(studio, slug)
+    assert sb.character_sheet(studio, book) == [TEAPOT, OWL]
+
+
+def test_character_sheet_is_empty_without_one_or_for_broken_json(studio):  # AC-2.3
+    book = next(b for b in sb.list_books(studio) if b.error is None)
+    assert sb.character_sheet(studio, book) == []
+    book.book_path.write_text("{oops", encoding="utf-8")
+    assert sb.character_sheet(studio, book) == []

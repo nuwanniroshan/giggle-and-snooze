@@ -5,11 +5,10 @@
 {% block content %}
 <header class="page-head">
   <div>
-    <span class="eyebrow">Voices</span>
     <h1>Listen and approve</h1>
     <p class="lede">Play the full preview. Listen for robotic or garbled speech, wrong names and tags read aloud.</p>
   </div>
-  {% if record and record.status != 'approved' %}
+  {% if record and (record.status != 'approved' or record.by == 'autopilot') %}
   <div class="head-actions">
     <form method="post" action="/books/{{ book.slug }}/audio/approve" class="inline"><button class="big" type="submit">Approve audio</button></form>
   </div>
@@ -23,7 +22,8 @@
   <div class="panel-head">
     <h2>Full preview</h2>
     <p>{{ badge(record.status) }}
-    {% if record.approved_at %}<span class="muted small" style="display:inline">approved at {{ record.approved_at }}</span>{% else %}<span class="muted small" style="display:inline">synthesized at {{ record.synthesized_at }}</span>{% endif %}</p>
+    {% if record.approved_at and record.by == 'autopilot' %}<span class="muted small" style="display:inline">Approved automatically by autopilot at {{ record.approved_at }}; listen and approve to confirm</span>
+    {% elif record.approved_at %}<span class="muted small" style="display:inline">approved at {{ record.approved_at }}</span>{% else %}<span class="muted small" style="display:inline">synthesized at {{ record.synthesized_at }}</span>{% endif %}</p>
   </div>
   {% if voices.state == 'out_of_date' %}<p class="notice info compact">{{ badge('out_of_date') }} <span>{{ voices.detail }}</span></p>{% endif %}
   {% if has_preview %}

@@ -1,18 +1,25 @@
 """CLI: paint a book's missing illustrations with ChatGPT image generation via Codex.
 
     python -m video_pipeline.illustrate --book <slug> [--force] [--root PATH]
+    python -m video_pipeline.illustrate --book <slug> --page N [--cut]
+    python -m video_pipeline.illustrate --book <slug> --cover front|back
 
 Paints `page_NN.png` for every page, then `cover_front.png` and `cover_back.png`, into
 `books/<slug>/illustrations/`. Existing files are kept unless `--force`. Page 1 is painted first
 and goes to every later image as a reference so the characters look the same on every page.
 Uses the ChatGPT login of the Codex CLI (the same one the script and story stages use).
 Each freshly painted story page then gets a fresh motion plan (spec 009); covers get none.
+
+`--page N` or `--cover front|back` repaints exactly one picture (spec 019), keeping the old one as
+`<name>.png.bak` and restoring it if painting fails. A repainted page is planned again, and with
+`--cut` its layers are cut too; a cover gets neither.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,6 +28,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from video_pipeline import cut_layers
 from video_pipeline.agents import AgentUnavailable, codex_status
 from video_pipeline.blueprint import (
     BlueprintError,
@@ -30,14 +38,19 @@ from video_pipeline.blueprint import (
     record_use,
     style_text,
 )
+from video_pipeline.characters import cover_characters_text, page_characters_text
 from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
 from video_pipeline.motion_plan import PlanError, PlanOutcome, load_limits, plan_page
 
 IMAGE_TIMEOUT_S = 600
 MIN_SIDE = 512
+LANDSCAPE_RATIO = (16, 9)
 STYLE_LINE = (
-    "Square 1:1 picture-book illustration. Keep the exact art style, colours and character "
-    "designs of the reference image when one is attached. No text, letters or logos anywhere."
+    "Wide landscape picture-book illustration, generated at landscape size 1536x1024 (never "
+    "square, never portrait). Compose it for a 16:9 film frame: keep every important character "
+    "and object inside the central 80% of the height, and fill the full width with scenery. "
+    "Keep the exact art style, colours and character designs of the reference image when one is "
+    "attached. No text, letters or logos anywhere."
 )
 
 
@@ -52,7 +65,8 @@ def cover_prompts(book: dict) -> dict[str, str]:
         "cover_front": (
             f'Front cover art for the children\'s picture book "{title}". Story: {blurb} '
             "Show the main character from the reference image in a joyful, inviting pose in the "
-            "story's setting, with calm space near the top. Leave the cover without any lettering."
+            "story's setting, with calm, uncluttered sky or scenery across the top 35% of the picture "
+            "(the title is added there later). Leave the cover without any lettering."
         ),
         "cover_back": (
             f'Back cover art for the picture book "{title}": a quiet, cozy scene from the story '
@@ -65,11 +79,24 @@ def cover_prompts(book: dict) -> dict[str, str]:
 def plan_images(book: dict, style: str | None = None) -> list[tuple[str, str]]:
     """(file stem, prompt) in painting order: pages by number, then the two covers.
 
-    `style` (the blueprint's art text) is put in front of every prompt, covers included."""
+    `style` (the blueprint's art text) is put in front of every prompt, covers included. A book
+    with a character sheet (spec 018) adds the looks of each page's characters, and of the whole
+    sheet on the covers; a book without one gets exactly the old prompts."""
+
+    def with_characters(prompt: str, block: str) -> str:
+        return f"{prompt}\n\n{block}" if block else prompt
+
     pages = sorted(book["pages"], key=lambda p: p["page_number"])
-    items = [(Path(_page_file(p)).stem, p["prompt"]) for p in pages]
+    items = [
+        (Path(_page_file(p)).stem, with_characters(p["prompt"], page_characters_text(book, p)))
+        for p in pages
+    ]
     covers = cover_prompts(book)
-    items += [("cover_front", covers["cover_front"]), ("cover_back", covers["cover_back"])]
+    cast = cover_characters_text(book)
+    items += [
+        ("cover_front", with_characters(covers["cover_front"], cast)),
+        ("cover_back", with_characters(covers["cover_back"], cast)),
+    ]
     if style:
         items = [(stem, f"{style}\n\n{prompt}") for stem, prompt in items]
     return items
@@ -102,6 +129,26 @@ def build_image_command(binary: Path, prompt: str, reference: Path | None) -> li
     return [*command, "--", task]
 
 
+def crop_to_landscape(path: Path) -> None:
+    """Centre-crop a landscape picture to exactly 16:9, in place. A square or portrait result is
+    refused (IllustrateError), since cropping it would cut away most of the picture."""
+    with Image.open(path) as im:
+        im.load()
+        width, height = im.size
+        if width / height < 1.3:
+            raise IllustrateError(f"{path.name}: came back {width}x{height}, not landscape")
+        want = LANDSCAPE_RATIO[0] / LANDSCAPE_RATIO[1]
+        if abs(width / height - want) < 0.005:
+            return
+        if width / height > want:
+            new_w, new_h = round(height * want), height
+        else:
+            new_w, new_h = width, round(width / want)
+        left, top = (width - new_w) // 2, (height - new_h) // 2
+        cropped = im.convert("RGB").crop((left, top, left + new_w, top + new_h))
+    cropped.save(path, format="PNG")
+
+
 def check_image(path: Path) -> None:
     try:
         with Image.open(path) as im:
@@ -114,6 +161,16 @@ def check_image(path: Path) -> None:
 
 
 def paint_one(binary: Path, prompt: str, reference: Path | None, target: Path) -> None:
+    """Paint one picture; a result that is not landscape is painted again (up to 3 tries)."""
+    for attempt in range(3):
+        try:
+            return _paint_once(binary, prompt, reference, target)
+        except IllustrateError as exc:
+            if "not landscape" not in str(exc) or attempt == 2:
+                raise
+
+
+def _paint_once(binary: Path, prompt: str, reference: Path | None, target: Path) -> None:
     with tempfile.TemporaryDirectory(prefix="kiddo-image-") as tmp:
         work = Path(tmp)
         try:
@@ -132,6 +189,7 @@ def paint_one(binary: Path, prompt: str, reference: Path | None, target: Path) -
         if not out.is_file():
             tail = (result.stderr or result.stdout).strip()[-300:]
             raise IllustrateError(f"{target.name}: no image was produced. {tail}")
+        crop_to_landscape(out)
         check_image(out)
         target.parent.mkdir(parents=True, exist_ok=True)
         partial = target.with_name(target.name + ".tmp")
@@ -173,12 +231,77 @@ def illustrate(
     return painted
 
 
+def select_images(book: dict, style: str | None, stem: str) -> tuple[str, str]:
+    """The one `(stem, prompt)` of `plan_images` for `stem` (so a single repaint gets exactly the
+    request a full painting would, character looks included)."""
+    for item in plan_images(book, style):
+        if item[0] == stem:
+            return item
+    raise IllustrateError(f"{stem} is not a picture of this book")
+
+
+def page_stem(book: dict, number: int) -> str:
+    """The file stem of story page `number` (by `page_number`, not list position)."""
+    for page in book["pages"]:
+        if int(page["page_number"]) == number:
+            return Path(_page_file(page)).stem
+    raise IllustrateError(f"page {number} is not in the book")
+
+
+def repaint_reference(book: dict, folder: Path, stem: str) -> Path | None:
+    """The picture a single repaint attaches: the first story page (by number) that exists and is
+    not the target itself; None when no other page picture exists."""
+    for page in sorted(book["pages"], key=lambda p: p["page_number"]):
+        candidate = folder / _page_file(page)
+        if candidate.stem != stem and candidate.is_file():
+            return candidate
+    return None
+
+
+def repaint_one(
+    book: dict,
+    folder: Path,
+    binary: Path,
+    stem: str,
+    paint: Callable[[Path, str, Path | None, Path], None] = paint_one,
+    style: str | None = None,
+    log: Callable[[str], None] = print,
+) -> Path:
+    """Repaint one picture (spec 019 FR-1). The old file is kept as `<name>.png.bak`, and put back
+    when painting fails (the error is raised again). Returns the picture's path."""
+    stem, prompt = select_images(book, style, stem)
+    target = folder / f"{stem}.png"
+    backup = target.with_name(target.name + ".bak")
+    if target.is_file():
+        shutil.copyfile(target, backup)
+    log(f"  {stem}: repainting...")
+    try:
+        paint(binary, prompt, repaint_reference(book, folder, stem), target)
+    except IllustrateError:
+        if backup.is_file():
+            shutil.copyfile(backup, target)
+            log(f"  {stem}: repaint failed; the old picture was put back")
+        raise
+    return target
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="illustrate", description=__doc__.splitlines()[0])
     parser.add_argument("--book", required=True, help="book slug")
-    parser.add_argument("--force", action="store_true", help="repaint existing images")
+    one = parser.add_mutually_exclusive_group()
+    one.add_argument("--force", action="store_true", help="repaint existing images")
+    one.add_argument("--page", type=int, help="repaint only this story page (keeps a .bak)")
+    one.add_argument(
+        "--cover", choices=("front", "back"), help="repaint only this cover (keeps a .bak)"
+    )
+    parser.add_argument(
+        "--cut", action="store_true", help="with --page: cut the page's layers after its plan"
+    )
     parser.add_argument("--root", type=Path, default=PROJECT_ROOT)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.cut and args.page is None:
+        parser.error("--cut needs --page")
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -206,6 +329,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 unplanned.append(Path(_page_file(page)).stem)
             return outcome
 
+        if args.page is not None or args.cover:
+            return _repaint_main(args, book, folder, binary, style, planner)
         print(f"painting illustrations into {folder.illustrations}")
         painted = illustrate(
             book,
@@ -238,6 +363,36 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
     return 0
+
+
+def _repaint_main(args, book, folder, binary, style, planner) -> int:
+    """Repaint one picture; a page is then planned and (with --cut) cut. Errors propagate to
+    `main`, which reports them and exits 1."""
+    if args.cover:
+        stem = f"cover_{args.cover}"
+        repaint_one(book, folder.illustrations, binary, stem, paint=paint_one, style=style)
+        print(f"repainted {stem} (old picture kept as {stem}.png.bak)")
+        return 0
+    stem = page_stem(book, args.page)
+    page = next(p for p in book["pages"] if int(p["page_number"]) == args.page)
+    repaint_one(book, folder.illustrations, binary, stem, paint=paint_one, style=style)
+    print(f"repainted {stem} (old picture kept as {stem}.png.bak)")
+    outcome = planner(page)
+    reason = f" – {outcome.reason}" if outcome.reason else ""
+    print(f"  {stem}: plan {outcome.status}{reason}")
+    if outcome.status == "failed":
+        print(
+            f"error: no motion plan for {stem} (picture kept); run `python -m "
+            f"video_pipeline.motion_plan --book {args.book} --page {args.page}` to retry",
+            file=sys.stderr,
+        )
+        return 1
+    if not args.cut:
+        return 0
+    print(f"cutting the layers of page {args.page}")
+    return cut_layers.main(
+        ["--book", args.book, "--page", str(args.page), "--root", str(args.root)]
+    )
 
 
 if __name__ == "__main__":

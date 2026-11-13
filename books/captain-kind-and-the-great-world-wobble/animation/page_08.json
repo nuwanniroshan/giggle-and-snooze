@@ -1,0 +1,218 @@
+{
+  "page_number": 8,
+  "picture": {
+    "file": "page_08.png",
+    "sha256": "fe6c541839187c8a4bf8aeb7054ec1258d545e2ef83d3e14c2ce862b7e467338",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:31:30+00:00",
+  "layers": [
+    {
+      "name": "captain_breathing",
+      "description": "Seated curly-haired captain, including orange cape and crossed legs; gently breathing with relaxed shoulders.",
+      "box": [
+        5,
+        584,
+        468,
+        1133
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.85,
+      "pivot": [
+        278,
+        1109
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 7.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "grandmother_breathing",
+      "description": "Grandmother with glasses, silver bun, sea-glass shawl and folded hands.",
+      "box": [
+        382,
+        519,
+        692,
+        976
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.65,
+      "pivot": [
+        543,
+        963
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.005,
+          "period_s": 7.0,
+          "phase": 0.04,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "center_child_breathing",
+      "description": "Peaceful center child with hands resting on cheeks, cream sleeves and teal overalls.",
+      "box": [
+        688,
+        598,
+        938,
+        993
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.7,
+      "pivot": [
+        804,
+        981
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.006,
+          "period_s": 7.0,
+          "phase": 0.08,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_child_breathing",
+      "description": "Seated child at right in raspberry clothes, including braid and cream bow.",
+      "box": [
+        907,
+        635,
+        1236,
+        1075
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        1064,
+        1062
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.005,
+          "period_s": 7.0,
+          "phase": 0.12,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "settling_ball",
+      "description": "Buttercream and sea-glass fabric ball, excluding grass and drawn motion marks.",
+      "box": [
+        489,
+        976,
+        650,
+        1136
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.95,
+      "pivot": [
+        569,
+        1133
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 5.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "settling_oranges",
+      "description": "Three small oranges with attached leaves in the foreground; exclude surrounding motion marks.",
+      "box": [
+        691,
+        1021,
+        951,
+        1194
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 1.0,
+      "pivot": [
+        822,
+        1188
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.001,
+          "period_s": 6.0,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "windowsill_flowers",
+      "description": "Three cream flowers and green stems above the teal flowerpot; keep pot still.",
+      "box": [
+        247,
+        378,
+        384,
+        490
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.3,
+      "pivot": [
+        313,
+        487
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 8.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "smoke",
+      "region": {
+        "box": [
+          158,
+          388,
+          225,
+          484
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#fff0cf"
+    }
+  ]
+}

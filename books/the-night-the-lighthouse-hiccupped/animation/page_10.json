@@ -1,0 +1,111 @@
+{
+  "page_number": 10,
+  "picture": {
+    "file": "page_10.png",
+    "sha256": "3159d3a6bcd76cb3446b621a611263d82ff92f67c8bfed788f16e5dc591a1df9",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-10T20:24:43+00:00",
+  "layers": [
+    {
+      "name": "cocoa_steam",
+      "description": "Only the pale curling steam above Mira's cocoa; exclude hair, face, mug and wall.",
+      "box": [
+        388,
+        309,
+        471,
+        411
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.7,
+      "pivot": [
+        409,
+        404
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 6.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip_breathing",
+      "description": "Pip's sleeping white and gray body and folded wing inside the basket; exclude basket rim and blanket.",
+      "box": [
+        622,
+        704,
+        857,
+        830
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        740,
+        825
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.008,
+          "period_s": 5.0,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          865,
+          431,
+          1193,
+          508
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#edc679"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          263,
+          40,
+          409,
+          170
+        ],
+        "layer": null
+      },
+      "intensity": 0.14,
+      "colour": "#ffc768"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          824,
+          181,
+          1168,
+          246
+        ],
+        "layer": null
+      },
+      "intensity": 0.09,
+      "colour": "#ffd889"
+    }
+  ]
+}

@@ -247,7 +247,9 @@ def test_write_without_a_blueprint_makes_a_plain_book(root, monkeypatch):  # AC-
     slug = store.create_book(d["id"])
     folder = BookFolder(slug, root)
     assert not folder.blueprint_path.exists()
-    assert json.loads(folder.book_json.read_text(encoding="utf-8"))["style_bible"] == {}
+    style_bible = json.loads(folder.book_json.read_text(encoding="utf-8"))["style_bible"]
+    assert "style_prompt_prefix" not in style_bible  # no blueprint direction
+    assert set(style_bible) == {"characters"}  # only the spec 018 character sheet
 
 
 def test_mcp_blueprint_mode_takes_a_subject_and_builds_blueprint_tools(root):  # AC-2.5

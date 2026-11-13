@@ -1,0 +1,110 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "cb39dcca11a55c24483ceda60f6bee2f883d6c169851c6a8e66c22552287fb9d",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:05:59+00:00",
+  "layers": [
+    {
+      "name": "mira",
+      "description": "Mira in sunshine-yellow pajamas and orange slippers, including her curly hair, face, arms and hands; preserve her pose and expression.",
+      "box": [
+        279,
+        150,
+        1045,
+        878
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.7,
+      "pivot": [
+        627,
+        829
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.003,
+          "period_s": 5.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "golden_ticket",
+      "description": "The small golden ticket beside the bed, retaining its shape and warm paper texture.",
+      "box": [
+        909,
+        732,
+        1175,
+        858
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.85,
+      "pivot": [
+        1042,
+        799
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 4.8,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "trailing_plant",
+      "description": "The mint-green trailing leaves above and beside the bookshelf; keep the orange pot stationary.",
+      "box": [
+        25,
+        282,
+        337,
+        623
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.45,
+      "pivot": [
+        151,
+        360
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.45,
+          "period_s": 7.5,
+          "phase": 0.5,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          847,
+          664,
+          1230,
+          900
+        ],
+        "layer": null
+      },
+      "intensity": 0.25,
+      "colour": "#ffd66b"
+    }
+  ]
+}

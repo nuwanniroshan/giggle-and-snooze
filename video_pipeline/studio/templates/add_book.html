@@ -10,6 +10,7 @@
   <label>Maximum pages
     <input type="number" name="pages" value="{{ settings.default_pages }}" min="{{ settings.page_range[0] }}" max="{{ settings.page_range[1] }}" required>
   </label>
+  <label class="check"><input type="checkbox" name="autopilot" value="1" checked> Autopilot: finish the book without stopping</label>
   <button type="submit"{% if running %} disabled{% endif %}>Write this book</button>
 </form>
 {% endmacro %}
@@ -21,7 +22,6 @@
 
 <header class="page-head">
   <div>
-    <span class="eyebrow">New book</span>
     <h1>Add a book</h1>
     <p class="lede">Three steps: choose a story idea, write it as a book, then review the draft.</p>
   </div>
@@ -39,7 +39,7 @@
 {% endif %}
 
 <section class="step" id="step-idea">
-  <h2><span class="num">1</span> Choose a story idea</h2>
+  <h2><span class="step-num">1.</span> Choose a story idea</h2>
   <p class="muted">Ask the studio for ideas, or type your own. The ideas show up in step 2.</p>
   <div class="choices">
     <section class="panel">
@@ -81,26 +81,26 @@
 </section>
 
 <section class="step" id="step-write">
-  <h2><span class="num">2</span> Write the book</h2>
+  <h2><span class="step-num">2.</span> Write the book</h2>
   {% if candidate_ready or ideas_ready %}
   <p class="muted">Pick one idea, check the author and page count, then press Write this book.</p>
   <div class="ideas">
   {% if candidate_ready %}
   <article class="idea mine">
-    <p class="kicker">From your idea</p>
     <h3>{{ candidate.payload.title }}</h3>
+    <p class="kicker">From your idea</p>
     <p>{{ candidate.payload.premise }}</p>
-    <p class="small">{{ candidate.payload.age_range }} &middot; Lesson: {{ candidate.payload.lesson }}</p>
+    <p class="small">{{ candidate.payload.age_range }}. Lesson: {{ candidate.payload.lesson }}</p>
     {{ write_form(candidate.id) }}
   </article>
   {% endif %}
   {% if ideas_ready %}
     {% for idea in ideas.payload.ideas %}
     <article class="idea">
-      <p class="kicker">Suggested</p>
       <h3>{{ idea.title }}</h3>
+      <p class="kicker">Suggested</p>
       <p>{{ idea.premise }}</p>
-      <p class="small">{{ idea.age_range }} &middot; Lesson: {{ idea.lesson }}</p>
+      <p class="small">{{ idea.age_range }}. Lesson: {{ idea.lesson }}</p>
       {{ write_form(ideas.id, loop.index0) }}
     </article>
     {% endfor %}
@@ -112,7 +112,7 @@
 </section>
 
 <section class="step" id="step-review">
-  <h2><span class="num">3</span> Review your drafts</h2>
+  <h2><span class="step-num">3.</span> Review your drafts</h2>
   {% if drafts %}
   <p class="muted">Open a draft to read and edit its pages.</p>
   <ul class="draft-list">
