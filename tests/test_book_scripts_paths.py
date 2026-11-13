@@ -82,7 +82,6 @@ def test_build_writes_only_into_the_book_build_folder(
 
         return stub
 
-    monkeypatch.setattr(build, "register_fonts", lambda: {})
     monkeypatch.setattr(build, "create_front_cover_image", record("front"))
     monkeypatch.setattr(build, "create_back_cover_image", record("back"))
     monkeypatch.setattr(build, "create_kdp_wrap_cover", record("wrap"))

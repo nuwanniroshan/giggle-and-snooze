@@ -78,35 +78,35 @@ def kinds(plan) -> list[str]:
     return [p.kind for p in plan]
 
 
-def test_pilot_plan_keeps_todays_24_pages() -> None:
+def test_pilot_plan_grows_to_26_pages() -> None:
+    """Spec 023 AC-3.1: front, stories, activity, Goodnight, drawings to max(24, front+N+2)."""
     plan = build.plan_interior(read_json(PILOT_BOOK), has_map=True)
-    assert len(plan) == 24
+    assert len(plan) == 26
     assert kinds(plan)[:3] == ["half_title", "title", "map"]
     assert plan[3].kind == "story" and plan[3].story["page_number"] == 1
-    assert plan[-1].kind == "activity" and plan[-1].number == 24
-    assert "drawing" not in kinds(plan) and "blank" not in kinds(plan)
-    assert [p.number for p in plan] == list(range(1, 25))
+    assert kinds(plan)[23:] == ["activity", "goodnight", "drawing"]
+    assert "blank" not in kinds(plan)
+    assert [p.number for p in plan] == list(range(1, 27))
 
 
 def test_ten_page_book_is_padded_to_kdp_minimum() -> None:
-    """AC-2.1: max(24, front + N + back), padded with drawing pages before the activity."""
+    """AC-3.1: 3 front + 10 stories + activity + Goodnight + 9 drawing pages = 24."""
     plan = build.plan_interior(story_book(10), has_map=False)
     assert len(plan) == 24
     assert kinds(plan)[:3] == ["half_title", "title", "blank"]
     assert plan[3].kind == "story" and plan[3].story["page_number"] == 1
     assert kinds(plan).count("story") == 10
-    assert kinds(plan).count("drawing") == 10
-    assert kinds(plan)[14:23] == ["drawing"] * 9
-    assert plan[-1].kind == "activity"
+    assert kinds(plan)[13:15] == ["activity", "goodnight"]
+    assert kinds(plan)[15:] == ["drawing"] * 9
 
 
 def test_long_book_gets_no_padding_beyond_even_rounding() -> None:
     plan = build.plan_interior(story_book(30), has_map=False)
-    assert len(plan) == 34  # 2 front + blank + 30 + activity
-    assert "drawing" not in kinds(plan)
+    assert len(plan) == 36  # 2 front + blank + 30 + activity + Goodnight, rounded up to even
+    assert kinds(plan)[-3:] == ["activity", "goodnight", "drawing"]
     odd = build.plan_interior(story_book(31), has_map=False)
-    assert len(odd) == 36 and kinds(odd).count("drawing") == 1
-    assert odd[-2].kind == "drawing" and odd[-1].kind == "activity"
+    assert len(odd) == 36 and "drawing" not in kinds(odd)
+    assert kinds(odd)[-2:] == ["activity", "goodnight"]
 
 
 def test_story_pages_keep_order_and_bleed_side_by_parity() -> None:
@@ -299,12 +299,15 @@ def test_generic_book_has_only_its_own_content(ten_page_build: Path) -> None:
     for word in BANNED:
         assert word not in text, word
     kdp = pdf_texts(ten_page_build / "The_Lantern_Bug_Parade_KDP_24Page_Print_Interior.pdf")
-    front = "\n".join(kdp[:3])
+    front = " ".join("\n".join(kdp[:3]).split())  # titles may wrap across lines
     assert "The Lantern Bug Parade" in front and "A Glowmoss Meadow Tale" in front
     assert "Test Author" in front and "For every little light." in front
     assert "Giggle & Snooze" in front and "2026" in front
     assert not any("Map of" in t for t in kdp)  # no map_*.png → no map page
-    assert "Can you find…?" in kdp[-1] and "Tilly" in kdp[-1] and "THE END" in kdp[-1]
+    activity, goodnight = kdp[13], kdp[14]  # spec 023 AC-3.1: after the story pages
+    assert "Can you find…?" in activity and "Tilly" in activity
+    assert "Goodnight" in goodnight and "For every little light." in goodnight  # no blueprint
+    assert not any("THE END" in t for t in kdp)
 
 
 def test_kdp_interior_is_padded_with_drawing_pages(ten_page_build: Path) -> None:
@@ -312,19 +315,63 @@ def test_kdp_interior_is_padded_with_drawing_pages(ten_page_build: Path) -> None
     kdp = pdf_texts(ten_page_build / "The_Lantern_Bug_Parade_KDP_24Page_Print_Interior.pdf")
     assert len(kdp) == 24
     drawing = [t for t in kdp if "My drawing" in t]
-    assert len(drawing) == 10
+    assert len(drawing) == 9
     assert all("The Lantern Bug Parade" in t for t in drawing)
     assert kdp[3].strip().startswith("Glow Step 1")
 
 
 def test_story_pages_alternate_bleed_side(ten_page_build: Path) -> None:
-    """AC-2.3: the picture shifts by the bleed between facing story pages, as today."""
+    """Spec 023 AC-3.6: the picture covers the whole page; the words shift by the bleed."""
     path = ten_page_build / "The_Lantern_Bug_Parade_KDP_24Page_Print_Interior.pdf"
     with pymupdf.open(path) as doc:
-        xs = [doc[i].get_image_info()[0]["bbox"][0] for i in (3, 4)]
-        size = (doc[3].rect.width, doc[3].rect.height)
-    assert size == pytest.approx((621.0, 630.0))
+        for i in (3, 4):
+            page = doc[i]
+            assert (page.rect.width, page.rect.height) == pytest.approx((621.0, 630.0))
+            bbox = page.get_image_info()[0]["bbox"]
+            assert bbox == pytest.approx((0, 0, 621, 630), abs=0.01)
+        texts = [[b for b in doc[i].get_text("dict")["blocks"] if b["type"] == 0] for i in (3, 4)]
+        xs = [blocks[0]["bbox"][0] for blocks in texts]
     assert xs[0] - xs[1] == pytest.approx(0.125 * 72, abs=0.01)
+
+
+def page_pixel(path: Path, index: int, at: tuple[float, float]) -> tuple[int, int, int]:
+    with pymupdf.open(path) as doc:
+        pix = doc[index].get_pixmap(dpi=36)
+    x, y = at
+    return pix.pixel(round(x * pix.width), round(y * pix.height))
+
+
+def test_drawing_pages_are_light_and_goodnight_is_dark(ten_page_build: Path) -> None:
+    """Spec 023 AC-3.3, AC-3.4."""
+    path = ten_page_build / "The_Lantern_Bug_Parade_KDP_24Page_Print_Interior.pdf"
+    for index in (15, 23):
+        assert min(page_pixel(path, index, (0.5, 0.05))) > 230
+    assert max(page_pixel(path, 14, (0.5, 0.2))) < 80
+
+
+def test_pdfs_embed_only_the_bundled_faces(ten_page_build: Path) -> None:
+    """Spec 023 AC-7.1: Young Serif and Andika only; no Georgia or Times."""
+    for pdf in ten_page_build.glob("The_Lantern_Bug_Parade*.pdf"):
+        with pymupdf.open(pdf) as doc:
+            fonts = {f[3] for i in range(len(doc)) for f in doc.get_page_fonts(i)}
+        if "Wrap_Cover" in pdf.name:
+            continue
+        assert fonts, pdf.name
+        for name in fonts:
+            assert "YoungSerif" in name or "Andika" in name, (pdf.name, name)
+
+
+def test_missing_font_stops_before_any_edition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Spec 023 AC-7.2."""
+    build_dir = make_root(tmp_path, "lantern-bug-parade", story_book(4))
+    design = build.load_design()
+    broken = {**design, "fonts": {**design["fonts"], "display": "assets/fonts/Missing-Face.ttf"}}
+    monkeypatch.setattr(build, "load_design", lambda *a, **k: broken)
+    assert build.main(["--book", "lantern-bug-parade", "--root", str(tmp_path)]) == 2
+    assert "Missing-Face.ttf" in capsys.readouterr().err
+    assert not build_dir.exists() or not any(build_dir.iterdir())
 
 
 def test_wrap_cover_uses_interior_page_count(ten_page_build: Path) -> None:
@@ -368,7 +415,7 @@ def test_map_page_appears_only_with_a_map_picture(tmp_path: Path) -> None:
     assert len(kdp) == 24
     assert "Map of The Lantern Bug Parade" in kdp[2]
     assert kdp[3].strip().startswith("Glow Step 1")
-    assert sum("My drawing" in t for t in kdp) == 10  # the map page replaces the blank
+    assert sum("My drawing" in t for t in kdp) == 9  # the map page replaces the blank
 
 
 # --- Pilot golden (AC-1.4) -------------------------------------------------------------------
@@ -410,4 +457,4 @@ def test_pilot_editions_keep_their_content(pilot_build: Path) -> None:
 def test_pilot_flipbook_links_unchanged(pilot_build: Path) -> None:
     html = (pilot_build / "index.html").read_text(encoding="utf-8")
     assert 'href="The_Snail_Mail_Express_20Page_Digital_Edition.pdf"' in html
-    assert 'href="The_Snail_Mail_Express_KDP_24Page_Print_Interior.pdf"' in html
+    assert 'href="The_Snail_Mail_Express_KDP_26Page_Print_Interior.pdf"' in html
