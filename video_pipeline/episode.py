@@ -79,6 +79,8 @@ def book_problems(book: object, where: str) -> list[str]:
         problems.append(
             f"{where}: book has {count} pages; supported range is {MIN_PAGES}-{MAX_PAGES}"
         )
+    if isinstance(metadata, dict) and metadata.get("cover_style", "titled") != "titled":
+        problems.append(f"{where}: metadata.cover_style must be 'titled'")
     if "grade" in book:
         try:
             parse_grade(book["grade"], f"{where}: grade")

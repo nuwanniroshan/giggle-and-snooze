@@ -188,3 +188,14 @@ def test_banter_plan_errors_detects_mismatch():
     errors = banter_plan_errors(banter, plan)
     assert any(f"page {first.page_number}: kids speaking must be exactly" in e for e in errors)
     assert "unexpected Q&A moment for page 99" in errors
+
+
+def test_book_problems_refuse_unknown_cover_style():  # spec 022: only 'titled' is a marker
+    from video_pipeline.episode import book_problems
+
+    book = load_json(MINI_BOOK)
+    assert book_problems(book, "b.json") == []
+    book["metadata"]["cover_style"] = "titled"
+    assert book_problems(book, "b.json") == []
+    book["metadata"]["cover_style"] = "fancy"
+    assert "b.json: metadata.cover_style must be 'titled'" in book_problems(book, "b.json")

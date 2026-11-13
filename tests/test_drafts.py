@@ -71,6 +71,13 @@ def test_create_book_writes_the_book_folder_and_removes_the_draft(root):  # AC-3
     assert store.get(draft_id) is None
 
 
+def test_create_book_marks_titled_covers(root):  # spec 022
+    store = dr.DraftStore(root)
+    slug = store.create_book(ready_draft(store))
+    data = json.loads(BookFolder(slug, root).book_json.read_text(encoding="utf-8"))
+    assert data["metadata"]["cover_style"] == "titled"
+
+
 def test_create_book_refuses_an_existing_slug_and_keeps_the_draft(root):  # AC-3.6
     store = dr.DraftStore(root)
     first = ready_draft(store)
