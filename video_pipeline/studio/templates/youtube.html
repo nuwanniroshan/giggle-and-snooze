@@ -24,8 +24,12 @@
 <section class="panel" id="youtube-channel">
   <div class="stage-title">
     <h2>Channel</h2>
-    {% if c.channel %}<span class="state t-done">Connected</span>{% else %}<span class="state">Not connected</span>{% endif %}
+    {% if c.state == "reconnect_needed" %}<span class="state t-attention">Reconnect needed</span>{% elif c.channel %}<span class="state t-done">Connected</span>{% else %}<span class="state">Not connected</span>{% endif %}
   </div>
+  {% if c.state == "reconnect_needed" %}
+  <p class="stage-detail">{{ c.reconnect_reason }}. Uploads stay off until you reconnect.</p>
+  {% endif %}
+  {% if c.check_note %}<p class="small muted">{{ c.check_note }}.</p>{% endif %}
   {% if c.channel %}
   <dl class="facts">
     <dt>Channel</dt><dd>{{ c.channel.title }}</dd>
@@ -36,8 +40,9 @@
     <label class="check"><input type="checkbox" name="confirm" value="1" required> Forget this channel's access (revoked with Google)</label>
     <button class="secondary" type="submit">Disconnect</button>
   </form>
-  {% else %}
-  <p class="stage-detail">Not connected.</p>
+  {% endif %}
+  {% if not c.channel or c.state == "reconnect_needed" %}
+  {% if not c.channel %}<p class="stage-detail">Not connected.</p>{% endif %}
   {% if c.client_ok %}
   <div class="controls">
     <form method="post" action="/youtube/connect" class="inline">

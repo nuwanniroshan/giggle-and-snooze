@@ -82,6 +82,7 @@ def s(tmp_path, yt):
     studio = Studio(tmp_path)
     studio.studio = studio.app.state.studio
     studio.studio.youtube_revoke = lambda token: None  # never contact Google
+    studio.studio.youtube_load_credentials = lambda folder, settings, request=None: object()
     yield studio
     if studio.runner.current():
         studio.runner.stop()
@@ -272,6 +273,48 @@ def test_disconnect_deletes_connection(s, yt):
     assert not (yt / api.TOKEN_FILE).exists() and not (yt / api.CHANNEL_FILE).exists()
     assert revoked == [TOKEN]
     assert "Not connected" in s.client.get("/youtube").text
+
+
+def test_settings_shows_reconnect_needed_when_token_revoked(s, yt):
+    with_client(yt)
+    connect(yt)
+
+    def revoked(folder, settings, request=None):
+        raise api.ReconnectNeeded("Reconnect needed: Google no longer accepts this connection")
+
+    s.studio.youtube_load_credentials = revoked
+    html = s.client.get("/youtube").text
+    assert "Reconnect needed" in html
+    assert "Google no longer accepts this connection" in html
+    assert 'action="/youtube/connect"' in html
+    assert TOKEN not in html
+
+
+def test_settings_connected_when_credentials_load(s, yt):
+    with_client(yt)
+    connect(yt)
+    seen = []
+    s.studio.youtube_load_credentials = lambda folder, settings, request=None: seen.append(folder)
+    html = s.client.get("/youtube").text
+    assert seen == [yt]
+    assert "Connected" in html and CHANNEL.title in html
+    assert "Reconnect needed" not in html
+    assert 'action="/youtube/connect"' not in html
+
+
+def test_settings_unreachable_google_keeps_connected_with_note(s, yt):
+    with_client(yt)
+    connect(yt)
+
+    def offline(folder, settings, request=None):
+        raise api.YouTubeError("Could not reach Google to check the connection")
+
+    s.studio.youtube_load_credentials = offline
+    html = s.client.get("/youtube").text
+    assert "Connected" in html and CHANNEL.title in html
+    assert "Could not reach Google to check the connection" in html
+    assert "Reconnect needed" not in html
+    assert TOKEN not in html
 
 
 # --- YouTube text (Story 2) -----------------------------------------------------------------

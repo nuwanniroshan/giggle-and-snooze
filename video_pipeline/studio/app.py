@@ -243,6 +243,7 @@ class Studio:
         self.youtube_flow_factory: Callable[..., object] | None = None
         self.youtube_client_factory: Callable[[object], object] | None = None
         self.youtube_revoke: Callable[[str], None] | None = None
+        self.youtube_load_credentials: Callable[..., object] | None = None
         self.templates = Jinja2Templates(directory=STUDIO_DIR / "templates")
         self.templates.env.autoescape = True
         self.templates.env.globals.update(
@@ -690,11 +691,26 @@ class Studio:
     def youtube_settings(self) -> yt.YouTubeSettings:
         return yt.load_settings(self.paths.config_dir)
 
-    def youtube_page(self, request: Request) -> Response:
+    async def youtube_page(self, request: Request) -> Response:
         connection = sb.youtube_connection()
+        if connection["state"] == "connected":
+            connection.update(await run_in_threadpool(self.youtube_credentials_state))
         notice = YOUTUBE_NOTICES.get(request.query_params.get("msg", ""))
         context = {"nav": "youtube", "connection": connection, "notice": notice}
         return self.render(request, "youtube.html", context)
+
+    def youtube_credentials_state(self) -> dict:
+        """Ask the stored connection whether Google still accepts it (AC-1.6). Contacts Google
+        only when the access token has expired and must be refreshed. Only our own messages
+        reach the page, never token text."""
+        load = self.youtube_load_credentials or yapi.load_credentials
+        try:
+            load(yapi.secrets_dir(), self.youtube_settings())
+        except yapi.ReconnectNeeded as exc:
+            return {"state": "reconnect_needed", "reconnect_reason": str(exc)}
+        except yapi.YouTubeError as exc:
+            return {"check_note": str(exc)}
+        return {}
 
     def youtube_connect(self, request: Request) -> Response:
         folder = yapi.secrets_dir()
