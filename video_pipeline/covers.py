@@ -1,6 +1,6 @@
-"""Cover settings and the titled-cover marker (spec 022).
+"""Titled Codex covers (spec 022): settings, the marker, requests, trimming and read-back.
 
-Pure: no model, image or `illustrate` imports, so render, print build and studio can all use it.
+Pure: no subprocess and no `illustrate` import, so render, print build and studio can all use it.
 New books carry `metadata.cover_style = "titled"` (set from `config/book_defaults.json`); older
 books lack it and keep their old covers.
 """
@@ -10,6 +10,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+
+from PIL import Image
+
+from video_pipeline.characters import cover_characters_text
 
 TITLED_STEMS = ("cover_front", "cover_front_print")
 SETTINGS_FILE = "covers.json"
@@ -120,3 +124,201 @@ def load_cover_settings(config_dir: Path) -> CoverSettings:
 def titled_covers(book: dict) -> bool:
     """True for books marked `metadata.cover_style = "titled"` (new books only)."""
     return (book.get("metadata") or {}).get("cover_style") == "titled"
+
+
+# --- Cover requests (FR-2, FR-3) ---------------------------------------------------------------
+
+CODEX_FLAGS = (
+    "exec",
+    "--ephemeral",
+    "--skip-git-repo-check",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--sandbox",
+    "workspace-write",
+    "-c",
+    'web_search="disabled"',
+)
+PAINT_TASK = (
+    "Use the image generation tool to create this picture, then copy the generated image file to "
+    "./out.png with the shell and reply with only that path."
+)
+
+
+def _art_block(book: dict, art: dict | None) -> str:
+    if art:
+        palette = ", ".join(f"{c['name']} {c['hex']}" for c in art.get("palette") or [])
+        avoid = ", ".join(art.get("avoid") or [])
+        return (
+            "Art style (the book's own direction, use it for the picture AND the lettering):\n"
+            f"{art['style_prompt_prefix']}\n"
+            f"Medium: {art['medium_label']}. Line: {art['line']} Lighting: {art['lighting']}\n"
+            f"Palette: {palette}. Avoid: {avoid}."
+        )
+    prefix = (book.get("style_bible") or {}).get("style_prompt_prefix")
+    if not prefix:
+        return ""
+    return f"Art style (use it for the picture AND the lettering):\n{prefix}"
+
+
+def _logo_rule(settings: CoverSettings) -> str:
+    return (
+        f'- The "{settings.logo_name}" logo from reference image 1, reproduced faithfully (same '
+        "glossy bubbly letters, orange-to-yellow GIGGLE, teal &, blue-to-lilac SNOOZE, small zzz), "
+        f"as a publisher mark about {settings.logo_width_pct}% of the cover width, COMPLETE and "
+        f"fully visible. Place the whole logo at least {settings.safe_side_pct}% of the finished "
+        "cover's width away from the left and right edges and at least "
+        f"{settings.safe_top_bottom_pct}% from the top and bottom edges, with clear space around "
+        "it. Do not restyle the logo into the book's medium."
+    )
+
+
+def cover_request(book: dict, art: dict | None, stem: str, settings: CoverSettings) -> str:
+    """The Codex request for one titled cover, built from this book's data only."""
+    shape = settings.shapes.get(stem)
+    if shape is None:
+        raise CoverError(f"no cover shape for '{stem}' in {SETTINGS_FILE}")
+    meta = book.get("metadata") or {}
+    parts = [
+        "Create the finished FRONT COVER of a children's picture book, "
+        f"{shape.frame}. Keep everything important inside the safe area described below.",
+        f'Book: "{meta.get("title", "")}" — subtitle "{meta.get("subtitle", "")}".\n'
+        f"Story: {meta.get('blurb', '')}",
+    ]
+    art_block = _art_block(book, art)
+    if art_block:
+        parts.append(art_block)
+    parts.append(
+        f'Reference image 1 is the channel logo "{settings.logo_name}". Reference image 2 is a '
+        "page from this book: keep the characters' looks exactly as shown there."
+    )
+    rules = [f"- {rule}" for rule in settings.layout_rules] + [_logo_rule(settings)]
+    parts.append("Cover layout, like a real published picture book cover:\n" + "\n".join(rules))
+    looks = cover_characters_text(book)
+    if looks:
+        parts.append(looks)
+    return "\n\n".join(parts)
+
+
+def build_cover_command(
+    binary: Path, request: str, logo: Path, reference: Path | None
+) -> list[str]:
+    """Codex command that paints one cover: the logo first, then the story page when given."""
+    command = [str(binary), *CODEX_FLAGS, "-i", str(logo)]
+    if reference is not None:
+        command += ["-i", str(reference)]
+    return [*command, "--", f"{PAINT_TASK}\n\n{request}"]
+
+
+# --- Trimming (FR-3) ---------------------------------------------------------------------------
+
+
+def trim_to_ratio(path: Path, shape: CoverShape) -> None:
+    """Centre-crop a painted cover evenly to exactly `shape.ratio`, in place (PNG, RGB).
+
+    A picture whose width/height lies outside `shape.accept` is refused (CoverError)."""
+    with Image.open(path) as im:
+        im.load()
+        width, height = im.size
+        aspect = width / height
+        low, high = shape.accept
+        if aspect < low or (high is not None and aspect > high):
+            raise CoverError(
+                f"{path.name}: came back {width}x{height}, outside the accepted shape for the "
+                f"{shape.label}"
+            )
+        rw, rh = shape.ratio
+        if width * rh == height * rw and im.mode == "RGB":
+            return
+        unit = min(width // rw, height // rh)
+        new_w, new_h = unit * rw, unit * rh
+        left, top = (width - new_w) // 2, (height - new_h) // 2
+        cropped = im.convert("RGB").crop((left, top, left + new_w, top + new_h))
+    cropped.save(path, format="PNG")
+
+
+# --- Read-back check (FR-4) --------------------------------------------------------------------
+
+CHECK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "subtitle": {"type": "string"},
+        "logo_whole": {"type": "boolean"},
+    },
+    "required": ["title", "subtitle", "logo_whole"],
+    "additionalProperties": False,
+}
+
+
+def build_check_command(
+    binary: Path, cover: Path, schema: Path, reply: Path, logo_name: str
+) -> list[str]:
+    """Codex command that reads a trimmed cover back. The expected title is never sent."""
+    task = (
+        "Read the lettering on this picture-book cover and reply with JSON only:\n"
+        '- "title": the main title exactly as lettered (line breaks as spaces; keep the spelling '
+        "and punctuation exactly as you see them).\n"
+        '- "subtitle": the smaller subtitle exactly as lettered ("" if there is none).\n'
+        f'- "logo_whole": true only if the complete "{logo_name}" logo is visible and no part of '
+        "it is cut off by an edge of the picture."
+    )
+    return [
+        str(binary),
+        *CODEX_FLAGS,
+        "--output-schema",
+        str(schema),
+        "-o",
+        str(reply),
+        "-i",
+        str(cover),
+        "--",
+        task,
+    ]
+
+
+@dataclass(frozen=True)
+class CoverReading:
+    title: str
+    subtitle: str
+    logo_whole: bool
+
+
+def parse_reading(text: str) -> CoverReading:
+    """The reader's JSON reply (per CHECK_SCHEMA); anything else is a CoverError."""
+    try:
+        data = json.loads(text.strip())
+    except ValueError:
+        data = None
+    if (
+        not isinstance(data, dict)
+        or set(data) != set(CHECK_SCHEMA["required"])
+        or not isinstance(data["title"], str)
+        or not isinstance(data["subtitle"], str)
+        or not isinstance(data["logo_whole"], bool)
+    ):
+        raise CoverError(f"cover check gave no readable answer: {text.strip()[:200]!r}")
+    return CoverReading(data["title"], data["subtitle"], data["logo_whole"])
+
+
+QUOTES = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.translate(QUOTES).split()).casefold()
+
+
+def words_match(expected: str, read: str) -> bool:
+    """Same words: case, line breaks, runs of spaces and curly quotes are ignored."""
+    return _norm(expected) == _norm(read)
+
+
+def check_problem(reading: CoverReading, title: str, subtitle: str) -> str | None:
+    """None when the cover passes; else the first problem found."""
+    if not words_match(title, reading.title):
+        return f"title read as {reading.title!r}"
+    if not words_match(subtitle, reading.subtitle):
+        return f"subtitle read as {reading.subtitle!r}"
+    if not reading.logo_whole:
+        return "logo not whole"
+    return None
