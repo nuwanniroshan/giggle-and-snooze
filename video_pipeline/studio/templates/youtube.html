@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}YouTube{% endblock %}
+{% block content %}
+{% set c = connection %}
+<header class="page-head">
+  <div>
+    <h1>YouTube</h1>
+    <p class="lede">One channel for the whole project. Every upload is made for kids and starts Private; make it public in YouTube Studio.</p>
+  </div>
+</header>
+{% if notice %}<div class="notice info compact"><p>{{ notice }}</p></div>{% endif %}
+<section class="panel" id="youtube-client">
+  <div class="stage-title">
+    <h2>OAuth client</h2>
+    {% if c.client_ok %}<span class="state t-done">Ready</span>{% else %}<span class="state t-attention">Not set up</span>{% endif %}
+  </div>
+  {% if c.client_ok %}
+  <p class="stage-detail">The desktop OAuth client is at <code>{{ c.client_file }}</code>.</p>
+  {% else %}
+  <p class="stage-detail">No usable OAuth client is set up: {{ c.client_reason }}</p>
+  <p class="small muted">Create a Google Cloud project with the YouTube Data API enabled and a desktop OAuth client, then save its JSON file as <code>{{ c.client_file }}</code>.</p>
+  {% endif %}
+</section>
+<section class="panel" id="youtube-channel">
+  <div class="stage-title">
+    <h2>Channel</h2>
+    {% if c.channel %}<span class="state t-done">Connected</span>{% else %}<span class="state">Not connected</span>{% endif %}
+  </div>
+  {% if c.channel %}
+  <dl class="facts">
+    <dt>Channel</dt><dd>{{ c.channel.title }}</dd>
+    <dt>Channel id</dt><dd><code>{{ c.channel.id }}</code></dd>
+    <dt>Connected at</dt><dd>{{ c.channel.connected_at }}</dd>
+  </dl>
+  <form method="post" action="/youtube/disconnect" class="inline">
+    <label class="check"><input type="checkbox" name="confirm" value="1" required> Forget this channel's access (revoked with Google)</label>
+    <button class="secondary" type="submit">Disconnect</button>
+  </form>
+  {% else %}
+  <p class="stage-detail">Not connected.</p>
+  {% if c.client_ok %}
+  <div class="controls">
+    <form method="post" action="/youtube/connect" class="inline">
+      <button type="submit">Connect channel</button>
+    </form>
+    <span class="reason">Google asks for upload and read-only channel access.</span>
+  </div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

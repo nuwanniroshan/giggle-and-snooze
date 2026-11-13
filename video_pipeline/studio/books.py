@@ -22,6 +22,8 @@ import numpy as np
 from PIL import Image
 
 from video_pipeline import synthesize_voices as sv
+from video_pipeline import youtube as yt
+from video_pipeline import youtube_api as yapi
 from video_pipeline.animate import page_eligibility
 from video_pipeline.blueprint import (
     BlueprintError,
@@ -71,6 +73,10 @@ PAINT_STAGE = "paint"
 # Pictures panel only, never as a pipeline stage state.
 REPAINT_STAGE = "repaint"
 COVER_SIDES = ("front", "print", "back")  # every side a repaint job accepts (spec 022)
+# Spec 024: Codex writes the book's YouTube text; the upload sends the video (never autopilot).
+YOUTUBE_TEXT_STAGE = "youtube_text"
+YOUTUBE_UPLOAD_STAGE = "youtube_upload"
+YOUTUBE_STAGES = (YOUTUBE_TEXT_STAGE, YOUTUBE_UPLOAD_STAGE)
 # Spec 019: builds the PDF, EPUB, KDP files and web reader (scripts/build_book.py) into build/.
 BUILD_STAGE = "build"
 EDITION_SUFFIXES = (".pdf", ".epub", ".png", ".html")
@@ -94,6 +100,8 @@ STAGE_LABELS = {
     "blueprint": "blueprint design",
     "redesign": "blueprint design",
     "autopilot": "autopilot",
+    YOUTUBE_TEXT_STAGE: "YouTube text",
+    YOUTUBE_UPLOAD_STAGE: "YouTube upload",
 }
 # Spec 021: one job that runs every unfinished stage in order (video_pipeline/autopilot.py). Its
 # run state is `<studio_dir>/autopilot/<slug>.json` (`draft-<id>.json` until the book exists).
@@ -1071,3 +1079,178 @@ def mask_overlay(paths: StudioPaths, book: Book, page_number: int) -> bytes | No
     buf = io.BytesIO()
     Image.fromarray(canvas.round().astype(np.uint8), "RGBA").save(buf, format="PNG")
     return buf.getvalue()
+
+
+# --- YouTube (spec 024) ---------------------------------------------------------------------
+
+_UPLOADED = re.compile(r"\buploaded (\d{1,3})%")
+_VIDEO_WORDS = {
+    "not_rendered": "the video is not rendered yet",
+    "out_of_date": "the video is out of date; render it again",
+    "blocked": "the video cannot be rendered",
+}
+
+
+def upload_percent(log: str | None) -> int | None:
+    """The last `uploaded N%` the upload CLI printed, or None before the first one."""
+    found = _UPLOADED.findall(log or "")
+    return int(found[-1]) if found else None
+
+
+def _video_refusal(state: str, reason: str) -> str:
+    text = _VIDEO_WORDS.get(state, f"the video is {state}")
+    return f"{text}: {reason}" if reason else text
+
+
+def youtube_connection(secrets: Path | None = None) -> dict:
+    """The project's channel connection from the local files only (never asks Google):
+    `state` is "connected", "not_connected" (a client file is ready) or "not_set_up"."""
+    folder = Path(secrets) if secrets is not None else yapi.secrets_dir()
+    client_ok, client_reason = yapi.client_status(folder)
+    channel = yapi.connected_channel(folder)
+    state = "not_connected" if client_ok else "not_set_up"
+    if channel is not None:
+        state = "connected"
+    return {
+        "state": state,
+        "channel": channel,
+        "client_ok": client_ok,
+        "client_reason": client_reason,
+        "client_file": folder / yapi.CLIENT_FILE,
+    }
+
+
+@dataclass(frozen=True)
+class _YouTubeInputs:
+    settings: yt.YouTubeSettings
+    book: dict
+    record: dict | None
+    chapters: list[yt.Chapter] | None
+    chapter_problem: str | None
+
+
+def _youtube_inputs(paths: StudioPaths, book: Book) -> _YouTubeInputs:
+    folder = folder_of(paths, book)
+    settings = yt.load_settings(paths.config_dir)
+    book_data = load_book(book.book_path)
+    record = _read_dict(VideoPaths(folder.build_dir / "video").record(book.slug))
+    chapters, problem = None, None
+    if record is None:
+        problem = "no rendered video yet: render it first"
+    else:
+        try:
+            chapters = yt.chapters_from_record(record, book_data, settings)
+        except yt.YouTubeError as exc:
+            problem = str(exc).replace("<slug>", book.slug)
+    return _YouTubeInputs(settings, book_data, record, chapters, problem)
+
+
+def youtube_text_problems(paths: StudioPaths, book: Book, text: dict) -> list[str]:
+    """Every FR-3 problem with `text` for this book's rendered video (its chapters included)."""
+    inputs = _youtube_inputs(paths, book)
+    if inputs.chapters is None:
+        return [f"chapters: {inputs.chapter_problem}"]
+    terms = load_disallowed_terms(paths.config_dir / "disallowed_terms.txt")
+    duration = float(inputs.record.get("duration", 0.0))
+    return yt.text_problems(text, inputs.book, inputs.chapters, duration, inputs.settings, terms)
+
+
+def save_youtube_text(
+    paths: StudioPaths, book: Book, title: str, description: str, tags: str, now: datetime
+) -> list[str]:
+    """Save the producer's edit of the YouTube text (AC-2.4): the same FR-3 checks as Codex's
+    drafts; with any problem nothing is written and every problem is returned."""
+    ypaths = yt.YouTubePaths(folder_of(paths, book))
+    old = yt.read_text(ypaths.text) or {}
+    text = {
+        **old,
+        "title": title.strip(),
+        "description": description.strip(),
+        "tags": [t.strip() for t in tags.split(",") if t.strip()],
+        "written_by": "producer",
+        "written_at": now.astimezone(UTC).isoformat(timespec="seconds"),
+    }
+    problems = youtube_text_problems(paths, book, text)
+    if not problems:
+        yt.write_text(ypaths, text, keep_backup=False)
+    return problems
+
+
+def youtube_panel(
+    paths: StudioPaths, book: Book, upload_log: str | None = None, secrets: Path | None = None
+) -> dict:
+    """The book page's YouTube panel (spec 024 FR-6): connection, text and its problems, the
+    composed description, the upload state and record, why writing or uploading cannot start
+    (upload: connection, then video, then text; AC-3.6, AC-3.7) and the confirmation summary
+    (AC-3.1, AC-4.2). `upload_log` is the latest upload job's log, for its percentage."""
+    connection = youtube_connection(secrets)
+    channel = connection["channel"]
+    panel = {
+        "connection": connection["state"],
+        "channel": channel,
+        "text": None,
+        "text_problems": [],
+        "description": None,
+        "upload_state": "none",
+        "last_upload": None,
+        "uploads_count": 0,
+        "write_disabled": None,
+        "upload_disabled": None,
+        "summary": [],
+        "percent": upload_percent(upload_log),
+        "error": None,
+    }
+    if book.error:
+        reason = f"the book data has a problem: {book.error}"
+        return {**panel, "write_disabled": reason, "upload_disabled": reason}
+    state, why = video_check(paths, book)
+    video_reason = None if state == "up_to_date" else _video_refusal(state, why)
+    ypaths = yt.YouTubePaths(folder_of(paths, book))
+    try:
+        inputs = _youtube_inputs(paths, book)
+        text = yt.read_text(ypaths.text)
+        uploads = yt.read_uploads(ypaths)
+    except (yt.YouTubeError, ConfigError, BookError) as exc:
+        reason = f"the YouTube files cannot be read: {exc}"
+        return {**panel, "error": str(exc), "write_disabled": reason, "upload_disabled": reason}
+    panel.update(
+        text=text,
+        uploads_count=len(uploads),
+        last_upload=uploads[-1] if uploads else None,
+        upload_state=yt.upload_state(ypaths, inputs.record),
+        write_disabled=video_reason,
+    )
+    if text is not None:
+        panel["text_problems"] = youtube_text_problems(paths, book, text)
+        body = text.get("description")
+        if inputs.chapters is not None and isinstance(body, str):
+            panel["description"] = yt.compose_description(body, inputs.chapters, inputs.settings)
+    if connection["state"] != "connected":
+        panel["upload_disabled"] = "Connect a channel on the YouTube page first"
+    elif video_reason:
+        panel["upload_disabled"] = video_reason
+    elif text is None:
+        panel["upload_disabled"] = "Write YouTube text first"
+    elif panel["text_problems"]:
+        panel["upload_disabled"] = "Fix the YouTube text first"
+    video = folder_of(paths, book).build_dir / "video" / f"{book.slug}.mp4"
+    if channel is not None and text is not None and video.is_file():
+        try:
+            category = yt.category_for(inputs.book, text, inputs.settings)
+        except yt.YouTubeError as exc:
+            category = str(exc)
+        size_mb = video.stat().st_size / (1024 * 1024)
+        summary = [
+            f"Channel: {channel.title}",
+            f"Title: {text.get('title', '')}",
+            "Made for kids: yes",
+            "Privacy: Private",
+            f"Category: {category}",
+            f"File: {video.name} ({size_mb:.1f} MB)",
+        ]
+        if panel["last_upload"] is not None:
+            last = panel["last_upload"]
+            first = last.get("url") or yt.video_url(str(last.get("video_id", "")))
+            summary.append(f"This makes a second video; the first is {first}")
+        panel["summary"] = summary
+    return panel
