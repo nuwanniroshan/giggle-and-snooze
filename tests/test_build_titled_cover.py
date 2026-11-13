@@ -96,7 +96,7 @@ def test_wrap_front_panel_is_the_fitted_print_cover(titled_build):  # AC-2.2
     assert np.array_equal(wrap[:, width - panel + 1 :], expected[:, 1:])
 
 
-def test_reader_pdf_opens_on_the_fitted_print_cover(titled_build):  # AC-2.3
+def test_reader_pdf_opens_on_the_fitted_print_cover(titled_build):  # AC-2.2
     build_dir, stem, fitted = titled_build
     with pymupdf.open(build_dir / f"{stem}_Complete_Reader.pdf") as doc:
         pix = doc[0].get_pixmap(dpi=36)
@@ -104,7 +104,7 @@ def test_reader_pdf_opens_on_the_fitted_print_cover(titled_build):  # AC-2.3
     assert _mean_diff(page, fitted) < 3
 
 
-def test_epub_cover_is_the_fitted_print_cover(titled_build):  # AC-2.3
+def test_epub_cover_is_the_fitted_print_cover(titled_build):  # AC-2.2
     build_dir, stem, fitted = titled_build
     (epub,) = build_dir.glob("*.epub")
     with (

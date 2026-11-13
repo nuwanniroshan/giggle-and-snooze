@@ -120,6 +120,7 @@ def test_request_has_exact_words_art_layout_and_safe_area():  # AC-1.2, AC-1.3
     )
     assert 'Book: "Mira and the Moon Kite" — subtitle "A Windy Hill Story".' in request
     assert "Story: Mira builds a kite that wants to reach the moon." in request
+    assert "as a corner publisher mark about 14% of the cover width" in request  # AC-1.2
     assert "Soft gouache on cold-press paper, gentle grain." in request
     assert "Medium: gouache. Line: Loose brown pencil outlines." in request
     assert "Lighting: Warm late-afternoon light." in request

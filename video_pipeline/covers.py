@@ -166,7 +166,7 @@ def _art_block(book: dict, art: dict | None) -> str:
 def _logo_rule(settings: CoverSettings) -> str:
     return (
         f'- The "{settings.logo_name}" logo from reference image 1, reproduced faithfully '
-        f"({settings.logo_description}), as a publisher mark about {settings.logo_width_pct}% of the cover width, COMPLETE and "
+        f"({settings.logo_description}), as a corner publisher mark about {settings.logo_width_pct}% of the cover width, COMPLETE and "
         f"fully visible. Place the whole logo at least {settings.safe_side_pct}% of the finished "
         "cover's width away from the left and right edges and at least "
         f"{settings.safe_top_bottom_pct}% from the top and bottom edges, with clear space around "
