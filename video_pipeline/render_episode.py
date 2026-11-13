@@ -49,6 +49,7 @@ from video_pipeline.animate import (
 )
 from video_pipeline.contract import ANIMATION_OVERRIDE_RANGE, ConfigError, _animation_errors
 from video_pipeline.cover_design import CoverPalette, compose_cover, cover_palette
+from video_pipeline.covers import titled_covers
 from video_pipeline.cut_layers import layers_dir
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
@@ -891,7 +892,7 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
     timings, tracks, sample_rate = _load_tracks(audio, track_names)
     pictures = resolve_pictures(book, folder, Path(root) / "assets" / "nook")
     cover_notes: list[tuple[str, str]] = []
-    if folder.blueprint_path.is_file():
+    if folder.blueprint_path.is_file() and not titled_covers(book):  # spec 022: painted as is
         cover_notes = _use_titled_cover(book, folder, cfg, pictures, Path(root))
     for path in pictures.files.values():
         _check_picture(path)

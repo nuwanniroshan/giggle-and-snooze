@@ -255,6 +255,7 @@ def make_root(root: Path, slug: str, book: dict, *, map_file: str | None = None)
     for i, page in enumerate(book["pages"]):
         tiny_png(folder / "illustrations" / page["illustration_file"], (20 * i % 255, 120, 90))
     tiny_png(folder / "illustrations" / "cover_front.png", (200, 80, 60))
+    tiny_png(folder / "illustrations" / "cover_front_print.png", (200, 80, 60))  # spec 022
     tiny_png(folder / "illustrations" / "cover_back.png", (60, 80, 200))
     if map_file:
         tiny_png(folder / "illustrations" / map_file, (90, 160, 90))

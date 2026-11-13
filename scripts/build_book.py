@@ -27,7 +27,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from reportlab.lib.colors import Color, HexColor
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
@@ -35,6 +35,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from video_pipeline.covers import titled_covers  # noqa: E402
 from video_pipeline.library import (  # noqa: E402
     PROJECT_ROOT,
     BookFolder,
@@ -837,6 +838,16 @@ def draw_cover_brand_badge(base: Image.Image, overlay: Image.Image, draw: ImageD
 
 def create_front_cover_image(book_data: dict, out_png: Path, size_px: int = 2550, *, paths: BookFolder):
     """Creates a 300 DPI Front Cover PNG (2550x2550 for 8.5x8.5in) with rich storybook typography."""
+    if titled_covers(book_data):  # spec 022: the painted print cover already carries the lettering
+        raw = paths.illustrations / "cover_front_print.png"
+        if not raw.is_file():
+            raise FileNotFoundError(f"print cover not found: {raw} (run illustrate --cover print)")
+        with Image.open(raw) as im:
+            final_img = ImageOps.fit(
+                im.convert("RGB"), (size_px, size_px), Image.Resampling.LANCZOS
+            )
+        final_img.save(out_png, quality=98, dpi=(300, 300))
+        return final_img
     raw_cover = paths.illustrations / "cover_front.png"
     if not raw_cover.exists():
         first = min(book_data["pages"], key=lambda page: page["page_number"])
