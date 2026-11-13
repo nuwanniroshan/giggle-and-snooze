@@ -847,3 +847,69 @@ def test_character_sheet_is_empty_without_one_or_for_broken_json(studio):  # AC-
     assert sb.character_sheet(studio, book) == []
     book.book_path.write_text("{oops", encoding="utf-8")
     assert sb.character_sheet(studio, book) == []
+
+
+# --- spec 022: video and print covers (AC-5.1) --------------------------------------------------
+
+
+def titled(book: dict) -> dict:
+    book["metadata"]["cover_style"] = "titled"
+    return book
+
+
+def test_titled_book_lists_video_and_print_covers():
+    book = titled(new_book())
+    assert sb.cover_files(book) == {
+        "cover_front.png": "video cover",
+        "cover_front_print.png": "print cover",
+        "cover_back.png": "back cover",
+    }
+    assert sb.cover_sides(book) == {
+        "front": "video cover",
+        "print": "print cover",
+        "back": "back cover",
+    }
+    required, problems = sb.expected_files(book)
+    assert problems == []
+    assert required["cover_front_print.png"] == "print cover"
+    assert required["cover_front.png"] == "video cover"
+
+
+def test_old_book_cover_list_unchanged():
+    book = new_book()
+    assert sb.cover_files(book) == {
+        "cover_front.png": "front cover",
+        "cover_back.png": "back cover",
+    }
+    assert sb.cover_sides(book) == {"front": "front cover", "back": "back cover"}
+    required, _ = sb.expected_files(book)
+    assert "cover_front_print.png" not in required
+    assert sb.COVER_SIDES == ("front", "print", "back")
+
+
+def test_print_cover_name_is_reserved_for_every_book():
+    book = new_book()
+    book["pages"][0]["illustration_file"] = "cover_front_print.png"
+    _, problems = sb.expected_files(book)
+    assert any("'cover_front_print.png' is reserved" in p for p in problems)
+
+
+def test_titled_paint_state_waits_for_print_cover(studio):
+    folder = pilot_folder(studio.root)
+    folder.book_json.write_text(json.dumps(titled(load_json(folder.book_json))), encoding="utf-8")
+    book = sb.get_book(studio, PILOT_SLUG)
+    data = load_json(folder.book_json)
+    for page in data["pages"]:
+        picture(
+            folder.illustrations
+            / (page.get("illustration_file") or f"page_{page['page_number']:02d}.png")
+        )
+    picture(folder.illustrations / "cover_front.png")
+    picture(folder.illustrations / "cover_back.png")
+    state = sb.paint_state(studio, book)
+    assert state["state"] == "not_started"
+    assert state["missing"] == ["cover_front_print.png"]
+    assert state["detail"].endswith("2 of 3 covers")
+    picture(folder.illustrations / "cover_front_print.png")
+    state = sb.paint_state(studio, book)
+    assert state["missing"] == [] and state["state"] != "not_started"

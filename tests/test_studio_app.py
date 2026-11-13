@@ -171,7 +171,9 @@ def test_pages_use_only_local_assets_and_the_bloom_tokens(bare):
     assert not re.search(r"(src|href)=\"(https?:)?//", html)
     head = (STATIC / "studio.css").read_text(encoding="utf-8").lstrip().splitlines()[:12]
     assert head[0].startswith("/* Hallmark")  # the design stamp comes first
-    assert any(line.startswith("/* Episode studio (spec 014)") for line in head)  # every colour lives in tokens.css
+    assert any(
+        line.startswith("/* Episode studio (spec 014)") for line in head
+    )  # every colour lives in tokens.css
     for name in ("studio.css", "add_book.css", "animation.css", "base.css"):
         css = (STATIC / name).read_text(encoding="utf-8")
         assert not re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|oklch\(", css), name
@@ -1312,3 +1314,44 @@ def test_book_page_lists_the_character_sheet(bare):  # AC-3.1
 def test_book_page_without_a_sheet_has_no_characters_panel(bare):  # AC-2.3
     html = bare.client.get(f"/books/{PILOT_SLUG}").text
     assert 'id="characters"' not in html
+
+
+# --- spec 022: video and print covers (AC-5.1, AC-5.2) ------------------------------------------
+
+
+def make_titled(s: Studio) -> None:
+    path = pilot_path(s.paths.root)
+    data = load_json(path)
+    data["metadata"]["cover_style"] = "titled"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_repaint_print_cover_runs_cover_print_job(bare):  # AC-5.2
+    make_titled(bare)
+    r = bare.client.post(
+        f"/books/{PILOT_SLUG}/repaint-cover", data={"cover": "print", "confirm": "1"}
+    )
+    assert r.status_code == 303
+    bare.wait()
+    assert bare.commands.calls == [("repaint", PILOT_SLUG, "cover:print")]
+
+
+def test_print_side_refused_for_old_book(bare):  # AC-5.2
+    r = bare.client.post(
+        f"/books/{PILOT_SLUG}/repaint-cover", data={"cover": "print", "confirm": "1"}
+    )
+    assert r.status_code == 422
+    assert bare.commands.calls == [] and bare.runner.current() is None
+
+
+def test_book_page_shows_repaint_buttons_per_cover(bare):  # AC-5.1
+    old = text_of(bare.client.get(f"/books/{PILOT_SLUG}").text)
+    assert "Repaint front cover" in old and "Repaint back cover" in old
+    assert "print cover" not in old
+    make_titled(bare)
+    html = bare.client.get(f"/books/{PILOT_SLUG}").text
+    page = text_of(html)
+    assert "Repaint video cover" in page and "Repaint print cover" in page
+    assert "Repaint back cover" in page and "Repaint front cover" not in page
+    assert "Replace the print cover (one picture)" in page
+    assert 'value="print"' in html

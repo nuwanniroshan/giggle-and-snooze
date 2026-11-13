@@ -75,13 +75,13 @@
             <button class="secondary" type="submit"{% if paint_blocked %} disabled{% endif %}>Repaint all</button>
           </form>
         </details>
-        {% for side in cover_sides %}
+        {% for side, label in cover_sides.items() %}
         <details class="more">
-          <summary>Repaint {{ side }} cover</summary>
+          <summary>Repaint {{ label }}</summary>
           <form method="post" action="/books/{{ book.slug }}/repaint-cover" class="inline">
             <input type="hidden" name="cover" value="{{ side }}">
-            <label class="check"><input type="checkbox" name="confirm" value="1" required{% if paint_blocked %} disabled{% endif %}> Replace the {{ side }} cover (one picture)</label>
-            <button class="secondary" type="submit"{% if paint_blocked %} disabled{% endif %}>Repaint {{ side }} cover</button>
+            <label class="check"><input type="checkbox" name="confirm" value="1" required{% if paint_blocked %} disabled{% endif %}> Replace the {{ label }} (one picture)</label>
+            <button class="secondary" type="submit"{% if paint_blocked %} disabled{% endif %}>Repaint {{ label }}</button>
           </form>
         </details>
         {% endfor %}

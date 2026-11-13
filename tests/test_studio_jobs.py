@@ -584,3 +584,18 @@ def test_job_env_carries_the_job_id(runner, studio):  # spec 021 FR-2: the autop
     job = runner.start("moon", "autopilot", py("import os; print(os.environ['KIDDO_JOB_ID'])"))
     assert runner.wait(10)
     assert full_log(runner, job.id).strip() == job.id
+
+
+# --- spec 022: the print cover is a repaint side ------------------------------------------------
+
+
+def test_repaint_print_cover_command(tmp_path):
+    from tests.helpers import make_root
+
+    paths = sb.StudioPaths(tmp_path)
+    folder = make_root(tmp_path)
+    book = sb.get_book(paths, folder.slug)
+    cmd = sj.stage_command("repaint", book, paths, cover="print")
+    assert cmd[-2:] == ["--cover", "print"] and "--cut" not in cmd
+    with pytest.raises(ValueError, match="expected front, print or back"):
+        sj.stage_command("repaint", book, paths, cover="spine")

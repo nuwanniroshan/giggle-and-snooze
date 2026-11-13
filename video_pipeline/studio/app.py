@@ -287,8 +287,13 @@ class Studio:
         `tone` groups the stage state for styling; the first unfinished stage is `current`."""
         status = self.status_of(book)
         tones = {
-            "done": "done", "approved": "done", "running": "running", "failed": "failed",
-            "interrupted": "failed", "needs_review": "attention", "out_of_date": "attention",
+            "done": "done",
+            "approved": "done",
+            "running": "running",
+            "failed": "failed",
+            "interrupted": "failed",
+            "needs_review": "attention",
+            "out_of_date": "attention",
         }
         base = f"/books/{book.slug}"
         try:
@@ -317,11 +322,29 @@ class Studio:
             current = "pictures"  # painted before the script is generated (spec 016)
         if current == "video" and not animated:
             current = "animation"  # the pass that comes just before the render
-        steps = [{"key": "book", "label": "Book", "href": base, "state": None, "note": None,
-                  "tone": "idle", "current": False}]
+        steps = [
+            {
+                "key": "book",
+                "label": "Book",
+                "href": base,
+                "state": None,
+                "note": None,
+                "tone": "idle",
+                "current": False,
+            }
+        ]
         for key, label, href, state, note in stages:
-            steps.append({"key": key, "label": label, "href": href, "state": state, "note": note,
-                          "tone": tones.get(state, "idle"), "current": key == current})
+            steps.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "href": href,
+                    "state": state,
+                    "note": note,
+                    "tone": tones.get(state, "idle"),
+                    "current": key == current,
+                }
+            )
         return steps
 
     def cover_url(self, book: sb.Book) -> str | None:
@@ -477,7 +500,7 @@ class Studio:
             "paint": status["pictures"],
             "paint_button": STAGE_BUTTONS[sb.PAINT_STAGE],
             "paint_blocked": busy or self.gate(book, sb.PAINT_STAGE),
-            "cover_sides": sb.COVER_SIDES,
+            "cover_sides": sb.book_cover_sides(book),
             "editions": status["editions"],
             "build_button": STAGE_BUTTONS[sb.BUILD_STAGE],
             "build_blocked": busy or self.gate(book, sb.BUILD_STAGE),
@@ -1260,6 +1283,11 @@ class Studio:
         if book is None or cover not in sb.COVER_SIDES:
             return self.not_found(request)
         back = f"/books/{book.slug}"
+        sides = sb.book_cover_sides(book)
+        if cover not in sides:  # spec 022: only a titled book has a print cover
+            names = ", ".join(sides)
+            lines = [f"This book has no {cover} cover; its covers are {names}."]
+            return self.message(request, "Unknown cover", lines, 422, back)
         with self.write_lock:
             refused = self._start_stage(book, sb.REPAINT_STAGE, form, cover=cover)
         if refused is not None:
@@ -1390,7 +1418,8 @@ class Studio:
             if path is None or not path.is_file():
                 return Response("not found", status_code=404)
             return Response(
-                self.thumb_jpeg(path), media_type="image/jpeg",
+                self.thumb_jpeg(path),
+                media_type="image/jpeg",
                 headers={"Cache-Control": "private, max-age=3600"},
             )
         path = self.media_path(book, kind, name)

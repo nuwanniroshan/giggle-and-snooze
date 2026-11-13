@@ -31,6 +31,7 @@ from video_pipeline.blueprint import (
 )
 from video_pipeline.characters import sheet
 from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
+from video_pipeline.covers import titled_covers
 from video_pipeline.cut_layers import (
     MANIFEST,
     cut_settings,
@@ -53,6 +54,13 @@ from video_pipeline.render_episode import VideoPaths, render_check_detail
 from video_pipeline.timeline import AnimationSettings, load_render_config
 
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
+# Spec 022: a titled book also has a square print cover beside the 4:3 video cover.
+PRINT_COVER = "cover_front_print.png"
+TITLED_COVER_FILES = {
+    "cover_front.png": "video cover",
+    PRINT_COVER: "print cover",
+    "cover_back.png": "back cover",
+}
 NOOK_FILES = ("intro_nook.png", "outro_nook.png")
 STAGES = ("script", "voices", "render")
 # Spec 016: paints the book's pictures (the illustrate CLI); a studio job like the others, but
@@ -61,7 +69,7 @@ PAINT_STAGE = "paint"
 # Spec 019: repaints one page (then plans and cuts it) or one cover; shown on the page view and the
 # Pictures panel only, never as a pipeline stage state.
 REPAINT_STAGE = "repaint"
-COVER_SIDES = ("front", "back")
+COVER_SIDES = ("front", "print", "back")  # every side a repaint job accepts (spec 022)
 # Spec 019: builds the PDF, EPUB, KDP files and flipbook (scripts/build_book.py) into build/.
 BUILD_STAGE = "build"
 EDITION_SUFFIXES = (".pdf", ".epub", ".png", ".html")
@@ -212,6 +220,30 @@ def _plain_name(name: str) -> bool:
     )
 
 
+def cover_files(book: dict) -> dict[str, str]:
+    """The book's cover file names (name → what it is): a titled book (spec 022) has a video, a
+    print and a back cover; an older book a front and a back cover."""
+    return dict(TITLED_COVER_FILES if titled_covers(book) else COVER_FILES)
+
+
+def cover_sides(book: dict) -> dict[str, str]:
+    """The cover sides the book can repaint (side → label), in display order (spec 022)."""
+    if titled_covers(book):
+        return {"front": "video cover", "print": "print cover", "back": "back cover"}
+    return {"front": "front cover", "back": "back cover"}
+
+
+def book_cover_sides(book: Book) -> dict[str, str]:
+    """`cover_sides` of the book's data as stored, read without validation so a broken book still
+    shows its sides (its repaint is then refused by the job gate); unreadable data gives an older
+    book's sides."""
+    try:
+        data = json.loads(book.book_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = None
+    return cover_sides(data if isinstance(data, dict) else {})
+
+
 def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
     """Required upload names (name → what it is) for `book`, and problems with the names the book
     data gives. A page without `illustration_file` expects `page_PP.png`, as render does.
@@ -220,7 +252,7 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
     else), and no two names may differ only by case (the Mac's file system would merge them)."""
     required: dict[str, str] = {}
     problems: list[str] = []
-    reserved = {*COVER_FILES, *NOOK_FILES}
+    reserved = {*COVER_FILES, PRINT_COVER, *NOOK_FILES}
     pages = book.get("pages")
     for index, page in enumerate(pages if isinstance(pages, list) else [], start=1):
         if not isinstance(page, dict):
@@ -237,7 +269,7 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
             )
             continue
         required.setdefault(name, f"illustration for page {number}")
-    for name, label in COVER_FILES.items():
+    for name, label in cover_files(book).items():
         required.setdefault(name, label)
     seen: dict[str, str] = {name.casefold(): name for name in NOOK_FILES}
     for name in required:
@@ -492,13 +524,15 @@ def paint_state(paths: StudioPaths, book: Book) -> dict:
     FR-4): `not_started` while any story page or cover is missing (`missing` names them),
     `out_of_date` when all exist but the blueprint's art mark is stale (spec 011), else `done`."""
     try:
-        required, _ = expected_files(load_book(book.book_path))
+        data = load_book(book.book_path)
     except BookError as exc:
         return {**_state("not_started", str(exc)), "missing": []}
+    required, _ = expected_files(data)
+    cover_names = cover_files(data)
     have = folder_of(paths, book).illustrations
     missing = [name for name in required if not (have / name).is_file()]
-    pages = [name for name in required if name not in COVER_FILES]
-    covers = [name for name in required if name in COVER_FILES]
+    pages = [name for name in required if name not in cover_names]
+    covers = [name for name in required if name in cover_names]
     detail = (
         f"{sum(name not in missing for name in pages)} of {len(pages)} pages, "
         f"{sum(name not in missing for name in covers)} of {len(covers)} covers"

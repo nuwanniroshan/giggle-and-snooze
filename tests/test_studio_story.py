@@ -261,7 +261,7 @@ def test_create_book_keeps_the_book_when_painting_cannot_start(make_studio, monk
     assert sb.get_book(s.paths, "the-brave-little-teapot") is not None
     assert DraftStore(s.paths.root).get(draft["id"]) is None
     page = s.client.get("/books/the-brave-little-teapot").text
-    assert "0 of 8 pages, 0 of 2 covers" in text_of(page)
+    assert "0 of 8 pages, 0 of 3 covers" in text_of(page)
     assert re.search(r"<button[^>]*>\s*Paint pictures", page)
     assert not re.search(r"<button[^>]*disabled[^>]*>\s*Paint pictures", page)
 

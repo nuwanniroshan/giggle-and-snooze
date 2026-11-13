@@ -172,7 +172,7 @@ def stage_command(
     if stage == REPAINT_STAGE and (page is None) == (cover is None):
         raise ValueError("the repaint stage needs exactly one of a page number or a cover")
     if stage == REPAINT_STAGE and cover is not None and cover not in COVER_SIDES:
-        raise ValueError(f"unknown cover {cover!r}; expected front or back")
+        raise ValueError(f"unknown cover {cover!r}; expected front, print or back")
     cmd = [
         sys.executable,
         "-m",
