@@ -1,11 +1,54 @@
+{% macro tone_of(state) -%}
+{{ {'done': 'done', 'finished': 'done', 'approved': 'done', 'running': 'running', 'failed': 'failed', 'interrupted': 'failed', 'needs_review': 'attention', 'out_of_date': 'attention', 'stale': 'failed', 'invalid': 'failed', 'ok': 'done', 'cut': 'done'}.get(state, 'idle') }}
+{%- endmacro %}
 {% macro badge(state) -%}
-<span class="state{% if state in ('failed', 'interrupted') %} strong{% endif %}">{{ state_word(state) }}</span>
+<span class="state t-{{ tone_of(state) }}{% if state in ('failed', 'interrupted') %} strong{% endif %}">{{ state_word(state) }}</span>
 {%- endmacro %}
 {% macro problem_list(items, id=None) -%}
 {% if items %}<ul class="problems"{% if id %} id="problems-{{ id }}"{% endif %}>{% for p in items %}<li>{{ p }}</li>{% endfor %}</ul>{% endif %}
 {%- endmacro %}
-{% macro book_links(book) -%}
-<nav class="sub"><a href="/books/{{ book.slug }}">Stages</a> <a href="/books/{{ book.slug }}/script">Script</a> <a href="/books/{{ book.slug }}/audio">Audio</a> <a href="/books/{{ book.slug }}/video">Video</a> <a href="/books/{{ book.slug }}/animation">Animation</a></nav>
+{% macro book_side(book, here=None) -%}
+{% set steps = flow_steps(book) %}
+{% set cover = cover_url(book) %}
+{% set current = steps|selectattr('current')|first %}
+<aside class="book-side">
+  <a class="side-cover" href="/books/{{ book.slug }}" aria-label="{{ book.title }} overview">
+    {% if cover %}<img src="{{ cover }}" alt="" width="640" height="360">{% else %}<span class="cover-blank">{{ book.title }}</span>{% endif %}
+  </a>
+  <a class="side-title" href="/books/{{ book.slug }}">{{ book.title }}</a>
+  <nav class="stage-nav roll" aria-label="Pipeline for {{ book.title }}">
+    <ol>
+    {% for s in steps %}
+      <li class="lane-{{ s.key }}{% if s.current %} is-current{% endif %}">
+        <a href="{{ s.href }}"{% if s.key == here %} aria-current="page"{% endif %}>
+          <span class="dot t-{{ 'home' if s.key == 'book' else s.tone }}" aria-hidden="true"></span>
+          <span class="nav-label">{{ 'Overview' if s.key == 'book' else s.label }}</span>
+          <span class="nav-state">{% if s.note %}{{ s.note }}{% elif s.state %}{{ state_word(s.state)|lower|capitalize }}{% else %}Book and blueprint{% endif %}</span>
+        </a>
+      </li>
+    {% endfor %}
+    </ol>
+  </nav>
+  {% if current %}<p class="side-next">Next step<strong>{{ current.label }}</strong></p>{% endif %}
+</aside>
+{%- endmacro %}
+{% macro book_links(book, here=None) -%}{%- endmacro %}
+{% macro job_log(job, title, empty) -%}
+<section class="terminal" aria-label="{{ title }}">
+  <div class="terminal-head">
+    <span class="title">{{ title }}</span>
+    {% if job %}
+    <span>{{ job.label|capitalize }}</span> {{ badge(job.state) }}
+    <span class="muted num"{% if job.live %} data-elapsed="{{ job.elapsed }}"{% endif %}>{{ format_duration(job.elapsed) }}</span>
+    {% if job.exit_code is not none %}<span class="muted">exit code {{ job.exit_code }}</span>{% endif %}
+    {% endif %}
+  </div>
+  {% if job %}
+  <pre class="log" id="log" data-job-id="{{ job.id }}" data-offset="{{ job.offset }}"{% if job.live %} data-live="1"{% endif %}>{{ job.log }}</pre>
+  {% else %}
+  <pre class="log muted">{{ empty }}</pre>
+  {% endif %}
+</section>
 {%- endmacro %}
 {% macro animation_controls(book, controls) -%}
 <div class="controls">

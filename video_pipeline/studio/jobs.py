@@ -7,8 +7,9 @@ appended raw to `<studio_dir>/jobs/<id>.log`, flushed per line; the job record
 last run per book and stage survives a restart. A record still `running` when a runner is created
 belonged to a studio that died, and becomes `interrupted`; if its process group is still alive
 (the studio was killed hard), that orphaned stage is stopped first, but only when the process is
-recognisably that stage: its command line names `video_pipeline` and its start time matches the
-one recorded when the job started (a reused pid is left alone).
+recognisably that stage: its command line names `video_pipeline` (or `build_book.py`, the book
+build of spec 019) and its start time matches the one recorded when the job started (a reused pid
+is left alone).
 
 Only one runner may own a studio directory (review fixes, round 2). A runner holds an exclusive
 `flock` on `<studio_dir>/studio.lock` from creation until `close()` (or garbage collection), and a
@@ -35,11 +36,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from video_pipeline.episode_tools import write_atomic
-from video_pipeline.studio.books import ANIMATION_STAGES, PREVIEW_STAGE, STAGES, StudioPaths
+from video_pipeline.studio.books import (
+    ANIMATION_STAGES,
+    AUTOPILOT_STAGE,
+    BUILD_STAGE,
+    COVER_SIDES,
+    PAINT_STAGE,
+    PREVIEW_STAGE,
+    REPAINT_STAGE,
+    STAGES,
+    StudioPaths,
+)
 
 STOP_GRACE_SECONDS = 5.0
 LOCK_FILE = "studio.lock"
-STAGE_MARKER = "video_pipeline"
+# A command line naming one of these is a stage the studio may have started (the book build runs
+# `scripts/build_book.py`, not a `video_pipeline` module; spec 019).
+STAGE_MARKERS = ("video_pipeline", "build_book.py")
 STAGE_MODULES = {
     "script": "video_pipeline.generate_script",
     "voices": "video_pipeline.synthesize_voices",
@@ -47,6 +60,9 @@ STAGE_MODULES = {
     "plan": "video_pipeline.motion_plan",
     "cut": "video_pipeline.cut_layers",
     PREVIEW_STAGE: "video_pipeline.render_episode",
+    PAINT_STAGE: "video_pipeline.illustrate",
+    REPAINT_STAGE: "video_pipeline.illustrate",
+    AUTOPILOT_STAGE: "video_pipeline.autopilot",
 }
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 _ANSI = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
@@ -90,6 +106,7 @@ class Job:
 
 
 STORY_STAGES = ("ideas", "candidate", "book", "blueprint", "redesign")
+BOOK_STAGES = (PAINT_STAGE, PREVIEW_STAGE, REPAINT_STAGE, BUILD_STAGE, AUTOPILOT_STAGE)
 
 
 def story_command(stage: str, subject: str, paths: StudioPaths) -> list[str]:
@@ -122,20 +139,40 @@ def story_command(stage: str, subject: str, paths: StudioPaths) -> list[str]:
 
 
 def stage_command(
-    stage: str, book, paths: StudioPaths, force: bool = False, page: int | None = None
+    stage: str,
+    book,
+    paths: StudioPaths,
+    force: bool = False,
+    page: int | None = None,
+    cover: str | None = None,
 ) -> list[str]:
     """The CLI argv that runs `stage` for `book`, as `python -m video_pipeline.<module> ...`.
     Story stages take a string subject (a run id or draft id) instead of a book. The preview
-    stage renders one story `page` (`--preview-page N`, spec 010 FR-16)."""
+    stage renders one story `page` (`--preview-page N`, spec 010 FR-16). The repaint stage
+    (spec 019) takes exactly one of `page` (repaint, plan and cut it: `--page N --cut`) or
+    `cover` ("front" or "back": `--cover SIDE`)."""
     if stage in STORY_STAGES:
         return story_command(stage, book if isinstance(book, str) else book.slug, paths)
+    if stage == AUTOPILOT_STAGE:  # spec 021: a book, or a draft id (a string) before the book
+        flag, subject = ("--draft", book) if isinstance(book, str) else ("--book", book.slug)
+        return [
+            sys.executable, "-m", STAGE_MODULES[stage], flag, subject, "--root", str(paths.root),
+        ]  # fmt: skip
+    if stage == BUILD_STAGE:  # a script, not a module (spec 019)
+        root = Path(paths.root)
+        script = root / "scripts" / "build_book.py"
+        return [sys.executable, str(script), "--book", book.slug, "--root", str(root)]
     if stage not in STAGE_MODULES:
         raise ValueError(
             f"unknown stage {stage!r}; expected one of "
-            f"{', '.join((*STAGES, *ANIMATION_STAGES, PREVIEW_STAGE))}"
+            f"{', '.join((*STAGES, *ANIMATION_STAGES, *BOOK_STAGES))}"
         )
     if stage == PREVIEW_STAGE and page is None:
         raise ValueError("the preview stage needs a page number")
+    if stage == REPAINT_STAGE and (page is None) == (cover is None):
+        raise ValueError("the repaint stage needs exactly one of a page number or a cover")
+    if stage == REPAINT_STAGE and cover is not None and cover not in COVER_SIDES:
+        raise ValueError(f"unknown cover {cover!r}; expected front, print or back")
     cmd = [
         sys.executable,
         "-m",
@@ -153,6 +190,8 @@ def stage_command(
         cmd.append("--force")
     if stage == PREVIEW_STAGE:
         cmd += ["--preview-page", str(int(page))]
+    if stage == REPAINT_STAGE:
+        cmd += ["--cover", cover] if cover is not None else ["--page", str(int(page)), "--cut"]
     return cmd
 
 
@@ -278,7 +317,8 @@ class JobRunner:
             job = Job(job_id, book_slug, stage, list(cmd), started.isoformat(), page=page)
             self.jobs_dir.mkdir(parents=True, exist_ok=True)
             log = self._log_path(job_id).open("ab")
-            env = {**os.environ, **self.env, "PYTHONUNBUFFERED": "1"}
+            # KIDDO_JOB_ID lets a job name itself (spec 021: the autopilot's run file).
+            env = {**os.environ, **self.env, "PYTHONUNBUFFERED": "1", "KIDDO_JOB_ID": job_id}
             try:
                 proc = subprocess.Popen(  # noqa: S603 - argv list built by stage_command
                     job.cmd,
@@ -355,6 +395,16 @@ class JobRunner:
         return job.to_dict()
 
     # --- reading --------------------------------------------------------------------------------
+
+    def record(self, job_id: str) -> dict | None:
+        """The record of job `job_id` read from disk, or None (unknown or unsafe id)."""
+        if not isinstance(job_id, str) or not _SAFE_ID.fullmatch(job_id):
+            return None
+        try:
+            record = json.loads(self._record_path(job_id).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return record if isinstance(record, dict) else None
 
     def latest(self, book: str, stage: str, page: int | None = None) -> dict | None:
         """The newest record for (`book`, `stage`) (and story `page`, when given), read from
@@ -433,13 +483,14 @@ def _process_started(pid: int) -> str | None:
 
 
 def _is_recorded_stage(pid: int, proc_started: object) -> bool:
-    """Whether `pid` is still the stage a job record names: a `video_pipeline` command that
+    """Whether `pid` is still the stage a job record names: a `video_pipeline` (or book build,
+    `STAGE_MARKERS`) command that
     started exactly when the record says. Anything else (an old record with no start time, a
     reused pid) is not ours to kill."""
     if not isinstance(proc_started, str) or not proc_started:
         return False
     command = _ps("command", pid)
-    if command is None or STAGE_MARKER not in command:
+    if command is None or not any(marker in command for marker in STAGE_MARKERS):
         return False
     return _process_started(pid) == proc_started
 

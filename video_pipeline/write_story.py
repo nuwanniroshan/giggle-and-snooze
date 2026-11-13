@@ -36,8 +36,10 @@ from video_pipeline.blueprint import (
     load_context,
     others_for,
 )
+from video_pipeline.characters import LOOK_LENGTH, MAX_CHARACTERS
 from video_pipeline.contract import load_disallowed_terms
 from video_pipeline.drafts import DraftError, DraftStore
+from video_pipeline.episode import MIN_PAGES
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import PROJECT_ROOT, BookFolder
 from video_pipeline.story_tools import (
@@ -54,6 +56,7 @@ LAYOUTS_TEXT = (
     "full_bleed_card_bottom_left, full_bleed_card_bottom_right"
 )
 AGE_TEXT = "Ages 3-6, Ages 4-7 or Ages 5-8"
+LOOK_LOW, LOOK_HIGH = LOOK_LENGTH
 GENTLE_RULES = (
     "Keep it gentle for young children: no death, no blood, no monsters, and no frightening "
     "threat the story does not resolve on the same page."
@@ -80,17 +83,22 @@ The producer's idea:
 """
 BOOK_PROMPT = f"""You write a children's read-aloud picture book from a chosen idea.
 Use only the story tools.
-1. The chosen idea is below. Write the book with at least 8 pages and at most the page maximum
+1. The chosen idea is below. Write the book with at least {MIN_PAGES} pages and at most the page maximum
    given below. A shorter book is fine; the story must fit the maximum.
 2. Each page: "page_number" (1, 2, 3 ... in order), "title" (short), "text" (1 to 4 short
    sentences read aloud, with repetition and a clear cause and effect), "layout" (one of:
-   {LAYOUTS_TEXT}), "prompt" (a visual description of the page for an illustrator), and
-   "illustration_file" ("page_NN.png" with the page number).
-3. Call submit_book with {{"metadata": {{"title", "subtitle", "age_range", "blurb",
-   "dedication"}}, "pages": [...]}}. The age_range is one of {AGE_TEXT}.
-4. {GENTLE_RULES} Warm ending.
-5. If submit_book returns errors, fix every error and submit again.
-6. Finish with one short line.
+   {LAYOUTS_TEXT}), "prompt" (a visual description of the page for an illustrator),
+   "illustration_file" ("page_NN.png" with the page number), and "characters_on_page" (the
+   names, from "characters", of the characters this page shows; [] for a page without them).
+3. "characters": the 1 to {MAX_CHARACTERS} recurring characters, each {{"name", "look"}}. The
+   look is fixed for the whole book: 1 to 2 sentences ({LOOK_LOW} to {LOOK_HIGH} characters)
+   giving body, colours, clothing and distinguishing features (for example the number of eyes).
+   Every page "prompt" uses the same names.
+4. Call submit_book with {{"metadata": {{"title", "subtitle", "age_range", "blurb",
+   "dedication"}}, "characters": [...], "pages": [...]}}. The age_range is one of {AGE_TEXT}.
+5. {GENTLE_RULES} Warm ending.
+6. If submit_book returns errors, fix every error and submit again.
+7. Finish with one short line.
 
 """
 BLUEPRINT_PROMPT = """You design the creative direction for a children's read-aloud picture book video.

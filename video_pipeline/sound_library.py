@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
 AUDIO_SUFFIXES = {".mp3", ".wav", ".ogg", ".flac"}
 INDEX = "index.json"
+# Licences the library accepts: the CC0 sounds, and Pixabay's free commercial-use licence (spec 015).
+ALLOWED_LICENSES = ("CC0", "Pixabay Content License")
 DEFAULT_ROOT = Path(__file__).resolve().parents[1] / "assets" / "sound_library"
 
 
@@ -97,9 +99,9 @@ def check_library(root: Path) -> list[str]:
         if not s.file.is_file()
     ]
     problems += [
-        f"{s.name}: license is not CC0 ({s.license})"
+        f"{s.name}: license is not CC0 or Pixabay Content License ({s.license})"
         for s in lib.sounds.values()
-        if "CC0" not in s.license
+        if not any(ok in s.license for ok in ALLOWED_LICENSES)
     ]
     listed = {s.file.name for s in lib.sounds.values()}
     problems += [

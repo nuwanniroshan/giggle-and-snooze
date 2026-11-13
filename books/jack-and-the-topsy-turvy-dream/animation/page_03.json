@@ -1,0 +1,157 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "3883403cd0d8a1836e5b9466b4711123b91d4b60caa8bbd5c3f2ae0dfea3c91b",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-13T00:40:12+00:00",
+  "layers": [
+    {
+      "name": "little_friend",
+      "description": "Entire mint-green three-eyed friend, including lilac scarf, antenna tuft, feet and carefully held red toy car.",
+      "box": [
+        250,
+        177,
+        732,
+        802
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        502,
+        775
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 3.6,
+          "phase": 0.1,
+          "direction": null
+        },
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 3.6,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "jack",
+      "description": "Jack's whole figure, including curly hair, yellow star pajamas, hands and slippers.",
+      "box": [
+        652,
+        84,
+        1117,
+        848
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.85,
+      "pivot": [
+        886,
+        818
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.0015,
+          "period_s": 3.8,
+          "phase": 0.65,
+          "direction": null
+        },
+        {
+          "type": "sway",
+          "amplitude": 0.35,
+          "period_s": 3.8,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_cloud",
+      "description": "Soft pale blue cloud above the friend and behind Jack's curls.",
+      "box": [
+        522,
+        17,
+        843,
+        160
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.1,
+      "pivot": [
+        683,
+        91
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 11.0,
+          "phase": 0.2,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "right_cloud",
+      "description": "Small pale blue cloud to the upper right of Jack.",
+      "box": [
+        1010,
+        60,
+        1236,
+        174
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.1,
+      "pivot": [
+        1123,
+        119
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 12.0,
+          "phase": 0.6,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          1190,
+          538,
+          1435,
+          627
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#b8efff"
+    }
+  ]
+}

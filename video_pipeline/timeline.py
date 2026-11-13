@@ -66,7 +66,9 @@ class CaptionStyle:
 class AudioSettings:
     peak_dbfs: float
     sfx_gain_db: float
-    ambience_gain_db: float = -14.0  # spec 007: dB below the reference voice level
+    ambience_gain_db: float = -20.0  # spec 007/012: dB below the reference voice level
+    limiter_ms: float = 30.0  # spec 012: look-ahead of the peak limiter on the summed mix
+    voice_gain_db: float = 6.0  # spec 012 FR-6: gain on the voice tracks before mixing
     ambience_fade: float = 1.5  # seconds, centred on the page change
     loop_crossfade: float = 1.0  # seconds, where a short sound repeats
 
@@ -126,6 +128,117 @@ class AnimationSettings:
 
 
 @dataclass(frozen=True)
+class GradeSettings:
+    """The final grade (spec 013 FR-1): colour, sharpness, vignette, fades and loudness. The
+    defaults are the hand-enhanced Pip episode (`manual-edits/pip/NOTES.md`); neutral values
+    (contrast 1, saturation 1, gamma 1, brightness 0, balance 0, amounts 0) add no filter."""
+
+    enabled: bool = True  # master switch
+    picture: bool = True  # picture grade on/off
+    sound: bool = True  # sound grade on/off
+    contrast: float = 1.05
+    saturation: float = 1.12
+    gamma: float = 1.02
+    brightness: float = 0.0
+    rs: float = 0.0  # colour balance: shadows, midtones, highlights x red, green, blue
+    gs: float = 0.0
+    bs: float = 0.0
+    rm: float = 0.0
+    gm: float = 0.0
+    bm: float = 0.0
+    rh: float = 0.0
+    gh: float = 0.0
+    bh: float = 0.0
+    unsharp_size: int = 5  # odd box size, luma and chroma
+    unsharp_amount: float = 0.5  # luma amount; 0 and chroma 0 = no sharpening
+    unsharp_chroma_amount: float = 0.0
+    vignette_angle: float = 0.448799  # radians (PI/7); 0 = none
+    picture_fade_in: float = 0.8  # seconds; 0 = no fade
+    picture_fade_out: float = 2.0
+    sound_fade_in: float = 0.8
+    sound_fade_out: float = 2.0
+    highpass_hz: float = 70.0  # 0 = off
+    compressor_threshold_db: float = -24.0
+    compressor_ratio: float = 3.0  # 1 = no compression
+    compressor_attack_ms: float = 15.0
+    compressor_release_ms: float = 250.0
+    compressor_makeup: float = 2.0  # linear gain
+    loudness_lufs: float = -16.0
+    true_peak_dbfs: float = -1.5
+    loudness_range: float = 7.0
+
+
+_GRADE_BOOLS = ("enabled", "picture", "sound")
+_BALANCE = ("rs", "gs", "bs", "rm", "gm", "bm", "rh", "gh", "bh")
+# name -> (low, high) inclusive; fades are seconds (negative refused), the rest as named.
+GRADE_RANGES: dict[str, tuple[float, float]] = {
+    "contrast": (0.1, 3.0),
+    "saturation": (0.0, 3.0),
+    "gamma": (0.1, 3.0),
+    "brightness": (-0.5, 0.5),
+    **dict.fromkeys(_BALANCE, (-1.0, 1.0)),
+    "unsharp_size": (3, 23),
+    "unsharp_amount": (-2.0, 5.0),
+    "unsharp_chroma_amount": (-2.0, 5.0),
+    "vignette_angle": (0.0, math.pi / 2),
+    "picture_fade_in": (0.0, 30.0),
+    "picture_fade_out": (0.0, 30.0),
+    "sound_fade_in": (0.0, 30.0),
+    "sound_fade_out": (0.0, 30.0),
+    "highpass_hz": (0.0, 1000.0),
+    "compressor_threshold_db": (-60.0, 0.0),
+    "compressor_ratio": (1.0, 20.0),
+    "compressor_attack_ms": (0.01, 2000.0),
+    "compressor_release_ms": (0.01, 9000.0),
+    "compressor_makeup": (1.0, 64.0),
+    "loudness_lufs": (-70.0, -5.0),
+    "true_peak_dbfs": (-9.0, 0.0),
+    "loudness_range": (1.0, 20.0),
+}
+
+
+def parse_grade(block: object, where: str, base: GradeSettings | None = None) -> GradeSettings:
+    """`base` (default: the built-in defaults) with the settings in `block` applied. `where` names
+    the file and block ("config/render.json: grade"); an unknown name, a wrong type or a value
+    outside its range raises ConfigError naming `where.field` and what is allowed (spec 013 FR-3)."""
+    base = base or GradeSettings()
+    if block is None:
+        return base
+    if not isinstance(block, dict):
+        raise ConfigError(f"{where} must be an object")
+    known = {f.name for f in fields(GradeSettings)}
+    unknown = sorted(set(block) - known)
+    if unknown:
+        raise ConfigError(
+            f"{where}: unknown setting {', '.join(repr(u) for u in unknown)} "
+            f"(allowed: {', '.join(sorted(known))})"
+        )
+    values: dict[str, object] = {}
+    for name, value in block.items():
+        if name in _GRADE_BOOLS:
+            if not isinstance(value, bool):
+                raise ConfigError(f"{where}.{name} must be true or false, got {value!r}")
+            values[name] = value
+            continue
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(value)
+        ):
+            raise ConfigError(f"{where}.{name} must be a number, got {value!r}")
+        low, high = GRADE_RANGES[name]
+        if not low <= value <= high:
+            raise ConfigError(f"{where}.{name} must be between {low:g} and {high:g}, got {value!r}")
+        if name == "unsharp_size":
+            if value != int(value) or int(value) % 2 == 0:
+                raise ConfigError(f"{where}.{name} must be an odd whole number, got {value!r}")
+            values[name] = int(value)
+        else:
+            values[name] = float(value)
+    return GradeSettings(**{**asdict(base), **values})
+
+
+@dataclass(frozen=True)
 class RenderConfig:
     width: int
     height: int
@@ -142,6 +255,13 @@ class RenderConfig:
     audio: AudioSettings
     video: VideoSettings
     animation: AnimationSettings = field(default_factory=AnimationSettings)
+    channel_name: str = ""
+    channel_intro: str = ""  # a branded clip played before the cover reveal ("" = none)
+    channel_logo: str = ""  # the channel logo, a badge on the video cover ("" = none, spec 015)
+    channel_open_clip: str = ""  # bedtime clip played after the channel intro ("" = none)
+    channel_close_clip: str = ""  # bedtime clip played after the last section ("" = none)
+    grade: GradeSettings = field(default_factory=GradeSettings)  # spec 013 (shared settings)
+    channel_blend_seconds: float = 1.5  # cross-dissolve at each join of logo/clips/body (spec 012)
 
 
 _NESTED = {
@@ -174,7 +294,16 @@ def load_render_config(path: Path) -> RenderConfig:
         raise ConfigError(f"render configuration is not valid JSON: {path} ({exc})") from None
     missing: list[str] = []
     for f in fields(RenderConfig):
-        if f.name == "animation":
+        if f.name in (
+            "animation",
+            "channel_name",
+            "channel_intro",
+            "channel_logo",
+            "channel_open_clip",
+            "channel_close_clip",
+            "channel_blend_seconds",
+            "grade",
+        ):
             continue  # optional block, parsed by _animation_settings
         if f.name not in data:
             missing.append(f.name)
@@ -192,6 +321,7 @@ def load_render_config(path: Path) -> RenderConfig:
         raise ConfigError(f"{path}: missing {', '.join(missing)}")
     nested = {name: _typed(cls, data[name]) for name, cls in _NESTED.items()}
     nested["animation"] = _animation_settings(path, data.get("animation", {}))
+    nested["grade"] = parse_grade(data.get("grade"), f"{path}: grade")
     config = _typed(RenderConfig, data | nested)
     min_card = config.captions.min_card_seconds
     if not math.isfinite(min_card) or min_card < 0:

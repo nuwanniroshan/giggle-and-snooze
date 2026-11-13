@@ -46,8 +46,30 @@ def pitch_filter(semitones: float, sample_rate: int) -> str:
     return f"asetrate={round(sample_rate * ratio)},aresample={sample_rate},atempo={1 / ratio:.6f}"
 
 
-def pitch_shift(audio: np.ndarray, sample_rate: int, semitones: float) -> np.ndarray:
-    if semitones == 0:
+def voice_filter(
+    semitones: float, sample_rate: int, speed: float = 1.0, gain_db: float = 0.0
+) -> str:
+    """The role's pitch lift plus a feeling's speed and loudness in one chain (spec 017 FR-3).
+
+    With speed 1 and no gain it is exactly `pitch_filter`, so neutral lines are unchanged."""
+    if speed == 1 and gain_db == 0:
+        return pitch_filter(semitones, sample_rate)
+    ratio = pitch_ratio(semitones)
+    chain = (
+        f"asetrate={round(sample_rate * ratio)},aresample={sample_rate},"
+        f"atempo={speed / ratio:.6f}"
+    )
+    return chain + (f",volume={gain_db:g}dB" if gain_db else "")
+
+
+def pitch_shift(
+    audio: np.ndarray,
+    sample_rate: int,
+    semitones: float,
+    speed: float = 1.0,
+    gain_db: float = 0.0,
+) -> np.ndarray:
+    if semitones == 0 and speed == 1 and gain_db == 0:
         return audio
     command = [
         "ffmpeg",
@@ -63,7 +85,7 @@ def pitch_shift(audio: np.ndarray, sample_rate: int, semitones: float) -> np.nda
         "-i",
         "pipe:0",
         "-af",
-        pitch_filter(semitones, sample_rate),
+        voice_filter(semitones, sample_rate, speed, gain_db),
         "-f",
         "f32le",
         "-ar",

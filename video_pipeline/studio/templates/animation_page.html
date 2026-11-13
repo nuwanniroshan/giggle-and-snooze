@@ -1,26 +1,53 @@
-{% extends "base.html" %}
-{% from "_macros.html" import badge, book_links, animation_controls %}
+{% extends "book_base.html" %}
+{% from "_macros.html" import badge, tone_of, animation_controls, job_log %}
+{% set here = 'animation' %}
 {% block title %}Page {{ row.page_number }} animation: {{ book.title }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ static_url('animation.css') }}">{% endblock %}
 {% block content %}
-<h1>Page {{ row.page_number }}</h1>
-<p class="muted">{{ book.title }}</p>
-{{ book_links(book) }}
-<nav class="sub pager">
-  <a href="/books/{{ book.slug }}/animation">All pages</a>
-  {% if prev %}<a href="/books/{{ book.slug }}/animation/{{ prev }}">Page {{ prev }}</a>{% endif %}
-  {% if next %}<a href="/books/{{ book.slug }}/animation/{{ next }}">Page {{ next }}</a>{% endif %}
-</nav>
-<section class="stage">
-  <p><span class="muted">Plan</span> <span class="state{% if row.plan_state in ('stale', 'invalid') %} strong{% endif %}">{{ row.plan_state }}</span>
-     <span class="muted">Cut</span> <span class="state">{{ row.cut_state }}</span></p>
+<header class="page-head">
+  <div>
+    <h1>Page {{ row.page_number }}</h1>
+  </div>
+  <nav class="pager" style="margin:0" aria-label="Pages">
+    <a href="/books/{{ book.slug }}/animation">All pages</a>
+    {% if prev %}<a href="/books/{{ book.slug }}/animation/{{ prev }}">Previous: page {{ prev }}</a>{% endif %}
+    {% if next %}<a href="/books/{{ book.slug }}/animation/{{ next }}">Next: page {{ next }}</a>{% endif %}
+  </nav>
+</header>
+<section class="panel">
+  <p class="controls"><span class="muted">Plan</span> <span class="state t-{{ tone_of(row.plan_state) }}{% if row.plan_state in ('stale', 'invalid') %} strong{% endif %}">{{ row.plan_state }}</span>
+     <span class="muted">Cut</span> <span class="state t-{{ tone_of(row.cut_state) }}">{{ row.cut_state }}</span></p>
   {% if row.detail %}<p class="strong">{{ row.detail }}</p>{% endif %}
   {% if row.empty_layers %}<p class="strong">Empty layers (the cut found nothing): {{ row.empty_layers|join(', ') }}</p>{% endif %}
   {{ animation_controls(book, controls) }}
 </section>
-<section class="stage">
-  <h2>Preview</h2>
-  <p><span class="muted">Video</span> {% if row.will_animate %}<span class="state">animated</span>{% else %}<span class="state">still: {{ row.still_reason }}</span>{% endif %}</p>
+<section class="panel" id="picture">
+  <div class="panel-head"><h2>Picture</h2><span class="muted">{{ row.picture }}</span></div>
+  <form method="post" action="/books/{{ book.slug }}/animation/{{ row.page_number }}/prompt">
+    <label for="prompt" class="small muted">Picture prompt (saved in book.json; the picture changes only when you repaint it)</label>
+    <textarea id="prompt" name="prompt" rows="5" style="width:100%"{% if prompt_blocked %} disabled{% endif %}>{{ prompt or '' }}</textarea>
+    {% if prompt_problems %}<ul class="attention">{% for p in prompt_problems %}<li class="strong">{{ p }}</li>{% endfor %}</ul>{% endif %}
+    <div class="controls">
+      <button class="secondary" type="submit"{% if prompt_blocked %} disabled{% endif %}>Save prompt</button>
+      {% if prompt_blocked %}<span class="reason">{{ prompt_blocked }}</span>{% endif %}
+    </div>
+  </form>
+  <div class="controls">
+    <details class="more">
+      <summary>Repaint page</summary>
+      <form method="post" action="/books/{{ book.slug }}/animation/{{ row.page_number }}/repaint" class="inline">
+        <label class="check"><input type="checkbox" name="confirm" value="1" required{% if repaint_blocked %} disabled{% endif %}> Replace this picture (one picture of ChatGPT image quota); its plan and layers are made again</label>
+        <button class="secondary" type="submit"{% if repaint_blocked %} disabled{% endif %}>Repaint page {{ row.page_number }}</button>
+      </form>
+    </details>
+    {% if repaint_blocked %}<span class="reason">{{ repaint_blocked }}</span>{% endif %}
+  </div>
+  {% if repaint_job %}
+  <div style="margin-top: var(--s-4)">{{ job_log(repaint_job, 'Picture repaint', '') }}</div>
+  {% endif %}
+</section>
+<section class="panel">
+  <div class="panel-head"><h2>Preview</h2>{% if row.will_animate %}<span class="state t-done">animated</span>{% else %}<span class="state">still: {{ row.still_reason }}</span>{% endif %}</div>
   <p class="muted">Renders this page with its voice, camera and captions (the voice track is needed, not the audio approval). The full render reuses it.</p>
   <div class="controls">
     <form method="post" action="/books/{{ book.slug }}/animation/{{ row.page_number }}/preview" class="inline">
@@ -29,23 +56,20 @@
     {% if preview_blocked %}<span class="reason">{{ preview_blocked }}</span>{% endif %}
   </div>
   {% if preview_job %}
-  <p>{{ preview_job.label|capitalize }} {{ badge(preview_job.state) }}
-    <span class="muted"{% if preview_job.live %} data-elapsed="{{ preview_job.elapsed }}"{% endif %}>{{ format_duration(preview_job.elapsed) }}</span>
-    {% if preview_job.exit_code is not none %}<span class="muted">exit code {{ preview_job.exit_code }}</span>{% endif %}</p>
-  <pre class="log" id="log" data-job-id="{{ preview_job.id }}" data-offset="{{ preview_job.offset }}"{% if preview_job.live %} data-live="1"{% endif %}>{{ preview_job.log }}</pre>
+  <div style="margin-top: var(--s-4)">{{ job_log(preview_job, 'Page preview', '') }}</div>
   {% endif %}
   {% if preview_url %}
-  <video class="preview" controls preload="metadata" src="{{ preview_url }}"></video>
+  <div class="cinema" style="margin-top: var(--s-4)"><video class="preview" controls preload="metadata" poster="{{ picture_url }}" src="{{ preview_url }}"></video></div>
   {% endif %}
 </section>
 {% if plan is none %}
-<p class="muted">{% if row.plan_state == 'none' %}No plan for this page yet. Run Plan pictures.{% else %}The plan cannot be shown.{% endif %}</p>
-<img class="thumb" src="{{ picture_url }}" alt="Page {{ row.page_number }} picture">
+<p class="empty" style="margin-bottom: var(--s-4)">{% if row.plan_state == 'none' %}No plan for this page yet. Run Plan pictures.{% else %}The plan cannot be shown.{% endif %}</p>
+<img class="cut" src="{{ picture_url }}" alt="Page {{ row.page_number }} picture">
 {% else %}
 {% set w = plan.picture.width %}{% set h = plan.picture.height %}
 {% set unit = [w, h]|max / 100 %}
-<section class="stage">
-  <h2>Layers on the picture</h2>
+<section class="panel">
+  <div class="panel-head"><h2>Layers on the picture</h2></div>
   <figure class="anim">
     <img src="{{ picture_url }}" alt="Page {{ row.page_number }} picture" width="{{ w }}" height="{{ h }}">
     <svg viewBox="0 0 {{ w }} {{ h }}" aria-label="layer boxes, points and effect regions" style="--u: {{ unit }}px">
@@ -63,7 +87,7 @@
     <figcaption class="muted">Boxes in each layer's mask colour. Filled dots are include points, hollow dots are exclude points; dashed boxes are effect regions.</figcaption>
   </figure>
 </section>
-<section class="stage">
+<section class="panel">
   <h2>Layers</h2>
   <div class="scroll">
   <table>
@@ -82,7 +106,7 @@
   </table>
   </div>
 </section>
-<section class="stage">
+<section class="panel">
   <h2>Effects</h2>
   {% if plan.effects %}
   <table>
@@ -93,7 +117,7 @@
       <td>{{ e.type }}</td>
       <td class="mono">{% if e.region is none %}whole picture{% elif e.region.layer %}layer {{ e.region.layer }}{% if e.region.box %} in {{ e.region.box|list }}{% endif %}{% elif e.region.box %}{{ e.region.box|list }}{% else %}whole picture{% endif %}</td>
       <td>{{ e.intensity }}</td>
-      <td>{{ e.colour or '—' }}</td>
+      <td>{{ e.colour or 'none' }}</td>
     </tr>
     {% endfor %}
     </tbody>
@@ -103,7 +127,7 @@
   {% endif %}
 </section>
 {% if mask_url %}
-<section class="stage">
+<section class="panel">
   <h2>Cut</h2>
   <p class="small">Masks over the dimmed picture, each in its layer's colour</p>
   <img class="cut" src="{{ mask_url }}" alt="Layer masks for page {{ row.page_number }}">

@@ -164,30 +164,56 @@ def render_caption(text: str, cfg: RenderConfig, out_path: Path) -> None:
 
 # --- page-turn sound ------------------------------------------------------------------------
 
-_BURSTS = ((0.0, 0.050), (0.11, 0.070), (0.24, 0.090))  # (onset s, decay time constant s)
-_PAGE_TURN_SECONDS = 0.6
+_PAGE_TURN_SECONDS = 0.7
 _PAGE_TURN_PEAK = 0.5
 
 
+def _band(noise: np.ndarray, sample_rate: int, low: float, high: float) -> np.ndarray:
+    spectrum = np.fft.rfft(noise)
+    freqs = np.fft.rfftfreq(len(noise), 1 / sample_rate)
+    spectrum[(freqs < low) | (freqs > high)] = 0
+    return np.fft.irfft(spectrum, len(noise))
+
+
 def page_turn_sound(sample_rate: int, seed: int = 0) -> np.ndarray:
-    """A deterministic ~0.6 s paper rustle: three band-limited noise bursts with a fast attack and
-    exponential decay, faded to silence at the end; float32 mono, peak 0.5."""
+    """A deterministic ~0.7 s paper page turn; float32 mono, peak 0.5, faded to silence.
+
+    Three layers, like a real page: a paper-lift scrape (mid-band noise with a crackle of tiny
+    fibre clicks that rises slowly), the swish of the page crossing (brighter noise with a smooth
+    bell envelope) and a soft landing tap (a short low thump plus a dull click)."""
     rng = np.random.default_rng(seed)
     n = round(_PAGE_TURN_SECONDS * sample_rate)
     t = np.arange(n) / sample_rate
-    spectrum = np.fft.rfft(rng.standard_normal(n))
-    freqs = np.fft.rfftfreq(n, 1 / sample_rate)
-    spectrum[(freqs < 700) | (freqs > 7000)] = 0
-    noise = np.fft.irfft(spectrum, n)
-    envelope = np.zeros(n)
-    attack = 0.004
-    for (onset, decay), level in zip(_BURSTS, rng.uniform(0.6, 1.0, len(_BURSTS)), strict=True):
-        local = t - onset
-        rise = np.clip(local / attack, 0, 1)
-        fall = np.exp(-np.clip(local - attack, 0, None) / decay)
-        envelope += np.where(local >= 0, level * rise * fall, 0)
-    fade = np.clip((t[-1] - t) / 0.08, 0, 1)
-    sound = noise * envelope * fade
+
+    # 1. Lift: 0.00-0.22 s, 800-3500 Hz, crackled by sparse random clicks.
+    lift_noise = _band(rng.standard_normal(n), sample_rate, 800, 3500)
+    clicks = (rng.random(n) < 0.004) * rng.uniform(0.4, 1.0, n)
+    kernel_t = np.arange(round(0.004 * sample_rate)) / sample_rate
+    crackle = np.convolve(clicks, np.exp(-kernel_t / 0.0008), mode="full")[:n]
+    lift_env = np.clip(t / 0.22, 0, 1) ** 2 * np.clip((0.26 - t) / 0.04, 0, 1)
+    lift = (lift_noise * (0.35 + 2.5 * crackle)) * lift_env * 0.5
+
+    # 2. Swish: 0.12-0.50 s, 2000-9000 Hz, bell-shaped (raised cosine).
+    swish_noise = _band(rng.standard_normal(n), sample_rate, 2000, 9000)
+    local = (t - 0.12) / 0.38
+    swish_env = np.where((local >= 0) & (local <= 1), np.sin(np.pi * np.clip(local, 0, 1)) ** 2, 0)
+    swish = swish_noise * swish_env * (0.8 + 0.2 * np.sin(2 * np.pi * 23 * t))
+
+    # 3. Landing tap at 0.50 s: a falling low thump and a short dull click.
+    tap_t = t - 0.50
+    thump_env = np.where(tap_t >= 0, np.exp(-np.clip(tap_t, 0, None) / 0.035), 0)
+    thump = np.sin(2 * np.pi * (150 - 300 * np.clip(tap_t, 0, 0.05)) * np.clip(tap_t, 0, None))
+    click = _band(rng.standard_normal(n), sample_rate, 400, 2500) * np.where(
+        tap_t >= 0, np.exp(-np.clip(tap_t, 0, None) / 0.008), 0
+    )
+    tap = (thump * 0.9 + click * 1.4) * thump_env
+
+    def level(x: np.ndarray) -> np.ndarray:
+        peak = np.abs(x).max()
+        return x / peak if peak else x
+
+    sound = 0.55 * level(lift) + 1.0 * level(swish) + 0.8 * level(tap)
+    sound *= np.clip((t[-1] - t) / 0.08, 0, 1)
     sound *= _PAGE_TURN_PEAK / np.abs(sound).max()
     return sound.astype(np.float32)
 
@@ -255,6 +281,49 @@ def load_page_turn(assets_dir: Path, sample_rate: int, cache_path: Path) -> np.n
 # --- master audio ---------------------------------------------------------------------------
 
 
+def _sliding_min(values: np.ndarray, width: int) -> np.ndarray:
+    """out[i] = min(values[i : i + width]) for every full window (log2(width) numpy passes)."""
+    span, cur = 1, values
+    while span * 2 <= width:
+        cur = np.minimum(cur[:-span], cur[span:])
+        span *= 2
+    count = len(values) - width + 1
+    return np.minimum(cur[:count], cur[width - span : width - span + count])
+
+
+def _limiter_gain(region: np.ndarray, limit: float, width: int) -> np.ndarray:
+    """Gain curve keeping `region` under `limit`: the gain each peak needs, spread over
+    `width` samples before and after it (a minimum filter, then a moving average of the same
+    width, which can never exceed the gain a sample itself needs)."""
+    half = width // 2
+    need = np.minimum(1.0, limit / np.maximum(np.abs(region), 1e-12))
+    # Edges repeat the first/last value: beside a stretch of the mix they are 1 (padding
+    # covers the reach), and at the very start or end of the mix there is nothing beyond.
+    padded = np.pad(need, half, mode="edge")
+    low = _sliding_min(padded, width)  # one value per region sample
+    ramp = np.concatenate([[0.0], np.cumsum(np.pad(low, half, mode="edge"))])
+    return (ramp[width:] - ramp[:-width]) / width
+
+
+def limit_peaks(mix: np.ndarray, limit: float, window_ms: float, sample_rate: int) -> None:
+    """Hold `mix` (in place) at or under `limit` with a gentle look-ahead limiter.
+
+    Only the stretches around peaks over the limit change, by a smooth dip of about `window_ms`
+    on each side; everything else is untouched. The earlier whole-mix scaling cancelled the
+    +6 dB voice gain of spec 012, because one short peak lowered every sample."""
+    over = np.flatnonzero(np.abs(mix) > limit)
+    if over.size == 0:
+        return
+    width = max(3, round(window_ms / 1000 * sample_rate)) | 1  # odd
+    reach = 2 * width
+    breaks = np.flatnonzero(np.diff(over) > 2 * reach)
+    firsts = np.concatenate([[over[0]], over[breaks + 1]])
+    lasts = np.concatenate([over[breaks], [over[-1]]])
+    for first, last in zip(firsts, lasts, strict=True):
+        start, end = max(0, int(first) - reach), min(len(mix), int(last) + reach + 1)
+        mix[start:end] *= _limiter_gain(mix[start:end], limit, width)
+
+
 def mix_master(
     sections: list[Section],
     tracks: dict[str, np.ndarray],
@@ -266,13 +335,15 @@ def mix_master(
     """The episode's mono float32 audio, exactly as long as the video.
 
     Each section's track starts at `section start + lead_in`; the page-turn sound (at
-    `sfx_gain_db`) starts at each transition, i.e. the end of the previous section. If the peak
-    exceeds `peak_dbfs` the whole mix is scaled down; speech is otherwise untouched (AC-1.3).
+    `sfx_gain_db`) starts at each transition, i.e. the end of the previous section. The voice tracks
+    are raised by `voice_gain_db` first (spec 012 FR-6). Peaks over `peak_dbfs` are held down by
+    `limit_peaks`, a short look-ahead dip around each peak; the rest of the mix is untouched.
     `ambience` (spec 007), a bed already levelled and exactly as long as the mix, is added just
     before the peak limit; `None` gives the same output as before the bed existed.
     """
     length = round(total_frames(sections, cfg) / cfg.fps * sample_rate)
     mix = np.zeros(length, dtype=np.float64)
+    voice_gain = 10 ** (cfg.audio.voice_gain_db / 20)
     times = section_times(sections, cfg)
     for section, (start, end) in zip(sections, times, strict=True):
         if section.track is None:
@@ -283,7 +354,7 @@ def mix_master(
         at = round((start + cfg.lead_in) * sample_rate)
         if at + len(track) > round(end * sample_rate):
             raise ValueError(f"track {section.track} is longer than section {section.name} allows")
-        mix[at : at + len(track)] += track
+        mix[at : at + len(track)] += track * voice_gain
     gain = 10 ** (cfg.audio.sfx_gain_db / 20)
     turn = np.asarray(page_turn, dtype=np.float64) * gain
     for _start, end in times[:-1]:
@@ -294,8 +365,5 @@ def mix_master(
         if len(ambience) != length:
             raise ValueError(f"ambience bed has {len(ambience)} samples, the mix has {length}")
         mix += np.asarray(ambience, dtype=np.float64)
-    limit = 10 ** (cfg.audio.peak_dbfs / 20)
-    peak = float(np.abs(mix).max()) if length else 0.0
-    if peak > limit:
-        mix *= limit / peak
+    limit_peaks(mix, 10 ** (cfg.audio.peak_dbfs / 20), cfg.audio.limiter_ms, sample_rate)
     return mix.astype(np.float32)

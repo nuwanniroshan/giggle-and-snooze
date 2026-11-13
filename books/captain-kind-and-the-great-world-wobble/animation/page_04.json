@@ -1,0 +1,149 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "e9ffee7e92957731d3ad0b2f3cf4dfad2441404903016a8c70bcf0c19c1ce3d4",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:25:53+00:00",
+  "layers": [
+    {
+      "name": "round_pebble",
+      "description": "Small felt pebble floating beside the child's face; isolate from grass and shadow.",
+      "box": [
+        681,
+        989,
+        792,
+        1069
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.8,
+      "pivot": [
+        737,
+        1030
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.006,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "striped_ball",
+      "description": "Pink and cream felt ball, including stitched outline; exclude ground shadow.",
+      "box": [
+        788,
+        892,
+        942,
+        1044
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        865,
+        968
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.006,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_orange",
+      "description": "Left floating orange with its green stem and leaf; exclude shadow.",
+      "box": [
+        943,
+        874,
+        1067,
+        1033
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.8,
+      "pivot": [
+        1005,
+        963
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.006,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_orange",
+      "description": "Right floating orange with green stem and leaf; exclude ground shadow.",
+      "box": [
+        1066,
+        900,
+        1199,
+        1063
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.82,
+      "pivot": [
+        1134,
+        993
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.006,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "moon",
+      "description": "Buttercream stitched moon disc; retain soft surrounding illumination in the background.",
+      "box": [
+        950,
+        609,
+        1096,
+        754
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.1,
+      "pivot": [
+        1023,
+        682
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.0025,
+          "period_s": 7.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

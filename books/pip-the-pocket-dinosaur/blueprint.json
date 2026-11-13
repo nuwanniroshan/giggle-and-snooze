@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "gentle-garden-discovery",
+    "label": "Gentle Garden Discovery",
+    "summary": "Quiet curiosity turns into reassuring companionship as a child helps tiny Pip feel safe.",
+    "roles": {
+      "storyteller": {
+        "pace": "slow",
+        "energy": "calm",
+        "quirk": "Leaves a soft breath of space after each small discovery."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Offers little observations as tentative ideas."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "hushed",
+        "quirk": "Repeats a comforting word softly when Pip relaxes."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "colored-pencil-on-slate",
+    "medium_label": "Colored Pencil on Slate Paper",
+    "palette": [
+      {
+        "name": "fern-green",
+        "hex": "#245C39"
+      },
+      {
+        "name": "slate-gray",
+        "hex": "#42494D"
+      },
+      {
+        "name": "pear-green",
+        "hex": "#B8D652"
+      },
+      {
+        "name": "petal-white",
+        "hex": "#FFFFFF"
+      },
+      {
+        "name": "berry-red",
+        "hex": "#A32D40"
+      }
+    ],
+    "line": "Soft waxy pencil contours with visible grain and rounded shapes.",
+    "lighting": "Gentle diffuse evening light; tiny white pencil highlights keep faces readable.",
+    "composition": "Child-height close views, spacious fern arches, and a small rounded Pip nestled beside open hands.",
+    "style_prompt_prefix": "Colored pencil on slate-gray textured paper, fern and pear greens with tiny berry-red accents, tender rounded baby dinosaur, visible hand-drawn grain, intimate garden scenes.",
+    "avoid": [
+      "sharp teeth",
+      "frightening shadows",
+      "neon colors",
+      "busy backgrounds",
+      "photorealism",
+      "text in artwork"
+    ]
+  },
+  "qa": {
+    "format_key": "tiny-choice-and-gesture",
+    "format_label": "Tiny Choices and Gentle Gestures",
+    "question_types": [
+      "two-choice",
+      "gesture-response",
+      "picture-observation"
+    ],
+    "intro_hook": "Can your hands make a tiny nest for Pip?",
+    "outro_hook": "Rest your nest hands together and wish Pip a cozy sleep.",
+    "moments_min": 2,
+    "moments_max": 3,
+    "kid_notes": {
+      "kid_older": "Offer two gentle possibilities, accept either answer, and keep each response brief.",
+      "kid_younger": "Invite an optional small gesture or a single word; quiet watching counts too."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "stream"
+    ],
+    "sfx": [
+      "footsteps_grass"
+    ],
+    "music_direction": "Sparse, soft wooden marimba notes with warm sustained strings; slow and spacious, fading into silence as Pip settles."
+  },
+  "animation": {
+    "intensity": 0.3,
+    "effects": [
+      "water_ripple"
+    ]
+  },
+  "rationale": "Slate-paper pencil art and green, gray, white, and berry colors distinguish this garden story from felt and cyanotype palettes. Optional choices and hand gestures invite gentle participation, while spacious narration and minimal movement support a peaceful bedtime."
+}

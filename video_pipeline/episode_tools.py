@@ -20,9 +20,11 @@ from video_pipeline.contract import (
     parse_banter,
     validate_script,
 )
+from video_pipeline.emotions import EmotionSettings, load_emotions
 from video_pipeline.episode import (
     EpisodePlan,
     assemble_script,
+    banter_feeling_errors,
     banter_plan_errors,
     load_book,
     plan_episode,
@@ -69,6 +71,8 @@ class EpisodeTools:
     force: bool = False
     saves: int = 0
     blueprint: Blueprint | None = None
+    # spec 017: when set, banter must meet the sound-tag and feeling rules and use its feelings
+    emotions: EmotionSettings | None = None
     plan: EpisodePlan = field(init=False)
 
     def __post_init__(self) -> None:
@@ -85,12 +89,22 @@ class EpisodeTools:
         book = load_book(folder.book_json)
         terms = load_disallowed_terms(Path(config_dir) / "disallowed_terms.txt")
         cast = load_cast(Path(config_dir) / "cast.json")
+        emotions = load_emotions(Path(config_dir))
         from video_pipeline.blueprint import load_blueprint, load_context
 
         blueprint = None
         if folder.blueprint_path.is_file():
             blueprint = load_blueprint(folder.blueprint_path, load_context(Path(config_dir).parent))
-        return cls(book, cast, terms, seed, folder.script_path, force, blueprint=blueprint)
+        return cls(
+            book,
+            cast,
+            terms,
+            seed,
+            folder.script_path,
+            force,
+            blueprint=blueprint,
+            emotions=emotions,
+        )
 
     def check(self, banter: dict | str) -> tuple[dict | None, list[str]]:
         """Assemble and validate; returns (script, []) when valid, else (None, errors)."""
@@ -106,10 +120,15 @@ class EpisodeTools:
             names = self.blueprint.sound.ambience
             ambience, allowed = assign_ambience(names, len(self.book["pages"])), set(names)
         script = assemble_script(self.book, self.cast, self.plan, parsed, ambience)
-        errors = banter_plan_errors(parsed, self.plan) + validate_script(
-            script, self.book, self.terms, allowed
-        )
+        errors = banter_plan_errors(parsed, self.plan)
+        if self.emotions is not None:
+            errors += banter_feeling_errors(parsed, self.plan, self.emotions.generation)
+        errors += validate_script(script, self.book, self.terms, allowed, self.feeling_names)
         return (None, errors) if errors else (script, [])
+
+    @property
+    def feeling_names(self) -> tuple[str, ...] | None:
+        return None if self.emotions is None else self.emotions.names
 
     def get_episode_plan(self) -> dict:
         meta = self.book["metadata"]
@@ -125,7 +144,9 @@ class EpisodeTools:
                 {"page_number": number, "kids": list(kids)}
                 for number, kids in sorted(self.plan.qa_speakers.items())
             ],
-            "brief": build_brief(self.book, self.cast, self.plan, self.blueprint),
+            "brief": build_brief(
+                self.book, self.cast, self.plan, self.blueprint, feelings=self.emotions
+            ),
             "banter_schema": Banter.model_json_schema(),
         }
 

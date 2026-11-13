@@ -1,0 +1,122 @@
+{
+  "page_number": 10,
+  "picture": {
+    "file": "page_10.png",
+    "sha256": "e683fd1330d9b36550bab977aec248330104e31d5cfee03f6ecd5d40b716939a",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-13T00:49:01+00:00",
+  "layers": [
+    {
+      "name": "quilt_breathing",
+      "description": "Blue quilt over Jack's chest and body, rising almost imperceptibly with his calm breathing; preserve the hand and red car in front.",
+      "box": [
+        420,
+        574,
+        1497,
+        939
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          807,
+          597
+        ],
+        [
+          930,
+          569
+        ]
+      ],
+      "z": 3,
+      "depth": 0.85,
+      "pivot": [
+        951,
+        918
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.004,
+          "period_s": 5.5,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "plant_trailing_leaves",
+      "description": "Trailing green stem and leaves hanging down the front of the bedside dresser, gently stirring.",
+      "box": [
+        1500,
+        315,
+        1619,
+        552
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.68,
+      "pivot": [
+        1577,
+        324
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 7.5,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "dream_echo_cloud",
+      "description": "Small lilac scarf-shaped cloud in the upper right window pane, drifting softly in the distant morning sky.",
+      "box": [
+        1218,
+        77,
+        1351,
+        136
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.05,
+      "pivot": [
+        1285,
+        107
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 11.0,
+          "phase": 0.3,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1048,
+          227,
+          1395,
+          380
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffe8a3"
+    }
+  ]
+}

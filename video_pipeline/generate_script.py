@@ -60,7 +60,7 @@ def generate_episode_script(tools: EpisodeTools, generate: Generate) -> dict:
     feedback: list[str] | None = None
     errors: list[str] = []
     for attempt in range(MAX_ATTEMPTS):
-        prompt = build_prompt(tools.book, tools.cast, tools.plan, feedback)
+        prompt = build_prompt(tools.book, tools.cast, tools.plan, feedback, tools.emotions)
         script, errors = tools.check(generate(prompt, tools.seed + attempt))
         if script is not None:
             return script
@@ -105,6 +105,7 @@ def run_agent(args: argparse.Namespace, tools: EpisodeTools, folder: BookFolder)
             tools.book,
             tools.terms,
             _allowed_ambience(tools),
+            tools.feeling_names,
         )
         if not errors:
             return

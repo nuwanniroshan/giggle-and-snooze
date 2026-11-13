@@ -1,0 +1,137 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "e3f38900e894b6051a85c48666e7021bf7d9ff8772fa5a28782948a621d081cd",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:20:44+00:00",
+  "layers": [
+    {
+      "name": "spoon_pea",
+      "description": "Single green pea resting on the spoon; preserve its soft felt texture.",
+      "box": [
+        789,
+        811,
+        833,
+        853
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.75,
+      "pivot": [
+        811,
+        832
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.005,
+          "period_s": 3.2,
+          "phase": 0.05,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "middle_bouncing_pea",
+      "description": "Floating green pea at the right, below the spoon; isolate the pea without the stitched motion marks.",
+      "box": [
+        807,
+        875,
+        853,
+        919
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.76,
+      "pivot": [
+        830,
+        897
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.012,
+          "period_s": 3.2,
+          "phase": 0.33,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "lower_bouncing_pea",
+      "description": "Lower floating green pea just above the bowl; exclude the pale stitched motion marks.",
+      "box": [
+        746,
+        922,
+        793,
+        970
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.78,
+      "pivot": [
+        770,
+        946
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.01,
+          "period_s": 3.2,
+          "phase": 0.66,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "spoon_hand",
+      "description": "Raised hand and sea-glass spoon, excluding the green pea on the spoon and the raspberry sleeve. Hinge gently at the wrist.",
+      "box": [
+        640,
+        716,
+        846,
+        866
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.74,
+      "pivot": [
+        666,
+        812
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.7,
+          "period_s": 3.2,
+          "phase": 0.05,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          26,
+          181,
+          290,
+          282
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffda88"
+    }
+  ]
+}

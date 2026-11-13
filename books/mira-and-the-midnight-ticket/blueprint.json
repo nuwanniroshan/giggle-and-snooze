@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "buoyant-future-homecoming",
+    "label": "Buoyant Future Homecoming",
+    "summary": "An optimistic adventure through a friendly future, a gently quickening return, and a warm homecoming.",
+    "roles": {
+      "storyteller": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Welcomes each discovery with wonder and gives the countdown reassuring warmth."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "lively",
+        "quirk": "Predicts how inventions could help people."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "lively",
+        "quirk": "Enjoys friendly robot gestures and tiny imaginary travel sounds."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "cut-paper-shadowbox",
+    "medium_label": "Cut-Paper Shadowbox",
+    "palette": [
+      {
+        "name": "Petrol Teal",
+        "hex": "#075E68"
+      },
+      {
+        "name": "Sunshine Yellow",
+        "hex": "#FFD447"
+      },
+      {
+        "name": "Poppy Orange",
+        "hex": "#F47735"
+      },
+      {
+        "name": "Sky Mint",
+        "hex": "#BDEEDB"
+      },
+      {
+        "name": "Warm Paper",
+        "hex": "#FFF3DA"
+      }
+    ],
+    "line": "Crisp scissor-cut silhouettes with rounded notches and no heavy outlines.",
+    "lighting": "Warm ticket light and shallow paper shadows keep nighttime inviting and readable.",
+    "composition": "Layered city vistas alternate with close views of Mira; sweeping routes guide the eye, ending in a cozy bedroom composition.",
+    "style_prompt_prefix": "Hand-cut matte paper shadowbox for ages 4–7, overlapping cardstock, shallow tactile shadows, rounded friendly future architecture, petrol teal, sunshine yellow, poppy orange, sky mint and warm paper, consistent expressive Mira.",
+    "avoid": [
+      "Photorealism",
+      "Fabric, pencil or cyanotype textures",
+      "Ominous clocks or robots",
+      "Vertiginous viewpoints",
+      "Flashing lights",
+      "Busy text overlays"
+    ]
+  },
+  "qa": {
+    "format_key": "predict-reveal-invent",
+    "format_label": "Predict, Reveal, Invent",
+    "question_types": [
+      "predict-next",
+      "spot-the-clue",
+      "invent-a-helpful-future"
+    ],
+    "intro_hook": "Mira can travel one hundred years ahead—what helpful thing might she discover?",
+    "outro_hook": "What little thing can we do today to help make a kinder future?",
+    "moments_min": 3,
+    "moments_max": 5,
+    "kid_notes": {
+      "kid_older": "Invite a prediction and an idea for helping people in the future. Accept any imaginative answer; leave a short optional thinking pause.",
+      "kid_younger": "Invite pointing, a gesture or a simple word about a friendly discovery. Quiet thinking counts too. Place pauses before the final dash and let the homecoming settle."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "wind_loop",
+      "stream"
+    ],
+    "sfx": [
+      "bell_chime",
+      "magic_sparkle",
+      "page_flip"
+    ],
+    "music_direction": "Light marimba, soft pizzicato and warm sustained notes. Quiet wind and garden water; sparse effects. Gently lift the return rhythm without alarms, then resolve warmly. Keep speech clear."
+  },
+  "animation": {
+    "intensity": 0.6,
+    "effects": [
+      "glow",
+      "water_ripple"
+    ]
+  },
+  "rationale": "Tactile cut paper and a sunny teal-orange-yellow palette create a distinct, optimistic future. Prediction and invention pauses invite children to shape tomorrow. Keep pauses outside the final dash, explain midnight simply, and avoid dwelling on being stuck. Gentle motion and a warm homecoming balance excitement with security."
+}

@@ -1,0 +1,142 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "f9dd5a6793f5489ca7a01068af99bba5936e12204ea0862ce9762d766c8451bf",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T14:12:55+00:00",
+  "layers": [
+    {
+      "name": "guardian",
+      "description": "Curly-haired child in lilac pajamas and flowing star cape, with face and hands moving together.",
+      "box": [
+        183,
+        161,
+        1098,
+        586
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        891,
+        400
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.003,
+          "period_s": 7.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "sleepy_star",
+      "description": "Drowsy white star nestled between the child's hands and cloud hollow.",
+      "box": [
+        1010,
+        306,
+        1164,
+        445
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.6,
+      "pivot": [
+        1089,
+        382
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 7.0,
+          "phase": 0.15,
+          "direction": null
+        },
+        {
+          "type": "breathe",
+          "amplitude": 0.008,
+          "period_s": 5.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "curled_cloud",
+      "description": "Large lilac curled cloud with its small star-shaped hollow preserved.",
+      "box": [
+        975,
+        237,
+        1558,
+        584
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.5,
+      "pivot": [
+        1267,
+        432
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 9.0,
+          "phase": 0.5,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "small_distant_cloud",
+      "description": "Small isolated lilac cloud below the Guardian and above the hills.",
+      "box": [
+        681,
+        629,
+        952,
+        693
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.2,
+      "pivot": [
+        817,
+        663
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 11.0,
+          "phase": 0.3,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "sleepy_star"
+      },
+      "intensity": 0.18,
+      "colour": "#fff2d5"
+    }
+  ]
+}

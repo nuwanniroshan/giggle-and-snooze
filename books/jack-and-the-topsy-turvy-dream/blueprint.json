@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "curious-dreamtime-listening",
+    "label": "Curious Dreamtime Listening",
+    "summary": "A cosy, gently curious dream turns a puzzling call into an invitation to friendship.",
+    "roles": {
+      "storyteller": {
+        "pace": "slow",
+        "energy": "calm",
+        "quirk": "Leaves a soft listening pause before revealing what the new friend says."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "lively",
+        "quirk": "Repeats a clue aloud before offering one thoughtful interpretation."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "calm",
+        "quirk": "Echoes a friendly word with a small delighted hum."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "wax-crayon-resist-watercolor",
+    "medium_label": "Wax Crayon Resist Watercolour",
+    "palette": [
+      {
+        "name": "Petrol Blue",
+        "hex": "#004B50"
+      },
+      {
+        "name": "Apple Green",
+        "hex": "#66AD18"
+      },
+      {
+        "name": "Lemon Yellow",
+        "hex": "#F5EE27"
+      },
+      {
+        "name": "Clear Scarlet",
+        "hex": "#ED3025"
+      },
+      {
+        "name": "Sky Cyan",
+        "hex": "#18BDE2"
+      }
+    ],
+    "line": "Rounded wax-crayon contours with soft broken edges and visible paper grain.",
+    "lighting": "Diffuse gentle light; bright colours softened with translucent washes.",
+    "composition": "Roomy spreads with curling roads, cushion hills, and a clear route back to bed; keep Jack and his car easy to find.",
+    "style_prompt_prefix": "Wax-crayon resist watercolour on textured paper, rounded friendly shapes, airy washes, playful curved perspective, expressive gentle faces.",
+    "avoid": [
+      "Sharp teeth or threatening expressions",
+      "Dark pursuit scenes or looming silhouettes",
+      "Flashing lights and harsh contrast",
+      "Crowded spreads and tiny visual clues",
+      "Fast camera motion or frightening dream distortions"
+    ]
+  },
+  "qa": {
+    "format_key": "listen-echo-reframe",
+    "format_label": "Listen, Echo, Understand",
+    "question_types": [
+      "sound-noticing",
+      "phrase-echo",
+      "perspective-taking"
+    ],
+    "intro_hook": "Let's cup our ears: what might a new friend want us to hear?",
+    "outro_hook": "Echo the friend's kind words, then give your favourite toy a cosy cuddle.",
+    "moments_min": 3,
+    "moments_max": 4,
+    "kid_notes": {
+      "kid_older": "Ask what Jack heard and how the friend's words change his guess; accept several gentle answers.",
+      "kid_younger": "Invite an optional echo of 'your car' or an ear-cupping gesture; allow quiet listening."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "wind_loop"
+    ],
+    "sfx": [
+      "page_flip",
+      "pop",
+      "bell_chime"
+    ],
+    "music_direction": "Soft marimba and warm acoustic plucks at an unhurried pace; lower music for the friend's words and resolve gently as Jack wakes. Keep wind barely audible."
+  },
+  "animation": {
+    "intensity": 0.4,
+    "effects": [
+      "water_ripple"
+    ]
+  },
+  "rationale": "Crayon resist gives the dream a tactile, playful identity distinct from the existing media. Blue-green, apple, lemon, scarlet and cyan avoid their muted palettes. Brief listening-and-echo pauses make the misunderstanding understandable without making the friendly follower scary; a faint ripple marks only the transition into dreaming."
+}

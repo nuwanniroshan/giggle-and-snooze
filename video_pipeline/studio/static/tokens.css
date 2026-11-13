@@ -1,0 +1,92 @@
+/* Studio tokens (spec 014): a dark editing suite. The books' pictures are the brightest thing on
+ * screen; one warm amber marks the next thing to do. Dark only, offline, system fonts. */
+:root {
+  color-scheme: dark;
+
+  /* ground and surfaces, cool blue-black */
+  --bg: oklch(15.5% 0.012 268);
+  --bg-side: oklch(17.5% 0.013 268);
+  --surface: oklch(20.5% 0.014 268);
+  --surface-2: oklch(24% 0.015 268);
+  --surface-3: oklch(28.5% 0.016 268);
+  --well: oklch(12.5% 0.01 268);
+  --line: oklch(29% 0.014 268);
+  --line-strong: oklch(38% 0.016 268);
+
+  /* text */
+  --text: oklch(95.5% 0.004 268);
+  --text-2: oklch(83% 0.01 268);
+  --muted: oklch(66% 0.016 268);
+  --faint: oklch(52% 0.016 268);
+
+  /* accent: storytime amber */
+  --accent: oklch(81% 0.145 72);
+  --accent-hi: oklch(87% 0.14 80);
+  --accent-ink: oklch(23% 0.045 60);
+  --accent-soft: oklch(81% 0.145 72 / 0.12);
+  --accent-glow: 0 0 0 1px oklch(81% 0.145 72 / 0.55), 0 8px 40px -12px oklch(81% 0.145 72 / 0.35);
+
+  /* states */
+  --ok: oklch(77% 0.13 158);
+  --ok-soft: oklch(77% 0.13 158 / 0.13);
+  --run: oklch(76% 0.11 235);
+  --run-soft: oklch(76% 0.11 235 / 0.14);
+  --bad: oklch(70% 0.17 25);
+  --bad-soft: oklch(70% 0.17 25 / 0.13);
+  --warn: var(--accent);
+  --warn-soft: var(--accent-soft);
+
+  /* speakers (script view) */
+  --spk-storyteller: oklch(80% 0.09 300);
+  --spk-kid-older: oklch(79% 0.11 200);
+  --spk-kid-younger: oklch(83% 0.12 125);
+
+  /* one-off paints, kept here so every colour lives in this file */
+  --paint-light: oklch(98% 0.006 268);
+  --shade-deep: oklch(0% 0 0 / 0.9);
+  --accent-line: oklch(81% 0.145 72 / 0.35);
+  --run-ring-0: oklch(76% 0.11 235 / 0);
+  --veil-70: oklch(13% 0.012 268 / 0.7);
+  --paint-dark: oklch(12% 0.01 268);
+  --log-text: oklch(84% 0.04 150);
+  --accent-edge: oklch(81% 0.145 72 / 0.55);
+  --accent-border: oklch(81% 0.145 72 / 0.45);
+  --accent-haze: oklch(81% 0.145 72 / 0.18);
+  --cinema: oklch(8% 0.005 268);
+  --ok-line: oklch(77% 0.13 158 / 0.45);
+  --run-ring: oklch(76% 0.11 235 / 0.6);
+  --run-line: oklch(76% 0.11 235 / 0.35);
+  --bad-edge: oklch(70% 0.17 25 / 0.5);
+  --bad-line: oklch(70% 0.17 25 / 0.4);
+  --player-tint: oklch(30% 0.05 280);
+  --avatar-ink: oklch(20% 0.03 268);
+  --veil-94: oklch(13% 0.012 268 / 0.94);
+  --veil-20: oklch(13% 0.012 268 / 0.2);
+  --swatch-edge: oklch(100% 0 0 / 0.15);
+  --color-ink: var(--text);  /* name the older guard tests look for */
+
+  /* type */
+  --font-display: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: ui-monospace, "SF Mono", Menlo, monospace;
+  --text-xs: 0.75rem; --text-sm: 0.8125rem; --text-md: 0.9375rem; --text-lg: 1.0625rem;
+  --text-xl: 1.25rem; --text-2xl: 1.625rem; --text-3xl: 2.125rem;
+
+  /* space */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px;
+  --s-10: 40px; --s-12: 48px; --s-16: 64px;
+  --gutter: 32px;
+  --container: 1240px;
+  --side: 272px;
+  --top: 60px;
+
+  /* shape and motion */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-pill: 999px;
+  --shadow: 0 1px 0 oklch(100% 0 0 / 0.03) inset, 0 12px 32px -16px oklch(0% 0 0 / 0.6);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --fast: 140ms; --slow: 320ms;
+
+  --z-sticky: 200; --z-top: 300;
+}
+@media (max-width: 60rem) { :root { --gutter: 20px; } }
+@media (max-width: 40rem) { :root { --gutter: 16px; } }

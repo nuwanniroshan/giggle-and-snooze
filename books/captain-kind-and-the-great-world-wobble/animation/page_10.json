@@ -1,0 +1,83 @@
+{
+  "page_number": 10,
+  "picture": {
+    "file": "page_10.png",
+    "sha256": "1097fc2079fd2d961f924831235d0694424730705a8d4a88641af72196a126d8",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:34:17+00:00",
+  "layers": [
+    {
+      "name": "quilt_breathing",
+      "description": "Sea-glass quilt over the sleeping child's torso, gently rising and settling with each breath.",
+      "box": [
+        298,
+        960,
+        1254,
+        1254
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.9,
+      "pivot": [
+        777,
+        1250
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.008,
+          "period_s": 6.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "towel_cape",
+      "description": "Apricot towel cape hanging from the wall hook; an almost imperceptible slow sway below the tied top.",
+      "box": [
+        772,
+        537,
+        993,
+        875
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.45,
+      "pivot": [
+        905,
+        555
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.4,
+          "period_s": 9.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          26,
+          182,
+          294,
+          292
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffd58a"
+    }
+  ]
+}

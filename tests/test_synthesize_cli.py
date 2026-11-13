@@ -398,3 +398,37 @@ def test_ambience_edit_keeps_the_approval_but_a_text_edit_drops_it(env, capsys):
     capsys.readouterr()
     assert run(env, command="approve") == 1
     assert "changed since the audio was synthesized" in capsys.readouterr().err
+
+
+# --- spec 017: feelings ---------------------------------------------------------------------
+
+
+def test_bad_feeling_settings_fail_at_start(env, capsys):  # AC-3.4, error scenarios
+    path = env["tmp"] / "config" / "emotions.json"
+    data = load_json(path)
+    data["feelings"]["sleepy"]["gain_db"] = -20
+    path.write_text(json.dumps(data), encoding="utf-8")
+    assert run(env, "--reviewed") == 1
+    err = capsys.readouterr().err
+    assert "sleepy" in err and "gain_db" in err
+    assert env["engine"].calls == []
+
+
+def test_unknown_feeling_in_the_script_is_refused(env, capsys):  # AC-2.2
+    env["script"]["intro"]["lines"][0]["emotion"] = "angry"
+    write_script(env["script"], env["folder"])
+    assert run(env, "--reviewed") == 1
+    err = capsys.readouterr().err
+    assert "intro line 1" in err and "'angry'" in err and "sleepy" in err
+    assert env["engine"].calls == []
+
+
+def test_feeling_edit_needs_approval_again(env):  # AC-3.3, FR-6
+    assert run(env, "--reviewed") == 0
+    assert run(env, command="approve") == 0
+    calls = len(env["engine"].calls)
+    env["script"]["outro"]["lines"][1]["emotion"] = "excited"
+    write_script(env["script"], env["folder"])
+    assert run(env, "--reviewed") == 0
+    assert len(env["engine"].calls) == calls + 1  # only that line is spoken again
+    assert load_json(env["audio"] / "status.json")["status"] == "pending review"

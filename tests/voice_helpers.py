@@ -42,7 +42,7 @@ class FakeEngine:
         return np.concatenate([silence(0.1), speech, silence(0.3)])
 
 
-def identity_shift(audio, sample_rate, semitones):
+def identity_shift(audio, sample_rate, semitones, *_):
     return audio
 
 

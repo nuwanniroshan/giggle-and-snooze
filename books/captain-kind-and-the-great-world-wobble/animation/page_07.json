@@ -1,0 +1,178 @@
+{
+  "page_number": 7,
+  "picture": {
+    "file": "page_07.png",
+    "sha256": "7346dd891cefdcaad7da82de87de691654d8d4e14c287cbe6fd8089532773f7a",
+    "width": 1254,
+    "height": 1254
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T13:30:03+00:00",
+  "layers": [
+    {
+      "name": "offered_cushion",
+      "description": "Buttercream round cushion being offered at the center; keep both neighbors' hands outside the mask.",
+      "box": [
+        568,
+        652,
+        716,
+        765
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.62,
+      "pivot": [
+        640,
+        713
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.004,
+          "period_s": 5.6,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "captain_cape",
+      "description": "Apricot cape draped behind the kneeling captain, with stitched edge; exclude face, hands and neighboring figures.",
+      "box": [
+        296,
+        692,
+        541,
+        880
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.64,
+      "pivot": [
+        519,
+        710
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 7.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_garden_sprig",
+      "description": "Slim leafy sprig along the far left edge beside the street lamp; mask leaves and stems only.",
+      "box": [
+        0,
+        222,
+        100,
+        583
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.45,
+      "pivot": [
+        39,
+        575
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 8.5,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_left_flowers",
+      "description": "Bottom-left daisies and their green stems and leaves; exclude cushions and people.",
+      "box": [
+        0,
+        1081,
+        218,
+        1254
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 7,
+      "depth": 0.97,
+      "pivot": [
+        91,
+        1251
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 8.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_right_flower",
+      "description": "Cream daisy and its stem at the lower right corner; isolate petals, flower center, stem and attached leaves.",
+      "box": [
+        1134,
+        1145,
+        1224,
+        1254
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 7,
+      "depth": 0.98,
+      "pivot": [
+        1177,
+        1253
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 7.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          570,
+          969,
+          677,
+          1079
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#ffcf83"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          99,
+          368,
+          244,
+          437
+        ],
+        "layer": null
+      },
+      "intensity": 0.1,
+      "colour": "#ffdc99"
+    }
+  ]
+}

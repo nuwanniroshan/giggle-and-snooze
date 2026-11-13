@@ -555,3 +555,47 @@ def test_stage_command_plan_and_cut(tmp_path):  # spec 009 AC-5.4
             str(paths.root),
         ]
         assert sj.stage_command(stage, pilot, paths, force=True)[-1] == "--force"
+
+
+# --- spec 019: the book build runs a script, not a module -----------------------------------
+
+
+def test_stage_markers_cover_the_book_builder():
+    assert sj.STAGE_MARKERS == ("video_pipeline", "build_book.py")
+
+
+def test_orphaned_build_is_recognised_by_its_marker(studio, tmp_path):
+    orphan = _sleeper("scripts/build_book.py")
+    try:
+        stale = _stale_record(studio / "jobs", orphan.pid, sj._process_started(orphan.pid))
+        r = sj.JobRunner(studio, cwd=tmp_path, stop_grace=0.5)
+        orphan.wait(5)
+        assert orphan.returncode is not None
+        assert read_record(studio, stale["id"])["state"] == "interrupted"
+        assert f"process group {orphan.pid}" in full_log(r, stale["id"])
+        r.close()
+    finally:
+        if orphan.poll() is None:
+            orphan.kill()
+            orphan.wait()
+
+
+def test_job_env_carries_the_job_id(runner, studio):  # spec 021 FR-2: the autopilot's run file
+    job = runner.start("moon", "autopilot", py("import os; print(os.environ['KIDDO_JOB_ID'])"))
+    assert runner.wait(10)
+    assert full_log(runner, job.id).strip() == job.id
+
+
+# --- spec 022: the print cover is a repaint side ------------------------------------------------
+
+
+def test_repaint_print_cover_command(tmp_path):
+    from tests.helpers import make_root
+
+    paths = sb.StudioPaths(tmp_path)
+    folder = make_root(tmp_path)
+    book = sb.get_book(paths, folder.slug)
+    cmd = sj.stage_command("repaint", book, paths, cover="print")
+    assert cmd[-2:] == ["--cover", "print"] and "--cut" not in cmd
+    with pytest.raises(ValueError, match="expected front, print or back"):
+        sj.stage_command("repaint", book, paths, cover="spine")

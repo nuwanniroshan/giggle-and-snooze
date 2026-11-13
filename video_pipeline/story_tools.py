@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from video_pipeline import characters as ch
 from video_pipeline.blueprint import (
     Blueprint,
     BlueprintConfig,
@@ -108,9 +109,68 @@ def candidate_errors(candidate: object, terms: list[str], gentle: list[str]) -> 
     return idea_errors(candidate, "candidate", terms, gentle)
 
 
-def book_errors(book: object, max_pages: int, terms: list[str], gentle: list[str]) -> list[str]:
+def character_errors(
+    book: dict, terms: list[str], gentle: list[str], required: bool = True
+) -> list[str]:
+    """Problems with the submitted character sheet (top-level `characters`) and each page's
+    `characters_on_page` (spec 018: AC-1.1..1.3). With `required=False` (a draft written before
+    spec 018) a book without the sheet is fine; only what is there is checked."""
+    if "characters" not in book:
+        if not required:
+            return []
+        return [f"characters: is missing (list 1 to {ch.MAX_CHARACTERS} with name and look)"]
+    entries = book["characters"]
+    errors = ch.entry_problems(entries, "characters")
+    if not isinstance(entries, list):
+        return errors
+    if not _in_range(len(entries), (1, ch.MAX_CHARACTERS)):
+        errors.append(
+            f"characters: must hold 1 to {ch.MAX_CHARACTERS} characters (it holds {len(entries)})"
+        )
+    names: set[str] = set()
+    for number, entry in enumerate(entries, start=1):
+        if not isinstance(entry, dict):
+            continue
+        where = f"characters[{number}]"
+        name, look = entry.get("name"), entry.get("look")
+        if isinstance(name, str) and name.strip():
+            names.add(name.strip())
+            if not _in_range(len(name.strip()), ch.NAME_LENGTH):
+                errors.append(f"{where}.name: must be 1 to {ch.NAME_LENGTH[1]} characters")
+        if isinstance(look, str) and look.strip():
+            low, high = ch.LOOK_LENGTH
+            if not _in_range(len(look.strip()), ch.LOOK_LENGTH):
+                errors.append(f"{where}.look: must be {low} to {high} characters")
+            if not _in_range(_sentence_count(look), ch.LOOK_SENTENCES):
+                errors.append(f"{where}.look: must be 1 to 2 sentences")
+        for key in ("name", "look"):
+            errors += _term_errors(f"{where}.{key}", str(entry.get(key, "")), terms, gentle)
+    pages = book.get("pages")
+    for number, page in enumerate(pages if isinstance(pages, list) else [], start=1):
+        if not isinstance(page, dict):
+            continue
+        if ch.PAGE_FIELD not in page:
+            errors.append(
+                f"page {number}: {ch.PAGE_FIELD} is missing (the names of the characters shown, "
+                "[] for none)"
+            )
+            continue
+        # A non-list is reported by the load check (book_problems); only names are checked here.
+        found = ch.page_name_problems(page, number, names)
+        errors += [e for e in found if "unknown character" in e]
+    return errors
+
+
+def book_errors(
+    book: object,
+    max_pages: int,
+    terms: list[str],
+    gentle: list[str],
+    require_characters: bool = True,
+) -> list[str]:
     """Problems with a generated book (FR-3, FR-5). `max_pages` is the producer's maximum; the
-    book may be shorter but never longer, and never shorter than the supported minimum."""
+    book may be shorter but never longer, and never shorter than the supported minimum. The
+    character sheet (spec 018) is required unless `require_characters` is False."""
     if not isinstance(book, dict):
         return ["book must be a JSON object"]
     errors = list(book_problems(book, "book"))
@@ -145,6 +205,7 @@ def book_errors(book: object, max_pages: int, terms: list[str], gentle: list[str
     metadata = book.get("metadata")
     if isinstance(metadata, dict) and metadata.get("age_range") not in AGE_RANGES:
         errors.append(f"metadata.age_range must be one of {', '.join(AGE_RANGES)}")
+    errors += character_errors(book, terms, gentle, required=require_characters)
     return errors
 
 

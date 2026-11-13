@@ -17,6 +17,7 @@ from video_pipeline.tts import (
     pitch_filter,
     pitch_ratio,
     pitch_shift,
+    voice_filter,
 )
 
 SETTINGS = ModelSettings("org/model", "abc12345def", 0.6, 0.8, 3000)
@@ -257,3 +258,36 @@ def test_engine_refuses_missing_support_snapshot(monkeypatch, tmp_path):  # revi
     with pytest.raises(VoiceUnavailable, match="org/full") as excinfo:
         OrpheusVoice(SUPPORT)
     assert DOWNLOAD_HINT in str(excinfo.value)
+
+
+# --- spec 017: feelings (AC-3.1, AC-3.2) ----------------------------------------------------
+
+
+def test_voice_filter_equals_pitch_filter_for_neutral_delivery():  # AC-3.2
+    assert voice_filter(2, 24000) == pitch_filter(2, 24000)
+    assert voice_filter(3, 24000, 1.0, 0.0) == pitch_filter(3, 24000)
+
+
+def test_voice_filter_adds_speed_and_loudness_in_one_chain():  # AC-3.1
+    assert voice_filter(12, 24000, 1.25, -3) == (
+        "asetrate=48000,aresample=24000,atempo=0.625000,volume=-3dB"
+    )
+    assert voice_filter(0, 24000, 0.8, 0) == "asetrate=24000,aresample=24000,atempo=0.800000"
+    assert voice_filter(0, 24000, 1.0, 1.5).endswith(",volume=1.5dB")
+
+
+def test_pitch_shift_neutral_delivery_is_a_no_op():  # AC-3.2: no extra processing
+    audio = np.ones(10, dtype=np.float32)
+    assert pitch_shift(audio, 24000, 0, 1.0, 0.0) is audio
+
+
+def test_pitch_shift_runs_ffmpeg_for_a_feeling_alone(monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout=np.ones(4, dtype="<f4").tobytes())
+
+    monkeypatch.setattr(tts.subprocess, "run", fake_run)
+    pitch_shift(np.ones(4, dtype=np.float32), 24000, 0, 0.9, -3)
+    assert voice_filter(0, 24000, 0.9, -3) in seen["cmd"]

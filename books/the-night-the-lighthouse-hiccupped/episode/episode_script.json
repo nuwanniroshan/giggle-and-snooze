@@ -1,0 +1,337 @@
+{
+  "book_slug": "the-night-the-lighthouse-hiccupped",
+  "title": "The Night the Lighthouse Hiccupped",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "orpheus",
+      "voice": "tara",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "orpheus",
+      "voice": "zac",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "orpheus",
+      "voice": "zoe",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Snuggle in, everyone. Tonight we're reading The Night the Lighthouse Hiccupped."
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> That's a very big thing to get the hiccups!"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "I wonder what a lighthouse hiccup sounds like."
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Let's open the book and listen together."
+      }
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "static"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mira polished the lighthouse lamp while Pip fluffed his feathers. Then—HIC!—the lighthouse lifted its little stone feet and bounced off the hill."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Its beam bobbed away, so Mira grabbed her raincoat and followed."
+        }
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "HIC! The lighthouse bounced into the forest, where branches tickled its lamp."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Slow feet, soft voice,” said Mira, easing the branches aside. With room to move, the lighthouse followed her down the path."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Is Mira moving the branches so the lighthouse has room to follow her?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<giggle> Those tiny stone feet! Even its lamp is getting tickled."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes, Leo. Mira gently moves the branches aside to make room. Mia, those little feet have quite a walk ahead of them in this forest."
+        }
+      ],
+      "qa_grounding": "branches tickled its lamp"
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "A stream burbled across the path, and the lighthouse stopped with a shiver. Pip found a wide stone bridge just around the bend."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“One step, then two,” called Mira, and the lighthouse crossed with a tiny hic."
+        }
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "On the shore, fog wrapped the lighthouse in a fluffy gray scarf. HIC!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Its beam swung round and round, so Mira rang her little bell. “Follow the ding,” she said, and the lighthouse followed her sound."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Does the bell help the lighthouse follow Mira when everything looks foggy?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "The fog looks like a fluffy scarf! And Pip is flying right beside Mira."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes! The lighthouse follows the bell's ding through the fog. That fog does look soft as a scarf, with Pip staying close beside Mira."
+        }
+      ],
+      "qa_grounding": "rang her little bell"
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Thunder rumbled over the sea, and the lighthouse gave a great big HIC! “That was loud,” said Mira, sitting beside it in a sheltered cove."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip tucked close, and together they waited until the rumble rolled away."
+        }
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“I tried to shine past all the clouds,” whispered the lighthouse. “But now my light keeps jumping.”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“You can rest a moment,” said Mira, and they breathed in slowly, then blew out softly—whooooo."
+        }
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Hic! A tiny jump rattled the lamp shade crooked."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip nudged it straight, and Mira patted the lighthouse’s warm wall. They tried one more soft whooooo—and this time, the beam stayed still."
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<giggle> Pip's fixing that crooked lamp shade with his beak! Such a little helper."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "He gives it a gentle nudge to straighten it. Mira adds a kind pat, and after another soft breath, the light stays steady."
+        }
+      ],
+      "qa_grounding": "tilted golden lamp shade"
+    },
+    {
+      "page_number": 8,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“The boats will be coming home soon,” said Mira. So they followed the shore, crossed the bridge, and took the forest path uphill."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Slow feet, soft voice,” she said, and the lighthouse walked without a single hiccup."
+        }
+      ]
+    },
+    {
+      "page_number": 9,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Back on its hill, the lighthouse settled its feet into the grass. Mira opened the lamp shutters, and a long golden beam stretched over the water."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "One boat, then two, followed the light into the quiet harbor."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "So is the steady beam showing the boats where the harbor is?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes, Leo. The long golden beam stretches over the water, and the two boats follow its light into the quiet harbor."
+        }
+      ],
+      "qa_grounding": "followed the light"
+    },
+    {
+      "page_number": 10,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "static"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "With every boat tucked in, Mira made cocoa and Pip nestled in his basket. “Thank you for waiting with me,” murmured the lighthouse."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Its light swept softly over the sea, and Mira whispered, “That’s what friends do.”"
+        }
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "kid_younger",
+        "text": "Pip all snuggled in his basket is my favorite cozy bit."
+      },
+      {
+        "speaker": "kid_older",
+        "text": "I liked how Mira stayed with the lighthouse when it needed a rest."
+      },
+      {
+        "speaker": "storyteller",
+        "text": "A little patience and a friend nearby can feel so comforting. Thank you for sharing this story with us."
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Subscribe and come back for our next story. We'll have another cozy tale waiting for you."
+      }
+    ]
+  }
+}

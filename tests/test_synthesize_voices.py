@@ -9,6 +9,8 @@ from tests.helpers import MINI_BOOK, load_json
 from tests.voice_helpers import VOICES_PATH, FakeEngine, identity_shift, make_script
 from video_pipeline import synthesize_voices as sv
 from video_pipeline.contract import ConfigError
+from video_pipeline.emotions import load_emotions
+from video_pipeline.episode_tools import CONFIG_DIR
 from video_pipeline.synthesize_voices import (
     AudioPaths,
     LineFailed,
@@ -239,7 +241,7 @@ def test_clips_are_mono_24k_pcm(script, tmp_path):  # FR-4 format
 def test_pitch_shift_receives_the_role_lift(script, tmp_path):  # AC-2.2 wiring
     seen = []
 
-    def recording_shift(audio, sample_rate, semitones):
+    def recording_shift(audio, sample_rate, semitones, *_):
         seen.append(semitones)
         return audio
 
@@ -369,7 +371,7 @@ def test_engine_error_names_the_line(script, tmp_path):  # review fix 6
 
 
 def test_pitch_shift_error_names_the_line(script, tmp_path):  # review fix 6
-    def failing(audio, sample_rate, semitones):
+    def failing(audio, sample_rate, semitones, *_):
         if semitones == 3.0:
             raise sv.PitchShiftError("ffmpeg pitch shift failed: bad")
         return audio
@@ -478,3 +480,130 @@ def test_timing_without_wav_sha_is_rebuilt_once(script, tmp_path):  # FR-7 upgra
     assert rebuilt == names
     *_, rebuilt, _ = run(script, tmp_path)
     assert rebuilt == []
+
+
+# --- spec 017: feelings change delivery (AC-2.3, AC-3.1-3.3, AC-3.5) ------------------------
+
+
+EMOTIONS = load_emotions(CONFIG_DIR)
+
+
+def _bare(script):
+    """The script without any feelings (as written before spec 017)."""
+    for _, line in _all_lines(script):
+        line.pop("emotion", None)
+    return script
+
+
+def _all_lines(script):
+    lines = [(f"intro-{i:02d}", x) for i, x in enumerate(script["intro"]["lines"], 1)]
+    for page in script["pages"]:
+        n = page["page_number"]
+        lines += [(f"page-{n:02d}-{i:02d}", x) for i, x in enumerate(page["lines"], 1)]
+    return lines + [(f"outro-{i:02d}", x) for i, x in enumerate(script["outro"]["lines"], 1)]
+
+
+def test_neutral_clip_key_is_unchanged_from_before_spec_017():  # AC-2.3
+    # keys made by the code before spec 017 (pinned), so neutral clips are reused as they are
+    assert clip_key("Hello there.", "tara", 0, CFG) == "9ceb5d205738660be09936198fa9dcc5"
+    assert clip_key("Hi!", "zoe", 3, CFG) == "78da23d9d0d463a04296a7a97373c25a"
+    neutral = EMOTIONS.feeling("neutral")
+    assert clip_key("Hello there.", "tara", 2, CFG, "neutral", neutral) == clip_key(
+        "Hello there.", "tara", 2, CFG
+    )
+
+
+def test_missing_and_neutral_feelings_give_the_same_jobs_as_before(script):  # AC-2.3
+    bare = _bare(script)
+    before = plan_jobs(bare, CFG, {})
+    assert plan_jobs(bare, CFG, {}, EMOTIONS) == before
+    marked = json.loads(json.dumps(bare))
+    for _, line in _all_lines(marked):
+        if line.get("role") != "narration":
+            line["emotion"] = "neutral"
+    assert [j.key for j in plan_jobs(marked, CFG, {}, EMOTIONS)] == [j.key for j in before]
+    assert all((j.speed, j.gain_db, j.emotion) == (1.0, 0.0, "neutral") for j in before)
+
+
+def test_feeling_sets_delivery_on_top_of_the_role_lift(script):  # AC-3.1
+    bare = _bare(script)
+    bare["intro"]["lines"][0]["emotion"] = "sleepy"
+    speaker = bare["intro"]["lines"][0]["speaker"]
+    job = plan_jobs(bare, CFG, {}, EMOTIONS)[0]
+    sleepy = EMOTIONS.feeling("sleepy")
+    assert job.emotion == "sleepy"
+    assert job.semitones == CFG.pitch_semitones[speaker] + sleepy.semitones
+    assert (job.speed, job.gain_db) == (sleepy.speed, sleepy.gain_db)
+
+
+def test_changing_a_feeling_changes_only_that_clip_key(script):  # AC-3.3
+    bare = _bare(script)
+    before = plan_jobs(bare, CFG, {}, EMOTIONS)
+    bare["outro"]["lines"][1]["emotion"] = "excited"
+    after = plan_jobs(bare, CFG, {}, EMOTIONS)
+    changed = [b.line_id for b, a in zip(before, after, strict=True) if b.key != a.key]
+    assert changed == ["outro-02"]
+    bare["outro"]["lines"][1]["emotion"] = "happy"
+    assert plan_jobs(bare, CFG, {}, EMOTIONS)[-2].key not in {after[-2].key, before[-2].key}
+
+
+def test_unknown_feeling_in_plan_jobs_is_a_config_error(script):
+    bare = _bare(script)
+    bare["intro"]["lines"][0]["emotion"] = "angry"
+    with pytest.raises(ConfigError, match="angry"):
+        plan_jobs(bare, CFG, {}, EMOTIONS)
+
+
+def test_shift_receives_feeling_delivery_and_neutral_lines_get_none(script, tmp_path):  # AC-3.2
+    bare = _bare(script)
+    bare["intro"]["lines"][0]["emotion"] = "whisper"
+    seen = []
+
+    def recording_shift(audio, sample_rate, semitones, speed, gain_db):
+        seen.append((semitones, speed, gain_db))
+        return audio
+
+    jobs = plan_jobs(bare, CFG, {}, EMOTIONS)
+    synthesize_clips(jobs, AudioPaths(tmp_path / "a"), FakeEngine, CFG, shift=recording_shift)
+    whisper = EMOTIONS.feeling("whisper")
+    lift = CFG.pitch_semitones[bare["intro"]["lines"][0]["speaker"]]
+    assert seen[0] == (lift + whisper.semitones, whisper.speed, whisper.gain_db)
+    assert {(speed, gain) for _, speed, gain in seen[1:]} == {(1.0, 0.0)}
+
+
+def test_feeling_change_resynthesizes_only_that_line(script, tmp_path):  # AC-3.3
+    bare = _bare(script)
+    paths = AudioPaths(tmp_path / "audio")
+    jobs = plan_jobs(bare, CFG, {}, EMOTIONS)
+    synthesize_clips(jobs, paths, FakeEngine, CFG, shift=identity_shift)
+    bare["intro"]["lines"][1]["emotion"] = "calm"
+    engine = FakeEngine()
+    jobs = plan_jobs(bare, CFG, {}, EMOTIONS)
+    synthesize_clips(jobs, paths, lambda: engine, CFG, shift=identity_shift)
+    assert [text for text, *_ in engine.calls] == [jobs[1].spoken]
+    meta = load_json(paths.clip_meta(jobs[1].key))
+    assert meta["emotion"] == "calm"
+    assert "emotion" not in load_json(paths.clip_meta(jobs[0].key))
+
+
+def test_checks_measure_the_shaped_audio(script, tmp_path):  # AC-3.5
+    bare = _bare(script)
+    bare["intro"]["lines"][0]["emotion"] = "sleepy"
+
+    def slow_down(audio, sample_rate, semitones, speed, gain_db):
+        if speed == 1.0:
+            return audio
+        index = np.arange(0, len(audio), speed)
+        return np.interp(index, np.arange(len(audio)), audio).astype(np.float32)
+
+    jobs = plan_jobs(bare, CFG, {}, EMOTIONS)
+    outcomes = synthesize_clips(
+        jobs[:1] + [dataclasses.replace(jobs[0], key="plain", speed=1.0, gain_db=0.0)],
+        AudioPaths(tmp_path / "a"),
+        FakeEngine,
+        CFG,
+        shift=slow_down,
+    )
+    sleepy, plain = outcomes[0].measure, outcomes[1].measure
+    assert sleepy.duration > plain.duration * 1.1
+    assert outcomes[0].problems == []

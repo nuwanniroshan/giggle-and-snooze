@@ -57,13 +57,14 @@ def test_design_story_book_pictures_script_then_edit_marks_stale(root, monkeypat
     # pictures: fake painter records every prompt
     prompts: list[str] = []
 
-    def paint(binary, prompt, reference, target):
+    def paint(binary, prompt, reference, target, **_titled):
         prompts.append(prompt)
         target.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (64, 64), "green").save(target)
 
     monkeypatch.setattr(illustrate, "codex_status", lambda: Path("/fake/codex"))
     monkeypatch.setattr(illustrate, "paint_one", paint)
+    monkeypatch.setattr(illustrate, "paint_titled_cover", paint)  # new books: titled (spec 022)
     monkeypatch.setattr(
         illustrate, "plan_page", lambda *a, **k: PlanOutcome(a[1]["page_number"], "written", "")
     )
@@ -100,7 +101,12 @@ def test_design_story_book_pictures_script_then_edit_marks_stale(root, monkeypat
     write_atomic(folder.blueprint_path, edited)
     info = sb.blueprint_status(paths, studio_book)
     assert [m["output"] for m in info["stale"]] == ["pictures", "episode script"]
-    assert sb.stage_status(paths, studio_book, studio.runner.latest) == status_before
+    status_after = sb.stage_status(paths, studio_book, studio.runner.latest)
+    # spec 016 AC-3.3: only the pictures' own mark changes; the script, voices and video stages
+    # (and the next step) stay as they were
+    assert status_before["pictures"]["state"] == "done"
+    assert status_after["pictures"]["state"] == "out_of_date"
+    assert {**status_after, "pictures": None} == {**status_before, "pictures": None}
     assert script_sha256(folder.script_path) == script_hash
 
 

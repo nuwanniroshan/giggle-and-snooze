@@ -1,0 +1,153 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "2e70242a3a075e3bf39256c98cded7a66ea72465373fdfd3890875a467056818",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:10:08+00:00",
+  "layers": [
+    {
+      "name": "floating_bus",
+      "description": "Entire mint floating bus including fins, roof domes, glowing thrusters, Mira, driver and ticket; keep all passengers moving together with the vehicle.",
+      "box": [
+        235,
+        18,
+        1471,
+        621
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.8,
+      "pivot": [
+        858,
+        319
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.006,
+          "period_s": 6.0,
+          "phase": 0.0,
+          "direction": null
+        },
+        {
+          "type": "rotate",
+          "amplitude": 0.35,
+          "period_s": 8.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_cloud",
+      "description": "Isolated pale mint cloud along the left edge beneath the moon.",
+      "box": [
+        0,
+        287,
+        222,
+        395
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.15,
+      "pivot": [
+        110,
+        344
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 12.0,
+          "phase": 0.2,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "upper_right_cloud",
+      "description": "Pale mint cloud at the upper right edge.",
+      "box": [
+        1498,
+        183,
+        1672,
+        288
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.12,
+      "pivot": [
+        1587,
+        240
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 12.0,
+          "phase": 0.65,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "small_center_cloud",
+      "description": "Small isolated mint cloud below the bus above the distant town.",
+      "box": [
+        702,
+        644,
+        863,
+        709
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.25,
+      "pivot": [
+        783,
+        681
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 10.0,
+          "phase": 0.4,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          931,
+          232,
+          1060,
+          328
+        ],
+        "layer": null
+      },
+      "intensity": 0.18,
+      "colour": "#ffda65"
+    }
+  ]
+}

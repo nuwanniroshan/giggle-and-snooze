@@ -9,15 +9,18 @@
   "transition_style": "slideleft",
   "back_cover_seconds": 2.5,
   "motion": {
-    "push_zoom": 1.12,
-    "pan_zoom": 1.12,
-    "pan_travel": 0.06,
+    "push_zoom": 1.22,
+    "pan_zoom": 1.2,
+    "pan_travel": 0.08,
     "qa_ease": 1.2,
-    "intro_zoom": 1.15,
+    "intro_zoom": 1.2,
     "outro_zoom": 1.15,
     "outro_fade": 1.0
   },
-  "backdrop": {"blur": 30, "darken": 0.55},
+  "backdrop": {
+    "blur": 30,
+    "darken": 0.55
+  },
   "captions": {
     "font_size": 48,
     "max_chars": 44,
@@ -32,11 +35,18 @@
   "audio": {
     "peak_dbfs": -1.0,
     "sfx_gain_db": -6.0,
-    "ambience_gain_db": -14.0,
+    "voice_gain_db": 6.0,
+    "limiter_ms": 30.0,
+    "ambience_gain_db": -20.0,
     "ambience_fade": 1.5,
     "loop_crossfade": 1.0
   },
-  "video": {"crf": 18, "preset": "medium", "audio_bitrate": "192k", "audio_rate": 48000},
+  "video": {
+    "crf": 18,
+    "preset": "medium",
+    "audio_bitrate": "192k",
+    "audio_rate": 48000
+  },
   "animation": {
     "enabled": true,
     "intensity": 1.0,
@@ -46,14 +56,103 @@
     "override_min": 0.25,
     "override_max": 2.0,
     "effects": {
-      "rain": {"count": 260, "speed": 1.6, "size": 40.0, "strength": 0.6, "colour": "#dfe6f0"},
-      "snow": {"count": 160, "speed": 0.12, "size": 3.0, "strength": 0.85, "colour": "#ffffff"},
-      "fireflies": {"count": 40, "speed": 0.25, "size": 7.0, "strength": 0.9, "colour": "#ffe08a"},
-      "falling_leaves": {"count": 14, "speed": 0.08, "size": 14.0, "strength": 1.0, "colour": "#c8862e"},
-      "water_ripple": {"count": 0, "speed": 0.5, "size": 38.0, "strength": 4.0, "colour": "#ffffff"},
-      "smoke": {"count": 6, "speed": 0.03, "size": 80.0, "strength": 0.35, "colour": "#d9d4cc"},
-      "mist": {"count": 0, "speed": 0.01, "size": 220.0, "strength": 0.25, "colour": "#e8eef2"},
-      "glow": {"count": 0, "speed": 0.2, "size": 60.0, "strength": 0.25, "colour": "#fff2c4"}
+      "rain": {
+        "count": 260,
+        "speed": 1.6,
+        "size": 40.0,
+        "strength": 0.6,
+        "colour": "#dfe6f0"
+      },
+      "snow": {
+        "count": 160,
+        "speed": 0.12,
+        "size": 3.0,
+        "strength": 0.85,
+        "colour": "#ffffff"
+      },
+      "fireflies": {
+        "count": 40,
+        "speed": 0.25,
+        "size": 7.0,
+        "strength": 0.9,
+        "colour": "#ffe08a"
+      },
+      "falling_leaves": {
+        "count": 14,
+        "speed": 0.08,
+        "size": 14.0,
+        "strength": 1.0,
+        "colour": "#c8862e"
+      },
+      "water_ripple": {
+        "count": 0,
+        "speed": 0.5,
+        "size": 38.0,
+        "strength": 4.0,
+        "colour": "#ffffff"
+      },
+      "smoke": {
+        "count": 6,
+        "speed": 0.03,
+        "size": 80.0,
+        "strength": 0.35,
+        "colour": "#d9d4cc"
+      },
+      "mist": {
+        "count": 0,
+        "speed": 0.01,
+        "size": 220.0,
+        "strength": 0.25,
+        "colour": "#e8eef2"
+      },
+      "glow": {
+        "count": 0,
+        "speed": 0.2,
+        "size": 60.0,
+        "strength": 0.25,
+        "colour": "#fff2c4"
+      }
     }
-  }
+  },
+  "grade": {
+    "enabled": true,
+    "picture": true,
+    "sound": true,
+    "contrast": 1.05,
+    "saturation": 1.12,
+    "gamma": 1.02,
+    "brightness": 0.0,
+    "rs": 0.0,
+    "gs": 0.0,
+    "bs": 0.0,
+    "rm": 0.0,
+    "gm": 0.0,
+    "bm": 0.0,
+    "rh": 0.0,
+    "gh": 0.0,
+    "bh": 0.0,
+    "unsharp_size": 5,
+    "unsharp_amount": 0.5,
+    "unsharp_chroma_amount": 0.0,
+    "vignette_angle": 0.448799,
+    "picture_fade_in": 0.8,
+    "picture_fade_out": 2.0,
+    "sound_fade_in": 0.8,
+    "sound_fade_out": 2.0,
+    "highpass_hz": 70,
+    "compressor_threshold_db": -24,
+    "compressor_ratio": 3,
+    "compressor_attack_ms": 15,
+    "compressor_release_ms": 250,
+    "compressor_makeup": 2,
+    "loudness_lufs": -16,
+    "true_peak_dbfs": -1.5,
+    "loudness_range": 7
+  },
+  "channel_name": "Giggle & Snooze",
+  "channel_intro": "assets/brand/giggle_and_snooze_intro.mp4",
+  "channel_logo": "assets/brand/giggle_and_snooze_logo.png",
+  "channel_open_clip": "assets/brand/bedtime_open.mp4",
+  "channel_close_clip": "assets/brand/bedtime_close.mp4",
+  "channel_blend_seconds": 1.5
 }

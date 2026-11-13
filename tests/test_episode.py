@@ -42,10 +42,14 @@ def test_load_book_accepts_both_books():
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda b: b["pages"].pop(), "supported range is 8-32"),
+        (lambda b: b.update(pages=b["pages"][:4]), "supported range is 5-32"),
         (lambda b: b["pages"][0].update(text="  "), "page 1: 'text' is missing or empty"),
         (lambda b: b["pages"][1].update(page_number=3), "page 2: page_number must be 2"),
         (lambda b: b["metadata"].update(title="!!!"), "title has no letters or digits"),
+        (  # spec 018: a malformed character sheet
+            lambda b: b.setdefault("style_bible", {}).update(characters=[{"name": "Dot"}]),
+            r"characters\[1\]\.look",
+        ),
     ],
 )
 def test_load_book_rejects_invalid_books(tmp_path, mutate, message):
@@ -53,6 +57,16 @@ def test_load_book_rejects_invalid_books(tmp_path, mutate, message):
     mutate(book)
     with pytest.raises(BookError, match=message):
         load_book(write_book(tmp_path, book))
+
+
+def test_load_book_accepts_a_valid_character_sheet(tmp_path):  # spec 018: AC-1.4, AC-2.3
+    book = load_json(MINI_BOOK)
+    look = "A tiny ladybird with seven black spots and a yellow satchel."
+    book.setdefault("style_bible", {})["characters"] = [{"name": "Dot", "look": look}]
+    for page in book["pages"]:
+        page["characters_on_page"] = ["Dot"]
+    book["print_extras"] = {"note": "spec 020 may add this top-level key"}
+    assert load_book(write_book(tmp_path, book))["style_bible"]["characters"][0]["name"] == "Dot"
 
 
 def test_load_book_reports_bad_json(tmp_path):
@@ -150,10 +164,12 @@ def test_assemble_script_structure():
         assert page["has_qa"] == (page["page_number"] in plan.qa_speakers)
         assert ("qa_zoom_target" in page["ffmpeg_camera"]) == page["has_qa"]
         if page["has_qa"]:
+            tag = "" if "kid_younger" in plan.qa_speakers[page["page_number"]] else "<chuckle> "
             assert page["lines"][-1] == {
                 "speaker": "storyteller",
                 "role": "answer",
-                "text": "<chuckle> Let's keep reading and see!",
+                "text": f"{tag}Let's keep reading and see!",
+                "emotion": "happy",  # spec 017: make_banter gives each moment a feeling
             }
 
 
@@ -172,3 +188,14 @@ def test_banter_plan_errors_detects_mismatch():
     errors = banter_plan_errors(banter, plan)
     assert any(f"page {first.page_number}: kids speaking must be exactly" in e for e in errors)
     assert "unexpected Q&A moment for page 99" in errors
+
+
+def test_book_problems_refuse_unknown_cover_style():  # spec 022: only 'titled' is a marker
+    from video_pipeline.episode import book_problems
+
+    book = load_json(MINI_BOOK)
+    assert book_problems(book, "b.json") == []
+    book["metadata"]["cover_style"] = "titled"
+    assert book_problems(book, "b.json") == []
+    book["metadata"]["cover_style"] = "fancy"
+    assert "b.json: metadata.cover_style must be 'titled'" in book_problems(book, "b.json")

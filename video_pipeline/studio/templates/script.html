@@ -1,23 +1,40 @@
-{% extends "base.html" %}
-{% from "_macros.html" import problem_list, book_links %}
+{% extends "book_base.html" %}
+{% from "_macros.html" import problem_list %}
+{% set here = 'script' %}
 {% block title %}Script: {{ book.title }}{% endblock %}
 {% macro line_fields(lines) %}
+<div class="lines">
 {% for line in lines %}
-<div class="line" id="{{ line.id }}">
-  <p class="small meta"><span>{{ line.id }}</span> <span>{{ line.speaker }}</span>{% if line.role %} <span>{{ line.role }}</span>{% endif %}</p>
-  <textarea name="{{ line.id }}" rows="{{ [2, (line.text|length // 70) + 1]|max }}">{{ line.text }}</textarea>
-  {{ problem_list(line.problems, line.id) }}
+{% set who = {'storyteller': ('ST', 'Storyteller'), 'kid_older': ('K1', 'Kid 1'), 'kid_younger': ('K2', 'Kid 2')}.get(line.speaker, ((line.speaker or '?')[:2]|upper, line.speaker)) %}
+<div class="line spk-{{ line.speaker }}" id="{{ line.id }}">
+  <span class="avatar" aria-hidden="true">{{ who[0] }}</span>
+  <div>
+    <p class="who meta"><strong>{{ who[1] }}</strong>{% if line.role %} <span>{{ line.role }}</span>{% endif %} <span class="id">{{ line.id }}</span> <span class="visually-hidden">{{ line.speaker }}</span></p>
+    <textarea name="{{ line.id }}" rows="{{ [2, (line.text|length // 70) + 1]|max }}" aria-label="{{ who[1] }} line {{ line.id }}">{{ line.text }}</textarea>
+    {% if line.feeling %}
+    <label class="feeling meta">Feeling
+      <select name="emotion:{{ line.id }}" aria-label="Feeling for line {{ line.id }}">
+        {% for name in line.feeling.choices %}<option value="{{ name }}"{% if name == line.feeling.current %} selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    {{ problem_list(line.problems, line.id) }}
+  </div>
 </div>
 {% endfor %}
+</div>
 {% endmacro %}
 {% block content %}
-<h1>Script</h1>
-<p class="muted">{{ book.title }}</p>
-{{ book_links(book) }}
+<header class="page-head">
+  <div>
+    <h1>Episode script</h1>
+    <p class="lede">Read every line beside its picture, fix what is wrong, then mark it as reviewed.</p>
+  </div>
+</header>
 {% if script is none %}
-<p>No episode script yet. <a href="/books/{{ book.slug }}">Generate script</a> first.</p>
+<p class="empty">No episode script yet. <a href="/books/{{ book.slug }}">Generate script</a> first.</p>
 {% elif script.error %}
-<p class="strong">{{ script.error }}</p>
+<div class="notice"><p class="strong">{{ script.error }}</p></div>
 {% else %}
 {% if script.problems %}
 <section class="notice">
@@ -25,35 +42,53 @@
   <ul class="problems">{% for p in script.problems %}<li>{% if p.target %}<a href="#{{ p.target }}">{{ p.text }}</a>{% else %}{{ p.text }}{% endif %}</li>{% endfor %}</ul>
 </section>
 {% endif %}
-<section class="stage">
-  {% if script.reviewed %}
-  <p><span class="state">REVIEWED</span> <span class="muted">at {{ script.reviewed.reviewed_at }}</span></p>
+<div class="sticky-bar{% if not script.reviewed %} is-todo{% endif %}">
+  {% if script.reviewed and script.reviewed.by == 'autopilot' %}
+  <span class="state t-done">REVIEWED</span>
+  <span class="grow">Reviewed automatically by autopilot at {{ script.reviewed.reviewed_at }}; mark it as reviewed to confirm.</span>
+  {% elif script.reviewed %}
+  <span class="state t-done">REVIEWED</span>
+  <span class="grow">at {{ script.reviewed.reviewed_at }}</span>
   {% else %}
-  <p><span class="state">NOT REVIEWED</span> <span class="muted">Read every line, fix what is wrong, then mark it as reviewed. Saving an edit clears the mark.</span></p>
+  <span class="state t-attention">NOT REVIEWED</span>
+  <span class="grow">Saving an edit clears the mark.</span>
   {% endif %}
   <form method="post" action="/books/{{ book.slug }}/script/reviewed" class="inline">
-    <button type="submit">Mark as reviewed</button>
+    <button type="submit"{% if script.reviewed %} class="secondary"{% endif %}>Mark as reviewed</button>
   </form>
-</section>
+</div>
+<nav class="page-jump" aria-label="Jump to page">
+  <a href="#intro">Intro</a>
+  {% for page in script.pages %}<a href="#{{ page.anchor }}"{% if page.problems %} class="has-problem"{% endif %}>{{ page.number }}</a>{% endfor %}
+  <a href="#outro">Outro</a>
+</nav>
 <form method="post" action="/books/{{ book.slug }}/script" id="script-form">
-  <section class="stage">
-    <h2>Intro</h2>
-    {{ line_fields(script.intro) }}
+  <section class="scene bookend" id="intro">
+    <div>
+      <div class="scene-head"><h2>Intro</h2></div>
+      {{ line_fields(script.intro) }}
+    </div>
   </section>
   {% for page in script.pages %}
-  <section class="stage page" id="{{ page.anchor }}">
-    <h2>Page {{ page.number }}{% if page.title %} <span class="muted">{{ page.title }}</span>{% endif %}</h2>
-    <img class="thumb" src="/media/{{ book.slug }}/illustration/{{ page.picture }}" alt="Illustration for page {{ page.number }}" loading="lazy">
-    <p class="muted">{{ page.text }}</p>
-    {{ problem_list(page.problems, page.anchor) }}
-    {{ line_fields(page.lines) }}
+  <section class="scene page" id="{{ page.anchor }}">
+    <div class="scene-art">
+      <img src="/media/{{ book.slug }}/illustration/{{ page.picture }}" alt="Illustration for page {{ page.number }}" loading="lazy">
+      <p class="page-text">{{ page.text }}</p>
+    </div>
+    <div>
+      <div class="scene-head"><span class="pg num">{{ '%02d'|format(page.number) }}</span><h2>Page {{ page.number }}{% if page.title %} <span class="muted">{{ page.title }}</span>{% endif %}</h2></div>
+      {{ problem_list(page.problems, page.anchor) }}
+      {{ line_fields(page.lines) }}
+    </div>
   </section>
   {% endfor %}
-  <section class="stage">
-    <h2>Outro</h2>
-    {{ line_fields(script.outro) }}
+  <section class="scene bookend" id="outro">
+    <div>
+      <div class="scene-head"><h2>Outro</h2></div>
+      {{ line_fields(script.outro) }}
+    </div>
   </section>
-  <div class="stage"><button type="submit">Save edits</button></div>
+  <div class="save-bar"><span class="muted">Edits are checked before they are saved.</span><button type="submit">Save edits</button></div>
 </form>
 {% endif %}
 {% endblock %}

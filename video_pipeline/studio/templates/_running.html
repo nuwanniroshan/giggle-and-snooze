@@ -1,0 +1,8 @@
+{% if running %}
+<div class="running" id="running" role="status">
+  <span class="pulse" aria-hidden="true"></span>
+  <span class="running-what"><span class="state t-running">RUNNING</span> {{ running.label }} for <a href="/books/{{ running.book }}">{{ running.title }}</a></span>
+  <span class="muted num" data-elapsed="{{ running.elapsed }}">{{ format_duration(running.elapsed) }}</span>
+  <form method="post" action="/jobs/stop" class="inline"><button class="secondary" type="submit">Stop</button></form>
+</div>
+{% endif %}

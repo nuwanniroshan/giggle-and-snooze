@@ -44,7 +44,15 @@ def make_banter(book: dict, plan: EpisodePlan) -> Banter:
             }
             for kid in kids
         ]
-        lines.append({"speaker": "storyteller", "text": "<chuckle> Let's keep reading and see!"})
+        # one sound tag and one non-neutral feeling per moment (spec 017 generation rules)
+        tag = "" if "kid_younger" in kids else "<chuckle> "
+        lines.append(
+            {
+                "speaker": "storyteller",
+                "text": f"{tag}Let's keep reading and see!",
+                "emotion": "happy",
+            }
+        )
         moments.append(
             {
                 "page_number": page_number,

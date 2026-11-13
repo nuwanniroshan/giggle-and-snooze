@@ -30,7 +30,16 @@ def illustration_name(page: dict) -> str:
 
 def _shrink_render_config(path: Path) -> None:
     cfg = load_json(path)
-    cfg.update(width=320, height=180, fps=10, upscale=2)
+    cfg.update(
+        width=320,
+        height=180,
+        fps=10,
+        upscale=2,
+        channel_intro="",
+        channel_open_clip="",
+        channel_close_clip="",
+    )
+    cfg["grade"] = {"enabled": False}  # spec 013: the grade has its own tests
     cfg["captions"].update(font_size=16, margin=8, padding=6)
     cfg["backdrop"]["blur"] = 4
     cfg["video"]["preset"] = "ultrafast"

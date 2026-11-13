@@ -9,15 +9,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from video_pipeline import characters
 from video_pipeline.contract import (
+    ALLOWED_TAGS,
     INTRO_EFFECT,
     KIDS,
     MAX_NARRATION_SENTENCES,
     MAX_NARRATION_WORDS,
     NARRATION_MOTIONS,
     OUTRO_EFFECT,
+    TAG_RE,
     Banter,
     BanterLine,
+    ConfigError,
     qa_bounds,
     qa_schedule_errors,
     slugify,
@@ -25,11 +29,13 @@ from video_pipeline.contract import (
     strip_tags,
     word_count,
 )
+from video_pipeline.timeline import parse_grade
 
 if TYPE_CHECKING:
     from video_pipeline.blueprint import Ambience, Blueprint
+    from video_pipeline.emotions import Generation
 
-MIN_PAGES = 8
+MIN_PAGES = 5
 MAX_PAGES = 32
 DEFAULT_ZOOM = {"x": 0.5, "y": 0.5, "zoom": 1.3}
 X_CUES = {"left": 0.3, "right": 0.7}
@@ -73,6 +79,13 @@ def book_problems(book: object, where: str) -> list[str]:
         problems.append(
             f"{where}: book has {count} pages; supported range is {MIN_PAGES}-{MAX_PAGES}"
         )
+    if isinstance(metadata, dict) and metadata.get("cover_style", "titled") != "titled":
+        problems.append(f"{where}: metadata.cover_style must be 'titled'")
+    if "grade" in book:
+        try:
+            parse_grade(book["grade"], f"{where}: grade")
+        except ConfigError as exc:
+            problems.append(str(exc))
     if not isinstance(pages, list):
         return problems
     for expected, page in enumerate(pages, start=1):
@@ -88,6 +101,7 @@ def book_problems(book: object, where: str) -> list[str]:
             value = page.get(field)
             if not isinstance(value, str) or not value.strip():
                 problems.append(f"{where}: page {expected}: '{field}' is missing or empty")
+    problems += characters.sheet_problems(book, where)
     return problems
 
 
@@ -141,7 +155,7 @@ def choose_qa_pages(
 def assign_speakers(count: int, rng: random.Random) -> list[tuple[str, ...]]:
     picks = [*SPEAKER_SETS, *(rng.choice(SPEAKER_SETS) for _ in range(count - 3))]
     rng.shuffle(picks)
-    return picks
+    return picks[:count]  # a short book has fewer Q&A pages than speaker sets
 
 
 def plan_episode(book: dict, seed: int, blueprint: Blueprint | None = None) -> EpisodePlan:
@@ -161,7 +175,14 @@ def plan_episode(book: dict, seed: int, blueprint: Blueprint | None = None) -> E
             )
     qa_pages = choose_qa_pages(page_count, rng, window)
     speakers = assign_speakers(len(qa_pages), rng)
-    motions = tuple(rng.choice(NARRATION_MOTIONS) for _ in range(page_count))
+    if blueprint is None:
+        motions = tuple(rng.choice(NARRATION_MOTIONS) for _ in range(page_count))
+    else:  # every page moves, and never the same move twice in a row
+        picks: list[str] = []
+        for _ in range(page_count):
+            options = [m for m in NARRATION_MOTIONS if m != "static" and m not in picks[-1:]]
+            picks.append(rng.choice(options))
+        motions = tuple(picks)
     return EpisodePlan(dict(zip(qa_pages, speakers, strict=True)), motions, notes)
 
 
@@ -184,11 +205,18 @@ def _qa_line(line: BanterLine) -> dict:
         role = "answer"
     else:
         role = "question" if strip_tags(line.text).endswith("?") else "reaction"
-    return {"speaker": line.speaker, "role": role, "text": line.text}
+    return _with_emotion({"speaker": line.speaker, "role": role, "text": line.text}, line)
 
 
 def _bookend_line(line: BanterLine) -> dict:
-    return {"speaker": line.speaker, "text": line.text}
+    return _with_emotion({"speaker": line.speaker, "text": line.text}, line)
+
+
+def _with_emotion(entry: dict, line: BanterLine) -> dict:
+    """Copy the line's feeling only when set, so scripts without feelings stay unchanged."""
+    if line.emotion is not None:
+        entry["emotion"] = line.emotion
+    return entry
 
 
 def assemble_script(
@@ -253,4 +281,47 @@ def banter_plan_errors(banter: Banter, plan: EpisodePlan) -> list[str]:
             )
     for number in sorted(moments.keys() - plan.qa_speakers.keys()):
         errors.append(f"unexpected Q&A moment for page {number}")
+    return errors
+
+
+def _sound_tags(text: str) -> list[str]:
+    return [tag for tag in TAG_RE.findall(text) if tag[1:-1] in ALLOWED_TAGS]
+
+
+def banter_feeling_errors(banter: Banter, plan: EpisodePlan, gen: Generation) -> list[str]:
+    """Spec 017 generation rules: sound-tag count and spread, and feelings per moment.
+
+    Only newly generated banter is held to these (FR-2); saved scripts are never re-checked."""
+    named = [(f"intro line {i}", line) for i, line in enumerate(banter.intro, start=1)]
+    for moment in banter.moments:
+        named += [
+            (f"page {moment.page_number} Q&A line {i}", line)
+            for i, line in enumerate(moment.lines, start=1)
+        ]
+    named += [(f"outro line {i}", line) for i, line in enumerate(banter.outro, start=1)]
+    moments = len(plan.qa_speakers)
+    low, high = moments * gen.tags_per_moment_min, moments * gen.tags_per_moment_max
+    count = sum(len(_sound_tags(line.text)) for _, line in named)
+    errors: list[str] = []
+    if count < low:
+        errors.append(
+            f"only {count} sound tags (need at least {low} for {moments} Q&A moments); add "
+            "<giggle> <laugh> <chuckle> <gasp> <sigh> <yawn> where they fit, spread across "
+            "the episode"
+        )
+    if count > high:
+        errors.append(f"{count} sound tags (at most {high} for {moments} Q&A moments)")
+    errors += [
+        f"{where}: more than one sound tag in a line"
+        for where, line in named
+        if len(_sound_tags(line.text)) > 1
+    ]
+    need = gen.feelings_per_moment_min
+    for moment in banter.moments:
+        felt = sum((line.emotion or "neutral") != "neutral" for line in moment.lines)
+        if felt < need:
+            errors.append(
+                f"page {moment.page_number}: give at least {need} line(s) a feeling other than "
+                "neutral that fits the moment"
+            )
     return errors

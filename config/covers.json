@@ -1,0 +1,29 @@
+{
+  "logo": "assets/brand/giggle_and_snooze_logo.png",
+  "logo_name": "Giggle & Snooze",
+  "logo_description": "same glossy bubbly letters, orange-to-yellow GIGGLE, teal &, blue-to-lilac SNOOZE, small zzz",
+  "logo_width_pct": 14,
+  "safe_side_pct": 12,
+  "safe_top_bottom_pct": 5,
+  "tries": 3,
+  "shapes": {
+    "cover_front": {
+      "label": "video cover",
+      "ratio": [4, 3],
+      "accept": [1.0, null],
+      "frame": "landscape 4:3 (generate at 1536x1024; the left and right edges are trimmed to 4:3)"
+    },
+    "cover_front_print": {
+      "label": "print cover",
+      "ratio": [1, 1],
+      "accept": [0.769, 1.3],
+      "frame": "square 1:1 (generate at 1024x1024)"
+    }
+  },
+  "layout_rules": [
+    "The title is the hero: large, bold, perfectly spelled, hand-lettered in this book's own medium and integrated into the scene, not a flat font pasted on top. Place it where it reads best for this composition.",
+    "The subtitle is smaller, near the title, perfectly spelled.",
+    "The main character is large and appealing in an inviting moment from the story, in the book's setting, with one clear focal point and depth.",
+    "No other text: no author name, no barcode, no price, no extra words."
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "e811bd4d2585da437dde1f4ea1b1ca8efba771f59eaaec4c7aa42cc07ec1bca0",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T14:16:07+00:00",
+  "layers": [
+    {
+      "name": "guardian_and_cape",
+      "description": "Floating sleepy Guardian, including curls, lilac pajamas, hands, bare feet, and the entire glowing pink cape; preserve the pose and gentle yawn.",
+      "box": [
+        265,
+        139,
+        1123,
+        678
+      ],
+      "include_points": [],
+      "exclude_points": [
+        [
+          1035,
+          370
+        ]
+      ],
+      "z": 3,
+      "depth": 0.75,
+      "pivot": [
+        793,
+        411
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.003,
+          "period_s": 8.0,
+          "phase": 0.0,
+          "direction": null
+        },
+        {
+          "type": "rotate",
+          "amplitude": 0.35,
+          "period_s": 10.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "sleepy_pocket_star",
+      "description": "Curled white sleeping star cradled between the Guardian's hands in the open cape pocket.",
+      "box": [
+        974,
+        306,
+        1094,
+        448
+      ],
+      "include_points": [
+        [
+          1033,
+          367
+        ],
+        [
+          1037,
+          413
+        ]
+      ],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        1034,
+        432
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.003,
+          "period_s": 8.0,
+          "phase": 0.0,
+          "direction": null
+        },
+        {
+          "type": "breathe",
+          "amplitude": 0.008,
+          "period_s": 5.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_low_cloud",
+      "description": "Long soft lilac cloud bank above the distant hills on the lower right.",
+      "box": [
+        1043,
+        438,
+        1672,
+        680
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.35,
+      "pivot": [
+        1371,
+        573
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 12.0,
+          "phase": 0.3,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "upper_right_cloud",
+      "description": "Small lavender cloud entering from the upper right edge.",
+      "box": [
+        1497,
+        185,
+        1672,
+        315
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.25,
+      "pivot": [
+        1591,
+        263
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 11.0,
+          "phase": 0.6,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "sleepy_pocket_star"
+      },
+      "intensity": 0.16,
+      "colour": "#fff0d4"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1110,
+          22,
+          1644,
+          433
+        ],
+        "layer": null
+      },
+      "intensity": 0.1,
+      "colour": "#e4eaff"
+    }
+  ]
+}

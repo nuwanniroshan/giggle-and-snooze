@@ -1,0 +1,386 @@
+{
+  "book_slug": "jack-and-the-topsy-turvy-dream",
+  "title": "Jack and the Topsy-Turvy Dream",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "orpheus",
+      "voice": "tara",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "orpheus",
+      "voice": "zac",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "orpheus",
+      "voice": "zoe",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "What was the weirdest dream you ever had? Snuggle in for a strange one. Our story is Jack and the Topsy-Turvy Dream.",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> Upside-down flowers? My ears are ready!",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "I'll listen for clues, like a dream detective.",
+        "emotion": "curious"
+      }
+    ],
+    "ambience": [
+      "wind_loop"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Jack snuggled under his quilt with his favourite red toy car. He gave its wheels one sleepy spin."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Round and round—and into a dream."
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "In Jack’s dream, flowers nodded upside down. A curly road looped over a cushion hill."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Jack followed the curl—and his car slipped from his pocket."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Jack's car slipped out of his pocket! Do you think he noticed?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<gasp> Oh no, his little red car! Somebody should tell him.",
+          "emotion": "surprised"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Jack hasn't noticed yet. Let's keep reading and see who finds it.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "his car slipped from his pocket",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "A little three-eyed friend found the car. Wobble, wobble, patter-pat!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "It hurried after Jack, calling, “You dropped your car!”"
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Jack heard a call, but not the words. He took two quicker steps, and the friend took two quicker steps too."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Then Jack stopped and turned; the friend stopped with a smile."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Jack hears someone calling, but not the words. Why do you think he walks faster?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "<chuckle> Maybe the friend just wants to say something!",
+          "emotion": "happy"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Good thinking. When Jack stops and turns around, he can finally hear what his friend is saying.",
+          "emotion": "happy"
+        }
+      ],
+      "qa_grounding": "Jack heard a call",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Jack stood still and listened. “You dropped your car!” said the friend, holding it out."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Oh!” said Jack. “Thank you!”"
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“I’m Jack. Shall we play?”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The friend nodded so happily that its scarf bobbed. Jack set the car between them, and together they gave it a push."
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Round the curl rolled the little red car. Jack pushed, then his friend pushed."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Taking turns kept it rolling—round and round!"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "<giggle> Push, push, round and round! Can I have a turn too?",
+          "emotion": "excited"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Of course! Taking turns keeps the car rolling, just like Jack and his friend.",
+          "emotion": "happy"
+        }
+      ],
+      "qa_grounding": "Taking turns kept it",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 8,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "At a cushion hill, the car slowed to a stop. “Together?” asked Jack."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Push, push, up—and wheee down the other side!"
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 9,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The road curled back to a bed-shaped cloud. Jack yawned, and his friend placed the car in his hand."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Goodnight, friend,” whispered Jack."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "His friend put the car right in his hand. Was that a kind thing to do?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "<sigh> It was very kind. And now Jack is getting sleepy. Goodnight, dreamland.",
+          "emotion": "sleepy"
+        }
+      ],
+      "qa_grounding": "his friend placed the car",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 10,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Jack woke safe and cosy, his car in his hand. He listened to the soft hush of his room and smiled."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Next time, we’ll take turns again,” he whispered."
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "And that was Jack's topsy-turvy dream. A wobbly friend only wanted to give back his car.",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<yawn> I'm hugging my favourite toy tonight.",
+        "emotion": "sleepy"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "Next time someone calls me, I'll stop and listen first.",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Subscribe and come back for our next story. We'll have another cosy tale waiting for you.",
+        "emotion": "calm"
+      }
+    ],
+    "ambience": [
+      "wind_loop"
+    ]
+  }
+}

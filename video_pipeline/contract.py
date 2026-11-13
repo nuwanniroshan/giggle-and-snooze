@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Collection
 from pathlib import Path
 from typing import Literal
 
@@ -69,6 +70,8 @@ class BanterParseError(Exception):
 class BanterLine(BaseModel):
     speaker: Speaker
     text: str = Field(min_length=1)
+    # spec 017: a feeling from config/emotions.json; missing means neutral
+    emotion: str | None = None
 
 
 class Moment(BaseModel):
@@ -189,12 +192,17 @@ def qa_schedule_errors(qa_pages: list[int], page_count: int) -> list[str]:
 
 
 def validate_script(
-    script: dict, book: dict, terms: list[str], allowed_ambience: set[str] | None = None
+    script: dict,
+    book: dict,
+    terms: list[str],
+    allowed_ambience: set[str] | None = None,
+    emotions: Collection[str] | None = None,
 ) -> list[str]:
     """Check a complete episode script against every spec rule; [] means valid.
 
     `allowed_ambience` (the blueprint's sound palette) limits the ambience names; None allows
-    any name (the library check happens at render time)."""
+    any name (the library check happens at render time). `emotions` (spec 017) limits the
+    per-line `emotion` values; None allows any text."""
     missing = [key for key in TOP_LEVEL_KEYS if key not in script]
     if missing:
         return [f"missing top-level key: {key}" for key in missing]
@@ -209,9 +217,9 @@ def validate_script(
     if script["resolution"] != [1920, 1080]:
         errors.append("resolution must be [1920, 1080]")
     errors += _cast_errors(script["cast"])
-    errors += _bookend_errors(script["intro"], "intro", terms, title, allowed_ambience)
-    errors += _bookend_errors(script["outro"], "outro", terms, title, allowed_ambience)
-    errors += _page_errors(script["pages"], book, terms, allowed_ambience)
+    errors += _bookend_errors(script["intro"], "intro", terms, title, allowed_ambience, emotions)
+    errors += _bookend_errors(script["outro"], "outro", terms, title, allowed_ambience, emotions)
+    errors += _page_errors(script["pages"], book, terms, allowed_ambience, emotions)
     return errors
 
 
@@ -226,7 +234,24 @@ def _cast_errors(cast: object) -> list[str]:
     ]
 
 
-def _line_errors(where: str, line: dict, terms: list[str], generated: bool) -> list[str]:
+def _emotion_errors(where: str, line: dict, emotions: Collection[str] | None) -> list[str]:
+    if "emotion" not in line:
+        return []
+    value = line["emotion"]
+    if not isinstance(value, str) or not value.strip():
+        return [f"{where}: emotion must be the name of a feeling"]
+    if emotions is not None and value not in emotions:
+        return [f"{where}: emotion {value!r} is not allowed (allowed: {', '.join(emotions)})"]
+    return []
+
+
+def _line_errors(
+    where: str,
+    line: dict,
+    terms: list[str],
+    generated: bool,
+    emotions: Collection[str] | None = None,
+) -> list[str]:
     errors: list[str] = []
     speaker, text = line.get("speaker"), line.get("text", "")
     if speaker not in SPEAKERS:
@@ -236,6 +261,10 @@ def _line_errors(where: str, line: dict, terms: list[str], generated: bool) -> l
     for tag in TAG_RE.findall(text):
         if tag[1:-1] not in ALLOWED_TAGS:
             errors.append(f"{where}: tag {tag} is not allowed")
+    if generated:
+        errors += _emotion_errors(where, line, emotions)
+    elif "emotion" in line:
+        errors.append(f"{where}: narration lines may not carry an emotion")
     if generated:
         for markup in STAGE_DIRECTION_RE.findall(text):
             errors.append(f"{where}: stage direction or markup {markup!r} is not allowed")
@@ -283,7 +312,12 @@ def _animation_errors(
 
 
 def _bookend_errors(
-    block: dict, name: str, terms: list[str], title: str, allowed: set[str] | None = None
+    block: dict,
+    name: str,
+    terms: list[str],
+    title: str,
+    allowed: set[str] | None = None,
+    emotions: Collection[str] | None = None,
 ) -> list[str]:
     lines = block.get("lines", [])
     errors = _ambience_errors(name, block, allowed)
@@ -292,7 +326,7 @@ def _bookend_errors(
     errors += [
         error
         for i, line in enumerate(lines)
-        for error in _line_errors(f"{name} line {i + 1}", line, terms, generated=True)
+        for error in _line_errors(f"{name} line {i + 1}", line, terms, True, emotions)
     ]
     low, high, effect = (2, 4, INTRO_EFFECT) if name == "intro" else (3, 5, OUTRO_EFFECT)
     speakers = [line.get("speaker") for line in lines]
@@ -320,7 +354,11 @@ def _bookend_errors(
 
 
 def _page_errors(
-    pages: list[dict], book: dict, terms: list[str], allowed: set[str] | None = None
+    pages: list[dict],
+    book: dict,
+    terms: list[str],
+    allowed: set[str] | None = None,
+    emotions: Collection[str] | None = None,
 ) -> list[str]:
     book_pages = book["pages"]
     expected = [page["page_number"] for page in book_pages]
@@ -346,15 +384,18 @@ def _page_errors(
         if page.get("has_qa"):
             qa_pages.append(number)
             kinds.append(frozenset(line.get("speaker") for line in qa) & frozenset(KIDS))
-            errors += _qa_errors(number, qa, page, book_page, terms)
+            errors += _qa_errors(number, qa, page, book_page, terms, emotions)
         elif qa or "qa_zoom_target" in camera or "qa_grounding" in page:
             errors.append(f"page {number}: has_qa is false but the page has Q&A content")
     errors += qa_schedule_errors(qa_pages, len(book_pages))
-    for kind, label in (
+    required = (
         (frozenset({"kid_older"}), "only Leo (kid_older)"),
         (frozenset({"kid_younger"}), "only Mia (kid_younger)"),
         (frozenset(KIDS), "both kids"),
-    ):
+    )
+    # A very short book has fewer Q&A pages than speaker sets: then each page just has to be one
+    # of the planned sets (checked per page), not every set has to appear.
+    for kind, label in required if len(qa_pages) >= len(required) else ():
         if kind not in kinds:
             errors.append(f"needs at least one Q&A moment with {label}")
     return errors
@@ -389,12 +430,17 @@ def _narration_errors(number: int, narration: list[dict], text: str, terms: list
 
 
 def _qa_errors(
-    number: int, qa: list[dict], page: dict, book_page: dict, terms: list[str]
+    number: int,
+    qa: list[dict],
+    page: dict,
+    book_page: dict,
+    terms: list[str],
+    emotions: Collection[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     for i, line in enumerate(qa):
         where = f"page {number} Q&A line {i + 1}"
-        errors += _line_errors(where, line, terms, generated=True)
+        errors += _line_errors(where, line, terms, True, emotions)
         speaker, role = line.get("speaker"), line.get("role")
         if speaker == "storyteller" and role != "answer":
             errors.append(f"{where}: storyteller Q&A lines must have role 'answer'")

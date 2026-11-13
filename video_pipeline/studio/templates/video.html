@@ -1,27 +1,47 @@
-{% extends "base.html" %}
-{% from "_macros.html" import badge, book_links %}
+{% extends "book_base.html" %}
+{% from "_macros.html" import badge %}
+{% set here = 'video' %}
 {% block title %}Video: {{ book.title }}{% endblock %}
 {% block content %}
-<h1>Video</h1>
-<p class="muted">{{ book.title }}</p>
-{{ book_links(book) }}
+<header class="page-head">
+  <div>
+    <h1>Final episode</h1>
+  </div>
+</header>
 {% if final %}
 {% if check == 'out_of_date' %}
-<section class="notice"><p>{{ badge('out_of_date') }} The inputs changed since this video was rendered; a re-render would change it.</p></section>
+<section class="notice info"><p>{{ badge('out_of_date') }} The inputs changed since this video was rendered; a re-render would change it.</p></section>
 {% elif check == 'blocked' %}
-<section class="notice"><p>{{ badge('out_of_date') }} This video cannot be checked against its inputs, so it may not match them: {{ reason }}</p></section>
+<section class="notice info"><p>{{ badge('out_of_date') }} This video cannot be checked against its inputs, so it may not match them: {{ reason }}</p></section>
 {% endif %}
-<section class="stage">
-  <video controls preload="metadata" src="/media/{{ book.slug }}/video/{{ book.slug }}.mp4"></video>
-  <table>
-    <tbody>
-      {% if record and record.duration is number %}<tr><th>Duration</th><td>{{ format_duration(record.duration) }}</td></tr>{% endif %}
-      {% if record and record.rendered_at %}<tr><th>Rendered</th><td>{{ record.rendered_at }}</td></tr>{% endif %}
-      <tr><th>File</th><td class="mono">{{ final }}</td></tr>
-    </tbody>
-  </table>
+<div class="cinema">
+  {% set cover = cover_url(book) %}
+  <video controls preload="metadata"{% if cover %} poster="{{ cover|replace('/thumb/', '/illustration/') }}"{% endif %} src="/media/{{ book.slug }}/video/{{ book.slug }}.mp4"></video>
+</div>
+<div class="video-meta">
+  {% if record and record.duration is number %}<div class="stat"><span class="k">Duration</span><span class="v">{{ format_duration(record.duration) }}</span></div>{% endif %}
+  {% if record and record.loudness %}<div class="stat"><span class="k">Loudness</span><span class="v">{{ '%.1f'|format(record.loudness.integrated_lufs) }} <span class="muted small" style="display:inline">LUFS</span></span><span class="small muted">true peak {{ '%.1f'|format(record.loudness.true_peak_dbfs) }} dBFS, range {{ '%.1f'|format(record.loudness.loudness_range) }} LU</span></div>{% endif %}
+  {% if record and record.rendered_at %}<div class="stat"><span class="k">Rendered</span><span class="v small-v">{{ record.rendered_at }}</span></div>{% endif %}
+</div>
+{% if record and record.grade %}
+<section class="panel">
+  <div class="panel-head"><h2>Grade</h2>
+    {% if not record.grade.enabled %}<span class="state">off</span>{% else %}<span class="muted small" style="display:inline">picture {{ 'on' if record.grade.picture else 'off' }}, sound {{ 'on' if record.grade.sound else 'off' }}</span>{% endif %}
+  </div>
+  {% if record.grade.enabled %}
+  <ul class="grade-settings">
+    {% for name, value in record.grade.items() if name not in ('enabled', 'picture', 'sound') %}
+    <li><span class="mono">{{ name }}</span>: {{ value }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+<section class="panel flat">
+  <h2 class="sub">File</h2>
+  <p class="mono" style="overflow-wrap:anywhere">{{ final }}</p>
 </section>
 {% else %}
-<p>No video yet. <a href="/books/{{ book.slug }}">Render video</a> once the audio is approved.</p>
+<p class="empty">No video yet. <a href="/books/{{ book.slug }}">Render video</a> once the audio is approved.</p>
 {% endif %}
 {% endblock %}

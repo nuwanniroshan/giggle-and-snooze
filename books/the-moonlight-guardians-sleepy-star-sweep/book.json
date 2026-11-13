@@ -1,0 +1,67 @@
+{
+  "metadata": {
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 5,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Giggle & Snooze",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "The Moonlight Guardian's Sleepy Star Sweep",
+    "subtitle": "A Little Help, a Little Yawn",
+    "author": "Giggle & Snooze",
+    "age_range": "Ages 3-6",
+    "blurb": "A tiny guardian in a glowing blanket cape gathers sleepy stars from silly places, sharing comfort—and yawns—until the whole sky is tucked in.",
+    "dedication": "For little helpers with very big yawns."
+  },
+  "style_bible": {
+    "style_prompt_prefix": "Handcrafted cyanotype bedtime picture-book print, midnight blue ground, lilac and dusty rose hand-tinting, luminous white stars, soft print textures, tiny friendly guardian in a glowing blanket cape."
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "One Empty Twinkle",
+      "text": "The Moonlight Guardian peeked out from a glowing blanket cape and saw three empty spots in the sky. Three little stars had dozed off somewhere! “A little lift, a little tuck,” whispered the tiny helper, and up went the cape.",
+      "layout": "image_top_text_bottom",
+      "prompt": "A tiny friendly child with round cheeks, short curly hair, and lilac pajamas floats above a cozy rooftop in a glowing blanket cape. The child looks toward three clearly empty spaces among luminous white stars. A crescent moon smiles nearby; midnight blue sky, dusty rose roof, lilac clouds, soft tactile textures. Keep the child and cape consistent throughout the book.",
+      "illustration_file": "page_01.png"
+    },
+    {
+      "page_number": 2,
+      "title": "The Cloud Pillow",
+      "text": "One star was snoring in a cloud’s fluffy curl. The Guardian gave it a little lift and a little tuck, and its sky spot twinkled again. “Home and cozy,” whispered the Guardian—with a little yawn.",
+      "layout": "full_bleed_card_bottom_left",
+      "prompt": "The same tiny curly-haired child in lilac pajamas and a glowing blanket cape gently places a drowsy white star into its spot beside a fluffy curled cloud. Show a small star-shaped hollow in the cloud where it slept. The child's mouth makes a tiny yawn; midnight blue sky, lilac cloud, dusty rose accents and gentle textured details. Leave quiet open sky at bottom left for text.",
+      "illustration_file": "page_02.png"
+    },
+    {
+      "page_number": 3,
+      "title": "A Moon-Shoe Snooze",
+      "text": "Another star slept in the moon’s slipper, with one point poking out. A little lift, a little tuck—and its sky spot shone again. “Home and cozy,” whispered the Guardian, with a longer yaaawn.",
+      "layout": "full_bleed_card_bottom_right",
+      "prompt": "The same tiny guardian, curly-haired and wearing lilac pajamas and a luminous blanket cape, cradles a sleepy white star just lifted from an oversized dusty rose slipper on the crescent moon's dangling foot. An empty star spot glimmers nearby, ready for the star. The friendly moon looks drowsy, and the child yawns. Midnight blue background, lilac shadows, soft textures; leave bottom right uncluttered for text.",
+      "illustration_file": "page_03.png"
+    },
+    {
+      "page_number": 4,
+      "title": "The Pocket Star",
+      "text": "The last star made a tiny snuffle inside the Guardian’s own cape pocket. A slow little lift, a soft little tuck—and every sky spot twinkled. “Home and cozy,” breathed the Guardian, with the biggest ya-a-aawn.",
+      "layout": "image_top_text_bottom",
+      "prompt": "The same tiny guardian with short curls and lilac pajamas floats beside the last open star spot, gently lifting a curled sleepy white star from a pocket of the glowing blanket cape. The child has very heavy eyelids and a wide gentle yawn. Other stars rest snugly in place around them; a faint dusty rose glow touches the distant horizon beneath the deep blue sky. Soft lilac cloud shapes and tactile details.",
+      "illustration_file": "page_04.png"
+    },
+    {
+      "page_number": 5,
+      "title": "One Last Tuck",
+      "text": "With every star home, the Guardian floated down to bed before the sun woke. The glowing cape became a blanket: a little lift, a little tuck. “Home and cozy,” murmured the Guardian, and slept beneath the softly shining, sleeping stars.",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "The same tiny curly-haired child sleeps peacefully in a small bed beneath a window, lilac pajamas just visible above the glowing blanket cape now tucked around them as a quilt. Through the window, three especially luminous white stars sleep with closed eyes among the other stars; the friendly crescent moon watches. Midnight blue room, dusty rose pillow, lilac curtains, faint predawn glow low on the horizon. Warm, restful composition with open dark wall at top left for text.",
+      "illustration_file": "page_05.png"
+    }
+  ]
+}

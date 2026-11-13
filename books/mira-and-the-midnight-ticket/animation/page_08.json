@@ -1,0 +1,110 @@
+{
+  "page_number": 8,
+  "picture": {
+    "file": "page_08.png",
+    "sha256": "5ec0f79c688d8192603101f0d9a0e567b96320161301f8504f50b65875398351",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:15:31+00:00",
+  "layers": [
+    {
+      "name": "robot_antenna",
+      "description": "Mint antenna stalk and round golden tip, excluding robot head.",
+      "box": [
+        1248,
+        399,
+        1323,
+        468
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        1255,
+        464
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.8,
+          "period_s": 4.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "seedling",
+      "description": "Two small green leaves and their slender stem, excluding the soil mound.",
+      "box": [
+        839,
+        676,
+        970,
+        782
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        903,
+        780
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 6.2,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_left_vine",
+      "description": "Hanging green vine leaves along the top left arch.",
+      "box": [
+        0,
+        0,
+        220,
+        222
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.55,
+      "pivot": [
+        150,
+        0
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 7.5,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          746,
+          385,
+          972,
+          552
+        ],
+        "layer": null
+      },
+      "intensity": 0.23,
+      "colour": "#ffdc65"
+    }
+  ]
+}

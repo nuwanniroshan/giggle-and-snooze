@@ -1,0 +1,150 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "a8cf7d61246541f83635045a3aa42c1e90eba8a10298e69f934f23afb7d3adaa",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-11T14:17:25+00:00",
+  "layers": [
+    {
+      "name": "blanket",
+      "description": "Dusty rose glowing quilt tucked around the sleeping child; a barely perceptible rise and fall.",
+      "box": [
+        384,
+        582,
+        1438,
+        941
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.9,
+      "pivot": [
+        880,
+        935
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.004,
+          "period_s": 6.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "sleeping_star_left",
+      "description": "Luminous sleeping white star in the upper left window pane, including its closed eyes.",
+      "box": [
+        1102,
+        167,
+        1179,
+        241
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.25,
+      "pivot": [
+        1141,
+        205
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 7.5,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "sleeping_star_middle",
+      "description": "Luminous sleeping white star beneath the window crossbar.",
+      "box": [
+        1164,
+        324,
+        1249,
+        403
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.25,
+      "pivot": [
+        1207,
+        365
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 8.0,
+          "phase": 0.45,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "sleeping_star_right",
+      "description": "Luminous sleeping white star in the lower right window pane.",
+      "box": [
+        1418,
+        373,
+        1491,
+        446
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.25,
+      "pivot": [
+        1455,
+        411
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 8.5,
+          "phase": 0.75,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "sleeping_star_left"
+      },
+      "intensity": 0.15,
+      "colour": "#fff5e5"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "sleeping_star_middle"
+      },
+      "intensity": 0.13,
+      "colour": "#fff5e5"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "sleeping_star_right"
+      },
+      "intensity": 0.12,
+      "colour": "#fff5e5"
+    }
+  ]
+}

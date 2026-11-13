@@ -1,0 +1,13 @@
+{
+  "feelings": {
+    "neutral":   {"speed": 1.0,  "semitones": 0,    "gain_db": 0},
+    "excited":   {"speed": 1.08, "semitones": 1,    "gain_db": 1.5},
+    "happy":     {"speed": 1.04, "semitones": 0.5,  "gain_db": 1},
+    "curious":   {"speed": 1.0,  "semitones": 0.5,  "gain_db": 0},
+    "surprised": {"speed": 1.06, "semitones": 1.5,  "gain_db": 2},
+    "calm":      {"speed": 0.94, "semitones": -0.5, "gain_db": -1.5},
+    "sleepy":    {"speed": 0.88, "semitones": -1,   "gain_db": -3},
+    "whisper":   {"speed": 0.92, "semitones": 0,    "gain_db": -7}
+  },
+  "generation": {"tags_per_moment_min": 1, "tags_per_moment_max": 2, "feelings_per_moment_min": 1}
+}

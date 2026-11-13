@@ -10,12 +10,27 @@
   <label>Maximum pages
     <input type="number" name="pages" value="{{ settings.default_pages }}" min="{{ settings.page_range[0] }}" max="{{ settings.page_range[1] }}" required>
   </label>
+  <label class="check"><input type="checkbox" name="autopilot" value="1" checked> Autopilot: finish the book without stopping</label>
   <button type="submit"{% if running %} disabled{% endif %}>Write this book</button>
 </form>
 {% endmacro %}
 {% block content %}
-<h1>Add a book</h1>
-<p class="lead">Three steps: choose a story idea, write it as a book, then review the draft.</p>
+
+{% set ideas_ready = ideas and ideas.state == "ready" %}
+{% set candidate_ready = candidate and candidate.state == "ready" %}
+
+
+<header class="page-head">
+  <div>
+    <h1>Add a book</h1>
+    <p class="lede">Three steps: choose a story idea, write it as a book, then review the draft.</p>
+  </div>
+</header>
+<ol class="stepper" aria-label="Steps">
+  <li{% if not ideas_ready and not candidate_ready and not drafts %} class="is-current"{% endif %}><a href="#step-idea"><span class="num">1</span><span class="lbl">Idea<small>Suggest or type one</small></span></a></li>
+  <li{% if ideas_ready or candidate_ready %} class="is-current"{% endif %}><a href="#step-write"><span class="num">2</span><span class="lbl">Write<small>Turn it into a book</small></span></a></li>
+  <li><a href="#step-review"><span class="num">3</span><span class="lbl">Review<small>Read and create</small></span></a></li>
+</ol>
 {% if problems %}
 <section class="notice">
   <h2>Nothing was started</h2>
@@ -23,18 +38,15 @@
 </section>
 {% endif %}
 
-{% set ideas_ready = ideas and ideas.state == "ready" %}
-{% set candidate_ready = candidate and candidate.state == "ready" %}
-
-<section class="step">
-  <h2><span class="num">1</span> Choose a story idea</h2>
+<section class="step" id="step-idea">
+  <h2><span class="step-num">1.</span> Choose a story idea</h2>
   <p class="muted">Ask the studio for ideas, or type your own. The ideas show up in step 2.</p>
   <div class="choices">
-    <section class="stage">
+    <section class="panel">
       <h3>Get suggestions</h3>
       <p class="small">The studio suggests a few story ideas.</p>
       {% if ideas and ideas.state == "writing" and running %}
-        <p class="state-line"><span class="state strong">WRITING</span> Writing ideas&hellip;</p>
+        <p class="state-line"><span class="state t-running">WRITING</span> Writing ideas&hellip;</p>
       {% elif ideas and ideas.state == "writing" %}
         <p class="small">The last request stopped before it finished. Ask again.</p>
       {% elif ideas and ideas.state == "failed" %}
@@ -44,7 +56,7 @@
         <button type="submit"{% if running %} disabled{% endif %}>{% if ideas_ready %}Suggest more{% else %}Suggest ideas{% endif %}</button>
       </form>
     </section>
-    <section class="stage">
+    <section class="panel">
       <h3>Use your own idea</h3>
       <form method="post" action="/ideas/improve" class="stack">
         <label for="idea">Your idea
@@ -55,7 +67,7 @@
           aria-describedby="idea-count">{{ text }}</textarea>
         <span class="small" id="idea-count" data-count-for="idea">{{ settings.idea_length[0] }} to {{ settings.idea_length[1] }} characters</span>
         {% if candidate and candidate.state == "writing" and running %}
-          <p class="state-line"><span class="state strong">WRITING</span> Improving your idea&hellip;</p>
+          <p class="state-line"><span class="state t-running">WRITING</span> Improving your idea&hellip;</p>
         {% elif candidate and candidate.state == "writing" %}
           <p class="small">The last request stopped before it finished. Improve it again.</p>
         {% elif candidate and candidate.state == "failed" %}
@@ -68,53 +80,48 @@
   {% if running %}<p class="small">Buttons come back when the running job finishes. You can keep typing.</p>{% endif %}
 </section>
 
-<section class="step">
-  <h2><span class="num">2</span> Write the book</h2>
+<section class="step" id="step-write">
+  <h2><span class="step-num">2.</span> Write the book</h2>
   {% if candidate_ready or ideas_ready %}
   <p class="muted">Pick one idea, check the author and page count, then press Write this book.</p>
+  <div class="ideas">
   {% if candidate_ready %}
-  <article class="card">
-    <p class="kicker">From your idea</p>
+  <article class="idea mine">
     <h3>{{ candidate.payload.title }}</h3>
+    <p class="kicker">From your idea</p>
     <p>{{ candidate.payload.premise }}</p>
-    <p class="small">{{ candidate.payload.age_range }} &middot; Lesson: {{ candidate.payload.lesson }}</p>
+    <p class="small">{{ candidate.payload.age_range }}. Lesson: {{ candidate.payload.lesson }}</p>
     {{ write_form(candidate.id) }}
   </article>
   {% endif %}
   {% if ideas_ready %}
     {% for idea in ideas.payload.ideas %}
-    <article class="card">
-      <p class="kicker">Suggested</p>
+    <article class="idea">
       <h3>{{ idea.title }}</h3>
+      <p class="kicker">Suggested</p>
       <p>{{ idea.premise }}</p>
-      <p class="small">{{ idea.age_range }} &middot; Lesson: {{ idea.lesson }}</p>
+      <p class="small">{{ idea.age_range }}. Lesson: {{ idea.lesson }}</p>
       {{ write_form(ideas.id, loop.index0) }}
     </article>
     {% endfor %}
   {% endif %}
+  </div>
   {% else %}
-  <p class="small">No ideas yet. Start with step 1.</p>
+  <p class="empty">No ideas yet. Start with step 1.</p>
   {% endif %}
 </section>
 
-<section class="step">
-  <h2><span class="num">3</span> Review your drafts</h2>
+<section class="step" id="step-review">
+  <h2><span class="step-num">3.</span> Review your drafts</h2>
   {% if drafts %}
   <p class="muted">Open a draft to read and edit its pages.</p>
-  <table>
-    <thead><tr><th>Title</th><th>State</th><th>Pages (max)</th></tr></thead>
-    <tbody>
+  <ul class="draft-list">
     {% for draft in drafts %}
-      <tr>
-        <td><a href="/drafts/{{ draft.id }}">{{ draft.idea.title }}</a></td>
-        <td>{{ draft.state }}</td>
-        <td>{{ draft.pages }}</td>
-      </tr>
+    <li><a href="/drafts/{{ draft.id }}"><span class="t">{{ draft.idea.title }}</span> <span class="state t-{{ {'ready': 'done', 'writing': 'running', 'designing': 'running', 'failed': 'failed', 'design_failed': 'failed', 'interrupted': 'failed'}.get(draft.state, 'idle') }}">{{ draft.state }}</span> <span class="muted small" style="display:inline">{{ draft.pages }} pages (max)</span></a></li>
     {% endfor %}
-    </tbody>
-  </table>
+  </ul>
   {% else %}
-  <p class="small">No drafts yet. A draft appears here once you pick an idea in step 2.</p>
+  <p class="empty">No drafts yet. A draft appears here once you pick an idea in step 2.</p>
   {% endif %}
 </section>
 {% endblock %}

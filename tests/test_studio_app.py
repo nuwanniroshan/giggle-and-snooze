@@ -6,6 +6,7 @@ programs run by a real JobRunner; FFmpeg and the voice model never run."""
 
 import io
 import json
+import os
 import re
 import socket
 import sys
@@ -74,8 +75,13 @@ class Commands:
         self.calls: list[tuple[str, str, bool]] = []
         self.code = code
 
-    def __call__(self, stage, book, paths, force=False, page=None):
-        self.calls.append((stage, book.slug, force) if page is None else (stage, book.slug, page))
+    def __call__(self, stage, book, paths, force=False, page=None, cover=None):
+        if cover is not None:
+            self.calls.append((stage, book.slug, f"cover:{cover}"))  # spec 019
+        elif page is not None:
+            self.calls.append((stage, book.slug, page))
+        else:
+            self.calls.append((stage, book.slug, force))
         return [sys.executable, "-c", self.code]
 
 
@@ -142,7 +148,7 @@ def test_home_lists_books_with_states_and_next_action(bare):
     page = text_of(r.text)
     assert "The Lantern Bug Parade" in page
     assert "NOT STARTED" in page
-    assert "Generate script" in page
+    assert "Paint pictures" in page  # spec 016: a book without pictures is painted first
     assert f'href="/books/{PILOT_SLUG}"' in r.text
 
 
@@ -160,21 +166,23 @@ def test_home_states_for_an_approved_book(approved):
     assert "Render video" in page
 
 
-def test_pages_use_only_local_assets_and_the_black_and_white_palette(bare):
+def test_pages_use_only_local_assets_and_the_bloom_tokens(bare):
     html = bare.client.get("/").text
     assert not re.search(r"(src|href)=\"(https?:)?//", html)
-    css = (STATIC / "studio.css").read_text(encoding="utf-8")
-    colours = {c.lower() for c in re.findall(r"#[0-9a-fA-F]{3,6}\b", css)}
-    assert colours <= {"#000", "#fff", "#6b6b6b", "#e5e5e5"}
-    assert "gradient" not in css and "rgba" not in css and "hsl" not in css
-    # Spec 004 v1.1.0: subtle depth, black shadows only, at most 12% opacity, 2-4px radii.
-    alphas = re.findall(r"rgb\(\s*0\s+0\s+0\s*/\s*([0-9.]+)\s*\)", css)
-    assert len(alphas) == css.count("rgb(") and alphas
-    assert all(float(a) <= 0.12 for a in alphas)
-    assert "box-shadow" in css
-    radii = {int(r) for r in re.findall(r"radius[-a-z]*:\s*(\d+)px", css)}
-    assert radii and radii <= {0, 2, 3, 4}
-    assert len(css.splitlines()) < 200
+    head = (STATIC / "studio.css").read_text(encoding="utf-8").lstrip().splitlines()[:12]
+    assert head[0].startswith("/* Hallmark")  # the design stamp comes first
+    assert any(
+        line.startswith("/* Episode studio (spec 014)") for line in head
+    )  # every colour lives in tokens.css
+    for name in ("studio.css", "add_book.css", "animation.css", "base.css"):
+        css = (STATIC / name).read_text(encoding="utf-8")
+        assert not re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|oklch\(", css), name
+        assert "transition: all" not in css
+        assert not re.search(r"font-family:(?!\s*var\()", css), name
+    tokens = (STATIC / "tokens.css").read_text(encoding="utf-8")
+    assert "--color-ink" in tokens and "--font-display" in tokens
+    assert "https://" not in tokens
+    assert bare.client.get("/static/tokens.css").status_code == 200
     assert bare.client.get("/static/studio.css").status_code == 200
     assert bare.client.get("/static/studio.js").status_code == 200
 
@@ -453,6 +461,40 @@ def test_video_page_plays_and_flags_out_of_date(approved):
     assert sa.format_duration(duration) in text_of(r.text)
     assert "OUT OF DATE" not in text_of(r.text)
     picture(world["folder"].illustrations / "page_02.png", (9, 9, 9))
+    assert "OUT OF DATE" in text_of(s.client.get(f"/books/{PILOT_SLUG}/video").text)
+
+
+def test_video_page_shows_the_grade_and_goes_stale_when_it_changes(approved):  # spec 013 AC-4.5
+    s, world = approved
+    cfg_path = world["config"] / "render.json"
+    cfg = load_json(cfg_path)
+    cfg["grade"] = {"enabled": True}
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+    loudnorm = json.dumps(
+        {
+            "input_i": "-19",
+            "input_tp": "-3",
+            "input_lra": "9",
+            "input_thresh": "-29",
+            "target_offset": "0",
+        }
+    )
+
+    def measure(cmd, what):
+        return (
+            loudnorm
+            if what == "measure loudness"
+            else "Summary:\n I: -16.1 LUFS\n LRA: 5.0 LU\n Peak: -1.9 dBFS\n"
+        )
+
+    args = cli_args(world, "--sfx-dir", str(s.paths.sfx_dir))
+    assert re_.main(args, run=FakeRunner(), measure=measure) == 0
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}/video").text)
+    assert "OUT OF DATE" not in text
+    assert "contrast : 1.05" in text and "loudness_lufs : -16" in text
+    assert "-16.1 LUFS" in text and "true peak -1.9 dBFS" in text
+    cfg["grade"] = {"enabled": True, "contrast": 1.2}
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
     assert "OUT OF DATE" in text_of(s.client.get(f"/books/{PILOT_SLUG}/video").text)
 
 
@@ -1083,7 +1125,7 @@ def test_animation_view_shows_an_animated_page(voiced):  # AC-4.3
     s, world, ah = voiced
     ah.cut(world["folder"], pages=[4])
     html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
-    row = re.search(r"Page 4</a>.*?</tr>", html, re.S).group(0)
+    row = re.search(r"Page 4</a>.*?</li>", html, re.S).group(0)
     assert "animated" in text_of(row) and "still" not in text_of(row)
 
 
@@ -1120,3 +1162,216 @@ def test_preview_media_is_whitelisted(voiced):
     ]
     for url in bad:
         assert s.client.get(url).status_code == 404, url
+
+
+# --- spec 014: thumbnails, covers and the book sidebar -----------------------------------------
+
+
+def big_cover(s) -> Path:
+    path = pilot_folder(s.paths.root).illustrations / "cover_front.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (1600, 900), (200, 120, 40)).save(path)
+    return path
+
+
+def test_thumb_serves_a_small_jpeg_of_a_listed_picture(bare):
+    big_cover(bare)
+    r = bare.client.get(f"/media/{PILOT_SLUG}/thumb/cover_front.png")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/jpeg"
+    with Image.open(io.BytesIO(r.content)) as im:
+        assert im.width <= 640 and im.format == "JPEG"
+
+
+def test_thumb_refuses_names_the_book_does_not_list(bare):
+    for name in ("not_listed.png", "book_data.json", "..%2F..%2Fbook_data.json"):
+        assert bare.client.get(f"/media/{PILOT_SLUG}/thumb/{name}").status_code == 404, name
+
+
+def test_thumb_follows_a_changed_picture(bare):
+    path = big_cover(bare)
+    first = bare.client.get(f"/media/{PILOT_SLUG}/thumb/cover_front.png").content
+    Image.new("RGB", (1200, 900), (10, 40, 200)).save(path)
+    os.utime(path, ns=(time.time_ns() + 10**9, time.time_ns() + 10**9))
+    assert bare.client.get(f"/media/{PILOT_SLUG}/thumb/cover_front.png").content != first
+
+
+def test_home_shows_each_cover_as_a_thumb(bare):
+    big_cover(bare)
+    assert f"/media/{PILOT_SLUG}/thumb/cover_front.png" in bare.client.get("/").text
+
+
+def test_book_screens_share_the_sidebar_with_the_current_place_marked(approved):
+    s, _world = approved
+    pages = {
+        f"/books/{PILOT_SLUG}": f"/books/{PILOT_SLUG}",
+        f"/books/{PILOT_SLUG}/script": f"/books/{PILOT_SLUG}/script",
+        f"/books/{PILOT_SLUG}/audio": f"/books/{PILOT_SLUG}/audio",
+        f"/books/{PILOT_SLUG}/video": f"/books/{PILOT_SLUG}/video",
+    }
+    for url, here in pages.items():
+        html = s.client.get(url).text
+        assert 'class="book-side"' in html, url
+        assert re.search(rf'href="{re.escape(here)}"[^>]*aria-current="page"', html), url
+
+
+# --- spec 017: feelings in the script view (AC-4.1, AC-4.2) ----------------------------------
+
+
+def _selected(html: str, line_id: str) -> str | None:
+    """The selected option of the feeling select for `line_id`, or None without a select."""
+    m = re.search(rf'<select name="emotion:{line_id}"[^>]*>(.*?)</select>', html, re.S)
+    if m is None:
+        return None
+    picked = re.search(r'<option value="([^"]+)" selected', m.group(1))
+    return picked.group(1) if picked else None
+
+
+def test_script_view_shows_a_feeling_per_spoken_line(bare):  # AC-4.1
+    scripted(bare)
+    script = sb.load_script(bare.paths, bare.book())
+    html = bare.client.get(f"/books/{PILOT_SLUG}/script").text
+    for line_id, line in sb.script_lines(script):
+        if line.get("role") == "narration":
+            assert _selected(html, line_id) is None
+        else:
+            assert _selected(html, line_id) == (line.get("emotion") or "neutral")
+    assert _selected(html, "intro-01") == "neutral"  # missing means neutral
+    for name in ("excited", "sleepy", "whisper", "surprised"):
+        assert f'<option value="{name}"' in html
+
+
+def test_saving_a_feeling_writes_it_and_clears_review(bare):  # AC-4.2
+    scripted(bare)
+    sb.mark_reviewed(bare.paths, bare.book())
+    r = bare.client.post(f"/books/{PILOT_SLUG}/script", data={"emotion:intro-01": "excited"})
+    assert r.status_code == 303
+    saved = dict(sb.script_lines(sb.load_script(bare.paths, bare.book())))
+    assert saved["intro-01"]["emotion"] == "excited"
+    assert not sb.reviewed_ok(bare.paths, bare.book())
+    html = bare.client.get(f"/books/{PILOT_SLUG}/script").text
+    assert _selected(html, "intro-01") == "excited"
+
+
+def test_choosing_neutral_removes_the_feeling(bare):  # AC-4.2
+    scripted(bare)
+    script = sb.load_script(bare.paths, bare.book())
+    line_id = next(i for i, line in sb.script_lines(script) if line.get("emotion") == "happy")
+    r = bare.client.post(f"/books/{PILOT_SLUG}/script", data={f"emotion:{line_id}": "neutral"})
+    assert r.status_code == 303
+    saved = dict(sb.script_lines(sb.load_script(bare.paths, bare.book())))
+    assert "emotion" not in saved[line_id]
+
+
+def test_unchanged_feelings_keep_the_review_mark(bare):
+    scripted(bare)
+    sb.mark_reviewed(bare.paths, bare.book())
+    script = sb.load_script(bare.paths, bare.book())
+    data = {
+        f"emotion:{i}": line.get("emotion") or "neutral"
+        for i, line in sb.script_lines(script)
+        if line.get("role") != "narration"
+    }
+    assert bare.client.post(f"/books/{PILOT_SLUG}/script", data=data).status_code == 303
+    assert sb.reviewed_ok(bare.paths, bare.book())
+
+
+def test_unknown_feeling_is_refused_with_the_message(bare):  # AC-4.2
+    scripted(bare)
+    path = sb.script_path(bare.paths, bare.book())
+    before = path.read_bytes()
+    r = bare.client.post(f"/books/{PILOT_SLUG}/script", data={"emotion:outro-02": "grumpy"})
+    assert r.status_code == 422
+    assert path.read_bytes() == before
+    assert "outro line 2" in r.text and "grumpy" in r.text and "sleepy" in r.text
+    assert "intro-01" not in re.findall(r'id="problems-([a-z0-9-]+)"', r.text)
+    assert "outro-02" in re.findall(r'id="problems-([a-z0-9-]+)"', r.text)
+    assert _selected(r.text, "outro-02") == "grumpy"  # the select keeps what was picked
+
+
+def test_feeling_for_an_unknown_line_is_refused(bare):
+    scripted(bare)
+    r = bare.client.post(f"/books/{PILOT_SLUG}/script", data={"emotion:intro-99": "happy"})
+    assert r.status_code == 422
+    assert "unknown line id: intro-99" in r.text
+
+
+# --- character sheet (spec 018: AC-3.1) -------------------------------------------------------
+
+
+def test_book_page_lists_the_character_sheet(bare):  # AC-3.1
+    from tests.test_story_tools import OWL, TEAPOT
+
+    slug = add_book_from_draft(bare.paths.root, "The Moon Kite Race")
+    html = bare.client.get(f"/books/{slug}").text
+    page = text_of(html)
+    assert 'id="characters"' in html
+    for entry in (TEAPOT, OWL):
+        assert entry["name"] in page and entry["look"] in page
+    assert f"books/{slug}/book.json" in page and "not repainted automatically" in page
+
+
+def test_book_page_without_a_sheet_has_no_characters_panel(bare):  # AC-2.3
+    html = bare.client.get(f"/books/{PILOT_SLUG}").text
+    assert 'id="characters"' not in html
+
+
+# --- spec 022: video and print covers (AC-5.1-AC-5.3) ------------------------------------------
+
+
+def make_titled(s: Studio) -> None:
+    path = pilot_path(s.paths.root)
+    data = load_json(path)
+    data["metadata"]["cover_style"] = "titled"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_repaint_print_cover_runs_cover_print_job(bare):  # AC-5.1
+    make_titled(bare)
+    r = bare.client.post(
+        f"/books/{PILOT_SLUG}/repaint-cover", data={"cover": "print", "confirm": "1"}
+    )
+    assert r.status_code == 303
+    bare.wait()
+    assert bare.commands.calls == [("repaint", PILOT_SLUG, "cover:print")]
+
+
+def test_print_side_refused_for_old_book(bare):  # AC-5.3
+    r = bare.client.post(
+        f"/books/{PILOT_SLUG}/repaint-cover", data={"cover": "print", "confirm": "1"}
+    )
+    assert r.status_code == 422
+    assert bare.commands.calls == [] and bare.runner.current() is None
+
+
+def test_book_page_shows_repaint_buttons_per_cover(bare):  # AC-5.2
+    old = text_of(bare.client.get(f"/books/{PILOT_SLUG}").text)
+    assert "Repaint front cover" in old and "Repaint back cover" in old
+    assert "print cover" not in old
+    make_titled(bare)
+    html = bare.client.get(f"/books/{PILOT_SLUG}").text
+    page = text_of(html)
+    assert "Repaint video cover" in page and "Repaint print cover" in page
+    assert "Repaint back cover" in page and "Repaint front cover" not in page
+    assert "Replace the print cover (one picture)" in page
+    assert 'value="print"' in html
+
+
+def test_titled_book_thumbnail_and_hero_use_the_video_cover(bare):  # AC-5.2
+    make_titled(bare)
+    folder = pilot_folder(bare.paths.root)
+    folder.illustrations.mkdir(parents=True, exist_ok=True)
+    for name, colour in (
+        ("cover_front.png", (200, 120, 40)),
+        ("cover_front_print.png", (40, 200, 120)),
+        ("cover_back.png", (120, 40, 200)),
+    ):
+        Image.new("RGB", (800, 600), colour).save(folder.illustrations / name)
+    home = bare.client.get("/").text
+    thumbs = re.findall(rf'src="(/media/{PILOT_SLUG}/thumb/[^"?]+)', home)
+    assert thumbs == [f"/media/{PILOT_SLUG}/thumb/cover_front.png"]
+    html = bare.client.get(f"/books/{PILOT_SLUG}").text
+    hero = re.search(r'class="hero-art"[^>]*><img src="([^"?]+)', html)
+    assert hero and hero.group(1) == f"/media/{PILOT_SLUG}/illustration/cover_front.png"
+    side = re.findall(rf'src="(/media/{PILOT_SLUG}/thumb/[^"?]+)', html)
+    assert side and all(src.endswith("/cover_front.png") for src in side)

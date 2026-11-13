@@ -1,0 +1,67 @@
+{
+  "metadata": {
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 5,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Giggle & Snooze",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "Pip the Pocket Dinosaur",
+    "subtitle": "A Little Garden Goodnight",
+    "author": "Giggle & Snooze",
+    "age_range": "Ages 3-6",
+    "blurb": "A sleepy dinosaur fits snugly in a child's pocket. Together they follow a little trail home, one gentle step at a time.",
+    "dedication": "For little ones, and the gentle hands that help them."
+  },
+  "style_bible": {
+    "style_prompt_prefix": "Colored pencil on slate-gray textured paper, fern and pear greens with tiny berry-red accents, tender rounded baby dinosaur, visible hand-drawn grain, intimate garden scenes."
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "Under the Ferns",
+      "text": "A fern went rustle, rustle in the quiet garden. Ada peeked beneath it and found a tiny dinosaur curled beside a berry. She held her hand still, so he could sniff one finger. “Hello, little Pip,” she whispered.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Intimate evening garden scene on a slate-gray textured background, fern and pear greens with tiny berry-red accents and visible hand-drawn grain. Ada, a young child with short dark curls, warm brown skin, mustard pajamas and a large front pocket, crouches beside arching ferns. Beneath them a tiny rounded pear-green baby dinosaur with a cream belly and small rounded back bumps sniffs her still outstretched finger. One red berry shows his tiny scale. Tender curious expressions, soft dusk light.",
+      "illustration_file": "page_01.png"
+    },
+    {
+      "page_number": 2,
+      "title": "A Cozy Pocket",
+      "text": "Pip yawned and looked this way, then that way. “Looking for your bed?” Ada asked. She cupped her hands low, and Pip stepped in. Into her soft pocket he snuggled—close and warm, close and warm.",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "Close intimate view of Ada, the warm-brown-skinned child with short dark curls and mustard pajamas, gently lowering her cupped hands to her large front pocket as tiny pear-green Pip steps inside. His cream belly rests against the pocket rim, his eyelids drooping peacefully. Garden ferns curve around them, slate-gray dusk background, pear-green leaves and a tiny berry-red flower bud. Rounded tender forms and visible hand-drawn grain. Leave upper left quiet for text.",
+      "illustration_file": "page_02.png"
+    },
+    {
+      "page_number": 3,
+      "title": "Little Footprints",
+      "text": "Beside the ferns, Ada spotted tiny footprints in the soft soil. “A little trail for little feet!” She followed them slowly, so Pip could rest. Step, step, softly—close and warm, close and warm.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Low garden view of Ada in mustard pajamas walking carefully along a short trail of tiny three-toed footprints in soft soil. Pip peeks sleepily from her large front pocket. Ada has warm brown skin and short dark curls. Ferns frame a small garden path leading toward a sheltered pear tree root, a few berry-red berries beside the trail, slate-gray evening atmosphere, fern and pear greens, intimate scale and visible hand-drawn grain. Show the footprints clearly.",
+      "illustration_file": "page_03.png"
+    },
+    {
+      "page_number": 4,
+      "title": "The Warm Nest",
+      "text": "The footprints led to a nest of dry leaves beneath the pear tree. Pip peeped and wiggled toward it, so Ada lowered her hands. He climbed into the nest and tucked his nose beneath his tail. Ada laid a leaf beside him—close and warm, close and warm.",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "Beneath a pear tree's broad sheltered roots, a snug tiny nest of curled dry leaves rests on soft moss. Pear-green baby dinosaur Pip with a cream belly and rounded back bumps curls happily inside, nose tucked beneath his tail. Ada, warm brown skin, short dark curls, mustard pajamas with a large pocket, kneels nearby placing one small leaf gently beside him without covering his face. Fern greens, slate-gray dusk, tiny berry-red accents, tender rounded shapes and visible hand-drawn grain. Leave upper right quiet for text.",
+      "illustration_file": "page_04.png"
+    },
+    {
+      "page_number": 5,
+      "title": "Two Goodnights",
+      "text": "Pip gave one sleepy peep, and Ada whispered, “Goodnight.” She tiptoed inside and snuggled into her own bed. Pip slept in his leafy nest; Ada slept beneath her quilt. Close and warm, close and warm.",
+      "layout": "image_top_text_bottom",
+      "prompt": "A gentle continuous nighttime composition viewed through Ada's open bedroom window: in the cozy room Ada, a warm-brown-skinned child with short dark curls, sleeps in bed beneath a pear-green quilt with tiny berry-red stitches, mustard pajama sleeves visible. Outside close to the window, beneath the garden pear tree and sheltering ferns, tiny rounded pear-green Pip sleeps in his dry-leaf nest with his cream belly partly visible. Both faces peacefully relaxed. Slate-gray night, soft warm bedside glow, intimate garden details, visible hand-drawn grain. Show both safe sleeping places clearly.",
+      "illustration_file": "page_05.png"
+    }
+  ]
+}

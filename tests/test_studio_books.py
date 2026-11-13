@@ -379,7 +379,7 @@ def test_status_of_a_new_book(studio):
     slug = add_book_from_draft(studio.root)
     status = status_of(studio, sb.get_book(studio, slug))
     assert states(status) == ("not_started", "not_started", "not_started")
-    assert status["next_action"] == "Generate script"  # AC-2.3
+    assert status["next_action"] == "Paint pictures"  # AC-2.3; spec 016: a book with no pictures
 
 
 def test_status_script_needs_review_then_reviewed(studio, scripted):
@@ -418,7 +418,7 @@ def test_status_approved_then_rendered_then_out_of_date(tmp_path, monkeypatch):
     assert re_.main(cli_args(world, "--sfx-dir", str(paths.sfx_dir)), run=FakeRunner()) == 0
     status = status_of(paths, book)
     assert states(status) == ("done", "approved", "done")
-    assert status["next_action"] == "Watch video"
+    assert status["next_action"] == "Build book"  # spec 019: the editions come after the video
 
     picture(world["folder"].illustrations / "page_02.png", (9, 9, 9))
     status = status_of(paths, book)
@@ -475,6 +475,8 @@ def test_finished_job_does_not_override(studio, scripted, state):
 
 def test_failed_script_job_without_a_script_says_generate(studio):
     book = sb.get_book(studio, PILOT_SLUG)
+    for name in ["cover_front.png", "cover_back.png", *(f"page_{n:02d}.png" for n in range(1, 9))]:
+        picture(pilot_folder(studio.root).illustrations / name)  # spec 016: painted books only
     status = status_of(studio, book, jobs_with(script={"state": "failed", "exit_code": 2}))
     assert status["script"]["state"] == "failed"
     assert status["next_action"] == "Generate script"
@@ -483,7 +485,13 @@ def test_failed_script_job_without_a_script_says_generate(studio):
 def test_latest_job_is_asked_per_book_and_stage(studio, scripted):
     asked = []
     sb.stage_status(studio, scripted, lambda slug, stage: asked.append((slug, stage)))
-    assert asked == [(PILOT_SLUG, "script"), (PILOT_SLUG, "voices"), (PILOT_SLUG, "render")]
+    assert asked == [
+        (PILOT_SLUG, "script"),
+        (PILOT_SLUG, "voices"),
+        (PILOT_SLUG, "render"),
+        (PILOT_SLUG, "paint"),  # spec 016
+        (PILOT_SLUG, "build"),  # spec 019
+    ]
 
 
 def test_stage_names():
@@ -821,3 +829,87 @@ def test_page_animation_off_in_the_render_config(tmp_path):  # AC-3.1 (studio st
     cfg["animation"]["enabled"] = False
     cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
     assert {r["still_reason"] for r in _rows(paths, book).values()} == {"animation off"}
+
+
+# --- character sheet (spec 018: AC-3.1) -------------------------------------------------------
+
+
+def test_character_sheet_of_a_book_from_a_draft(studio):  # AC-3.1
+    from tests.test_story_tools import OWL, TEAPOT
+
+    slug = add_book_from_draft(studio.root, "A Zebra Named Quill")
+    book = sb.get_book(studio, slug)
+    assert sb.character_sheet(studio, book) == [TEAPOT, OWL]
+
+
+def test_character_sheet_is_empty_without_one_or_for_broken_json(studio):  # AC-2.3
+    book = next(b for b in sb.list_books(studio) if b.error is None)
+    assert sb.character_sheet(studio, book) == []
+    book.book_path.write_text("{oops", encoding="utf-8")
+    assert sb.character_sheet(studio, book) == []
+
+
+# --- spec 022: video and print covers (AC-5.2) --------------------------------------------------
+
+
+def titled(book: dict) -> dict:
+    book["metadata"]["cover_style"] = "titled"
+    return book
+
+
+def test_titled_book_lists_video_and_print_covers():
+    book = titled(new_book())
+    assert sb.cover_files(book) == {
+        "cover_front.png": "video cover",
+        "cover_front_print.png": "print cover",
+        "cover_back.png": "back cover",
+    }
+    assert sb.cover_sides(book) == {
+        "front": "video cover",
+        "print": "print cover",
+        "back": "back cover",
+    }
+    required, problems = sb.expected_files(book)
+    assert problems == []
+    assert required["cover_front_print.png"] == "print cover"
+    assert required["cover_front.png"] == "video cover"
+
+
+def test_old_book_cover_list_unchanged():
+    book = new_book()
+    assert sb.cover_files(book) == {
+        "cover_front.png": "front cover",
+        "cover_back.png": "back cover",
+    }
+    assert sb.cover_sides(book) == {"front": "front cover", "back": "back cover"}
+    required, _ = sb.expected_files(book)
+    assert "cover_front_print.png" not in required
+    assert sb.COVER_SIDES == ("front", "print", "back")
+
+
+def test_print_cover_name_is_reserved_for_every_book():
+    book = new_book()
+    book["pages"][0]["illustration_file"] = "cover_front_print.png"
+    _, problems = sb.expected_files(book)
+    assert any("'cover_front_print.png' is reserved" in p for p in problems)
+
+
+def test_titled_paint_state_waits_for_print_cover(studio):
+    folder = pilot_folder(studio.root)
+    folder.book_json.write_text(json.dumps(titled(load_json(folder.book_json))), encoding="utf-8")
+    book = sb.get_book(studio, PILOT_SLUG)
+    data = load_json(folder.book_json)
+    for page in data["pages"]:
+        picture(
+            folder.illustrations
+            / (page.get("illustration_file") or f"page_{page['page_number']:02d}.png")
+        )
+    picture(folder.illustrations / "cover_front.png")
+    picture(folder.illustrations / "cover_back.png")
+    state = sb.paint_state(studio, book)
+    assert state["state"] == "not_started"
+    assert state["missing"] == ["cover_front_print.png"]
+    assert state["detail"].endswith("2 of 3 covers")
+    picture(folder.illustrations / "cover_front_print.png")
+    state = sb.paint_state(studio, book)
+    assert state["missing"] == [] and state["state"] != "not_started"

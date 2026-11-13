@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% from "_macros.html" import book_side %}
+{% block main %}
+<div class="container">{% include "_running.html" %}</div>
+<div class="container shell">
+  {{ book_side(book, here) }}
+  <main class="book-main">
+  {% block content %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

@@ -43,6 +43,7 @@ from video_pipeline.contract import (
     validate_script,
     word_count,
 )
+from video_pipeline.emotions import NEUTRAL, EmotionSettings, Feeling, load_emotions
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.file_hash import script_sha256, sha256_file
@@ -145,9 +146,18 @@ def spoken_text(text: str, prons: dict[str, str]) -> str:
     return " ".join(cleaned.split())
 
 
-def clip_key(spoken: str, voice: str, semitones: float, cfg: VoiceConfig) -> str:
+def clip_key(
+    spoken: str,
+    voice: str,
+    semitones: float,
+    cfg: VoiceConfig,
+    emotion: str | None = None,
+    delivery: Feeling | None = None,
+) -> str:
+    """`semitones` is the role's lift. A non-neutral feeling adds its delivery (spec 017 FR-3);
+    a neutral or missing one leaves the key exactly as before, so its clips are reused."""
     # model.seed is deliberately left out: a seed change must not discard passing clips.
-    identity = {
+    identity: dict = {
         "text": spoken,
         "voice": voice,
         "semitones": semitones,
@@ -158,6 +168,13 @@ def clip_key(spoken: str, voice: str, semitones: float, cfg: VoiceConfig) -> str
         "max_tokens": cfg.model.max_tokens,
         "sample_rate": cfg.sample_rate,
     }
+    if delivery is not None and not delivery.is_neutral:
+        identity["delivery"] = {
+            "emotion": emotion,
+            "speed": delivery.speed,
+            "semitones": delivery.semitones,
+            "gain_db": delivery.gain_db,
+        }
     return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:32]
 
 
@@ -171,11 +188,21 @@ class LineJob:
     spoken: str
     words: int
     voice: str
-    semitones: float
+    semitones: float  # the role's lift plus the feeling's offset
     key: str
+    emotion: str = NEUTRAL
+    speed: float = 1.0
+    gain_db: float = 0.0
 
 
-def plan_jobs(script: dict, cfg: VoiceConfig, prons: dict[str, str]) -> list[LineJob]:
+def plan_jobs(
+    script: dict,
+    cfg: VoiceConfig,
+    prons: dict[str, str],
+    emotions: EmotionSettings | None = None,
+) -> list[LineJob]:
+    """One job per line. With `emotions` each line's feeling shapes its delivery (spec 017);
+    without them every line is spoken neutral."""
     cast = script["cast"]
     for role in SPEAKERS:
         voice = cast.get(role, {}).get("voice")
@@ -200,6 +227,16 @@ def plan_jobs(script: dict, cfg: VoiceConfig, prons: dict[str, str]) -> list[Lin
         voice = cast[speaker]["voice"]
         semitones = cfg.pitch_semitones.get(speaker, 0.0)
         spoken = spoken_text(line["text"], prons)
+        emotion, delivery = NEUTRAL, None
+        if emotions is not None:
+            emotion = line.get("emotion") or NEUTRAL
+            if emotion not in emotions.feelings:
+                raise ConfigError(
+                    f"{line_id}: emotion {emotion!r} is not allowed "
+                    f"(allowed: {', '.join(emotions.names)})"
+                )
+            delivery = emotions.feeling(emotion)
+        extra = delivery.semitones if delivery else 0.0
         jobs.append(
             LineJob(
                 line_id,
@@ -210,8 +247,11 @@ def plan_jobs(script: dict, cfg: VoiceConfig, prons: dict[str, str]) -> list[Lin
                 spoken,
                 word_count(line["text"]),
                 voice,
-                semitones,
-                clip_key(spoken, voice, semitones, cfg),
+                semitones + extra,
+                clip_key(spoken, voice, semitones, cfg, emotion, delivery),
+                emotion,
+                delivery.speed if delivery else 1.0,
+                delivery.gain_db if delivery else 0.0,
             )
         )
 
@@ -313,7 +353,8 @@ class LineFailed(Exception):
         self.failures = failures
 
 
-Shift = Callable[[np.ndarray, int, float], np.ndarray]
+# (audio, sample_rate, semitones, speed, gain_db) -> audio
+Shift = Callable[[np.ndarray, int, float, float, float], np.ndarray]
 
 
 GPU_RETRIES = 3
@@ -351,7 +392,8 @@ def synthesize_retrying(engine, text: str, voice: str, seed: int, sleep=time.sle
 def make_clip(
     job: LineJob, engine, cfg: VoiceConfig, shift: Shift
 ) -> tuple[np.ndarray | None, ClipMeasure, int, list[str]]:
-    """Synthesize, lift, trim and check; up to cfg.max_attempts with a new seed each (AC-3.3)."""
+    """Synthesize, lift (with the feeling's delivery), trim and check; up to cfg.max_attempts
+    with a new seed each (AC-3.3). The checks measure the shaped audio (spec 017 AC-3.5)."""
     measure: ClipMeasure | None = None
     problems: list[str] = []
     for attempt in range(1, cfg.max_attempts + 1):
@@ -359,6 +401,8 @@ def make_clip(
             synthesize_retrying(engine, job.spoken, job.voice, cfg.seed + attempt - 1),
             cfg.sample_rate,
             job.semitones,
+            job.speed,
+            job.gain_db,
         )
         trimmed = trim_silence(raw, cfg.sample_rate, cfg.checks.silence_db, cfg.checks.edge_silence)
         trimmed = squeeze_silences(
@@ -419,18 +463,18 @@ def synthesize_clips(
                 failures.append((job, problems))
             else:
                 write_wav_atomic(paths.clip(job.key), audio, cfg.sample_rate)
-                write_atomic(
-                    meta_path,
-                    {
-                        "line_id": job.line_id,
-                        "speaker": job.speaker,
-                        "voice": job.voice,
-                        "semitones": job.semitones,
-                        "spoken": job.spoken,
-                        "measure": measure.to_dict(),
-                        "attempts": attempts,
-                    },
-                )
+                meta = {
+                    "line_id": job.line_id,
+                    "speaker": job.speaker,
+                    "voice": job.voice,
+                    "semitones": job.semitones,
+                    "spoken": job.spoken,
+                    "measure": measure.to_dict(),
+                    "attempts": attempts,
+                }
+                if job.emotion != NEUTRAL:
+                    meta["emotion"] = job.emotion
+                write_atomic(meta_path, meta)
             outcome = ClipOutcome(job, measure, attempts, True, problems)
         done[job.key] = outcome
         outcomes.append(outcome)
@@ -762,7 +806,11 @@ def approval_problems(
     return problems
 
 
-def approve(paths: AudioPaths, script_path: Path, settings_sha: str | None) -> dict:
+def approve(
+    paths: AudioPaths, script_path: Path, settings_sha: str | None, by: str | None = None
+) -> dict:
+    """Approve audio that still matches the script and voice settings. `by` ("autopilot", spec
+    021 AC-3.2) records who approved it; a person's approval has no `by`. No hash includes it."""
     if not paths.status.exists():
         raise ApproveError(f"no synthesized audio in {paths.root}; run synthesis first")
     try:
@@ -775,6 +823,10 @@ def approve(paths: AudioPaths, script_path: Path, settings_sha: str | None) -> d
     if problems:
         raise ApproveError(problems[0])
     status.update(status="approved", approved_at=_now())
+    if by:
+        status["by"] = by
+    else:
+        status.pop("by", None)
     write_atomic(paths.status, status)
     return status
 
@@ -813,9 +865,10 @@ def _synthesize(
     if not script_path.exists():
         print(f"error: episode script not found: {script_path}", file=sys.stderr)
         return 1
+    emotions = load_emotions(args.root / "config")  # bad feelings fail here, at start
     script = json.loads(script_path.read_text(encoding="utf-8"))
     terms = load_disallowed_terms(args.root / "config" / "disallowed_terms.txt")
-    errors = validate_script(script, book, terms)
+    errors = validate_script(script, book, terms, emotions=emotions.names)
     if errors:
         print(f"error: {script_path} fails validation:", file=sys.stderr)
         for problem in errors:
@@ -829,7 +882,7 @@ def _synthesize(
         )
         return 1
     prons = load_pronunciations(book, args.book)
-    jobs = plan_jobs(script, cfg, prons)
+    jobs = plan_jobs(script, cfg, prons, emotions)
     print(f"synthesizing {len(jobs)} lines into {paths.root}")
     outcomes = synthesize_clips(
         jobs,
@@ -837,7 +890,9 @@ def _synthesize(
         lambda: create_engine(cfg),
         cfg,
         force=args.force,
-        shift=lambda audio, sr, semitones: pitch_shift(audio, sr, semitones),
+        shift=lambda audio, sr, semitones, speed, gain_db: pitch_shift(
+            audio, sr, semitones, speed, gain_db
+        ),
         on_progress=lambda o: (
             o.synthesized
             and print(f"  {o.job.line_id}: {o.measure.duration:.1f} s, attempt {o.attempts}")

@@ -1,0 +1,373 @@
+{
+  "book_slug": "captain-kind-and-the-great-world-wobble",
+  "title": "Captain Kind and the Great World Wobble",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "orpheus",
+      "voice": "tara",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "orpheus",
+      "voice": "zac",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "orpheus",
+      "voice": "zoe",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Join the kindness crew! Today we're reading Captain Kind and the Great World Wobble. Can you spot something round that might wobble?"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "My round little cheeks! <giggle>"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "I'm ready to look for clues. What could make a whole world wobble?"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Let's open our book and find out together."
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "static"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "At supper, one pea bounced off Captain Kind’s spoon. Then every pea bounced—boing, boing, boing!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Stay for supper!” giggled the captain."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Outside, balls and oranges bounced too. Even the moon bobbed above the roofs."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Captain Kind tied the towel cape: “A wobble needs a helper!”"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Could Captain Kind help by catching the bouncy things? What would you try?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "Even the moon! Can you point to it if you want? Does it need a tiny cape?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "That moon does look ready for a wobbling adventure. Catching is an idea we can watch for. Let's see what our towel-caped helper tries."
+        }
+      ],
+      "qa_grounding": "the moon bobbed above the roofs",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Captain Kind held a basket under the bouncing oranges. Boing, they popped right out again!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Catching won’t stop this wobble,” said the captain."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Captain Kind put an ear to the grass. “Hic!” said the ground—and up went every round thing."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“The world has hiccups!” whispered the captain."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "The ground said hic! Was listening the clue Captain Kind needed?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "A teeny pebble bounced too! Hic. Can we do a quiet hic together?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes, listening helped the captain discover the world's hiccups. You can whisper a little hic, or just listen. I wonder what gentle help the captain will try."
+        }
+      ],
+      "qa_grounding": "an ear to the grass",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“When I have hiccups, I take a quiet pause,” said Captain Kind. So the captain sat beside the bouncing ball."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Pause with me, little world.”"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“And a little sip of water feels nice.” Captain Kind brought a jug and cups for the neighbors."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Your own cup, a little sip—come sit with me.”"
+        }
+      ],
+      "ambience": [
+        "crickets_night"
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "One neighbor called another, and another brought a cushion. Soon the street was sitting together."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Room for you, a sip for you, a pause for everyone.”"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "A cushion for a bottom! <giggle> Could I help by making room beside me?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes, making room is a lovely kindness. You can point to a cushion, if you like. I'll take an easy breath in and let it out softly. A pretend sip is welcome, too."
+        }
+      ],
+      "qa_grounding": "another brought a cushion",
+      "ambience": [
+        "crickets_night"
+      ]
+    },
+    {
+      "page_number": 8,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Breathe in, like smelling a flower.” “Breathe out, like cooling your soup.”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Together they breathed, slow and soft—and the bouncing grew smaller."
+        }
+      ],
+      "ambience": [
+        "crickets_night"
+      ]
+    },
+    {
+      "page_number": 9,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The peas rested, the balls rested, and the oranges rested. The moon gave one last tiny hic!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Then it settled into a cloud, and everyone whispered, “Good night, world.”"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "That last hic was so small! Did all those little kindnesses help everyone settle together?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "They did. The neighbors made room, shared water, and paused together. Now the round things are resting, and even the moon has settled into a cloud."
+        }
+      ],
+      "qa_grounding": "one last tiny hic",
+      "ambience": [
+        "crickets_night"
+      ]
+    },
+    {
+      "page_number": 10,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "static"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Captain Kind hung up the towel cape and snuggled into bed. “A little kindness brought us together,” the captain murmured."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Outside, the world was still, and inside, the captain slept."
+        }
+      ],
+      "ambience": [
+        "crickets_night"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Our kindness crew can rest now, too. What tiny kindness could you share tomorrow? Say it, point, or think it quietly."
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "I could make room for someone beside me. A cozy little space."
+      },
+      {
+        "speaker": "kid_older",
+        "text": "I could listen when someone needs a helper. Even a quiet helper counts."
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Small kindnesses can bring us together. Subscribe and come back for our next story. Good night, kindness crew."
+      }
+    ],
+    "ambience": [
+      "crickets_night"
+    ]
+  }
+}

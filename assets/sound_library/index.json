@@ -210,6 +210,15 @@
       "url": "https://freesound.org/people/rjkothari/sounds/476813/",
       "kind": "ambience",
       "seconds": 52.3
+    },
+    "page_flip": {
+      "file": "../audio_sfx/page_turn.wav",
+      "title": "Flipping Book Page",
+      "author": "DRAGON-STUDIO",
+      "url": "https://pixabay.com/sound-effects/film-special-effects-flipping-book-page-499646/",
+      "kind": "sfx",
+      "seconds": 0.9,
+      "license": "Pixabay Content License: https://pixabay.com/service/license-summary/"
     }
   }
 }

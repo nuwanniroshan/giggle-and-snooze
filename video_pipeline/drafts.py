@@ -157,7 +157,10 @@ class DraftStore:
             return [f"page {number} does not exist"]
         pages[number - 1]["text"] = text
         terms, gentle = self._terms()
-        errors = book_errors(book, record["pages"], terms, gentle)
+        # A draft written before spec 018 has no sheet; it stays editable.
+        errors = book_errors(
+            book, record["pages"], terms, gentle, require_characters="characters" in book
+        )
         if errors:
             return errors
         self.update(draft_id, book=book)
@@ -196,6 +199,8 @@ class DraftStore:
             except BlueprintError as exc:
                 raise DraftError(str(exc)) from None
             style_bible = {"style_prompt_prefix": bp.art.style_prompt_prefix}
+        if book.get("characters"):  # spec 018: the sheet moves into the style bible (AC-1.4)
+            style_bible["characters"] = book["characters"]
         data = {"metadata": metadata, "style_bible": style_bible, "pages": book["pages"]}
         problems = book_problems(data, slug)
         if problems:

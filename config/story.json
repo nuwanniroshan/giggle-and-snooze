@@ -2,7 +2,7 @@
   "attempts": 3,
   "time_limit_s": 300,
   "page_range": [
-    8,
+    5,
     32
   ],
   "default_pages": 20,

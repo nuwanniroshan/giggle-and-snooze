@@ -1,0 +1,194 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "ad0873ac630506973de6f59ff4190819441520a2fcba99171806aa4f24f4e122",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-13T00:42:38+00:00",
+  "layers": [
+    {
+      "name": "offered_car_and_hands",
+      "description": "Red toy car with yellow wheels and the mint-green hands supporting it; keep the offering gesture steady.",
+      "box": [
+        690,
+        477,
+        987,
+        718
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.85,
+      "pivot": [
+        946,
+        681
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.0015,
+          "period_s": 5.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "friend_left_antenna",
+      "description": "Upper curved mint-green antenna above the friend's head.",
+      "box": [
+        1000,
+        226,
+        1184,
+        340
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.7,
+      "pivot": [
+        1027,
+        329
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 6.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "friend_right_antenna",
+      "description": "Mint-green antenna curving outward to the right.",
+      "box": [
+        1130,
+        306,
+        1299,
+        424
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.7,
+      "pivot": [
+        1150,
+        350
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 6.8,
+          "phase": 0.45,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "scarf_loose_ends",
+      "description": "Two lilac scarf tails and fringes trailing to the right; leave the neck wrap anchored.",
+      "box": [
+        1096,
+        615,
+        1381,
+        815
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        1119,
+        633
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 7.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "small_cloud",
+      "description": "Small pale blue cloud between Jack and the moon in the distant sky.",
+      "box": [
+        888,
+        79,
+        1083,
+        160
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.05,
+      "pivot": [
+        985,
+        124
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 12.0,
+          "phase": 0.3,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "foreground_right_flowers",
+      "description": "Yellow flowers and their green stems at the lower right edge.",
+      "box": [
+        1415,
+        612,
+        1672,
+        941
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.95,
+      "pivot": [
+        1554,
+        934
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.6,
+          "period_s": 8.0,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1138,
+          18,
+          1256,
+          137
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#fff2a1"
+    }
+  ]
+}

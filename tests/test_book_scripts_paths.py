@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -69,6 +70,8 @@ def test_build_writes_only_into_the_book_build_folder(
 ) -> None:
     folder = make_book(tmp_path, "moon-kite-race", "Moon Kite Race")
     other = make_book(tmp_path, "other-book", "Other Book")
+    (tmp_path / "config").mkdir()
+    shutil.copy(ROOT / "config" / "book_extras.json", tmp_path / "config" / "book_extras.json")
     before_other = snapshot(other)
     calls: dict[str, object] = {}
 
@@ -94,7 +97,8 @@ def test_build_writes_only_into_the_book_build_folder(
         _, kwargs = calls[name]
         assert kwargs["paths"].folder == folder, name
     # The wrap cover takes explicit output paths; both must be inside the book's build folder.
-    _, _, wrap_png, wrap_pdf = calls["wrap"][0]
+    _, _, wrap_png, wrap_pdf, interior_pages = calls["wrap"][0]
+    assert interior_pages == 24  # 8 story pages, padded to KDP's minimum (spec 020)
     assert wrap_png.parent == folder / "build" and wrap_pdf.parent == folder / "build"
     assert wrap_pdf.name == "Moon_Kite_Race_KDP_Print_Wrap_Cover.pdf"
     assert (folder / "build").is_dir()

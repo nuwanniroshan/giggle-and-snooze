@@ -1,0 +1,164 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "60b3ab0e02f2fb7c6458bcc9e7e68aa28329d634765643dcab7ad417406571a5",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:11:19+00:00",
+  "layers": [
+    {
+      "name": "left_hanging_beans",
+      "description": "Hanging bean pods and slender vines beneath the upper left trellis.",
+      "box": [
+        22,
+        99,
+        283,
+        372
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        153,
+        105
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 6.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_potted_leaves",
+      "description": "Leaf canopy of the orange pot on the right, above its rim.",
+      "box": [
+        1344,
+        436,
+        1643,
+        604
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.75,
+      "pivot": [
+        1482,
+        567
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 7.2,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_right_leaves",
+      "description": "Foreground strawberry leaves above the nearest right planter.",
+      "box": [
+        1297,
+        635,
+        1672,
+        813
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 1.0,
+      "pivot": [
+        1507,
+        790
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.55,
+          "period_s": 7.8,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "large_floating_bus",
+      "description": "Large cream and teal floating bus in the upper sky, including warm underlights.",
+      "box": [
+        1083,
+        44,
+        1274,
+        157
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.15,
+      "pivot": [
+        1179,
+        101
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.003,
+          "period_s": 6.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "small_floating_bus",
+      "description": "Small distant floating bus to the right, including its underlights.",
+      "box": [
+        1300,
+        140,
+        1415,
+        207
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.1,
+      "pivot": [
+        1358,
+        174
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.002,
+          "period_s": 7.5,
+          "phase": 0.6,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          618,
+          365,
+          803,
+          498
+        ],
+        "layer": null
+      },
+      "intensity": 0.16,
+      "colour": "#ffdf70"
+    }
+  ]
+}

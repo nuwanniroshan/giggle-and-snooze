@@ -1,0 +1,168 @@
+{
+  "page_number": 11,
+  "picture": {
+    "file": "page_11.png",
+    "sha256": "529eee72ef1755e1f902e070a39e08f66d7fa1e0cdf134551de8fbf28b85f74f",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:19:24+00:00",
+  "layers": [
+    {
+      "name": "paper_star",
+      "description": "Small folded golden paper star held above Mira's raised hand; keep fingers outside the mask.",
+      "box": [
+        991,
+        267,
+        1093,
+        368
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.7,
+      "pivot": [
+        1044,
+        356
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 1.2,
+          "period_s": 5.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "distant_bus",
+      "description": "Friendly small yellow bus inside the magical doorway, including its wheels.",
+      "box": [
+        88,
+        263,
+        245,
+        362
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.1,
+      "pivot": [
+        166,
+        316
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.0015,
+          "period_s": 6.0,
+          "phase": 0.3,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "trailing_plant",
+      "description": "Rightmost trailing stem and mint leaves hanging down beside the bedside shelf.",
+      "box": [
+        539,
+        418,
+        624,
+        627
+      ],
+      "include_points": [
+        [
+          588,
+          585
+        ],
+        [
+          599,
+          531
+        ],
+        [
+          582,
+          478
+        ]
+      ],
+      "exclude_points": [
+        [
+          530,
+          484
+        ],
+        [
+          628,
+          568
+        ]
+      ],
+      "z": 3,
+      "depth": 0.55,
+      "pivot": [
+        549,
+        426
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 7.0,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bunny_right_ear",
+      "description": "Bunny's long rightward floppy ear, with cream outline and peach inner ear, hinged at its base.",
+      "box": [
+        1473,
+        354,
+        1627,
+        464
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.65,
+      "pivot": [
+        1485,
+        395
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 8.0,
+          "phase": 0.7,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": null,
+        "layer": "paper_star"
+      },
+      "intensity": 0.25,
+      "colour": "#ffd65a"
+    },
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          40,
+          82,
+          330,
+          784
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#ffe294"
+    }
+  ]
+}

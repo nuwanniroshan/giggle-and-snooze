@@ -29,7 +29,9 @@ from video_pipeline.blueprint import (
     load_context,
     read_use,
 )
+from video_pipeline.characters import sheet
 from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
+from video_pipeline.covers import titled_covers
 from video_pipeline.cut_layers import (
     MANIFEST,
     cut_settings,
@@ -37,7 +39,8 @@ from video_pipeline.cut_layers import (
     layers_dir,
     manifest_files,
 )
-from video_pipeline.episode import BookError, load_book
+from video_pipeline.emotions import NEUTRAL, load_emotions
+from video_pipeline.episode import BookError, book_problems, load_book
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import BOOK_FILE, PROJECT_ROOT, BookFolder, list_book_slugs
 from video_pipeline.motion_plan import (
@@ -51,9 +54,32 @@ from video_pipeline.render_episode import VideoPaths, render_check_detail
 from video_pipeline.timeline import AnimationSettings, load_render_config
 
 COVER_FILES = {"cover_front.png": "front cover", "cover_back.png": "back cover"}
+# Spec 022: a titled book also has a square print cover beside the 4:3 video cover.
+PRINT_COVER = "cover_front_print.png"
+TITLED_COVER_FILES = {
+    "cover_front.png": "video cover",
+    PRINT_COVER: "print cover",
+    "cover_back.png": "back cover",
+}
 NOOK_FILES = ("intro_nook.png", "outro_nook.png")
 STAGES = ("script", "voices", "render")
-STATUS_KEYS = {"script": "script", "voices": "voices", "render": "video"}
+# Spec 016: paints the book's pictures (the illustrate CLI); a studio job like the others, but
+# outside the script -> voices -> render flow, because it needs no review.
+PAINT_STAGE = "paint"
+# Spec 019: repaints one page (then plans and cuts it) or one cover; shown on the page view and the
+# Pictures panel only, never as a pipeline stage state.
+REPAINT_STAGE = "repaint"
+COVER_SIDES = ("front", "print", "back")  # every side a repaint job accepts (spec 022)
+# Spec 019: builds the PDF, EPUB, KDP files and flipbook (scripts/build_book.py) into build/.
+BUILD_STAGE = "build"
+EDITION_SUFFIXES = (".pdf", ".epub", ".png", ".html")
+STATUS_KEYS = {
+    "script": "script",
+    "voices": "voices",
+    "render": "video",
+    "paint": "pictures",
+    BUILD_STAGE: "editions",
+}
 STAGE_LABELS = {
     "script": "script generation",
     "voices": "voice synthesis",
@@ -61,8 +87,27 @@ STAGE_LABELS = {
     "plan": "motion planning",
     "cut": "layer cutting",
     "preview": "page preview",
+    PAINT_STAGE: "picture painting",
+    REPAINT_STAGE: "picture repaint",
+    BUILD_STAGE: "book build",
     "blueprint": "blueprint design",
     "redesign": "blueprint design",
+    "autopilot": "autopilot",
+}
+# Spec 021: one job that runs every unfinished stage in order (video_pipeline/autopilot.py). Its
+# run state is `<studio_dir>/autopilot/<slug>.json` (`draft-<id>.json` until the book exists).
+AUTOPILOT_STAGE = "autopilot"
+AUTOPILOT_DIR = "autopilot"
+# The book page's stage (status key) each autopilot step belongs to; plan, cut, story and create
+# have none.
+AUTOPILOT_STEP_STATUS = {
+    "paint": "pictures",
+    "script": "script",
+    "review": "script",
+    "voices": "voices",
+    "approve": "voices",
+    "render": "video",
+    "build": "editions",
 }
 # Spec 009: run as studio jobs, but outside the script → voices → render flow.
 ANIMATION_STAGES = ("plan", "cut")
@@ -175,6 +220,30 @@ def _plain_name(name: str) -> bool:
     )
 
 
+def cover_files(book: dict) -> dict[str, str]:
+    """The book's cover file names (name → what it is): a titled book (spec 022) has a video, a
+    print and a back cover; an older book a front and a back cover."""
+    return dict(TITLED_COVER_FILES if titled_covers(book) else COVER_FILES)
+
+
+def cover_sides(book: dict) -> dict[str, str]:
+    """The cover sides the book can repaint (side → label), in display order (spec 022)."""
+    if titled_covers(book):
+        return {"front": "video cover", "print": "print cover", "back": "back cover"}
+    return {"front": "front cover", "back": "back cover"}
+
+
+def book_cover_sides(book: Book) -> dict[str, str]:
+    """`cover_sides` of the book's data as stored, read without validation so a broken book still
+    shows its sides (its repaint is then refused by the job gate); unreadable data gives an older
+    book's sides."""
+    try:
+        data = json.loads(book.book_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = None
+    return cover_sides(data if isinstance(data, dict) else {})
+
+
 def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
     """Required upload names (name → what it is) for `book`, and problems with the names the book
     data gives. A page without `illustration_file` expects `page_PP.png`, as render does.
@@ -183,7 +252,7 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
     else), and no two names may differ only by case (the Mac's file system would merge them)."""
     required: dict[str, str] = {}
     problems: list[str] = []
-    reserved = {*COVER_FILES, *NOOK_FILES}
+    reserved = {*COVER_FILES, PRINT_COVER, *NOOK_FILES}
     pages = book.get("pages")
     for index, page in enumerate(pages if isinstance(pages, list) else [], start=1):
         if not isinstance(page, dict):
@@ -200,7 +269,7 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
             )
             continue
         required.setdefault(name, f"illustration for page {number}")
-    for name, label in COVER_FILES.items():
+    for name, label in cover_files(book).items():
         required.setdefault(name, label)
     seen: dict[str, str] = {name.casefold(): name for name in NOOK_FILES}
     for name in required:
@@ -217,6 +286,16 @@ def expected_files(book: dict) -> tuple[dict[str, str], list[str]]:
 
 def script_path(paths: StudioPaths, book: Book) -> Path:
     return folder_of(paths, book).script_path
+
+
+def character_sheet(paths: StudioPaths, book: Book) -> list[dict]:
+    """The book's character sheet (spec 018, AC-3.1): `style_bible.characters`, or [] when the
+    book has none or its data cannot be read (the book page reports a broken book already)."""
+    try:
+        data = json.loads(book.book_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return sheet(data) if isinstance(data, dict) else []
 
 
 def blueprint_status(paths: StudioPaths, book: Book) -> dict:
@@ -268,8 +347,9 @@ def _no_script(book: Book) -> str:
     return f"no episode script for {book.slug}; generate it first"
 
 
-def mark_reviewed(paths: StudioPaths, book: Book) -> dict:
-    """Record that this exact script was reviewed against this exact book file (AC-4.3)."""
+def mark_reviewed(paths: StudioPaths, book: Book, by: str | None = None) -> dict:
+    """Record that this exact script was reviewed against this exact book file (AC-4.3). `by`
+    ("autopilot", spec 021 AC-3.1) records who marked it; a person's mark has no `by`."""
     path = script_path(paths, book)
     if not path.exists():
         raise StudioError(_no_script(book))
@@ -278,6 +358,8 @@ def mark_reviewed(paths: StudioPaths, book: Book) -> dict:
         "book_sha256": sv.sha256_file(book.book_path),
         "reviewed_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
+    if by:
+        mark["by"] = by
     write_atomic(reviewed_path(paths, book), mark)
     return mark
 
@@ -299,6 +381,14 @@ def reviewed_ok(paths: StudioPaths, book: Book) -> bool:
     return reviewed_mark(paths, book) is not None
 
 
+def feeling_names(paths: StudioPaths) -> tuple[str, ...]:
+    """The feelings a line may carry (spec 017); empty when the config cannot be read."""
+    try:
+        return load_emotions(paths.config_dir).names
+    except ConfigError:
+        return ()
+
+
 def script_lines(script: dict) -> list[tuple[str, dict]]:
     """Every line with its id, numbered as voice synthesis does: `intro-NN`, `page-PP-NN`,
     `outro-NN` (spec 002)."""
@@ -312,10 +402,15 @@ def script_lines(script: dict) -> list[tuple[str, dict]]:
     return lines
 
 
+EMOTION_FIELD = "emotion:"  # form key prefix of a line's feeling (spec 017 FR-5)
+
+
 def save_line_edits(paths: StudioPaths, book: Book, edits: dict[str, str]) -> list[str]:
-    """Apply `edits` (line id → new text), validate the whole script with the pipeline's rules
-    and write it atomically (AC-4.2, FR-5). Returns the problems; when there are any nothing is
-    written. A save that changes a line clears the reviewed mark (AC-4.3)."""
+    """Apply `edits` (line id → new text, `emotion:<line id>` → feeling), validate the whole
+    script with the pipeline's rules and write it atomically (AC-4.2, FR-5). Returns the
+    problems; when there are any nothing is written. A save that changes a line's text or
+    feeling clears the reviewed mark (AC-4.3, spec 017 FR-6). Picking neutral removes the
+    line's `emotion`."""
     try:
         script = load_script(paths, book)
     except StudioError as exc:
@@ -324,24 +419,43 @@ def save_line_edits(paths: StudioPaths, book: Book, edits: dict[str, str]) -> li
         return [_no_script(book)]
     edited = copy.deepcopy(script)
     by_id = dict(script_lines(edited))
-    problems = [f"unknown line id: {line_id}" for line_id in edits if line_id not in by_id]
+    feelings = {
+        key.removeprefix(EMOTION_FIELD): value
+        for key, value in edits.items()
+        if key.startswith(EMOTION_FIELD)
+    }
+    texts = {key: value for key, value in edits.items() if not key.startswith(EMOTION_FIELD)}
+    problems = [
+        f"unknown line id: {line_id}" for line_id in [*texts, *feelings] if line_id not in by_id
+    ]
     problems += [
-        f"{line_id}: text must be a string"
-        for line_id, text in edits.items()
-        if line_id in by_id and not isinstance(text, str)
+        f"{line_id}: {what} must be a string"
+        for what, given in (("text", texts), ("emotion", feelings))
+        for line_id, value in given.items()
+        if line_id in by_id and not isinstance(value, str)
     ]
     if problems:
         return problems
     changed = False
-    for line_id, text in edits.items():
+    for line_id, text in texts.items():
         if by_id[line_id].get("text") != text:
             by_id[line_id]["text"] = text
             changed = True
+    for line_id, feeling in feelings.items():
+        line = by_id[line_id]
+        if (line.get("emotion") or NEUTRAL) == (feeling or NEUTRAL):
+            continue
+        if feeling in ("", NEUTRAL):
+            line.pop("emotion", None)
+        else:
+            line["emotion"] = feeling
+        changed = True
     if not changed:
         return []
     try:
         book_data = load_book(book.book_path)
         terms = load_disallowed_terms(paths.config_dir / "disallowed_terms.txt")
+        emotions = load_emotions(paths.config_dir)
     except (BookError, ConfigError) as exc:
         return [str(exc)]
     allowed = None
@@ -353,11 +467,48 @@ def save_line_edits(paths: StudioPaths, book: Book, edits: dict[str, str]) -> li
             allowed = set(load_blueprint(blueprint_file, load_context(paths.root)).sound.ambience)
         except BlueprintError as exc:
             return [str(exc)]
-    problems = validate_script(edited, book_data, terms, allowed)
+    problems = validate_script(edited, book_data, terms, allowed, emotions.names)
     if problems:
         return problems
     write_atomic(script_path(paths, book), edited)
     reviewed_path(paths, book).unlink(missing_ok=True)
+    return []
+
+
+def page_prompt(paths: StudioPaths, book: Book, number: int) -> str | None:
+    """Story page `number`'s picture prompt as `book.json` has it, or None."""
+    data = _read_dict(book.book_path) or {}
+    pages = data.get("pages")
+    for page in pages if isinstance(pages, list) else []:
+        if isinstance(page, dict) and page.get("page_number") == number:
+            prompt = page.get("prompt")
+            return prompt if isinstance(prompt, str) else None
+    return None
+
+
+def save_page_prompt(paths: StudioPaths, book: Book, number: int, text: str) -> list[str]:
+    """Set story page `number`'s picture prompt in `book.json` (found by `page_number`, spec 019
+    AC-1.2), validated as all book data is; returns the problems, and writes nothing when there
+    are any. The picture is not repainted."""
+    data = _read_dict(book.book_path)
+    if data is None:
+        return [f"book data is not a readable JSON object: {book.book_path}"]
+    pages = data.get("pages")
+    page = next(
+        (
+            p
+            for p in (pages if isinstance(pages, list) else [])
+            if isinstance(p, dict) and p.get("page_number") == number
+        ),
+        None,
+    )
+    if page is None:
+        return [f"page {number} is not in the book"]
+    page["prompt"] = text
+    problems = book_problems(data, book.slug)
+    if problems:
+        return problems
+    write_atomic(book.book_path, data)
     return []
 
 
@@ -366,6 +517,91 @@ def save_line_edits(paths: StudioPaths, book: Book, edits: dict[str, str]) -> li
 
 def _state(state: str, detail: str = "") -> dict:
     return {"state": state, "detail": detail}
+
+
+def paint_state(paths: StudioPaths, book: Book) -> dict:
+    """The pictures' `{state, detail, missing}` from the files in `illustrations/` (spec 016
+    FR-4): `not_started` while any story page or cover is missing (`missing` names them),
+    `out_of_date` when all exist but the blueprint's art mark is stale (spec 011), else `done`."""
+    try:
+        data = load_book(book.book_path)
+    except BookError as exc:
+        return {**_state("not_started", str(exc)), "missing": []}
+    required, _ = expected_files(data)
+    cover_names = cover_files(data)
+    have = folder_of(paths, book).illustrations
+    missing = [name for name in required if not (have / name).is_file()]
+    pages = [name for name in required if name not in cover_names]
+    covers = [name for name in required if name in cover_names]
+    detail = (
+        f"{sum(name not in missing for name in pages)} of {len(pages)} pages, "
+        f"{sum(name not in missing for name in covers)} of {len(covers)} covers"
+    )
+    if missing:
+        return {**_state("not_started", detail), "missing": missing}
+    stale = blueprint_status(paths, book)["stale"]
+    if any(item["output"] == "pictures" for item in stale):
+        detail = "made from an older blueprint; repaint all pictures"
+        return {**_state("out_of_date", detail), "missing": []}
+    return {**_state("done", detail), "missing": []}
+
+
+def edition_files(paths: StudioPaths, book: Book) -> list[dict]:
+    """The files the book builder wrote, sorted by name: `{name, size, mtime}` for every regular
+    file directly in the book's `build/` with a .pdf, .epub, .png or .html suffix, except the
+    builder's temporary files (names starting with `_` or `.`). No edition name is hardcoded
+    (spec 020 renames them); these are also the only files the studio serves from `build/`."""
+    out = folder_of(paths, book).build_dir
+    if not out.is_dir():
+        return []
+    found = []
+    for path in out.iterdir():
+        name = path.name
+        if name.startswith(("_", ".")) or path.suffix.lower() not in EDITION_SUFFIXES:
+            continue
+        if path.is_symlink() or not path.is_file():
+            continue
+        stat = path.stat()
+        found.append({"name": name, "size": stat.st_size, "mtime": stat.st_mtime})
+    return sorted(found, key=lambda f: f["name"])
+
+
+def edition_path(paths: StudioPaths, book: Book, name: str) -> Path | None:
+    """The edition file called `name`, only when `edition_files` lists it (FR-4)."""
+    if not any(f["name"] == name for f in edition_files(paths, book)):
+        return None
+    return folder_of(paths, book).build_dir / name
+
+
+def _edition_sources(paths: StudioPaths, book: Book) -> list[Path]:
+    """What the editions are made from: book.json, the pictures and the blueprint."""
+    folder = folder_of(paths, book)
+    sources = [book.book_path, folder.blueprint_path]
+    if folder.illustrations.is_dir():
+        sources += sorted(folder.illustrations.glob("*.png"))
+    return [path for path in sources if path.is_file()]
+
+
+def editions_state(paths: StudioPaths, book: Book) -> dict:
+    """The editions' `{state, detail, files, missing}` from files (spec 019 FR-3): `blocked`
+    while pictures are missing (named), `not_started` ("not built") with no edition file,
+    `out_of_date` when book.json, a picture or the blueprint is newer than the oldest edition
+    file, else `done` ("built")."""
+    files = edition_files(paths, book)
+    missing = paint_state(paths, book)["missing"]
+    if missing:
+        detail = f"paint the missing pictures first: {', '.join(missing)}"
+        return {**_state("blocked", detail), "files": files, "missing": missing}
+    if not files:
+        return {**_state("not_started", "not built"), "files": [], "missing": []}
+    oldest = min(f["mtime"] for f in files)
+    changed = [p.name for p in _edition_sources(paths, book) if p.stat().st_mtime > oldest]
+    if changed:
+        detail = f"changed since the build: {', '.join(changed[:5])}"
+        if len(changed) > 5:
+            detail += f" and {len(changed) - 5} more"
+        return {**_state("out_of_date", detail), "files": files, "missing": []}
+    return {**_state("done", "built"), "files": files, "missing": []}
 
 
 def _audio_record(paths: StudioPaths, book: Book) -> dict | None:
@@ -435,6 +671,10 @@ def stage_output(paths: StudioPaths, book: Book, stage: str) -> Path:
         return script_path(paths, book)
     if stage == "voices":
         return sv.AudioPaths(folder_of(paths, book).build_dir / "audio").status
+    if stage == PAINT_STAGE:
+        return folder_of(paths, book).illustrations / "cover_back.png"  # painted last
+    if stage == BUILD_STAGE:
+        return folder_of(paths, book).build_dir / "index.html"  # the flipbook is written last
     return VideoPaths(folder_of(paths, book).build_dir / "video").record(book.slug)
 
 
@@ -467,23 +707,31 @@ def _job_state(job: dict) -> dict:
 
 
 def _next_action(status: dict) -> str:
-    for stage in STAGES:
+    for stage in (PAINT_STAGE, *STAGES, BUILD_STAGE):
         if status[STATUS_KEYS[stage]]["state"] == "running":
             return f"Wait for {STAGE_LABELS[stage]} to finish"
     script, voices, video = (status[k]["state"] for k in ("script", "voices", "video"))
     if script == "needs_review":
         return "Review script"
     if script != "done":
-        return "Generate script"
+        # Spec 016: a book with no pictures is painted before its script is generated.
+        return "Paint pictures" if status["pictures"]["missing"] else "Generate script"
     if voices == "needs_review":
         return "Listen and approve"
     if voices != "approved":
         return "Synthesize voices"
-    return "Watch video" if video == "done" else "Render video"
+    if video != "done":
+        return "Render video"
+    # Spec 019: the editions come after the video, so the flow before it is unchanged.
+    return "Watch video" if status["editions"]["state"] == "done" else "Build book"
 
 
-def stage_status(paths: StudioPaths, book: Book, latest_job: LatestJob) -> dict:
-    """Each stage's `{state, detail}` under `script`, `voices`, `video`, plus `next_action`.
+def stage_status(
+    paths: StudioPaths, book: Book, latest_job: LatestJob, autopilot: dict | None = None
+) -> dict:
+    """Each stage's `{state, detail}` under `script`, `voices`, `video`, `pictures` (spec 016,
+    which also lists the `missing` files) and `editions` (spec 019, with the built `files`), plus
+    `next_action`.
 
     States come from the pipeline's own files; the latest job of a stage (`latest_job(slug,
     stage)` with stage in `STAGES`) overrides them while it is running, or when it failed or was
@@ -491,18 +739,105 @@ def stage_status(paths: StudioPaths, book: Book, latest_job: LatestJob) -> dict:
     if book.error:
         status = {key: _state("not_started") for key in ("script", "voices", "video")}
         status["script"] = _state("not_started", book.error)
+        status["pictures"] = {**_state("not_started"), "missing": []}
+        status["editions"] = {**_state("not_started"), "files": [], "missing": []}
     else:
         status = {
             "script": _script_state(paths, book),
             "voices": _voices_state(paths, book),
             "video": _video_state(paths, book),
+            "pictures": paint_state(paths, book),
+            "editions": editions_state(paths, book),
         }
     for stage in STAGES:
         job = latest_job(book.slug, stage)
         if job and _job_overrides(paths, book, stage, job):
             status[STATUS_KEYS[stage]] = _job_state(job)
+    job = latest_job(book.slug, PAINT_STAGE)
+    if job and _job_overrides(paths, book, PAINT_STAGE, job):
+        status["pictures"] = {**status["pictures"], **_job_state(job)}  # keeps `missing`
+    job = latest_job(book.slug, BUILD_STAGE)
+    if job and _job_overrides(paths, book, BUILD_STAGE, job):
+        status["editions"] = {**status["editions"], **_job_state(job)}  # keeps `files`
     status["next_action"] = "Fix the book data" if book.error else _next_action(status)
+    if autopilot is not None and autopilot.get("state") == "running":  # spec 021
+        step = str(autopilot.get("stage") or "")
+        key = AUTOPILOT_STEP_STATUS.get(step)
+        if key is not None:
+            status[key] = {**status[key], **_state("running", f"autopilot: {step}")}
+        status["next_action"] = "Wait for autopilot"
     return status
+
+
+# --- autopilot runs (spec 021 FR-2, AC-4.3) -------------------------------------------------
+
+
+def autopilot_path(paths: StudioPaths, name: str) -> Path:
+    """The run file of book `name` (a slug), or `draft-<id>` before the book exists."""
+    return paths.studio_dir / AUTOPILOT_DIR / f"{name}.json"
+
+
+def _autopilot_files(paths: StudioPaths) -> list[tuple[Path, dict]]:
+    folder = paths.studio_dir / AUTOPILOT_DIR
+    if not folder.is_dir():
+        return []
+    return [(p, r) for p in sorted(folder.glob("*.json")) if (r := _read_dict(p)) is not None]
+
+
+def _live(record: dict | None, current_job: dict | None) -> dict | None:
+    """`record` as the studio shows it: a `running` run whose job is not the running job belonged
+    to a studio (or a job) that died, and is shown `interrupted` (AC-4.3)."""
+    if record is None:
+        return None
+    if record.get("state") == "running" and (
+        current_job is None or current_job.get("id") != record.get("job_id")
+    ):
+        return {**record, "state": "interrupted"}
+    return record
+
+
+def autopilot_run(paths: StudioPaths, slug: str, current_job: dict | None) -> dict | None:
+    """Book `slug`'s last autopilot run, or None when it never ran."""
+    return _live(_read_dict(autopilot_path(paths, slug)), current_job)
+
+
+def autopilot_run_for_draft(
+    paths: StudioPaths, draft_id: str, current_job: dict | None
+) -> dict | None:
+    """The autopilot run started from draft `draft_id`: its draft file, or the book's file once
+    the book was created (which names the draft)."""
+    record = _read_dict(autopilot_path(paths, f"draft-{draft_id}"))
+    if record is None:
+        record = next((r for _p, r in _autopilot_files(paths) if r.get("draft") == draft_id), None)
+    return _live(record, current_job)
+
+
+def stop_autopilot_run(paths: StudioPaths, job_id: str) -> dict | None:
+    """After the studio stopped autopilot job `job_id`: its run file, written `stopped` if it is
+    still `running` (the CLI writes that itself on SIGTERM, but not when it was killed)."""
+    for path, record in _autopilot_files(paths):
+        if record.get("job_id") != job_id:
+            continue
+        if record.get("state") == "running":
+            now = datetime.now(UTC).isoformat(timespec="seconds")
+            record.update(state="stopped", reason="stopped by the producer", finished_at=now,
+                          updated_at=now)  # fmt: skip
+            write_atomic(path, record)
+        return record
+    return None
+
+
+def mark_autopilot_interrupted(paths: StudioPaths) -> int:
+    """At studio start, every `running` run belonged to a studio that stopped (one studio per
+    project): mark it `interrupted`; nothing resumes by itself (AC-4.3)."""
+    count = 0
+    for path, record in _autopilot_files(paths):
+        if record.get("state") == "running":
+            now = datetime.now(UTC).isoformat(timespec="seconds")
+            record.update(state="interrupted", updated_at=now)
+            write_atomic(path, record)
+            count += 1
+    return count
 
 
 # --- animation plans and cuts (spec 009 FR-12) ----------------------------------------------

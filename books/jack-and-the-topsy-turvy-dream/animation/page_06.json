@@ -1,0 +1,162 @@
+{
+  "page_number": 6,
+  "picture": {
+    "file": "page_06.png",
+    "sha256": "a622798ef599c15e43406ab4866e0487fb2ac6391a0ad0a7f06e315ff4616567",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-13T00:43:51+00:00",
+  "layers": [
+    {
+      "name": "red_car",
+      "description": "The small red toy car, including blue windows and yellow wheels; keep both touching fingers outside the cutout.",
+      "box": [
+        646,
+        657,
+        875,
+        813
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.9,
+      "pivot": [
+        760,
+        794
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.003,
+          "period_s": 6.0,
+          "phase": 0.0,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "scarf_tail",
+      "description": "The lifted lilac scarf tail to the friend's right, including its rounded fringe; hinge where it meets the neck wrap.",
+      "box": [
+        1090,
+        394,
+        1296,
+        562
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.75,
+      "pivot": [
+        1102,
+        535
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.7,
+          "period_s": 3.4,
+          "phase": 0.15,
+          "direction": null
+        },
+        {
+          "type": "bob",
+          "amplitude": 0.0015,
+          "period_s": 3.4,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "friend_head",
+      "description": "Mint-green three-eyed head with both antennae, ears, eyes, cheeks and smile; exclude the scarf and body.",
+      "box": [
+        798,
+        187,
+        1164,
+        546
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.73,
+      "pivot": [
+        980,
+        528
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.7,
+          "period_s": 4.8,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "jack_curls",
+      "description": "Jack's dark curly hair only, excluding face, ears and yellow pyjamas.",
+      "box": [
+        326,
+        160,
+        712,
+        479
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.76,
+      "pivot": [
+        520,
+        399
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.35,
+          "period_s": 5.5,
+          "phase": 0.45,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_cloud",
+      "description": "The small soft cream cloud in the upper middle sky, excluding hills and trees.",
+      "box": [
+        809,
+        17,
+        1112,
+        146
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.05,
+      "pivot": [
+        959,
+        82
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.002,
+          "period_s": 12.0,
+          "phase": 0.25,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

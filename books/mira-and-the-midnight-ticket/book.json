@@ -1,0 +1,123 @@
+{
+  "metadata": {
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 12,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Giggle & Snooze",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "Mira and the Midnight Ticket",
+    "subtitle": "A Little Trip into Tomorrow",
+    "author": "Giggle & Snooze",
+    "age_range": "Ages 4-7",
+    "blurb": "A glowing ticket carries Mira to a friendly future filled with floating buses, sky gardens, and a helpful robot. With midnight coming, she follows her way home—and brings back a tiny beginning for tomorrow.",
+    "dedication": "For little dreamers who help tomorrow grow."
+  },
+  "style_bible": {
+    "style_prompt_prefix": "Hand-cut matte paper shadowbox for ages 4–7, overlapping cardstock, shallow tactile shadows, rounded friendly future architecture, petrol teal, sunshine yellow, poppy orange, sky mint and warm paper, consistent expressive Mira."
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "A Little Glow",
+      "text": "Mira woke before midnight to a little glow beside her bed.\nA golden ticket lay on her slippers.\n“An adventure?” she whispered.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Cozy bedroom at night, expressive Mira, a young girl with warm brown skin, short dark curly hair, sunshine-yellow pajamas and poppy-orange slippers, discovering a softly glowing golden ticket beside her bed. Petrol teal quilt, warm paper walls, mint moonlight, rounded shapes. Maintain this Mira design throughout.",
+      "illustration_file": "page_01.png"
+    },
+    {
+      "page_number": 2,
+      "title": "Two Little Arrows",
+      "text": "One arrow pointed one hundred years back; the other pointed one hundred years ahead.\n“The past has already happened, and I can't change it,” said Mira.\n“I choose the future!”",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "Mira, warm brown skin, short dark curls, yellow pajamas and orange slippers, examines glowing ticket on her bed. Two arrows show an old-fashioned street and a welcoming rounded future skyline. Curious smile, teal quilt, quiet upper left.",
+      "illustration_file": "page_02.png"
+    },
+    {
+      "page_number": 3,
+      "title": "A Promise Home",
+      "text": "The ticket whispered, “Home by midnight, or here you stay forever.”\nMira tapped HOME, and a bright path curled around her feet.\n“Then we'll keep the way home ready,” she said, and stepped into tomorrow.",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "Mira in consistent yellow pajamas and orange slippers confidently steps through friendly golden doorway from bedroom into welcoming future night. Continuous golden path connects both sides; golden ticket bears house symbol. Rounded mint skyline and warmly lit windows, no threatening elements, quiet upper right.",
+      "illustration_file": "page_03.png"
+    },
+    {
+      "page_number": 4,
+      "title": "Up Goes the Bus",
+      "text": "A floating bus bobbed down to meet her.\nMira climbed aboard, so up it went—hum, hum, hooray!\n“Next stop: sky garden!” sang the driver.",
+      "layout": "full_bleed_card_bottom_left",
+      "prompt": "Friendly mint floating bus with rounded windows and smiling human driver rises above petrol teal future town at night. Mira with brown skin, short dark curls and yellow pajamas waves from window holding golden ticket. Yellow cabin lights and orange accents, quiet lower left.",
+      "illustration_file": "page_04.png"
+    },
+    {
+      "page_number": 5,
+      "title": "A Garden in the Sky",
+      "text": "Up in the garden, beans curled around railings and strawberries dangled overhead.\nMira picked one ripe berry, and its sweet juice made her grin.\n“Tomorrow tastes lovely!” she said.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Consistent Mira in yellow pajamas and orange slippers tastes strawberry in broad rooftop garden with high rounded railings. Bean vines, dangling berries, mint leaves, warmly lit paths, distant floating buses beneath starry teal sky. Golden ticket in her other hand.",
+      "illustration_file": "page_05.png"
+    },
+    {
+      "page_number": 6,
+      "title": "A Helpful Hello",
+      "text": "A little robot rolled over with a watering can.\n“Will you help?” it asked.\nMira tipped the can, so water pattered onto a thirsty seedling.\n“Drip, drop, grow!” they sang.",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "Mira with warm brown skin, short dark curls, yellow pajamas and orange slippers and a friendly rounded mint robot with orange wheels tilt yellow watering can over seedling in raised garden bed. Soft droplets, joyful faces, rounded rooftop architecture and stars, quiet upper left.",
+      "illustration_file": "page_06.png"
+    },
+    {
+      "page_number": 7,
+      "title": "Who Made Tomorrow?",
+      "text": "“Who made all this?” asked Mira.\n“People planted, planned, and helped,” said the robot.\n“Little things grew into big things.”\nMira looked at the seedling and imagined it growing tall.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Consistent Mira kneels thoughtfully beside tiny freshly watered seedling while friendly mint robot with orange wheels gestures toward flourishing sky gardens, accessible floating bus stops and rounded homes. Seedling prominent in foreground, thriving town behind, warm optimistic night lighting.",
+      "illustration_file": "page_07.png"
+    },
+    {
+      "page_number": 8,
+      "title": "A Small Beginning",
+      "text": "The robot gave her a seed in a tiny pouch.\nMira tucked it into her pocket.\n“I can help make tomorrow, too!”",
+      "layout": "full_bleed_card_bottom_right",
+      "prompt": "Friendly mint robot offers tiny orange seed pouch to delighted Mira with brown skin and short dark curls, who tucks it into yellow pajama pocket. Golden ticket in free hand, seedling nearby, softly lit future garden at night, quiet lower right.",
+      "illustration_file": "page_08.png"
+    },
+    {
+      "page_number": 9,
+      "title": "Time to Turn",
+      "text": "The ticket gave a gentle ding.\nFive minutes to midnight!\nMira pressed HOME, so her bright path shone all the way to the bus.\n“Home, home, here I come!”",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "Consistent Mira alert and cheerful presses house symbol on golden ticket. Wide continuous golden route curves across safe rooftop walkway to waiting mint floating bus with open door. Friendly robot points helpfully, large clock shows 11:55, quiet upper right.",
+      "illustration_file": "page_09.png"
+    },
+    {
+      "page_number": 10,
+      "title": "Hum, Hum, Home",
+      "text": "Mira hurried along the path, and the robot rolled beside her.\n“Thank you for tomorrow!” she called as she climbed aboard.\nThe bus hummed toward her golden doorway.\n“Home, home, here I come!”",
+      "layout": "full_bleed_card_bottom_left",
+      "prompt": "Consistent Mira in yellow pajamas and orange slippers boards mint floating bus from broad safe garden platform, waving goodbye to orange-wheeled mint robot. Golden path extends toward glowing doorway revealing her bedroom in distance, stars and gentle city lights, buoyant movement, quiet lower left.",
+      "illustration_file": "page_10.png"
+    },
+    {
+      "page_number": 11,
+      "title": "One Last Step",
+      "text": "The bus stopped as the clock began its midnight chime.\nMira stepped through the doorway—one slipper, then two!\nShe was home before the last bong, and the ticket folded into a little paper star.",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "Mira with warm brown skin, short dark curls and yellow pajamas steps fully into original cozy bedroom through golden doorway, both orange slippers safely on rug, happy relieved smile. Clock at midnight, ticket becoming small folded golden star in her hand. Friendly future bus visible through fading doorway, quiet upper left.",
+      "illustration_file": "page_11.png"
+    },
+    {
+      "page_number": 12,
+      "title": "Tomorrow Starts Here",
+      "text": "In the morning, Mira planted her seed with Mama.\nThey gave it water and a sunny place, so it could begin to grow.\n“Drip, drop, grow,” whispered Mira.\nTomorrow could be wonderful—and today, she was home.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Warm morning in original bedroom, consistent Mira in yellow pajamas and orange slippers plants seed in small terracotta pot with smiling mother with warm brown skin and dark curly hair. Sunshine at window, folded golden star beside pot, teal quilt behind, loving cozy homecoming.",
+      "illustration_file": "page_12.png"
+    }
+  ]
+}

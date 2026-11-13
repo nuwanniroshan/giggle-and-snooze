@@ -1,0 +1,412 @@
+{
+  "book_slug": "mira-and-the-midnight-ticket",
+  "title": "Mira and the Midnight Ticket",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "orpheus",
+      "voice": "tara",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "orpheus",
+      "voice": "zac",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "orpheus",
+      "voice": "zoe",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Snuggle in for Mira and the Midnight Ticket. Mira can travel one hundred years ahead. What helpful thing might she discover?"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "Maybe a bus that floats over traffic, so people can get home easily!"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "I'd make a tiny travel sound. Hummm!"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Let's open our book and see what tomorrow holds."
+      }
+    ],
+    "ambience": [
+      "wind_loop"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mira woke before midnight to a little glow beside her bed. A golden ticket lay on her slippers."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“An adventure?” she whispered."
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "One arrow pointed one hundred years back; the other pointed one hundred years ahead. “The past has already happened, and I can't change it,” said Mira."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“I choose the future!”"
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The ticket whispered, “Home by midnight, or here you stay forever.” Mira tapped HOME, and a bright path curled around her feet."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Then we'll keep the way home ready,” she said, and stepped into tomorrow."
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "Ooh, a glowing path! Can I trace it with my finger? Does it show her way home?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes, you can trace it in the air, or just look quietly. Mira tapped HOME to keep her way home ready. Let's pause... then follow her discovery."
+        }
+      ],
+      "qa_grounding": "a bright path",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "A floating bus bobbed down to meet her. Mira climbed aboard, so up it went—hum, hum, hooray!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Next stop: sky garden!” sang the driver."
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Up in the garden, beans curled around railings and strawberries dangled overhead. Mira picked one ripe berry, and its sweet juice made her grin."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Tomorrow tastes lovely!” she said."
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "A little robot rolled over with a watering can. “Will you help?” it asked."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mira tipped the can, so water pattered onto a thirsty seedling. “Drip, drop, grow!” they sang."
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "<giggle> Those orange wheels! Can I tip pretend water with the robot? Drip, drop! Will that help the tiny plant?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "You can gently tip an imaginary can, or watch quietly. Yes, the water helps the thirsty seedling. Mira and the friendly robot are helping together."
+        }
+      ],
+      "qa_grounding": "robot with orange wheels",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Who made all this?” asked Mira. “People planted, planned, and helped,” said the robot."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Little things grew into big things.” Mira looked at the seedling and imagined it growing tall."
+        }
+      ],
+      "ambience": [
+        "stream"
+      ]
+    },
+    {
+      "page_number": 8,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The robot gave her a seed in a tiny pouch. Mira tucked it into her pocket."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“I can help make tomorrow, too!”"
+        }
+      ],
+      "ambience": [
+        "stream"
+      ]
+    },
+    {
+      "page_number": 9,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The ticket gave a gentle ding. Five minutes to midnight!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mira pressed HOME, so her bright path shone all the way to the bus. “Home, home, here I come!”"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Will she follow the bright path to the bus? What if future paths helped people find their way home?"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "The path shines all the way to the waiting bus, so that's a good prediction. A guiding path could help people find their way. What helpful invention would you imagine? You can think quietly... Mira has five minutes, and her route is ready."
+        }
+      ],
+      "qa_grounding": "Mira pressed HOME",
+      "ambience": [
+        "stream"
+      ]
+    },
+    {
+      "page_number": 10,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Mira hurried along the path, and the robot rolled beside her. “Thank you for tomorrow!” she called as she climbed aboard."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The bus hummed toward her golden doorway. “Home, home, here I come!”"
+        }
+      ],
+      "ambience": [
+        "stream"
+      ]
+    },
+    {
+      "page_number": 11,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The bus stopped as the clock began its midnight chime. Mira stepped through the doorway—one slipper, then two!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "She was home before the last bong, and the ticket folded into a little paper star."
+        }
+      ],
+      "ambience": [
+        "stream"
+      ]
+    },
+    {
+      "page_number": 12,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "In the morning, Mira planted her seed with Mama. They gave it water and a sunny place, so it could begin to grow."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Drip, drop, grow,” whispered Mira. Tomorrow could be wonderful—and today, she was home."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Could we invent pots that remind people to water? What other invention could help a little seed grow?"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "Can I open my hands like tiny leaves? Her seed has sunshine now!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes, open your hands slowly, or imagine little leaves. A reminder pot is a thoughtful idea; your invention can be different, too. Take a quiet moment... Water and sunshine help Mira's seed begin to grow. And Mira is home... safe and cozy."
+        }
+      ],
+      "qa_grounding": "water and a sunny place",
+      "ambience": [
+        "stream"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "What little thing can we do today to help make a kinder future?"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "I could help care for a plant, like Mira and Mama."
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "I could help, too. One tiny drip!"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Little acts of care can grow. Subscribe and come back for our next story."
+      }
+    ],
+    "ambience": [
+      "stream"
+    ]
+  }
+}

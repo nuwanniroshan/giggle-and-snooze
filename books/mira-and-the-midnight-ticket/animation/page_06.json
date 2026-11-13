@@ -1,0 +1,167 @@
+{
+  "page_number": 6,
+  "picture": {
+    "file": "page_06.png",
+    "sha256": "f62eb714b648b2a834f8356af4229d336e7580667f34c603f2526738a44f1ee8",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-12T16:13:01+00:00",
+  "layers": [
+    {
+      "name": "water_droplets",
+      "description": "The three mint water droplets falling from the watering can toward the seedling.",
+      "box": [
+        912,
+        610,
+        1002,
+        704
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.8,
+      "pivot": [
+        959,
+        654
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.009,
+          "period_s": 2.8,
+          "phase": 0.0,
+          "direction": [
+            0.0,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "seedling",
+      "description": "The bright green seedling with two leaves and slender stem, excluding soil and nearby plants.",
+      "box": [
+        817,
+        700,
+        996,
+        814
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.8,
+      "pivot": [
+        906,
+        810
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 4.8,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "robot_antenna",
+      "description": "The robot's yellow antenna bulb and green stalk above its mint head.",
+      "box": [
+        1220,
+        314,
+        1292,
+        394
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        1225,
+        389
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.6,
+          "period_s": 4.2,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_left_leaves",
+      "description": "The two green leaves at the bottom left edge, excluding the dark teal bush behind them.",
+      "box": [
+        30,
+        831,
+        232,
+        941
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 1.0,
+      "pivot": [
+        122,
+        938
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.0,
+          "period_s": 6.5,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_right_leaves",
+      "description": "The green leaves at the bottom right edge in front of the dark teal bush.",
+      "box": [
+        1461,
+        820,
+        1631,
+        941
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 1.0,
+      "pivot": [
+        1540,
+        940
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 6.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          1004,
+          24,
+          1132,
+          160
+        ],
+        "layer": null
+      },
+      "intensity": 0.12,
+      "colour": "#b8f5ce"
+    }
+  ]
+}

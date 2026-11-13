@@ -355,9 +355,10 @@ def test_mix_master_track_unaltered_at_offset(cfg):
     for section, (start, _end) in zip(sections, times, strict=True):
         if section.track is None:
             continue
-        track = tracks[section.track]
+        # Spec 012 FR-6: the voices are only raised by `voice_gain_db`, nothing else touches them.
+        track = tracks[section.track].astype(np.float64) * 10 ** (cfg.audio.voice_gain_db / 20)
         at = round((start + cfg.lead_in) * SR)
-        assert np.array_equal(mix[at : at + len(track)], track)
+        assert np.array_equal(mix[at : at + len(track)], track.astype(np.float32))
         assert not mix[at - 50 : at].any()
 
 
@@ -382,7 +383,8 @@ def test_mix_master_limits_loud_mix(cfg):
     tracks["intro"][5] = 3.0
     mix = mix_master(sections, tracks, page_turn_sound(SR), cfg, SR)
     limit = 10 ** (cfg.audio.peak_dbfs / 20)
-    assert np.abs(mix).max() == pytest.approx(limit, rel=1e-4)
+    assert np.abs(mix).max() <= limit * (1 + 1e-9)
+    assert np.abs(mix).max() > 0.95 * limit  # held at the limit, not crushed below it
 
 
 def test_mix_master_missing_track(cfg):
@@ -410,16 +412,16 @@ def _expected_without_bed(sections, tracks, page_turn, cfg):
     for section, (start, _end) in zip(sections, times, strict=True):
         if section.track is not None:
             at = round((start + cfg.lead_in) * SR)
-            mix[at : at + len(tracks[section.track])] += tracks[section.track]
+            mix[at : at + len(tracks[section.track])] += tracks[section.track].astype(
+                np.float64
+            ) * 10 ** (cfg.audio.voice_gain_db / 20)
     turn = page_turn.astype(np.float64) * 10 ** (cfg.audio.sfx_gain_db / 20)
     for _s, end in times[:-1]:
         at = round(end * SR)
         piece = turn[: max(0, length - at)]
         mix[at : at + len(piece)] += piece
-    limit = 10 ** (cfg.audio.peak_dbfs / 20)
-    peak = np.abs(mix).max()
-    if peak > limit:
-        mix *= limit / peak
+    # Spec 012: peaks are held by the look-ahead limiter, not by scaling the whole mix.
+    frames.limit_peaks(mix, 10 ** (cfg.audio.peak_dbfs / 20), cfg.audio.limiter_ms, SR)
     return mix.astype(np.float32)
 
 
@@ -452,9 +454,57 @@ def test_mix_master_adds_bed_and_keeps_peak_limit(cfg):
     mixed = mix_master(sections, tracks, turn, cfg, SR, ambience=bed)
     assert np.allclose(mixed, base + 0.01, atol=1e-6)
     loud = mix_master(sections, tracks, turn, cfg, SR, ambience=np.full(len(base), 5.0))
-    assert np.abs(loud).max() == pytest.approx(10 ** (cfg.audio.peak_dbfs / 20), rel=1e-4)
+    limit = 10 ** (cfg.audio.peak_dbfs / 20)
+    assert 0.95 * limit < np.abs(loud).max() <= limit * (1 + 1e-9)
 
 
 def test_mix_master_ambience_wrong_length(cfg):
     with pytest.raises(ValueError, match="ambience"):
         mix_master(_sections(cfg), _tracks(cfg), page_turn_sound(SR), cfg, SR, ambience=np.zeros(5))
+
+
+# --- voice gain and limiter (spec 012 FR-6, Story 4) -----------------------------------------
+
+
+def test_voice_gain_raises_the_voice_by_six_db_and_leaves_the_rest(cfg):  # AC-4.1, AC-4.2
+    import dataclasses
+
+    sections = _sections(cfg)
+    tracks = _tracks(cfg)
+    turn = page_turn_sound(SR)
+    flat = dataclasses.replace(cfg, audio=dataclasses.replace(cfg.audio, voice_gain_db=0.0))
+    base = mix_master(sections, tracks, turn, flat, SR)
+    raised = mix_master(sections, tracks, turn, cfg, SR)
+    assert cfg.audio.voice_gain_db == pytest.approx(6.0)
+    # Voice-only stretch: the track starts at section start + lead_in, away from page turns.
+    start, _ = section_times(sections, cfg)[1]
+    at = round((start + cfg.lead_in) * SR) + SR // 2
+    ratio = np.abs(raised[at : at + 4000]).max() / np.abs(base[at : at + 4000]).max()
+    assert 20 * np.log10(ratio) == pytest.approx(6.0, abs=0.01)
+
+
+def test_limiter_keeps_a_short_peak_from_lowering_the_rest():
+    """The whole-mix scaling it replaces cancelled the voice boost (spec 012 ruling)."""
+    rng = np.random.default_rng(5)
+    mix = rng.normal(0, 0.05, 4 * SR)
+    mix[2 * SR] = 4.0
+    before = mix.copy()
+    frames.limit_peaks(mix, 0.89, 30.0, SR)
+    assert np.abs(mix).max() <= 0.89 * (1 + 1e-9)
+    assert np.array_equal(mix[:SR], before[:SR])  # far from the peak: untouched
+    assert np.array_equal(mix[3 * SR :], before[3 * SR :])
+    dip = np.abs(mix[2 * SR - 3000 : 2 * SR + 3000] / before[2 * SR - 3000 : 2 * SR + 3000])
+    assert dip.min() > 0.2 and (dip < 0.999).sum() < 6000  # a brief dip, not a crush
+
+
+def test_limiter_holds_dense_loud_passages():
+    t = np.arange(3 * SR) / SR
+    mix = 2.0 * np.sin(2 * np.pi * 220 * t)
+    frames.limit_peaks(mix, 0.5, 30.0, SR)
+    assert np.abs(mix).max() <= 0.5 * (1 + 1e-9)
+
+
+def test_limiter_leaves_a_quiet_mix_alone():
+    mix = np.full(1000, 0.1)
+    frames.limit_peaks(mix, 0.89, 30.0, SR)
+    assert np.all(mix == 0.1)
