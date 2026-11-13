@@ -334,3 +334,74 @@ def test_flipbook_picture_route_refuses_unknown_files(studio, name):
     (folder.illustrations / "page_01.png.bak").write_bytes(b"old")
     r = s.client.get(f"/books/{PILOT_SLUG}/illustrations/{name}")
     assert r.status_code == 404
+
+
+# --- spec 023 Phase 3: the web reader's own files and voice tracks --------------------------------
+
+
+def write_reader(s: Studio) -> Path:
+    out = build_dir(s) / "reader"
+    (out / "fonts").mkdir(parents=True, exist_ok=True)
+    for name in ("tokens.css", "reader.css", "reader.js", "logo.png"):
+        (out / name).write_bytes(f"/* {name} */".encode())
+    for name in ("Andika-Regular.ttf", "OFL-Andika.txt"):
+        (out / "fonts" / name).write_bytes(name.encode())
+    return out
+
+
+def test_reader_files_resolve_from_the_reader_page(studio):  # spec 023 FR-5
+    from urllib.parse import urljoin
+
+    s = studio()
+    write_editions(s)
+    write_reader(s)
+    page = f"http://127.0.0.1:8765/books/{PILOT_SLUG}/editions/index.html"
+    for rel in ("reader/tokens.css", "reader/reader.css", "reader/reader.js", "reader/logo.png"):
+        r = s.client.get(urljoin(page, rel))
+        assert r.status_code == 200, rel
+        assert r.content == f"/* {rel.split('/')[-1]} */".encode()
+    assert "css" in s.client.get(urljoin(page, "reader/reader.css")).headers["content-type"]
+    css = urljoin(page, "reader/tokens.css")
+    font = s.client.get(urljoin(css, "fonts/Andika-Regular.ttf"))
+    assert font.status_code == 200 and font.content == b"Andika-Regular.ttf"
+    assert s.client.get(urljoin(css, "fonts/OFL-Andika.txt")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "reader/notes.md",
+        "reader/..%2Fbook.json",
+        "reader/fonts/..%2F..%2Fbook.json",
+        "reader/fonts/evil.js",
+        "reader/missing.css",
+        "reader/fonts/Missing.ttf",
+        "reader/link.css",
+    ],
+)
+def test_reader_route_refuses_other_files(studio, rel):
+    s = studio()
+    write_editions(s)
+    out = write_reader(s)
+    (out / "notes.md").write_text("x")
+    (out / "fonts" / "evil.js").write_text("x")
+    (out / "link.css").symlink_to(pilot_folder(s.paths.root).book_json)
+    r = s.client.get(f"/books/{PILOT_SLUG}/editions/{rel}")
+    assert r.status_code == 404
+    assert b'"metadata"' not in r.content
+
+
+def test_reader_voice_tracks_resolve(studio):  # spec 023 AC-5.3
+    from urllib.parse import urljoin
+
+    s = studio()
+    write_editions(s)
+    tracks = build_dir(s) / "audio" / "tracks"
+    tracks.mkdir(parents=True)
+    (tracks / "page-01.wav").write_bytes(b"RIFF one")
+    (tracks / "page-01.json").write_text("{}")
+    page = f"http://127.0.0.1:8765/books/{PILOT_SLUG}/editions/index.html"
+    r = s.client.get(urljoin(page, "audio/tracks/page-01.wav"))
+    assert r.status_code == 200 and r.content == b"RIFF one"
+    assert s.client.get(urljoin(page, "audio/tracks/page-01.json")).status_code == 404
+    assert s.client.get(urljoin(page, "audio/tracks/page-02.wav")).status_code == 404

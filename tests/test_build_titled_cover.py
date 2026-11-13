@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from pathlib import Path
 
@@ -107,17 +108,17 @@ def test_reader_pdf_opens_on_the_fitted_print_cover(titled_build):  # AC-2.2
 def test_epub_cover_is_the_fitted_print_cover(titled_build):  # AC-2.2
     build_dir, stem, fitted = titled_build
     (epub,) = build_dir.glob("*.epub")
-    with (
-        zipfile.ZipFile(epub) as zf,
-        Image.open(io.BytesIO(zf.read("OEBPS/images/cover.jpg"))) as im,
-    ):
-        assert im.size == (1400, 1400)
-        assert _mean_diff(im, fitted) < 3
+    with zipfile.ZipFile(epub) as zf:
+        opf = zf.read("OEBPS/content.opf").decode("utf-8")
+        (href,) = re.findall(r'<item [^>]*href="([^"]+)"[^>]*properties="cover-image"', opf)
+        with Image.open(io.BytesIO(zf.read(f"OEBPS/{href}"))) as im:
+            assert im.size == (1200, 1200)  # spec 023: the EPUB's 1200 px fixed layout
+            assert _mean_diff(im, fitted) < 3
 
 
-def test_flipbook_front_cover_is_the_fitted_print_cover(titled_build):  # AC-2.3
+def test_reader_front_cover_is_the_print_cover(titled_build):  # AC-2.3, spec 023 AC-5.1
     build_dir, stem, fitted = titled_build
     html = (build_dir / "index.html").read_text(encoding="utf-8")
-    assert f'<img src="{stem}_Front_Cover.png" alt="Front Cover"/>' in html
+    assert 'class="scene__art" src="../illustrations/cover_front_print.png"' in html
     with Image.open(build_dir / f"{stem}_Front_Cover.png") as im:
         assert im.convert("RGB").tobytes() == fitted.tobytes()

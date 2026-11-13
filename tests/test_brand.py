@@ -73,15 +73,19 @@ def make_cover_book(root: Path) -> tuple[dict, BookFolder]:
     return mini_data(), folder
 
 
-def test_front_cover_draws_without_the_logo_using_the_author(tmp_path: Path) -> None:  # AC-2.2
+def test_front_cover_draws_without_the_logo_using_the_publisher(tmp_path: Path) -> None:
+    """AC-2.2; spec 023 AC-4.1: without the logo file the publisher name sits bottom right."""
     data, folder = make_cover_book(tmp_path)
     out = tmp_path / "cover.png"
     img = build.create_front_cover_image(data, out, size_px=400, paths=folder)
     assert img.size == (400, 400)
     assert out.is_file()
+    corner = img.crop((240, 340, 372, 372)).convert("L")
+    assert corner.getextrema()[0] < 140  # lettering darker than the sky-blue picture
 
 
-def test_front_cover_places_the_logo_badge_near_the_bottom(tmp_path: Path) -> None:  # AC-2.2
+def test_front_cover_places_the_logo_bottom_right(tmp_path: Path) -> None:
+    """AC-2.2; spec 023 AC-4.1: the logo, 22u wide, sits in the bottom-right safe corner."""
     data, folder = make_cover_book(tmp_path)
     plain = build.create_front_cover_image(data, tmp_path / "a.png", size_px=400, paths=folder)
     logo_dir = tmp_path / "assets" / "brand"
@@ -89,10 +93,11 @@ def test_front_cover_places_the_logo_badge_near_the_bottom(tmp_path: Path) -> No
     Image.new("RGBA", (1256, 733), (230, 40, 40, 255)).save(logo_dir / LOGO.name)
     badged = build.create_front_cover_image(data, tmp_path / "b.png", size_px=400, paths=folder)
     assert badged.size == (400, 400)
-    # the badge sits centred in the bottom band, about 30% of the width
-    centre = badged.getpixel((200, 365))
-    assert centre[0] > 200 and centre[1] < 90  # the red logo pixels
-    assert badged.getpixel((200, 365)) != plain.getpixel((200, 365))
+    # safe area 30 px; logo 88 x 51 px ending at (370, 370)
+    inside = badged.getpixel((326, 345))
+    assert inside[0] > 200 and inside[1] < 90  # the red logo pixels
+    assert badged.getpixel((326, 345)) != plain.getpixel((326, 345))
+    assert badged.getpixel((200, 345)) == plain.getpixel((200, 345))  # nothing centred
 
 
 @pytest.mark.skipif(not LOGO.is_file(), reason="brand logo not present")

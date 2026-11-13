@@ -1,0 +1,13 @@
+/* Giggle & Snooze fixed-layout EPUB pages (spec 023 Story 6). Every page is dpi.epub_px square (1200 px):
+   a background picture, then each line of words placed absolutely from the page layout.
+   The font-face rules for the bundled faces are generated in front of these rules. */
+html, body { margin: 0; padding: 0; }
+body { position: relative; overflow: hidden; }  /* size set per page from dpi.epub_px */
+.bg { position: absolute; left: 0; top: 0; display: block; }
+.ln { position: absolute; display: block; margin: 0; padding: 0; white-space: nowrap;
+  font-kerning: none; font-synthesis: none; font-variant-ligatures: none; }
+.d { font-family: "GS Display", serif; font-weight: 400; }
+.b { font-family: "GS Body", sans-serif; font-weight: 400; }
+.bb { font-family: "GS Body", sans-serif; font-weight: 700; }
+.im { position: absolute; display: block; }
+.sh { position: absolute; box-sizing: border-box; }

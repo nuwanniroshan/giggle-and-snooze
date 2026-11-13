@@ -82,18 +82,18 @@ def test_build_writes_only_into_the_book_build_folder(
 
         return stub
 
-    monkeypatch.setattr(build, "register_fonts", lambda: {})
     monkeypatch.setattr(build, "create_front_cover_image", record("front"))
     monkeypatch.setattr(build, "create_back_cover_image", record("back"))
     monkeypatch.setattr(build, "create_kdp_wrap_cover", record("wrap"))
     monkeypatch.setattr(build, "build_pdfs", record("pdfs"))
     monkeypatch.setattr(build, "build_epub", record("epub"))
-    monkeypatch.setattr(build, "build_interactive_flipbook", record("flipbook"))
+    monkeypatch.setattr(build, "build_reader", record("reader"))
+    monkeypatch.setattr(build.Publication, "check", lambda self, plan: None)  # spec 023 fit
 
     assert build.main(["--book", "moon-kite-race", "--root", str(tmp_path)]) == 0
 
-    assert set(calls) == {"front", "back", "wrap", "pdfs", "epub", "flipbook"}
-    for name in ["front", "back", "pdfs", "epub", "flipbook"]:
+    assert set(calls) == {"front", "back", "wrap", "pdfs", "epub", "reader"}
+    for name in ["front", "back", "pdfs", "epub", "reader"]:
         _, kwargs = calls[name]
         assert kwargs["paths"].folder == folder, name
     # The wrap cover takes explicit output paths; both must be inside the book's build folder.

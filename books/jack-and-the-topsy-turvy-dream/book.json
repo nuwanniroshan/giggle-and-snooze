@@ -17,7 +17,8 @@
     "author": "Giggle & Snooze",
     "age_range": "Ages 3-6",
     "blurb": "When Jack’s favourite toy car slips away in a topsy-turvy dream, a puzzling call follows him down the road. One little pause helps him hear the start of a friendship.",
-    "dedication": "For little listeners and the friends they find."
+    "dedication": "For little listeners and the friends they find.",
+    "cover_focus_x": 0.3
   },
   "style_bible": {
     "style_prompt_prefix": "Wax-crayon resist watercolour on textured paper, rounded friendly shapes, airy washes, playful curved perspective, expressive gentle faces."
@@ -29,7 +30,11 @@
       "text": "Jack snuggled under his quilt with his favourite red toy car. He gave its wheels one sleepy spin. Round and round—and into a dream.",
       "layout": "image_top_text_bottom",
       "prompt": "Cosy bedroom at bedtime, Jack a young child with short dark curls and warm brown skin, wearing pale yellow star pyjamas, tucked beneath a soft blue quilt. His hand cradles a small red toy car with four yellow wheels. A warm bedside lamp and soft moonlight make the room welcoming. Rounded shapes and gentle expression.",
-      "illustration_file": "page_01.png"
+      "illustration_file": "page_01.png",
+      "print_layout": {
+        "focus_x": 0.45,
+        "words": "bottom"
+      }
     },
     {
       "page_number": 2,
@@ -53,7 +58,10 @@
       "text": "Jack heard a call, but not the words. He took two quicker steps, and the friend took two quicker steps too. Then Jack stopped and turned; the friend stopped with a smile.",
       "layout": "full_bleed_card_top_right",
       "prompt": "Jack pauses on a wide level bend in the lavender road and turns toward the small mint-green three-eyed friend. Both have relaxed, curious expressions, and the friend smiles while holding the red car where Jack can see it. Cushion hills and upside-down flowers in the distance, generous open sky upper right.",
-      "illustration_file": "page_04.png"
+      "illustration_file": "page_04.png",
+      "print_layout": {
+        "words": "bottom"
+      }
     },
     {
       "page_number": 5,
@@ -101,7 +109,11 @@
       "text": "Jack woke safe and cosy, his car in his hand. He listened to the soft hush of his room and smiled. “Next time, we’ll take turns again,” he whispered.",
       "layout": "image_top_text_bottom",
       "prompt": "Return to the same warm bedroom. Jack with short dark curls and warm brown skin lies tucked under his blue quilt in pale yellow star pyjamas, awake with a peaceful smile, holding the red toy car with yellow wheels. Gentle early morning light at the window, warm familiar furnishings, a lilac scarf-shaped cloud far outside as a subtle dream echo. Tender cosy ending.",
-      "illustration_file": "page_10.png"
+      "illustration_file": "page_10.png",
+      "print_layout": {
+        "focus_x": 0.42,
+        "words": "bottom"
+      }
     }
   ]
 }
