@@ -1,9 +1,12 @@
 """YouTube upload helpers (spec 024).
 
 Settings, chapters from the render record, text rules and the small JSON records kept per
-book; Codex writing the text (phase 4) and the CLI:
+book; Codex writing the text (phase 4); the upload and check (phase 5) and the CLI:
 
+    uv run python -m video_pipeline.youtube connect | disconnect [--yes] | status
     uv run python -m video_pipeline.youtube text --book <slug> [--root R] [--force]
+    uv run python -m video_pipeline.youtube upload --book <slug> [--root R] [--yes]
+    uv run python -m video_pipeline.youtube check --book <slug> [--root R]
 """
 
 from __future__ import annotations
@@ -11,13 +14,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import signal
 import sys
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, TypedDict
 
 from video_pipeline.agents import (
     AgentResult,
@@ -428,6 +432,16 @@ def mark_not_found(paths: YouTubePaths, video_id: str, checked_at: str) -> None:
     write_atomic(paths.uploads, {"uploads": uploads})
 
 
+def mark_checked(paths: YouTubePaths, video_id: str, checked_at: str) -> None:
+    uploads = read_uploads(paths)
+    hits = [u for u in uploads if u.get("video_id") == video_id]
+    if not hits:
+        raise YouTubeError(f"no upload record for video {video_id!r}")
+    for entry in hits:
+        entry["checked_at"] = checked_at
+    write_atomic(paths.uploads, {"uploads": uploads})
+
+
 def upload_state(paths: YouTubePaths, render_record: dict | None) -> str:
     last = last_upload(paths)
     if last is None:
@@ -608,6 +622,197 @@ def write_youtube_text(
     return TextOutcome("failed", problems, settings.codex_attempts)
 
 
+# --- upload and check (phase 5: Stories 3, 4, FR-4) ----------------------------------------
+
+
+class UploadEntry(TypedDict):
+    """One upload record (AC-4.1), appended to `books/<slug>/youtube/uploads.json`."""
+
+    video_id: str
+    url: str
+    channel_id: str
+    channel_title: str
+    uploaded_at: str
+    final_key: str | None
+    video_sha256: str
+    text_sha256: str
+    category_id: str
+    privacy: str
+    made_for_kids: bool
+    warnings: list[str]
+    state: str
+    checked_at: str | None
+
+
+def video_url(video_id: str) -> str:
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _stamp(moment: datetime) -> str:
+    return moment.astimezone(UTC).isoformat(timespec="seconds")
+
+
+def _video_file(folder: BookFolder) -> Path:
+    return folder.build_dir / "video" / f"{folder.slug}.mp4"
+
+
+def _thumbnail_reason(exc: Exception) -> str:
+    from googleapiclient.errors import HttpError
+
+    from video_pipeline import youtube_api as api
+
+    if isinstance(exc, HttpError):
+        message, _, _ = api._http_parts(exc)
+        return f"HTTP {exc.resp.status} {message}"
+    return str(exc) or type(exc).__name__
+
+
+def upload_book(
+    folder: BookFolder,
+    root: Path,
+    client_factory: Callable[[Any], Any],
+    *,
+    confirm: Callable[[str], bool],
+    out: Callable[[str], None] = print,
+    check: Callable[[BookFolder, Path], tuple[str, str]] | None = None,
+    now: Callable[[], datetime] = _utc_now,
+    secrets: Path | None = None,
+) -> UploadEntry:
+    """Check every gate, ask `confirm`, upload the video private and made for kids, set the
+    thumbnail (a refusal is a warning) and append the record. Nothing is recorded on any
+    exception; nothing is sent before `confirm` says yes."""
+    from video_pipeline import youtube_api as api
+    from video_pipeline.timeline import load_render_config
+
+    root = Path(root)
+    secrets = Path(secrets) if secrets is not None else api.secrets_dir()
+    settings = load_settings(root / "config")
+
+    # 1. the connection
+    channel = api.connected_channel(secrets)
+    if channel is None:
+        raise api.ReconnectNeeded(
+            "Connect a channel first (python -m video_pipeline.youtube connect)"
+        )
+    credentials = api.load_credentials(secrets, settings)
+
+    # 2. the video
+    state, reason = (check or _render_check)(folder, root)
+    if state != "up_to_date":
+        detail = f": {reason}" if reason else ""
+        raise YouTubeError(
+            f"the video is {state}{detail}; render it first (render_episode --book {folder.slug})"
+        )
+    video = _video_file(folder)
+    record_path = _video_record(folder)
+    record = _read_json(record_path)
+    if record is None or not video.is_file():
+        raise YouTubeError(f"no rendered video at {video}; render it first")
+
+    # 3. the text
+    paths = YouTubePaths(folder)
+    text = read_text(paths.text)
+    if text is None:
+        raise YouTubeError(
+            f"Write YouTube text first (python -m video_pipeline.youtube text --book {folder.slug})"
+        )
+    try:
+        book = json.loads(folder.book_json.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise YouTubeError(f"book data not found: {folder.book_json}") from None
+    chapters = chapters_from_record(record, book, settings)
+    duration = float(record.get("duration", 0.0))
+    terms = load_disallowed_terms(root / "config" / "disallowed_terms.txt")
+    problems = text_problems(text, book, chapters, duration, settings, terms)
+    if problems:
+        raise YouTubeError(
+            "the YouTube text has problems:\n" + "\n".join(f"- {p}" for p in problems)
+        )
+    category_id = category_for(book, text, settings)
+
+    # 4. the producer's confirmation
+    size_mb = video.stat().st_size / (1024 * 1024)
+    summary = [
+        f"Channel: {channel.title}",
+        f"Title: {text['title']}",
+        "Made for kids: yes",
+        "Privacy: Private",
+        f"Category: {category_id}",
+        f"File: {video.name} ({size_mb:.1f} MB)",
+    ]
+    previous = last_upload(paths)
+    if previous is not None:
+        first = previous.get("url") or video_url(str(previous.get("video_id", "")))
+        summary.append(f"This makes a second video; the first is {first}")
+    if not confirm("\n".join(summary)):
+        raise YouTubeError("upload cancelled")
+
+    video_sha = sha256_file(video)
+    text_sha = text_sha256(paths.text)
+    client = client_factory(credentials)
+    body = api.video_body(
+        text,
+        compose_description(text["description"], chapters, settings),
+        category_id,
+        language_for(book, settings),
+    )
+    video_id = api.upload_video(
+        client, video, body, settings, on_progress=lambda p: out(f"uploaded {p}%")
+    )
+
+    warnings: list[str] = []
+    try:
+        render_cfg = load_render_config(root / "config" / "render.json")
+        thumb = api.make_thumbnail(
+            folder.illustrations / "cover_front.png", paths.thumbnail, render_cfg, settings
+        )
+        client.set_thumbnail(video_id, thumb)
+    except Exception as exc:  # any refusal here is a warning; the video is already up
+        warnings.append(f"thumbnail not set: {_thumbnail_reason(exc)}")
+        out(f"warning: {warnings[-1]}")
+
+    entry = UploadEntry(
+        video_id=video_id,
+        url=video_url(video_id),
+        channel_id=channel.id,
+        channel_title=channel.title,
+        uploaded_at=_stamp(now()),
+        final_key=record.get("final_key"),
+        video_sha256=video_sha,
+        text_sha256=text_sha,
+        category_id=category_id,
+        privacy="private",
+        made_for_kids=True,
+        warnings=warnings,
+        state="uploaded",
+        checked_at=None,
+    )
+    append_upload(paths, dict(entry))
+    out(f"On YouTube (Private): {entry['url']}")
+    return entry
+
+
+def check_book(
+    folder: BookFolder, client: Any, now: Callable[[], datetime] = _utc_now
+) -> Literal["uploaded", "not_found"]:
+    """Ask YouTube whether the last uploaded video still exists; the record is always kept."""
+    paths = YouTubePaths(folder)
+    last = last_upload(paths)
+    if last is None:
+        raise YouTubeError("nothing uploaded yet")
+    video_id = str(last["video_id"])
+    checked_at = _stamp(now())
+    if not client.video_exists(video_id):
+        mark_not_found(paths, video_id, checked_at)
+        return "not_found"
+    mark_checked(paths, video_id, checked_at)
+    return "uploaded"
+
+
 # --- CLI ------------------------------------------------------------------------------------
 
 
@@ -628,20 +833,157 @@ def _cmd_text(args: argparse.Namespace) -> int:
     return 0
 
 
+# Tests swap these; `None` means the real Google client.
+_client_factory: Callable[[Any], Any] | None = None
+
+
+def _make_client(credentials: Any) -> Any:
+    if _client_factory is not None:
+        return _client_factory(credentials)
+    from video_pipeline.youtube_api import GoogleYouTube
+
+    return GoogleYouTube(credentials)
+
+
+def _ask(question: str) -> bool:
+    try:
+        return input(question).strip().lower() in {"y", "yes"}
+    except EOFError:
+        return False
+
+
+def _cmd_connect(args: argparse.Namespace) -> int:
+    from video_pipeline import youtube_api as api
+
+    folder = api.secrets_dir()
+    ok, why = api.client_status(folder)
+    if not ok:
+        print(f"error: {why}", file=sys.stderr)
+        return 1
+    channel = api.connect_cli(folder, load_settings(Path(args.root) / "config"))
+    print(f"Connected: {channel.title} ({channel.id})")
+    return 0
+
+
+def _cmd_disconnect(args: argparse.Namespace) -> int:
+    from video_pipeline import youtube_api as api
+
+    folder = api.secrets_dir()
+    channel = api.connected_channel(folder)
+    name = channel.title if channel else "the YouTube channel"
+    if not args.yes and not _ask(f"Disconnect {name}? [y/N] "):
+        print("Not disconnected", file=sys.stderr)
+        return 1
+    api.disconnect(folder)
+    print("Disconnected")
+    return 0
+
+
+def _cmd_status(args: argparse.Namespace) -> int:
+    from video_pipeline import youtube_api as api
+
+    folder = api.secrets_dir()
+    ok, why = api.client_status(folder)
+    print(f"OAuth client: {'ready' if ok else why}")
+    channel = api.connected_channel(folder)
+    if channel is None:
+        print("Not connected")
+    else:
+        print(f"Connected: {channel.title} ({channel.id}) since {channel.connected_at}")
+    return 0
+
+
+def _on_sigterm(signum: int, frame: Any) -> None:
+    raise SystemExit(143)  # the studio's Stop: unwind without writing a record
+
+
+def _cmd_upload(args: argparse.Namespace) -> int:
+    folder = book_folder(args.book, args.root)
+    previous = signal.signal(signal.SIGTERM, _on_sigterm)
+    try:
+
+        def confirm(summary: str) -> bool:
+            if args.yes:
+                print(summary)
+                return True
+            return _ask(f"{summary}\nUpload? [y/N] ")
+
+        upload_book(
+            folder,
+            Path(args.root),
+            _make_client,
+            confirm=confirm,
+            out=lambda line: print(line, flush=True),
+        )
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+    return 0
+
+
+def _cmd_check(args: argparse.Namespace) -> int:
+    from video_pipeline import youtube_api as api
+
+    folder = book_folder(args.book, args.root)
+    secrets = api.secrets_dir()
+    if api.connected_channel(secrets) is None:
+        raise api.ReconnectNeeded(
+            "Connect a channel first (python -m video_pipeline.youtube connect)"
+        )
+    settings = load_settings(Path(args.root) / "config")
+    client = _make_client(api.load_credentials(secrets, settings))
+    if check_book(folder, client) == "not_found":
+        print("not found on YouTube (record kept)")
+    else:
+        print(f"On YouTube: {last_upload(YouTubePaths(folder))['url']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    from googleapiclient.errors import HttpError
+
     parser = argparse.ArgumentParser(
         prog="python -m video_pipeline.youtube",
         description="Publish a book's video on YouTube (spec 024).",
     )
     commands = parser.add_subparsers(dest="command", required=True)
+
+    connect = commands.add_parser("connect", help="connect the project's YouTube channel")
+    connect.add_argument("--root", type=Path, default=PROJECT_ROOT)
+    connect.set_defaults(run=_cmd_connect)
+
+    disconnect = commands.add_parser("disconnect", help="revoke and forget the connection")
+    disconnect.add_argument("--yes", action="store_true", help="do not ask first")
+    disconnect.set_defaults(run=_cmd_disconnect)
+
+    status = commands.add_parser("status", help="show the OAuth client and connected channel")
+    status.set_defaults(run=_cmd_status)
+
     text = commands.add_parser("text", help="have Codex write the title, description and tags")
     text.add_argument("--book", required=True)
     text.add_argument("--root", type=Path, default=PROJECT_ROOT)
     text.add_argument("--force", action="store_true", help="rewrite (the old one kept as .bak)")
     text.set_defaults(run=_cmd_text)
+
+    upload = commands.add_parser("upload", help="upload the book's video (private, for kids)")
+    upload.add_argument("--book", required=True)
+    upload.add_argument("--root", type=Path, default=PROJECT_ROOT)
+    upload.add_argument("--yes", action="store_true", help="do not ask before uploading")
+    upload.set_defaults(run=_cmd_upload)
+
+    check = commands.add_parser("check", help="check the uploaded video is still on YouTube")
+    check.add_argument("--book", required=True)
+    check.add_argument("--root", type=Path, default=PROJECT_ROOT)
+    check.set_defaults(run=_cmd_check)
+
     args = parser.parse_args(argv)
     try:
         return args.run(args)
+    except KeyboardInterrupt:
+        print("interrupted; nothing recorded", file=sys.stderr)
+        return 130
+    except HttpError as exc:
+        print(f"error: YouTube answered HTTP {exc.resp.status}", file=sys.stderr)
+        return 1
     except (YouTubeError, AgentUnavailable, LibraryError, ConfigError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
