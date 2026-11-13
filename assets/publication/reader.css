@@ -1,0 +1,113 @@
+/* Hallmark v2.0.0 · theme: custom · idea: "every Giggle & Snooze book dims from day to night as it is read" · web reader (spec 023) · tokens in tokens.css, generated from config/publication.json */
+/* faces: GS Display = Young Serif (display, one weight), GS Body = Andika 400/700 (body); bundled in fonts/, nothing loads from the network */
+/* critique: the old flipbook drew a book on a page; this one is the picture, full screen, with the words on it and two quiet controls. */
+/* Hallmark · waive 25 · .scene__text 34ch · a picture-book line for read-aloud, 6 to 9 words a line */
+/* answered: 44b the cover screen's title, one line and Start are visible at 1280 x 800 · 12 the reader has no marketing hero, the cover is the hero */
+
+html, body { margin: 0; overflow-x: clip; background: var(--color-night); }
+body { font-family: var(--font-body); color: var(--color-ink); font-synthesis: none; }
+button { font: inherit; }
+
+.scene {
+  position: relative; min-height: 100svh; overflow: clip; isolation: isolate;
+  --t: 0;
+  --scrim: color-mix(in oklch, var(--color-night) calc(clamp(0, var(--t) * 2 - 1, 1) * 100%),
+    color-mix(in oklch, var(--color-dusk) calc(clamp(0, var(--t) * 2, 1) * 100%), var(--color-day)));
+  --ink: var(--color-ink); --ink-soft: var(--color-ink-soft);
+  background: var(--scrim);
+  display: grid;
+}
+.scene.is-night { --ink: var(--color-moon); --ink-soft: var(--color-moon-soft); }
+.scene__art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  object-position: var(--fx, 50%) 50%; z-index: -2; }
+
+/* words sit in a band at the top or bottom, on the scene's own colour fading into the picture */
+.scene__words { align-self: end; padding: 96px max(24px, calc((100vw - 1120px) / 2)) 112px;
+  background: linear-gradient(to top, color-mix(in oklch, var(--scrim) 96%, transparent) 0%,
+    color-mix(in oklch, var(--scrim) 88%, transparent) 55%, color-mix(in oklch, var(--scrim) 0%, transparent));
+  color: var(--ink); }
+.words-top .scene__words { align-self: start; padding-top: 104px; padding-bottom: 96px;
+  background: linear-gradient(to bottom, color-mix(in oklch, var(--scrim) 96%, transparent) 0%,
+    color-mix(in oklch, var(--scrim) 88%, transparent) 55%, color-mix(in oklch, var(--scrim) 0%, transparent)); }
+.scene__title { margin: 0 0 12px; font: 700 1rem / 1.3 var(--font-body); color: var(--ink-soft); }
+.scene__text { margin: 0; max-width: 34ch; font: 400 clamp(1.375rem, 1rem + 1.4vw, 2.125rem) / 1.42 var(--font-body);
+  text-wrap: pretty; overflow-wrap: break-word; min-width: 0; }
+
+/* cover and goodnight */
+.scene--cover .scene__words, .scene--end .scene__words { display: grid; gap: 20px; justify-items: start; }
+.scene--cover .scene__words { align-self: start; padding-top: 104px; }
+.scene__display { margin: 0; font: 400 clamp(2.5rem, 1.4rem + 4vw, 5rem) / 1 var(--font-display); color: var(--color-snooze);
+  max-width: 14ch; text-wrap: balance; overflow-wrap: break-word; min-width: 0; }
+.scene--end .scene__display { color: var(--ink); }
+.scene__lead { margin: 0; font: 400 clamp(1.125rem, 1rem + 0.5vw, 1.375rem) / 1.4 var(--font-body); max-width: 36ch; }
+.scene--end { --t: 1; }
+.scene--end .scene__words { align-self: center; background: none; }
+.scene__logo { width: 180px; height: auto; }
+
+/* one button style */
+.btn { display: inline-flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 24px; border: 0; border-radius: 999px;
+  background: var(--color-giggle); color: var(--color-ink); font: 700 1.0625rem / 1 var(--font-body); cursor: pointer;
+  text-decoration: none; transition: transform 160ms var(--ease), background-color 160ms var(--ease); }
+.btn:hover { background: color-mix(in oklch, var(--color-giggle) 88%, var(--color-paper)); }
+.btn:active { transform: scale(0.97); }
+.btn:focus-visible, .chrome__btn:focus-visible, .turn:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; transition: none; }
+.btn:disabled, .chrome__btn:disabled, .turn:disabled { opacity: 0.4; cursor: default; }
+
+/* chrome: hidden until the reader script runs */
+.chrome, .turn, .progress { display: none; }
+.is-paged .chrome { position: fixed; inset: 0 0 auto 0; z-index: 5; display: flex; justify-content: space-between; align-items: center;
+  padding: 16px max(16px, calc((100vw - 1120px) / 2 - 64px)); pointer-events: none; }
+.chrome > * { pointer-events: auto; }
+.chrome__logo { width: 92px; height: auto; }
+.chrome__right { display: flex; gap: 8px; align-items: center; }
+.chrome__btn { min-height: 44px; min-width: 44px; padding: 0 16px; border: 0; border-radius: 999px; cursor: pointer;
+  background: color-mix(in oklch, var(--color-night) 70%, transparent); color: var(--color-moon); font: 700 0.9375rem / 1 var(--font-body);
+  transition: background-color 160ms var(--ease); }
+.chrome__btn:hover { background: var(--color-night); }
+.chrome__btn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--color-giggle); color: var(--color-giggle); }
+.chrome__count { font: 700 0.9375rem / 1 var(--font-body); color: var(--color-moon); padding: 0 8px;
+  background: color-mix(in oklch, var(--color-night) 70%, transparent); border-radius: 999px; min-height: 44px; display: inline-flex; align-items: center; }
+
+.is-paged .turn { position: fixed; bottom: 24px; z-index: 5; display: inline-grid; place-items: center; width: 56px; height: 56px;
+  border: 0; border-radius: 999px; cursor: pointer; background: color-mix(in oklch, var(--color-night) 70%, transparent); color: var(--color-moon);
+  transition: background-color 160ms var(--ease), transform 160ms var(--ease); }
+.turn:hover { background: var(--color-night); }
+.turn:active { transform: scale(0.94); }
+.turn--prev { left: max(16px, calc((100vw - 1120px) / 2 - 64px)); }
+.turn--next { right: max(16px, calc((100vw - 1120px) / 2 - 64px)); }
+.turn svg { width: 24px; height: 24px; }
+
+.is-paged .progress { position: fixed; inset: auto 0 0 0; height: 4px; z-index: 5; display: block; background: color-mix(in oklch, var(--color-night) 50%, transparent); }
+.progress__fill { height: 100%; width: 100%; transform-origin: left; transform: scaleX(var(--p, 0));
+  background: var(--color-giggle); transition: transform 400ms var(--ease); }
+
+/* paged mode: one scene at a time, cross-faded */
+.is-paged .scene { position: fixed; inset: 0; opacity: 0; visibility: hidden; transition: opacity 500ms var(--ease), visibility 0s 500ms; }
+.is-paged .scene.is-current { opacity: 1; visibility: visible; transition: opacity 500ms var(--ease), visibility 0s; }
+
+@media (max-width: 640px) {
+  .scene__words { padding-bottom: 96px; }
+  .words-top .scene__words { padding-top: 84px; }
+  .scene__display { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-paged .scene, .is-paged .scene.is-current, .progress__fill, .btn, .turn, .chrome__btn { transition: none; }
+}
+
+/* the cover's sky is already pale: a lighter scrim keeps Jack in view */
+.scene--cover .scene__words { padding-bottom: 64px;
+  background: linear-gradient(to bottom, color-mix(in oklch, var(--color-day) 82%, transparent) 0%,
+    color-mix(in oklch, var(--color-day) 60%, transparent) 60%, color-mix(in oklch, var(--color-day) 0%, transparent)); }
+
+/* titled covers (spec 022) carry their lettering in the picture: the words stay for screen readers */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0; }
+.scene--titled .scene__words { align-self: end; background: none; padding-bottom: 112px; }
+
+/* the goodnight scene's editions */
+.scene__links { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.scene__links a { color: var(--ink-soft); font: 400 1rem / 1.4 var(--font-body); text-underline-offset: 3px; }
+.scene__links a:hover { color: var(--ink); }
+.scene__links a:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; border-radius: 4px; }
+/* a titled book's square print cover is shown whole, so its painted title is never cropped */
+.scene--titled .scene__art { object-fit: contain; object-position: 50% 50%; }

@@ -396,13 +396,14 @@ def test_files_are_named_by_real_counts_and_stale_ones_removed(ten_page_build: P
     assert len(digital) == 10
 
 
-def test_flipbook_links_match_written_files(ten_page_build: Path) -> None:
-    """AC-3.1: hrefs point at the files written; the counter uses the real page count."""
+def test_reader_links_match_written_files(ten_page_build: Path) -> None:
+    """AC-3.1, spec 023 AC-5.1: hrefs point at the files written; link texts and the page
+    counter use the real page counts."""
     html = (ten_page_build / "index.html").read_text(encoding="utf-8")
     hrefs = re.findall(r'href="([^"]+\.(?:pdf|epub))"', html)
     assert hrefs and all((ten_page_build / h).is_file() for h in hrefs)
-    assert "20Page" not in html and "24-Page" in html and "10-Page" in html
-    assert "of 20" not in html and "pages.length" in html
+    assert "20Page" not in html and "Digital edition, 10 pages" in html
+    assert "20 pages" not in html and html.count("data-page=") == 10
     assert "../illustrations/" in html and "../assets/illustrations/" not in html
 
 
@@ -454,7 +455,9 @@ def test_pilot_editions_keep_their_content(pilot_build: Path) -> None:
             assert sizes == expected["sizes"], name
 
 
-def test_pilot_flipbook_links_unchanged(pilot_build: Path) -> None:
+def test_pilot_reader_links_unchanged(pilot_build: Path) -> None:
     html = (pilot_build / "index.html").read_text(encoding="utf-8")
     assert 'href="The_Snail_Mail_Express_20Page_Digital_Edition.pdf"' in html
-    assert 'href="The_Snail_Mail_Express_KDP_26Page_Print_Interior.pdf"' in html
+    assert 'href="The_Snail_Mail_Express_Complete_Reader.pdf"' in html
+    assert 'href="The_Snail_Mail_Express.epub"' in html
+    assert "KDP" not in html  # spec 023 AC-5.1: the print files are not for readers

@@ -32,7 +32,7 @@
   <p class="stage-detail">Running {{ ap.stage_label or 'the first stage' }}&hellip; started at {{ ap.run.started_at }}. Stop ends the current stage and starts nothing after it.</p>
   {% elif ap.run.state == 'finished' %}
   <p class="stage-detail">Finished by autopilot at {{ ap.run.finished_at }}.</p>
-  <p class="small">{% if ap.video %}<a href="/books/{{ book.slug }}/video">Watch the video</a> &middot; {% endif %}<a href="/books/{{ book.slug }}#stage-build">The editions</a>{% if editions.files|selectattr('name', 'equalto', 'index.html')|list %} &middot; <a href="/books/{{ book.slug }}/editions/index.html" target="_blank" rel="noopener">Open the flipbook</a>{% endif %}</p>
+  <p class="small">{% if ap.video %}<a href="/books/{{ book.slug }}/video">Watch the video</a> &middot; {% endif %}<a href="/books/{{ book.slug }}#stage-build">The editions</a>{% if editions.files|selectattr('name', 'equalto', 'index.html')|list %} &middot; <a href="/books/{{ book.slug }}/editions/index.html" target="_blank" rel="noopener">Open the web reader</a>{% endif %}</p>
   {% elif ap.run.state == 'failed' %}
   <p class="stage-detail strong">Stopped at {{ ap.stage_label }}.</p>
   {% if ap.run.reason %}{{ problem_list(ap.run.reason.splitlines()) }}{% endif %}
@@ -153,10 +153,10 @@
       <div class="stage-title">
         <h2>Editions</h2>
         {{ badge(editions.state) }}
-        {% if editions.files|selectattr('name', 'equalto', 'index.html')|list %}<a class="open" href="/books/{{ book.slug }}/editions/index.html" target="_blank" rel="noopener">Open the flipbook</a>{% endif %}
+        {% if editions.files|selectattr('name', 'equalto', 'index.html')|list %}<a class="open" href="/books/{{ book.slug }}/editions/index.html" target="_blank" rel="noopener">Open the web reader</a>{% endif %}
       </div>
       {% if editions.detail %}<p class="stage-detail">{{ editions.detail }}</p>{% endif %}
-      <p class="small muted">PDF, EPUB, KDP print files and the flipbook, built into <code>books/{{ book.slug }}/build/</code>.</p>
+      <p class="small muted">PDF, EPUB, KDP print files and the web reader, built into <code>books/{{ book.slug }}/build/</code>.</p>
       <div class="controls">
         <form method="post" action="/books/{{ book.slug }}/run/build" class="inline">
           <button{% if focus != 'build' %} class="secondary"{% endif %} type="submit"{% if build_blocked %} disabled{% endif %}>{{ build_button }}</button>

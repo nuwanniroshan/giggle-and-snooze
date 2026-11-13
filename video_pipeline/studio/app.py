@@ -1427,7 +1427,7 @@ class Studio:
             return Response("not found", status_code=404)
         return FileResponse(path)
 
-    # --- editions and the flipbook (spec 019 FR-4, AC-2.4) ------------------------------------
+    # --- editions and the web reader (spec 019 FR-4, AC-2.4; spec 023 FR-5) -------------------
 
     def edition(self, request: Request) -> Response:
         """One file the book builder wrote, only when `edition_files` lists it (FR-4)."""
@@ -1437,8 +1437,28 @@ class Studio:
             return Response("not found", status_code=404)
         return FileResponse(path, headers={"Cache-Control": "no-store"})
 
+    def reader_file(self, request: Request) -> Response:
+        """The web reader's styles, script, logo and fonts, which `index.html` loads from
+        `reader/` (spec 023 FR-5); only the names `reader_file` allows."""
+        book = self.book_or_none(request)
+        name = request.path_params["name"]
+        font = request.url.path.rsplit("/", 2)[-2] == "fonts"
+        path = sb.reader_file(self.paths, book, name, font=font) if book else None
+        if path is None:
+            return Response("not found", status_code=404)
+        return FileResponse(path, headers={"Cache-Control": "no-store"})
+
+    def reader_track(self, request: Request) -> Response:
+        """A voice track for the reader's "Read to me", `audio/tracks/<name>.wav` from
+        `index.html`; only the episode's own tracks (`media_path`)."""
+        book = self.book_or_none(request)
+        path = self.media_path(book, "track", request.path_params["name"]) if book else None
+        if path is None or not path.is_file():
+            return Response("not found", status_code=404)
+        return FileResponse(path)
+
     def book_illustration(self, request: Request) -> Response:
-        """A book picture for the flipbook, which loads `../illustrations/<name>` from
+        """A book picture for the web reader, which loads `../illustrations/<name>` from
         `/books/{slug}/editions/index.html`; only the names the book defines (`media_path`)."""
         book = self.book_or_none(request)
         name = request.path_params["name"]
@@ -1562,6 +1582,9 @@ def create_app(
         Route("/books/{slug}/animation/{number:int}/prompt", studio.save_prompt, methods=["POST"]),
         Route("/books/{slug}/repaint-cover", studio.repaint_cover, methods=["POST"]),
         Route("/books/{slug}/editions/{name}", studio.edition),
+        Route("/books/{slug}/editions/reader/{name}", studio.reader_file),
+        Route("/books/{slug}/editions/reader/fonts/{name}", studio.reader_file),
+        Route("/books/{slug}/editions/audio/tracks/{name}", studio.reader_track),
         Route("/books/{slug}/illustrations/{name}", studio.book_illustration),
         Route("/jobs/stop", studio.stop_job, methods=["POST"]),
         Route("/api/jobs/current", studio.api_current),

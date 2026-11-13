@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import io
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -70,7 +71,7 @@ PAINT_STAGE = "paint"
 # Pictures panel only, never as a pipeline stage state.
 REPAINT_STAGE = "repaint"
 COVER_SIDES = ("front", "print", "back")  # every side a repaint job accepts (spec 022)
-# Spec 019: builds the PDF, EPUB, KDP files and flipbook (scripts/build_book.py) into build/.
+# Spec 019: builds the PDF, EPUB, KDP files and web reader (scripts/build_book.py) into build/.
 BUILD_STAGE = "build"
 EDITION_SUFFIXES = (".pdf", ".epub", ".png", ".html")
 STATUS_KEYS = {
@@ -573,6 +574,26 @@ def edition_path(paths: StudioPaths, book: Book, name: str) -> Path | None:
     return folder_of(paths, book).build_dir / name
 
 
+READER_FILES = frozenset({"tokens.css", "reader.css", "reader.js", "logo.png"})
+READER_FONT_SUFFIXES = (".ttf", ".txt")
+_READER_FONT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def reader_file(paths: StudioPaths, book: Book, name: str, *, font: bool = False) -> Path | None:
+    """A file of the web reader in `build/reader/` (spec 023 FR-5): the four reader files by
+    name, or a font or licence text in `build/reader/fonts/`; never a symlink or anything else."""
+    folder = folder_of(paths, book).build_dir / "reader"
+    if font:
+        ok = bool(_READER_FONT_NAME.match(name)) and name.lower().endswith(READER_FONT_SUFFIXES)
+        folder = folder / "fonts"
+    else:
+        ok = name in READER_FILES
+    path = folder / name
+    if not ok or path.is_symlink() or not path.is_file():
+        return None
+    return path
+
+
 def _edition_sources(paths: StudioPaths, book: Book) -> list[Path]:
     """What the editions are made from: book.json, the pictures and the blueprint."""
     folder = folder_of(paths, book)
@@ -674,7 +695,7 @@ def stage_output(paths: StudioPaths, book: Book, stage: str) -> Path:
     if stage == PAINT_STAGE:
         return folder_of(paths, book).illustrations / "cover_back.png"  # painted last
     if stage == BUILD_STAGE:
-        return folder_of(paths, book).build_dir / "index.html"  # the flipbook is written last
+        return folder_of(paths, book).build_dir / "index.html"  # the web reader is written last
     return VideoPaths(folder_of(paths, book).build_dir / "video").record(book.slug)
 
 

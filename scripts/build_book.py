@@ -10,8 +10,8 @@ Generates, in books/<slug>/build/ (N = story pages, P = KDP interior pages):
    P = max(24, front + N + 2) rounded up to even, padded with "My drawing" pages)
 4. <Title>_KDP_Print_Wrap_Cover.pdf & .png (spine width from P)
 5. <Title>_Front_Cover.png & Back_Cover.png (300 DPI standalone covers)
-6. <Title>.epub (EPUB 3)
-7. build/index.html (interactive HTML5 flipbook preview)
+6. <Title>.epub (EPUB 3, fixed layout: the complete reader's pages)
+7. build/index.html + build/reader/ (full-screen web reader)
 
 Every page is laid out once by video_pipeline/publication.py (spec 023: full-bleed pictures,
 words on a scrim, day to night) and drawn by video_pipeline/publication_render.py with the
@@ -24,8 +24,6 @@ import json
 import re
 import string
 import sys
-import uuid
-import zipfile
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -37,6 +35,7 @@ from reportlab.pdfgen import canvas
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from video_pipeline import publication as pub  # noqa: E402
+from video_pipeline import publication_web as web  # noqa: E402
 from video_pipeline.covers import titled_covers  # noqa: E402
 from video_pipeline.file_hash import sha256_file  # noqa: E402
 from video_pipeline.library import (  # noqa: E402
@@ -50,6 +49,7 @@ from video_pipeline.motion_plan import plan_path  # noqa: E402
 from video_pipeline.publication import PublicationError, load_design  # noqa: E402
 from video_pipeline.publication_render import (  # noqa: E402
     FONT_NAMES,
+    background_jpeg,
     draw_pdf_page,
     measure,
     register_fonts,
@@ -540,448 +540,129 @@ def build_pdfs(book_data: dict, design: dict, *, paths: BookFolder, extras: dict
     return names
 
 
-def build_epub(book_data: dict, *, paths: BookFolder):
-    """Builds a valid, standards-compliant EPUB 3 file for Amazon Kindle KDP & Apple Books."""
-    stem = file_stem(book_data["metadata"]["title"])
-    epub_path = paths.build_dir / f"{stem}.epub"
-    book_uuid = str(uuid.uuid4())
-
-    with zipfile.ZipFile(epub_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # 1. mimetype MUST be first and uncompressed
-        zf.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-
-        # 2. META-INF/container.xml
-        container_xml = """<?xml version="1.0" encoding="UTF-8"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>"""
-        zf.writestr("META-INF/container.xml", container_xml)
-
-        # 3. Stylesheet
-        css = """
-body {
-  background-color: #FDF8EE;
-  color: #4A3222;
-  font-family: Georgia, "Times New Roman", serif;
-  margin: 0;
-  padding: 1.2em;
-  line-height: 1.55;
-}
-.page-card {
-  max-width: 680px;
-  margin: 0 auto;
-  background: #FDF8EE;
-  border: 2px solid #C88A32;
-  border-radius: 12px;
-  padding: 1.2em;
-  box-sizing: border-box;
-}
-.illustration {
-  text-align: center;
-  margin-bottom: 1em;
-}
-.illustration img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-  border: 2px solid #C88A32;
-}
-h1, h2 {
-  color: #3E6B48;
-  text-align: center;
-  font-style: italic;
-  margin: 0.4em 0;
-}
-.divider {
-  text-align: center;
-  color: #B83B35;
-  margin: 0.4em 0 0.8em 0;
-  font-size: 0.9em;
-}
-p {
-  font-size: 1.08em;
-  margin: 0 0 0.85em 0;
-  text-align: left;
-}
-.dropcap {
-  float: left;
-  color: #B83B35;
-  font-size: 2.7em;
-  line-height: 0.85;
-  padding-right: 0.12em;
-  font-weight: bold;
-}
-.page-num {
-  text-align: center;
-  color: #7A583E;
-  font-weight: bold;
-  font-size: 0.9em;
-  margin-top: 1em;
-}
-"""
-        zf.writestr("OEBPS/styles/storybook.css", css)
-
-        # Copy cover and page images (resized to crisp 1400x1400 JPEG for fast ereader loading)
-        manifest_items = [
-            '<item id="css" href="styles/storybook.css" media-type="text/css"/>',
-            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
-            '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
-        ]
-        spine_items = []
-
-        # Cover image & XHTML
-        front_png = paths.build_dir / f"{stem}_Front_Cover.png"
-        if front_png.exists():
-            im = Image.open(front_png).convert("RGB").resize((1400, 1400), Image.Resampling.LANCZOS)
-            tmp_cov = paths.build_dir / "_tmp_cov.jpg"
-            im.save(tmp_cov, "JPEG", quality=92)
-            zf.write(tmp_cov, "OEBPS/images/cover.jpg")
-            tmp_cov.unlink()
-            manifest_items.append('<item id="cover-img" href="images/cover.jpg" media-type="image/jpeg" properties="cover-image"/>')
-
-        cover_xhtml = f"""<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-<head>
-  <title>{book_data['metadata']['title']}</title>
-  <link rel="stylesheet" type="text/css" href="styles/storybook.css"/>
-</head>
-<body>
-  <div class="illustration"><img src="images/cover.jpg" alt="Front Cover"/></div>
-</body>
-</html>"""
-        zf.writestr("OEBPS/cover.xhtml", cover_xhtml)
-        manifest_items.append('<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>')
-        spine_items.append('<itemref idref="cover"/>')
-
-        # Story pages
-        nav_li = []
-        ncx_navpoints = []
-        for page in book_data["pages"]:
-            pnum = page["page_number"]
-            img_file = paths.illustrations / page["illustration_file"]
-            jpg_name = f"page_{pnum:02d}.jpg"
-            if img_file.exists():
-                im = Image.open(img_file).convert("RGB").resize((1400, 1400), Image.Resampling.LANCZOS)
-                tmp_jpg = paths.build_dir / f"_tmp_{pnum}.jpg"
-                im.save(tmp_jpg, "JPEG", quality=90)
-                zf.write(tmp_jpg, f"OEBPS/images/{jpg_name}")
-                tmp_jpg.unlink()
-                manifest_items.append(f'<item id="img-{pnum:02d}" href="images/{jpg_name}" media-type="image/jpeg"/>')
-
-            paras = [p.strip() for p in page["text"].split("\n\n") if p.strip()]
-            html_paras = []
-            for idx, p in enumerate(paras):
-                p_esc = p.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                if idx == 0 and len(p_esc) > 1:
-                    html_paras.append(f'<p><span class="dropcap">{p_esc[0]}</span>{p_esc[1:]}</p>')
-                else:
-                    html_paras.append(f"<p>{p_esc}</p>")
-
-            xhtml = f"""<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-<head>
-  <title>Page {pnum}: {page['title']}</title>
-  <link rel="stylesheet" type="text/css" href="styles/storybook.css"/>
-</head>
-<body>
-  <div class="page-card">
-    <div class="illustration"><img src="images/{jpg_name}" alt="{page['title']}"/></div>
-    <h2>{page['title']}</h2>
-    <div class="divider">✦ ❖ ✦</div>
-    {''.join(html_paras)}
-    <div class="page-num">— {pnum} —</div>
-  </div>
-</body>
-</html>"""
-            fname = f"page_{pnum:02d}.xhtml"
-            zf.writestr(f"OEBPS/{fname}", xhtml)
-            manifest_items.append(f'<item id="page-{pnum:02d}" href="{fname}" media-type="application/xhtml+xml"/>')
-            spine_items.append(f'<itemref idref="page-{pnum:02d}"/>')
-            nav_li.append(f'<li><a href="{fname}">Page {pnum}: {page["title"]}</a></li>')
-            ncx_navpoints.append(f"""
-    <navPoint id="navPoint-{pnum}" playOrder="{pnum}">
-      <navLabel><text>Page {pnum}: {page["title"]}</text></navLabel>
-      <content src="{fname}"/>
-    </navPoint>""")
-
-        # nav.xhtml
-        nav_xhtml = f"""<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">
-<head><title>Table of Contents</title><link rel="stylesheet" type="text/css" href="styles/storybook.css"/></head>
-<body>
-  <nav epub:type="toc" id="toc">
-    <h1>{book_data['metadata']['title']}</h1>
-    <ol>
-      <li><a href="cover.xhtml">Cover</a></li>
-      {''.join(nav_li)}
-    </ol>
-  </nav>
-</body>
-</html>"""
-        zf.writestr("OEBPS/nav.xhtml", nav_xhtml)
-
-        # toc.ncx
-        toc_ncx = f"""<?xml version="1.0" encoding="UTF-8"?>
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
-  <head>
-    <meta name="dtb:uid" content="urn:uuid:{book_uuid}"/>
-    <meta name="dtb:depth" content="1"/>
-  </head>
-  <docTitle><text>{book_data['metadata']['title']}</text></docTitle>
-  <navMap>
-    {''.join(ncx_navpoints)}
-  </navMap>
-</ncx>"""
-        zf.writestr("OEBPS/toc.ncx", toc_ncx)
-
-        # content.opf
-        content_opf = f"""<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="3.0">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="BookId">urn:uuid:{book_uuid}</dc:identifier>
-    <dc:title>{book_data['metadata']['title']}: {book_data['metadata']['subtitle']}</dc:title>
-    <dc:creator>{book_data['metadata']['author']}</dc:creator>
-    <dc:language>en</dc:language>
-    <dc:publisher>{book_data['metadata']['publisher']}</dc:publisher>
-    <dc:description>{book_data['metadata']['blurb']}</dc:description>
-    <meta property="dcterms:modified">2026-11-07T00:00:00Z</meta>
-    <meta name="cover" content="cover-img"/>
-  </metadata>
-  <manifest>
-    {''.join(manifest_items)}
-  </manifest>
-  <spine toc="ncx">
-    {''.join(spine_items)}
-  </spine>
-</package>"""
-        zf.writestr("OEBPS/content.opf", content_opf)
+READER_KINDS_FRONT = ("half_title", "title")
+READER_KINDS_BACK = ("activity", "goodnight")
 
 
-def build_interactive_flipbook(book_data: dict, *, paths: BookFolder, interior_pages: int):
-    """Builds a standalone interactive HTML5 Flipbook in build/index.html (links from AC-3.1)."""
-    stem = file_stem(book_data["metadata"]["title"])
-    stories = sorted(book_data["pages"], key=lambda page: page["page_number"])
-    names = edition_names(stem, len(stories), interior_pages)
-    slides_json = json.dumps(stories, indent=2)
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{book_data['metadata']['title']} — Interactive Picture Book Preview</title>
-  <style>
-    :root {{
-      --cream: #FDF8EE;
-      --parchment: #FAF1DF;
-      --brown: #4A3222;
-      --soft-brown: #7A583E;
-      --gold: #C88A32;
-      --berry: #B83B35;
-      --forest: #3E6B48;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      background: radial-gradient(circle at top, #2E241D 0%, #19130E 100%);
-      color: var(--brown);
-      font-family: Georgia, "Times New Roman", serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
-    }}
-    header {{
-      text-align: center;
-      color: var(--cream);
-      margin-bottom: 16px;
-    }}
-    header h1 {{
-      margin: 0;
-      font-size: 1.9rem;
-      color: #F6D58E;
-      letter-spacing: 0.5px;
-    }}
-    header p {{
-      margin: 4px 0 0;
-      font-style: italic;
-      color: #D8C3A5;
-      font-size: 0.95rem;
-    }}
-    .toolbar {{
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-      margin-bottom: 18px;
-    }}
-    button, a.btn {{
-      background: var(--cream);
-      color: var(--brown);
-      border: 2px solid var(--gold);
-      border-radius: 999px;
-      padding: 8px 18px;
-      font-family: Georgia, serif;
-      font-weight: bold;
-      font-size: 0.9rem;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.2s ease;
-    }}
-    button:hover, a.btn:hover {{
-      background: var(--berry);
-      color: #fff;
-      border-color: #fff;
-    }}
-    .book-stage {{
-      width: min(92vw, 760px);
-      aspect-ratio: 1 / 1;
-      background: var(--cream);
-      border: 6px solid var(--gold);
-      border-radius: 16px;
-      box-shadow: 0 24px 60px rgba(0,0,0,0.65);
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      padding: 22px;
-    }}
-    .inner-frame {{
-      border: 2px solid #D8C3A5;
-      border-radius: 10px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 16px 22px;
-      position: relative;
-      overflow-y: auto;
-    }}
-    .art-box {{
-      width: 58%;
-      aspect-ratio: 1 / 1;
-      margin: 0 auto 12px;
-      border: 3px solid var(--gold);
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 6px 18px rgba(74,50,34,0.18);
-      flex-shrink: 0;
-    }}
-    .art-box.cover-mode {{
-      width: 92%;
-      margin: auto;
-    }}
-    .art-box img {{
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }}
-    .chapter-title {{
-      text-align: center;
-      color: var(--forest);
-      font-style: italic;
-      font-weight: bold;
-      font-size: 1.15rem;
-      margin: 2px 0 4px;
-    }}
-    .divider {{
-      text-align: center;
-      color: var(--berry);
-      font-size: 0.85rem;
-      margin-bottom: 8px;
-    }}
-    .story-text {{
-      font-size: 1.02rem;
-      line-height: 1.52;
-      color: var(--brown);
-    }}
-    .story-text p {{
-      margin: 0 0 10px 0;
-    }}
-    .dropcap {{
-      float: left;
-      color: var(--berry);
-      font-size: 2.5rem;
-      line-height: 0.85;
-      padding-right: 8px;
-      font-weight: bold;
-    }}
-    .page-badge {{
-      margin-top: auto;
-      text-align: center;
-      padding-top: 6px;
-      font-weight: bold;
-      color: var(--soft-brown);
-      font-size: 0.9rem;
-    }}
-  </style>
-</head>
-<body>
-  <header>
-    <h1>{book_data['metadata']['title']}</h1>
-    <p>{book_data['metadata']['subtitle']} • {book_data['metadata']['age_range']} • 8.5" × 8.5" Square Edition</p>
-  </header>
+def reader_kinds(book_data: dict) -> list[tuple[str, dict | None]]:
+    """The complete reader's laid-out pages between its covers, with each story page."""
+    stories = sorted_stories(book_data)
+    return (
+        [(k, None) for k in READER_KINDS_FRONT]
+        + [("story", s) for s in stories]
+        + [(k, None) for k in READER_KINDS_BACK]
+    )
 
-  <div class="toolbar">
-    <button onclick="prevSlide()">◀ Previous Page</button>
-    <span id="pageIndicator" style="color:#FDF8EE; align-self:center; font-weight:bold; min-width:150px; text-align:center;">Cover</span>
-    <button onclick="nextSlide()">Next Page ▶</button>
-    <a class="btn" href="{names['digital']}" target="_blank">📄 {len(stories)}-Page PDF</a>
-    <a class="btn" href="{names['kdp']}" target="_blank">🖨️ KDP {interior_pages}-Page Print PDF</a>
-    <a class="btn" href="{names['wrap_pdf']}" target="_blank">📕 KDP Wrap Cover</a>
-    <a class="btn" href="{names['epub']}" target="_blank">📱 Kindle EPUB</a>
-  </div>
 
-  <div class="book-stage">
-    <div class="inner-frame" id="stageContent"></div>
-  </div>
+def reader_page_count(book_data: dict, *, paths: BookFolder) -> int:
+    """Pages of the complete reader PDF (and of the EPUB): covers that exist + laid-out pages."""
+    names = edition_names(file_stem(book_data["metadata"]["title"]), 0, 0)
+    covers = sum((paths.build_dir / names[k]).is_file() for k in ("front_png", "back_png"))
+    return covers + len(reader_kinds(book_data))
 
-  <script>
-    const pages = {slides_json};
-    let idx = 0; // 0 = Front Cover, 1..pages.length = Story Pages, pages.length + 1 = Back Cover
-    const last = pages.length + 1;
 
-    function render() {{
-      const el = document.getElementById('stageContent');
-      const ind = document.getElementById('pageIndicator');
-      if (idx === 0) {{
-        ind.textContent = 'Front Cover';
-        el.innerHTML = `<div class="art-box cover-mode"><img src="{stem}_Front_Cover.png" alt="Front Cover"/></div>`;
-      }} else if (idx === last) {{
-        ind.textContent = 'Back Cover';
-        el.innerHTML = `<div class="art-box cover-mode"><img src="{stem}_Back_Cover.png" alt="Back Cover"/></div>`;
-      }} else {{
-        const p = pages[idx - 1];
-        ind.textContent = `Page ${{p.page_number}} of ${{pages.length}}`;
-        const paras = p.text.split('\\n\\n').map((t, i) => {{
-          if (i === 0) return `<p><span class="dropcap">${{t.charAt(0)}}</span>${{t.slice(1)}}</p>`;
-          return `<p>${{t}}</p>`;
-        }}).join('');
-        el.innerHTML = `
-          <div class="art-box"><img src="../illustrations/${{p.illustration_file}}" alt="${{p.title}}"/></div>
-          <div class="chapter-title">${{p.title}}</div>
-          <div class="divider">✦ ❖ ✦</div>
-          <div class="story-text">${{paras}}</div>
-          <div class="page-badge">— ${{p.page_number}} —</div>
-        `;
-      }}
-    }}
-    function prevSlide() {{ if (idx > 0) {{ idx--; render(); }} }}
-    function nextSlide() {{ if (idx < last) {{ idx++; render(); }} }}
-    window.addEventListener('keydown', (e) => {{
-      if (e.key === 'ArrowLeft') prevSlide();
-      if (e.key === 'ArrowRight') nextSlide();
-    }});
-    render();
-  </script>
-</body>
-</html>"""
-    (paths.build_dir / "index.html").write_text(html, encoding="utf-8")
+def build_epub(book_data: dict, design: dict, *, paths: BookFolder, extras: dict) -> Path:
+    """The fixed-layout EPUB 3 (spec 023 AC-6.1-6.3): the complete reader's pages in order,
+    each a 1200 px background with the layout's words, shapes and logo placed on it."""
+    meta = book_data["metadata"]
+    stem = file_stem(meta["title"])
+    names = edition_names(stem, 0, 0)
+    book = Publication.load(design, book_data, paths, extras)
+    quality = design["dpi"]["jpeg_quality"]
+    px = design["dpi"]["epub_px"]
+    frame = pub.Frame.digital()
+    dpi = px * 72 / frame.width
+    cache: dict = {}
+    pages: list[web.EpubPage] = []
+    nav: list[tuple[str, int]] = []
+    front_png = paths.build_dir / names["front_png"]
+    back_png = paths.build_dir / names["back_png"]
+    if front_png.is_file():
+        nav.append(("Cover", len(pages)))
+        pages.append(
+            web.EpubPage("cover", "Cover", web.cover_jpeg(front_png, quality, px), f"Cover of {meta['title']}")
+        )
+    for kind, story in reader_kinds(book_data):
+        layout = book.layout(kind, frame, story)
+        background = background_jpeg(layout, dpi, cache, quality)
+        if kind == "story":
+            assert story is not None
+            if not any(label == "Story" for label, _ in nav):
+                nav.append(("Story", len(pages)))
+            name, title = f"page_{story['page_number']:02d}", story.get("title") or meta["title"]
+            alt = str(story.get("prompt", ""))
+        else:
+            if kind == "goodnight":
+                nav.append(("Goodnight", len(pages)))
+            name, title, alt = kind, kind.replace("_", " ").capitalize(), ""
+        pages.append(web.EpubPage(name, title, background, alt, layout))
+    if back_png.is_file():
+        pages.append(
+            web.EpubPage(
+                "back_cover", "Back cover", web.cover_jpeg(back_png, quality, px),
+                f"Back cover of {meta['title']}",
+            )
+        )
+    out = paths.build_dir / names["epub"]
+    web.write_epub(out, pages, meta=meta, design=design, nav=nav, px=px)
+    return out
+
+
+def build_reader(book_data: dict, design: dict, *, paths: BookFolder, extras: dict) -> Path:
+    """The full-screen web reader, build/index.html + build/reader/ (spec 023 AC-5.1-5.5)."""
+    meta = book_data["metadata"]
+    stem = file_stem(meta["title"])
+    stories = sorted_stories(book_data)
+    names = edition_names(stem, len(stories), 0)
+    total = reader_page_count(book_data, paths=paths)
+    scenes = []
+    for n, story in enumerate(stories, start=1):
+        t = pub.ramp(n, len(stories), design)
+        focus_x, side = story_focus(paths, story)
+        scenes.append(
+            web.StoryScene(
+                page_number=story["page_number"],
+                title=str(story.get("title", "")),
+                text=str(story.get("text", "")),
+                picture=f"../illustrations/{story['illustration_file']}",
+                alt=str(story.get("prompt", "")),
+                t=t,
+                focus_x=focus_x,
+                side=side,
+                night=pub.page_tone(t, design).night,
+            )
+        )
+    titled = titled_covers(book_data)
+    cover = "cover_front_print.png" if titled else "cover_front.png"
+    if not titled and not (paths.illustrations / cover).is_file():
+        cover = stories[0]["illustration_file"]
+    candidates = [
+        (names["digital"], f"Digital edition, {len(stories)} pages"),
+        (names["reader"], f"Complete reader, {total} pages"),
+        (names["epub"], f"EPUB, {total} pages"),
+    ]
+    links = tuple((href, text) for href, text in candidates if (paths.build_dir / href).is_file())
+    tracks = paths.build_dir / "audio" / "tracks"
+    audio: dict[str, str] = {}
+    if (tracks / "page-01.wav").is_file():  # AC-5.3: no tracks, no "Read to me"
+        keys = ["intro", *(f"page-{s['page_number']:02d}" for s in stories), "outro"]
+        audio = {k: f"audio/tracks/{k}.wav" for k in keys if (tracks / f"{k}.wav").is_file()}
+    logo = paths.root / BRAND_LOGO
+    content = web.ReaderContent(
+        title=meta["title"],
+        subtitle=str(meta.get("subtitle") or ""),
+        blurb=str(meta.get("blurb") or ""),
+        lang=str(meta.get("language") or "en"),
+        cover=f"../illustrations/{cover}",
+        cover_focus_x=cover_focus(meta),
+        titled=titled,
+        stories=tuple(scenes),
+        goodnight=pub.goodnight_message(book_data, read_blueprint(paths)),
+        logo=logo.is_file(),
+        links=links,
+        audio=audio,
+    )
+    return web.write_reader(paths.build_dir, content, design, logo=logo if logo.is_file() else None)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -1037,11 +718,11 @@ def build_all(book_data: dict, design: dict, *, paths: BookFolder, extras: dict)
     print(f"3. Building {story_count}-Page Digital PDF, Complete Reader PDF, and {len(plan)}-Page KDP Print Interior PDF...")
     written = build_pdfs(book_data, design, paths=paths, extras=extras, plan=plan)
 
-    print("4. Building Kindle / Universal EPUB 3 package...")
-    build_epub(book_data, paths=paths)
+    print("4. Building the fixed-layout EPUB 3...")
+    build_epub(book_data, design, paths=paths, extras=extras)
 
-    print("5. Building Interactive HTML5 Flipbook...")
-    build_interactive_flipbook(book_data, paths=paths, interior_pages=len(plan))
+    print("5. Building the web reader (index.html + reader/)...")
+    build_reader(book_data, design, paths=paths, extras=extras)
 
     keep = set((written or edition_names(stem, story_count, len(plan))).values())
     for old in stale_editions(paths.build_dir, stem, keep):
