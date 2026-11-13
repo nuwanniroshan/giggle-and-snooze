@@ -1,7 +1,7 @@
 # Feature 022: Titled front covers painted by Codex
 
 **Status:** Approved
-**Version:** 1.0.0
+**Version:** 1.0.1
 **Created:** 2026-11-13
 **Last Updated:** 2026-11-13
 **Branch:** `feat/022-titled-codex-covers`
@@ -15,6 +15,7 @@
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0.0 | 2026-11-13 | Initial draft |
+| 1.0.1 | 2026-11-13 | PATCH: FR-4 — the reader gets only the cover; expected words are compared in code |
 
 ## Problem Statement
 
@@ -65,24 +66,24 @@ picture, title, subtitle and publisher logo together.
 **As a** producer **I want** Codex to paint the video front cover with the title, subtitle and
 logo inside the art **So that** each episode opens on a cover designed for that book.
 
-- [ ] **AC-1.1** Given a new book with a blueprint When the illustrate stage paints its covers
+- [x] **AC-1.1** Given a new book with a blueprint When the illustrate stage paints its covers
   Then a video front cover is saved whose size is exactly 4:3 landscape, with the shorter side at
   least the minimum picture size the illustrate stage already enforces
-- [ ] **AC-1.2** Given the request sent to Codex for the video cover When it is inspected Then it
+- [x] **AC-1.2** Given the request sent to Codex for the video cover When it is inspected Then it
   contains the book's exact title and subtitle, the blueprint's art direction (style prefix,
   medium, line, lighting, palette and avoid list), the cover layout rules (title as the main
   element, subtitle smaller near it, logo as a corner publisher mark of about 14% of the width,
   no other words) and the safe-area rule (the whole logo at least 12% of the width from the left
   and right edges and at least 5% from the top and bottom)
-- [ ] **AC-1.3** Given the video cover request When it is sent Then the logo file and one story
+- [x] **AC-1.3** Given the video cover request When it is sent Then the logo file and one story
   page picture of the book are attached as reference images, and the request says which is which
-- [ ] **AC-1.4** Given a book without a blueprint When its covers are painted Then the request
+- [x] **AC-1.4** Given a book without a blueprint When its covers are painted Then the request
   uses the book's `style_bible.style_prompt_prefix` as the art direction and the cover is still
   painted with title, subtitle and logo
-- [ ] **AC-1.5** Given two new books When their covers are painted Then each request is built
+- [x] **AC-1.5** Given two new books When their covers are painted Then each request is built
   from that book's own title, story blurb, characters and art direction (no fixed layout, font or
   colours shared between books)
-- [ ] **AC-1.6** Given the logo file is missing When the illustrate stage reaches the covers Then
+- [x] **AC-1.6** Given the logo file is missing When the illustrate stage reaches the covers Then
   neither cover is painted, the stage fails naming the missing file, and the story pages already
   painted are kept
 
@@ -91,14 +92,14 @@ logo inside the art **So that** each episode opens on a cover designed for that 
 **As a** producer **I want** a second titled cover composed for the square print and EPUB shape
 **So that** the printed book and the ebook match the video's cover without cropping its words.
 
-- [ ] **AC-2.1** Given a new book When the illustrate stage paints its covers Then a print front
+- [x] **AC-2.1** Given a new book When the illustrate stage paints its covers Then a print front
   cover is saved whose size is exactly square, painted from its own request with the same title,
   subtitle, logo, art direction and safe-area rule (measured on the square)
-- [ ] **AC-2.2** Given a book with a titled print cover When the print build makes the front
+- [x] **AC-2.2** Given a book with a titled print cover When the print build makes the front
   cover, the KDP wrap cover, the reader PDF and the EPUB cover Then each uses the titled print
   cover scaled to the needed size, and no title plaque, title text, subtitle text or logo badge
   is drawn over it
-- [ ] **AC-2.3** Given a book with a titled print cover When the flipbook is built Then its
+- [x] **AC-2.3** Given a book with a titled print cover When the flipbook is built Then its
   front cover shows the titled print cover with no lettering added
 
 ### Story 3: Covers are checked before they are accepted
@@ -106,19 +107,19 @@ logo inside the art **So that** each episode opens on a cover designed for that 
 **As a** producer **I want** every painted cover checked for spelling and a whole logo **So
 that** a misspelled title or a cut-off logo never reaches a video or a book.
 
-- [ ] **AC-3.1** Given a newly painted cover When it is checked Then Codex is shown the finished,
+- [x] **AC-3.1** Given a newly painted cover When it is checked Then Codex is shown the finished,
   trimmed cover and reports the title text, the subtitle text and whether the whole Giggle &
   Snooze logo is visible
-- [ ] **AC-3.2** Given the reported title and subtitle When they are compared with the book's
+- [x] **AC-3.2** Given the reported title and subtitle When they are compared with the book's
   title and subtitle Then they pass only if they match after ignoring letter case, line breaks,
   repeated spaces and curly versus straight quotes and apostrophes; any other difference fails
-- [ ] **AC-3.3** Given a cover that fails the check (wrong words, logo not whole, or the check
+- [x] **AC-3.3** Given a cover that fails the check (wrong words, logo not whole, or the check
   gave no readable answer) When painting continues Then that cover is painted again, up to 3
   paintings in all, and the cover is accepted after the first one that passes
-- [ ] **AC-3.4** Given all 3 paintings of a cover fail When the stage ends Then no failed cover
+- [x] **AC-3.4** Given all 3 paintings of a cover fail When the stage ends Then no failed cover
   is saved as the book's cover, the stage fails naming the cover and the reason from the last
   check, and the other pictures already painted are kept
-- [ ] **AC-3.5** Given a cover passes When it is saved Then the job log records the
+- [x] **AC-3.5** Given a cover passes When it is saved Then the job log records the
   number of paintings it took and the text the check read
 
 ### Story 4: The video uses the painted cover as is
@@ -126,12 +127,12 @@ that** a misspelled title or a cut-off logo never reaches a video or a book.
 **As a** producer **I want** the render to show the titled cover without adding lettering **So
 that** the episode opens on exactly the cover Codex painted.
 
-- [ ] **AC-4.1** Given a book with a titled video cover When the episode is rendered Then the
+- [x] **AC-4.1** Given a book with a titled video cover When the episode is rendered Then the
   intro shows that cover whole (4:3 centred in the 16:9 frame over the render's usual blurred
   background) and no title plate, title, subtitle or logo badge is drawn on it
-- [ ] **AC-4.2** Given an existing book (no titled covers) When the episode is rendered Then the
+- [x] **AC-4.2** Given an existing book (no titled covers) When the episode is rendered Then the
   cover is made exactly as before (spec 015), and its cached video sections are reused
-- [ ] **AC-4.3** Given the titled video cover is repainted When the episode is rendered again
+- [x] **AC-4.3** Given the titled video cover is repainted When the episode is rendered again
   Then the intro section is rebuilt and other cached sections are reused
 
 ### Story 5: Repainting one titled cover
@@ -139,14 +140,14 @@ that** the episode opens on exactly the cover Codex painted.
 **As a** producer **I want** to repaint either titled cover on its own **So that** I can replace
 a cover I don't like without repainting the book.
 
-- [ ] **AC-5.1** Given a book with titled covers When the producer repaints the video cover or
+- [x] **AC-5.1** Given a book with titled covers When the producer repaints the video cover or
   the print cover (studio or CLI) Then only that cover is painted, with the same request rules,
   check and retries as above, and the old cover is kept as a backup and put back if every try
   fails (spec 019 behaviour)
-- [ ] **AC-5.2** Given a book with titled covers When the studio shows its pictures Then both
+- [x] **AC-5.2** Given a book with titled covers When the studio shows its pictures Then both
   front covers are listed by name ("video cover", "print cover") with their own repaint buttons,
   and the book's thumbnail uses the video cover
-- [ ] **AC-5.3** Given an existing book When the producer repaints its front cover Then it is
+- [x] **AC-5.3** Given an existing book When the producer repaints its front cover Then it is
   painted the old way (no lettering) and the book does not switch to titled covers
 
 ## Functional Requirements
@@ -187,7 +188,8 @@ a cover I don't like without repainting the book.
 
 **Must:**
 - Check every accepted cover as in Story 3, with a separate Codex request that is given only the
-  finished cover and the expected words.
+  finished cover. The expected words are never sent to the reader (so it cannot echo them); they
+  are compared with its reading in code (AC-3.2).
 - Treat a check that times out or returns no readable answer as a failed try.
 
 **Must not:**
