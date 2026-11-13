@@ -1,20 +1,35 @@
 """YouTube upload helpers (spec 024).
 
-This phase is pure: settings, chapters from the render record, text rules and the small JSON
-records kept per book. No network and no CLI yet.
+Settings, chapters from the render record, text rules and the small JSON records kept per
+book; Codex writing the text (phase 4) and the CLI:
+
+    uv run python -m video_pipeline.youtube text --book <slug> [--root R] [--force]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
-from dataclasses import dataclass
+import sys
+import tempfile
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
-from video_pipeline.contract import ConfigError, find_disallowed
+from video_pipeline.agents import (
+    AgentResult,
+    AgentUnavailable,
+    build_codex_command,
+    codex_status,
+    run_codex,
+)
+from video_pipeline.contract import ConfigError, find_disallowed, load_disallowed_terms
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.file_hash import sha256_file
-from video_pipeline.library import BookFolder
+from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
 
 CONFIG_FILE = "youtube.json"
 _PAGE_SECTION = re.compile(r"^page-(\d+)$")
@@ -422,3 +437,215 @@ def upload_state(paths: YouTubePaths, render_record: dict | None) -> str:
     if render_record is None or render_record.get("final_key") != last.get("final_key"):
         return "older_cut"
     return "current"
+
+
+# --- Codex writes the text (phase 4: Story 2, FR-2, FR-3) ---------------------------------
+
+TEXT_PROMPT = """You write the YouTube title, description and tags for one read-aloud video \
+of a children's picture book in the {series} series.
+
+Book title: {title}
+Subtitle: {subtitle}
+Blurb: {blurb}
+Age range: {age_range}
+{mood}
+The story, page by page:
+{pages}
+
+Write, in your own words, for THIS book only:
+- title: must contain the exact book title {title!r}; at most {title_max} characters.
+- description: 2-4 short paragraphs, warm and written for parents, about this story and why it \
+makes a calm bedtime read-aloud.
+- tags: 8-15 short tags.
+No links, no email addresses, no '<' or '>', and no calls to like, subscribe, comment or buy. \
+Do not add chapters or the website: the pipeline adds them.
+Save with save_youtube_text(title, description, tags); fix every error it returns and save \
+again (at most 3 saves). Finish with one short line."""
+
+
+@dataclass(frozen=True)
+class TextOutcome:
+    status: Literal["written", "failed"]
+    problems: list[str] = field(default_factory=list)
+    attempts: int = 0
+
+
+def _mood_text(mood: dict | None) -> str:
+    if not isinstance(mood, dict):
+        return ""
+    parts = [str(mood[k]).strip() for k in ("label", "summary") if mood.get(k)]
+    return f"Mood: {'. '.join(p.rstrip('.') for p in parts)}.\n" if parts else ""
+
+
+def build_prompt(book: dict, blueprint_mood: dict | None, settings: YouTubeSettings) -> str:
+    meta = book.get("metadata", {})
+    pages = []
+    for page in book.get("pages", []):
+        heading = f"Page {page.get('page_number')}"
+        if page.get("title"):
+            heading += f" - {page['title']}"
+        pages.append(f"{heading}: {page.get('text', '')}")
+    return TEXT_PROMPT.format(
+        series=settings.series,
+        title=meta.get("title", ""),
+        subtitle=meta.get("subtitle") or "(none)",
+        blurb=meta.get("blurb") or "(none)",
+        age_range=meta.get("age_range") or "(not given)",
+        mood=_mood_text(blueprint_mood),
+        pages="\n".join(pages),
+        title_max=settings.title_max_chars,
+    )
+
+
+def _read_mood(folder: BookFolder) -> dict | None:
+    try:
+        data = json.loads(folder.blueprint_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    return data.get("mood") if isinstance(data, dict) else None
+
+
+def _render_check(folder: BookFolder, root: Path) -> tuple[str, str]:
+    from video_pipeline.render_episode import render_check_detail  # heavy; load when used
+
+    return render_check_detail(folder, root)
+
+
+def _refusals(result: AgentResult) -> list[str]:
+    errors = [
+        event.data["errors"]
+        for event in result.events
+        if event.kind == "tool-result" and isinstance(event.data, dict) and event.data.get("errors")
+    ]
+    return [str(e) for e in errors[-1]] if errors else [result.reason or "the agent saved nothing"]
+
+
+def _video_record(folder: BookFolder) -> Path:
+    return folder.build_dir / "video" / f"{folder.slug}.json"
+
+
+def write_youtube_text(
+    folder: BookFolder,
+    root: Path,
+    *,
+    force: bool,
+    provider: Callable[..., AgentResult] | None = None,
+    binary: Path | None = None,
+    check: Callable[[BookFolder, Path], tuple[str, str]] | None = None,
+    now: Callable[[], datetime] = datetime.now,
+) -> TextOutcome:
+    """Have Codex write the book's YouTube text, refusing drafts with every FR-3 problem and
+    feeding them back, until one is saved or the attempts run out (nothing written then)."""
+    root = Path(root)
+    state, reason = (check or _render_check)(folder, root)
+    if state != "up_to_date":
+        detail = f": {reason}" if reason else ""
+        raise YouTubeError(
+            f"the video is {state}{detail}; render it first (render_episode --book {folder.slug})"
+        )
+    paths = YouTubePaths(folder)
+    if paths.text.exists() and not force:
+        raise YouTubeError(
+            "YouTube text exists; use --force to rewrite it (the old one is kept as text.json.bak)"
+        )
+    settings = load_settings(root / "config")
+    terms = load_disallowed_terms(root / "config" / "disallowed_terms.txt")
+    try:
+        book = json.loads(folder.book_json.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise YouTubeError(f"book data not found: {folder.book_json}") from None
+    record_path = _video_record(folder)
+    record = _read_json(record_path)
+    if record is None:
+        raise YouTubeError(f"no video record at {record_path}; render the video first")
+    chapters = chapters_from_record(record, book, settings)
+    duration = float(record.get("duration", 0.0))
+
+    binary = binary or codex_status()
+    base = build_prompt(book, _read_mood(folder), settings)
+    problems: list[str] = []
+    with tempfile.TemporaryDirectory(prefix="kiddo-youtube-") as tmp:
+        out = Path(tmp) / "text.json"
+        for attempt in range(1, settings.codex_attempts + 1):
+            out.unlink(missing_ok=True)
+            prompt = base
+            if problems:
+                prompt += "\nThe last attempt was refused. Fix these problems and submit again:\n"
+                prompt += "\n".join(f"- {problem}" for problem in problems[:20])
+            command = build_codex_command(
+                binary,
+                sys.executable,
+                [
+                    "-m",
+                    "video_pipeline.youtube_mcp",
+                    "--book-json",
+                    str(folder.book_json),
+                    "--record",
+                    str(record_path),
+                    "--out",
+                    str(out),
+                    "--root",
+                    str(root),
+                ],
+                {"PYTHONPATH": str(PROJECT_ROOT)},
+                prompt=prompt,
+            )
+            stamp = now().strftime("%Y%m%d-%H%M%S")
+            log = folder.build_dir / "agent" / f"{stamp}-youtube-{attempt}.jsonl"
+            result = (provider or run_codex)(command, log, timeout_s=settings.codex_time_limit_s)
+            if not out.exists():
+                problems = _refusals(result)
+                continue
+            try:
+                text = read_text(out)  # the tool validated it; check again on the way in
+            except YouTubeError as exc:
+                problems = [str(exc)]
+                continue
+            problems = text_problems(text or {}, book, chapters, duration, settings, terms)
+            if not problems:
+                write_text(paths, text, keep_backup=True)
+                return TextOutcome("written", [], attempt)
+    return TextOutcome("failed", problems, settings.codex_attempts)
+
+
+# --- CLI ------------------------------------------------------------------------------------
+
+
+def _cmd_text(args: argparse.Namespace) -> int:
+    folder = book_folder(args.book, args.root)
+    outcome = write_youtube_text(folder, Path(args.root), force=args.force)
+    if outcome.status != "written":
+        print(
+            f"error: Codex did not write usable YouTube text in {outcome.attempts} attempts:",
+            file=sys.stderr,
+        )
+        for problem in outcome.problems:
+            print(f"- {problem}", file=sys.stderr)
+        return 1
+    text = read_text(YouTubePaths(folder).text) or {}
+    print(f"Wrote books/{folder.slug}/youtube/text.json")
+    print(f"Title: {text.get('title', '')}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m video_pipeline.youtube",
+        description="Publish a book's video on YouTube (spec 024).",
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    text = commands.add_parser("text", help="have Codex write the title, description and tags")
+    text.add_argument("--book", required=True)
+    text.add_argument("--root", type=Path, default=PROJECT_ROOT)
+    text.add_argument("--force", action="store_true", help="rewrite (the old one kept as .bak)")
+    text.set_defaults(run=_cmd_text)
+    args = parser.parse_args(argv)
+    try:
+        return args.run(args)
+    except (YouTubeError, AgentUnavailable, LibraryError, ConfigError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
