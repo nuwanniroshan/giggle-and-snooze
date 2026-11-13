@@ -1,0 +1,21 @@
+{
+  "series": "Giggle & Snooze",
+  "site_link": "http://giggleandsnooze.com/",
+  "site_line": "More stories: http://giggleandsnooze.com/",
+  "categories": {"storybook": "27", "nursery_rhyme": "10"},
+  "default_kind": "storybook",
+  "default_language": "en",
+  "chapter_labels": {"intro": "Welcome", "outro": "Goodnight"},
+  "min_chapter_s": 10,
+  "min_chapters": 3,
+  "title_max_chars": 100,
+  "description_max_bytes": 5000,
+  "tags_max_chars": 500,
+  "scopes": ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"],
+  "chunk_mb": 8,
+  "max_resumes": 5,
+  "consent_timeout_s": 300,
+  "codex": {"attempts": 3, "time_limit_s": 300},
+  "cta_terms": ["subscribe", "like and subscribe", "hit the like", "smash that like", "ring the bell", "click the bell", "comment below", "leave a comment", "buy", "purchase", "order now", "shop now"],
+  "thumbnail": {"size": [1280, 720], "max_bytes": 2000000}
+}
