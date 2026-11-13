@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shutil
 from pathlib import Path
@@ -27,9 +28,13 @@ def test_settings_load_from_config():
     video = settings.shapes["cover_front"]
     assert video.ratio == (4, 3) and video.accept == (1.0, None)
     print_shape = settings.shapes["cover_front_print"]
-    assert print_shape.ratio == (1, 1) and print_shape.accept == (0.77, 1.3)
+    assert print_shape.ratio == (1, 1) and print_shape.accept == (0.769, 1.3)
     assert print_shape.label == "print cover" and "1024x1024" in print_shape.frame
     assert len(settings.layout_rules) == 4
+    assert settings.logo_description == (
+        "same glossy bubbly letters, orange-to-yellow GIGGLE, teal &, blue-to-lilac SNOOZE, "
+        "small zzz"
+    )
 
 
 def _copy_config(tmp_path: Path) -> Path:
@@ -56,6 +61,12 @@ def test_missing_or_bad_settings_name_the_field(tmp_path):
     data["shapes"]["cover_front"]["ratio"] = [4, 0]
     path.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(covers.CoverError, match="cover_front.*ratio"):
+        covers.load_cover_settings(config)
+
+    data = json.loads((ROOT / "config" / "covers.json").read_text(encoding="utf-8"))
+    data["logo_description"] = "  "
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(covers.CoverError, match="logo_description"):
         covers.load_cover_settings(config)
 
 
@@ -122,6 +133,10 @@ def test_request_has_exact_words_art_layout_and_safe_area():  # AC-1.2, AC-1.3
         "at least 12% of the finished cover's width away from the left and right edges" in request
     )
     assert "at least 5% from the top and bottom edges" in request
+    assert f"({settings.logo_description})" in request  # FR-2: the logo look comes from config
+    other = dataclasses.replace(settings, logo_description="same chunky red letters")
+    changed = covers.cover_request(_book(), ART, "cover_front", other)
+    assert changed != request and "(same chunky red letters)" in changed
     assert "Bright crayon" not in request  # the blueprint wins over the style bible
     order = [
         request.index("Book:"),
@@ -234,6 +249,19 @@ def test_trim_refuses_portrait_video_and_wide_print(tmp_path):
     wide = _png(tmp_path / "cover_front_print.png", (1536, 1024))
     with pytest.raises(covers.CoverError, match="print cover"):
         covers.trim_to_ratio(wide, settings.shapes["cover_front_print"])
+
+
+def test_print_accepts_up_to_1_3_to_1_portrait(tmp_path):  # FR-3: refuse only beyond 1.3:1
+    from PIL import Image
+
+    shape = _settings().shapes["cover_front_print"]
+    edge = _png(tmp_path / "edge.png", (1000, 1300))  # exactly 1.3:1 portrait
+    covers.trim_to_ratio(edge, shape)
+    with Image.open(edge) as im:
+        assert im.size == (1000, 1000)
+    beyond = _png(tmp_path / "beyond.png", (1000, 1320))
+    with pytest.raises(covers.CoverError, match="print cover"):
+        covers.trim_to_ratio(beyond, shape)
 
 
 def test_check_command_sends_only_the_cover_and_schema(tmp_path):  # FR-4

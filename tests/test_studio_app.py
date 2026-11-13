@@ -1316,7 +1316,7 @@ def test_book_page_without_a_sheet_has_no_characters_panel(bare):  # AC-2.3
     assert 'id="characters"' not in html
 
 
-# --- spec 022: video and print covers (AC-5.1, AC-5.2) ------------------------------------------
+# --- spec 022: video and print covers (AC-5.1-AC-5.3) ------------------------------------------
 
 
 def make_titled(s: Studio) -> None:
@@ -1326,7 +1326,7 @@ def make_titled(s: Studio) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
 
 
-def test_repaint_print_cover_runs_cover_print_job(bare):  # AC-5.2
+def test_repaint_print_cover_runs_cover_print_job(bare):  # AC-5.1
     make_titled(bare)
     r = bare.client.post(
         f"/books/{PILOT_SLUG}/repaint-cover", data={"cover": "print", "confirm": "1"}
@@ -1336,7 +1336,7 @@ def test_repaint_print_cover_runs_cover_print_job(bare):  # AC-5.2
     assert bare.commands.calls == [("repaint", PILOT_SLUG, "cover:print")]
 
 
-def test_print_side_refused_for_old_book(bare):  # AC-5.2
+def test_print_side_refused_for_old_book(bare):  # AC-5.3
     r = bare.client.post(
         f"/books/{PILOT_SLUG}/repaint-cover", data={"cover": "print", "confirm": "1"}
     )
@@ -1344,7 +1344,7 @@ def test_print_side_refused_for_old_book(bare):  # AC-5.2
     assert bare.commands.calls == [] and bare.runner.current() is None
 
 
-def test_book_page_shows_repaint_buttons_per_cover(bare):  # AC-5.1
+def test_book_page_shows_repaint_buttons_per_cover(bare):  # AC-5.2
     old = text_of(bare.client.get(f"/books/{PILOT_SLUG}").text)
     assert "Repaint front cover" in old and "Repaint back cover" in old
     assert "print cover" not in old
@@ -1355,3 +1355,23 @@ def test_book_page_shows_repaint_buttons_per_cover(bare):  # AC-5.1
     assert "Repaint back cover" in page and "Repaint front cover" not in page
     assert "Replace the print cover (one picture)" in page
     assert 'value="print"' in html
+
+
+def test_titled_book_thumbnail_and_hero_use_the_video_cover(bare):  # AC-5.2
+    make_titled(bare)
+    folder = pilot_folder(bare.paths.root)
+    folder.illustrations.mkdir(parents=True, exist_ok=True)
+    for name, colour in (
+        ("cover_front.png", (200, 120, 40)),
+        ("cover_front_print.png", (40, 200, 120)),
+        ("cover_back.png", (120, 40, 200)),
+    ):
+        Image.new("RGB", (800, 600), colour).save(folder.illustrations / name)
+    home = bare.client.get("/").text
+    thumbs = re.findall(rf'src="(/media/{PILOT_SLUG}/thumb/[^"?]+)', home)
+    assert thumbs == [f"/media/{PILOT_SLUG}/thumb/cover_front.png"]
+    html = bare.client.get(f"/books/{PILOT_SLUG}").text
+    hero = re.search(r'class="hero-art"[^>]*><img src="([^"?]+)', html)
+    assert hero and hero.group(1) == f"/media/{PILOT_SLUG}/illustration/cover_front.png"
+    side = re.findall(rf'src="(/media/{PILOT_SLUG}/thumb/[^"?]+)', html)
+    assert side and all(src.endswith("/cover_front.png") for src in side)

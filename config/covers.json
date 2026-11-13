@@ -1,6 +1,7 @@
 {
   "logo": "assets/brand/giggle_and_snooze_logo.png",
   "logo_name": "Giggle & Snooze",
+  "logo_description": "same glossy bubbly letters, orange-to-yellow GIGGLE, teal &, blue-to-lilac SNOOZE, small zzz",
   "logo_width_pct": 14,
   "safe_side_pct": 12,
   "safe_top_bottom_pct": 5,
@@ -15,7 +16,7 @@
     "cover_front_print": {
       "label": "print cover",
       "ratio": [1, 1],
-      "accept": [0.77, 1.3],
+      "accept": [0.769, 1.3],
       "frame": "square 1:1 (generate at 1024x1024)"
     }
   },

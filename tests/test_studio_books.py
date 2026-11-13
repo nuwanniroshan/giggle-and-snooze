@@ -849,7 +849,7 @@ def test_character_sheet_is_empty_without_one_or_for_broken_json(studio):  # AC-
     assert sb.character_sheet(studio, book) == []
 
 
-# --- spec 022: video and print covers (AC-5.1) --------------------------------------------------
+# --- spec 022: video and print covers (AC-5.2) --------------------------------------------------
 
 
 def titled(book: dict) -> dict:

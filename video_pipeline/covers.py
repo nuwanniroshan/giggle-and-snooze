@@ -35,6 +35,7 @@ class CoverShape:
 class CoverSettings:
     logo: Path  # relative to the project root
     logo_name: str
+    logo_description: str  # how the logo looks, quoted in every cover request
     logo_width_pct: int
     safe_side_pct: int
     safe_top_bottom_pct: int
@@ -112,6 +113,7 @@ def load_cover_settings(config_dir: Path) -> CoverSettings:
     return CoverSettings(
         logo=Path(_text(data, "logo", where)),
         logo_name=_text(data, "logo_name", where),
+        logo_description=_text(data, "logo_description", where),
         logo_width_pct=_int(data, "logo_width_pct", where, 1, 50),
         safe_side_pct=_int(data, "safe_side_pct", where, 0, 40),
         safe_top_bottom_pct=_int(data, "safe_top_bottom_pct", where, 0, 40),
@@ -163,9 +165,8 @@ def _art_block(book: dict, art: dict | None) -> str:
 
 def _logo_rule(settings: CoverSettings) -> str:
     return (
-        f'- The "{settings.logo_name}" logo from reference image 1, reproduced faithfully (same '
-        "glossy bubbly letters, orange-to-yellow GIGGLE, teal &, blue-to-lilac SNOOZE, small zzz), "
-        f"as a publisher mark about {settings.logo_width_pct}% of the cover width, COMPLETE and "
+        f'- The "{settings.logo_name}" logo from reference image 1, reproduced faithfully '
+        f"({settings.logo_description}), as a publisher mark about {settings.logo_width_pct}% of the cover width, COMPLETE and "
         f"fully visible. Place the whole logo at least {settings.safe_side_pct}% of the finished "
         "cover's width away from the left and right edges and at least "
         f"{settings.safe_top_bottom_pct}% from the top and bottom edges, with clear space around "

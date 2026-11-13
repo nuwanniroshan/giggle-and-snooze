@@ -1,5 +1,5 @@
 """Render shows a titled (painted) cover as is; older blueprint books still get the lettered
-cover (spec 022 AC-2.2, AC-2.3). FFmpeg is never run: these tests read `_load_inputs`."""
+cover (spec 022 AC-4.1-AC-4.3). FFmpeg is never run: these tests read `_load_inputs`."""
 
 import json
 
@@ -40,7 +40,7 @@ def _inputs(world):
     return re_._load_inputs(world["folder"], world["root"])
 
 
-def test_titled_book_render_skips_lettered_cover(tmp_path, monkeypatch, composed):
+def test_titled_book_render_skips_lettered_cover(tmp_path, monkeypatch, composed):  # AC-4.1
     world = _world(tmp_path, monkeypatch, titled=True)
     inputs = _inputs(world)
     assert composed == []
@@ -58,7 +58,20 @@ def test_old_book_render_still_letters_cover(tmp_path, monkeypatch, composed):
     )
 
 
-def test_repainted_titled_cover_rebuilds_intro_only(tmp_path, monkeypatch, composed):
+def test_old_book_keys_are_unchanged_by_spec_022(tmp_path, monkeypatch, composed):  # AC-4.2
+    world = _world(tmp_path, monkeypatch, titled=False)
+    now = _inputs(world)
+    monkeypatch.setattr(re_, "titled_covers", lambda book: False)  # as if the marker check
+    before = _inputs(world)  # did not exist
+    assert now.keys == before.keys and now.still_keys == before.still_keys
+    assert now.trans_keys == before.trans_keys
+    assert re_._final_key(now, "turn") == re_._final_key(before, "turn")
+    titled = world["video"] / "frames" / "cover_front_titled.png"
+    assert now.pictures.by_section["intro"] == "cover_front"
+    assert now.pictures.files["cover_front"] == titled
+
+
+def test_repainted_titled_cover_rebuilds_intro_only(tmp_path, monkeypatch, composed):  # AC-4.3
     world = _world(tmp_path, monkeypatch, titled=True)
     before = _inputs(world)
     picture(world["folder"].illustrations / "cover_front.png", (5, 90, 200))

@@ -688,6 +688,25 @@ def test_three_failures_save_nothing_and_name_reason(tmp_path, cover_settings): 
     assert not list(tmp_path.glob("cover_front_print*"))
 
 
+def test_failed_cover_in_a_run_keeps_the_painted_pages(tmp_path, cover_settings):  # AC-3.4
+    fake = FakeCoverCodex([WRONG] * 6)  # the reader always reads a wrong title
+    folder = tmp_path / "ill"
+    with pytest.raises(IllustrateError) as exc:
+        illustrate(
+            titled_book(),
+            folder,
+            Path("codex"),
+            paint=_paint_real(),
+            log=lambda _: None,
+            settings=cover_settings,
+            paint_cover=_cover_painter(cover_settings, tmp_path, fake),
+        )
+    assert "cover_front.png" in str(exc.value)
+    assert "last: title read as 'Plosp'" in str(exc.value)
+    assert len(fake.paints) == cover_settings.tries
+    assert sorted(p.name for p in folder.iterdir()) == ["page_01.png", "page_02.png"]
+
+
 def test_missing_logo_paints_no_cover_and_keeps_pages(tmp_path, cover_settings):  # AC-1.6
     (tmp_path / "brand" / "logo.png").unlink()
     fake = FakeCoverCodex()
