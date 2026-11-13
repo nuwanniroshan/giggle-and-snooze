@@ -1,0 +1,46 @@
+{
+  "colors": {
+    "giggle": [0.76, 0.17, 60],
+    "snooze": [0.52, 0.15, 280],
+    "ink": [0.24, 0.04, 275],
+    "ink_soft": [0.42, 0.04, 275],
+    "moon": [0.97, 0.015, 280],
+    "moon_soft": [0.86, 0.03, 280],
+    "day": [0.985, 0.01, 230],
+    "dusk": [0.84, 0.06, 300],
+    "night": [0.24, 0.06, 278],
+    "paper": [0.995, 0.005, 230]
+  },
+  "fonts": {
+    "display": "assets/fonts/YoungSerif-Regular.ttf",
+    "body": "assets/fonts/Andika-Regular.ttf",
+    "body_bold": "assets/fonts/Andika-Bold.ttf"
+  },
+  "ramp": {"scale": 0.9, "night_threshold": 0.65, "night_floor": 0.85},
+  "page": {
+    "safe_u": 7.5,
+    "fade_u": 12,
+    "folio_gap_u": 12,
+    "words_max": 0.55,
+    "column_chars": 32,
+    "size_floor": 0.6,
+    "scrim_alpha_edge": 0.95,
+    "scrim_alpha_text": 0.88,
+    "title_gap_u": 1.6
+  },
+  "type": {
+    "story_u": 3.3,
+    "story_leading": 1.42,
+    "title_u": 2.2,
+    "folio_u": 2.0,
+    "cover_title_u": 6.6,
+    "cover_sub_u": 2.6,
+    "display_u": 7.0,
+    "lead_u": 3.6,
+    "small_u": 2.0,
+    "list_u": 3.0,
+    "blurb_u": 3.2
+  },
+  "logo": {"cover_u": 22, "plain_u": 26},
+  "dpi": {"print": 300, "digital": 200, "epub_px": 1200}
+}
