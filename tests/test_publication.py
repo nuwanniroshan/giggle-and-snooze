@@ -126,6 +126,18 @@ def test_page_tone_scrim_runs_day_dusk_night(design: dict) -> None:
     assert pub.page_tone(1.0, design).scrim == pub.oklch_to_srgb(c["night"])
 
 
+def test_page_tone_below_night_runs_day_dusk_then_dusk_night(design: dict) -> None:
+    """AC-2.2: day->dusk for t < 0.5, dusk->night for 0.5 <= t < threshold, dark ink."""
+    c = design["colors"]
+    ink = pub.oklch_to_srgb(c["ink"])
+    early = pub.page_tone(0.25, design)
+    assert early.scrim == pub.oklch_to_srgb(pub.mix_oklch(c["day"], c["dusk"], 0.5))
+    late = pub.page_tone(0.6, design)
+    assert late.scrim == pub.oklch_to_srgb(pub.mix_oklch(c["dusk"], c["night"], 0.2))
+    assert not early.night and not late.night
+    assert early.ink == late.ink == ink
+
+
 def test_contrast_of_ink_on_scrim_for_every_tone(design: dict) -> None:
     for i in range(101):
         t = i / 100

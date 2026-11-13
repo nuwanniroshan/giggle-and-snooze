@@ -157,11 +157,42 @@ def test_folio_sits_at_the_outer_corner_of_the_words(design: dict, side: str) ->
         assert y0 < folio.y <= y0 + folio.size
 
 
+@pytest.mark.parametrize("side", ["top", "bottom"])
+@pytest.mark.parametrize("bleed_left", [True, False])
+def test_kdp_folio_and_gap_sit_at_the_outer_edge(design: dict, side: str, bleed_left: bool) -> None:
+    """FR-3: on a left-hand print page (bleed on the left) the page number and the column gap
+    move to the left; right-hand pages keep them on the right."""
+    frame = pub.Frame.kdp(bleed_left=bleed_left)
+    layout = story(design, frame, side, n=7)
+    (folio,) = [t for t in layout.texts if t.role == "display"]
+    x0, _, x1, _ = safe(design, frame)
+    gap = design["page"]["folio_gap_u"] * frame.u
+    runs = words(layout)
+    if bleed_left:
+        assert folio.align == "left" and folio.x == pytest.approx(x0)
+        assert all(r.x == pytest.approx(x0 + gap) for r in runs)
+        assert all(r.x + measure(r.text, r.role, r.size) <= x1 + 0.01 for r in runs)
+    else:
+        assert folio.align == "right" and folio.x == pytest.approx(x1)
+        assert all(r.x == pytest.approx(x0) for r in runs)
+        assert all(r.x + measure(r.text, r.role, r.size) <= x1 - gap + 0.01 for r in runs)
+
+
 def test_kdp_facing_pages_shift_the_words_by_the_bleed(design: dict) -> None:
     left = story(design, pub.Frame.kdp(bleed_left=True), "bottom")
     right = story(design, pub.Frame.kdp(bleed_left=False), "bottom")
-    assert words(left)[0].x - words(right)[0].x == pytest.approx(9)
+    gap = design["page"]["folio_gap_u"] * pub.Frame.digital().u  # the folio gap moves outside too
+    assert words(left)[0].x - words(right)[0].x == pytest.approx(9 + gap)
     assert words(left)[0].y == pytest.approx(words(right)[0].y)
+
+
+@pytest.mark.parametrize("side", ["top", "bottom"])
+def test_story_pages_have_no_shapes_or_images(design: dict, side: str) -> None:
+    """AC-1.2: no card, frame, divider, drop cap or badge: only the picture, scrim and words."""
+    for frame in (pub.Frame.digital(), pub.Frame.kdp(bleed_left=True)):
+        layout = story(design, frame, side)
+        assert layout.shapes == () and layout.images == ()
+        assert len(layout.scrims) == 1
 
 
 def test_night_story_page_uses_light_ink(design: dict) -> None:
@@ -350,6 +381,7 @@ def test_drawing_page_is_light_with_a_dashed_frame(design: dict) -> None:
     (box,) = layout.shapes
     x0, y0, x1, y1 = safe(design, frame)
     assert box.kind == "frame" and box.dashed and box.radius > 0
+    assert box.color == pub.oklch_to_srgb(design["colors"]["ink"])  # AC-3.4: dark ink
     assert (box.x, box.y + 0) == pytest.approx((x0, y0 + 6 * frame.u))
     assert (box.x + box.w, box.y + box.h) == pytest.approx((x1, y1))
     assert [t.text for t in layout.texts] == ["My drawing", "The Lantern Bug Parade"]
@@ -419,8 +451,10 @@ def test_back_cover_has_blurb_logo_and_barcode_slot(design: dict) -> None:
     )
     (scrim,) = layout.scrims
     assert scrim.side == "bottom" and scrim.y1 == 612
-    assert scrim.y0 == pytest.approx(612 * (1 - 0.66))
+    assert scrim.y0 <= 612 * (1 - 0.66) + 0.01  # never less than the 66% band
     assert scrim.color == pub.oklch_to_srgb(design["colors"]["night"])
+    solid_start = scrim.y0 + scrim.fade
+    assert all(t.y - t.size >= solid_start - 0.01 for t in layout.texts)
     (slot,) = layout.shapes
     x0, y0, x1, y1 = safe(design, frame)
     assert slot.kind == "rect" and slot.color == pub.oklch_to_srgb(design["colors"]["paper"])
@@ -432,6 +466,52 @@ def test_back_cover_has_blurb_logo_and_barcode_slot(design: dict) -> None:
     assert all(t.color == moon for t in layout.texts)
     assert max(t.y for t in layout.texts) < min(slot.y, img.y)
     inside(design, layout, frame)
+
+
+def back_cover(design: dict, blurb: str) -> pub.PageLayout:
+    return pub.layout_back_cover(
+        design,
+        pub.Frame.digital(),
+        blurb=blurb,
+        picture=Path("back.png"),
+        logo=logo(),
+        publisher="Giggle & Snooze",
+        measure=measure,
+    )
+
+
+def test_back_cover_fits_the_pilots_long_blurb_on_a_solid_scrim(design: dict) -> None:
+    blurb = json.loads(PILOT_BOOK.read_text(encoding="utf-8"))["metadata"]["blurb"]
+    assert len(blurb) > 500
+    frame = pub.Frame.digital()
+    layout = back_cover(design, blurb)
+    runs = [t for t in layout.texts if t.role == "body"]
+    assert " ".join(t.text for t in runs) == blurb
+    x0, y0, x1, y1 = safe(design, frame)
+    assert min(t.y - t.size for t in runs) >= y0 - 0.01  # first line's top inside the safe area
+    (scrim,) = layout.scrims
+    assert scrim.side == "bottom" and scrim.y1 == frame.height
+    assert scrim.fade == pytest.approx(design["page"]["fade_u"] * frame.u)
+    assert scrim.y0 <= frame.height * (1 - design["back"]["scrim_band"]) + 0.01
+    solid_start = scrim.y0 + scrim.fade
+    for run in runs:  # every line on the solid part
+        assert run.y - run.size >= solid_start - 0.01, run
+    inside(design, layout, frame)
+
+
+def test_back_cover_widens_then_shrinks_the_blurb(design: dict) -> None:
+    short = back_cover(design, "A short blurb.")
+    (run,) = [t for t in short.texts if t.role == "body"]
+    assert run.size == pytest.approx(design["type"]["blurb_u"] * 6.12)
+    blurb = json.loads(PILOT_BOOK.read_text(encoding="utf-8"))["metadata"]["blurb"]
+    runs = [t for t in back_cover(design, blurb * 2).texts if t.role == "body"]
+    assert runs[0].size < design["type"]["blurb_u"] * 6.12
+    assert runs[0].size >= design["type"]["blurb_u"] * 6.12 * design["page"]["size_floor"] - 0.01
+
+
+def test_back_cover_blurb_too_long_names_the_field(design: dict) -> None:
+    with pytest.raises(pub.PublicationError, match="metadata.blurb"):
+        back_cover(design, LONG_TEXT * 6)
 
 
 def test_back_cover_without_picture_is_night(design: dict) -> None:

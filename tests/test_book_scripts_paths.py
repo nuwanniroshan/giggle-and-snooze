@@ -88,6 +88,7 @@ def test_build_writes_only_into_the_book_build_folder(
     monkeypatch.setattr(build, "build_pdfs", record("pdfs"))
     monkeypatch.setattr(build, "build_epub", record("epub"))
     monkeypatch.setattr(build, "build_reader", record("reader"))
+    monkeypatch.setattr(build.Publication, "check", lambda self, plan: None)  # spec 023 fit
 
     assert build.main(["--book", "moon-kite-race", "--root", str(tmp_path)]) == 0
 

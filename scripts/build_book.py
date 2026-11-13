@@ -15,8 +15,9 @@ Generates, in books/<slug>/build/ (N = story pages, P = KDP interior pages):
 
 Every page is laid out once by video_pipeline/publication.py (spec 023: full-bleed pictures,
 words on a scrim, day to night) and drawn by video_pipeline/publication_render.py with the
-bundled typefaces. Book-specific extras (bookplate label, map legend, activity page...) come from the book's
-optional `print_extras` object, over the generic templates in config/book_extras.json.
+bundled typefaces. Book-specific extras (map legend, activity page, questions, genre, drawing
+caption, bookplate line) come from the book's optional `print_extras` object, over the generic
+templates in config/book_extras.json.
 """
 
 import argparse
@@ -24,7 +25,7 @@ import json
 import re
 import string
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
 
@@ -64,10 +65,7 @@ KDP_COLOR_PAGE_INCHES = 0.002252  # spine width per page, premium colour paper
 COVER_DPI = 300
 EXTRAS_CONFIG = Path("config") / "book_extras.json"
 EXTRAS_KEYS = (
-    "bookplate_label",
     "bookplate_line",
-    "front_footer",
-    "back_cover_headline",
     "copyright_genre",
     "map_title",
     "activity_title",
@@ -308,19 +306,38 @@ def cover_focus(meta: dict) -> float:
 
 @dataclass(frozen=True)
 class Publication:
-    """What every page layout of one book needs."""
+    """What every page layout of one book needs. Layouts are made once and remembered, so
+    `check` can lay out (and fit) every page before anything is written."""
 
     design: dict
     book: dict
     paths: BookFolder
     extras: dict
     logo: pub.Logo | None
+    layouts: dict = field(default_factory=dict, compare=False, repr=False)
 
     @classmethod
     def load(cls, design: dict, book: dict, paths: BookFolder, extras: dict) -> "Publication":
         return cls(design, book, paths, extras, brand_logo(paths))
 
     def layout(self, kind: str, frame: pub.Frame, story: dict | None = None) -> pub.PageLayout:
+        key = (kind, frame, story["page_number"] if story else None)
+        if key not in self.layouts:
+            self.layouts[key] = self._layout(kind, frame, story)
+        return self.layouts[key]
+
+    def check(self, plan: list[InteriorPage]) -> None:
+        """Lay out every page of every edition: the back cover, the digital and complete
+        reader pages (also the EPUB's) and the KDP interior. Raises PublicationError naming
+        the first page that does not fit; nothing is written."""
+        back_cover_layout(self.book, self.design, paths=self.paths)
+        digital = pub.Frame.digital()
+        for kind, story in reader_kinds(self.book):
+            self.layout(kind, digital, story)
+        for entry in plan:
+            self.layout(entry.kind, kdp_frame(entry.number), entry.story)
+
+    def _layout(self, kind: str, frame: pub.Frame, story: dict | None) -> pub.PageLayout:
         design, book, extras = self.design, self.book, self.extras
         meta = book["metadata"]
         if kind == "story":
@@ -420,14 +437,11 @@ def create_front_cover_image(book_data: dict, out_png: Path, size_px: int = 2550
     return final_img
 
 
-def create_back_cover_image(book_data: dict, out_png: Path, size_px: int = 2550, *, paths: BookFolder, extras: dict):
-    """The 300 DPI back cover PNG: cover_back.png full bleed (else the night colour), a night
-    scrim with the blurb, the logo and an empty barcode slot (spec 023 AC-4.3)."""
-    design = load_design()
-    register_fonts(design)
+def back_cover_layout(book_data: dict, design: dict, *, paths: BookFolder) -> pub.PageLayout:
+    """The back cover's layout; raises PublicationError when the blurb does not fit."""
     meta = book_data["metadata"]
     raw_back = paths.illustrations / "cover_back.png"
-    layout = pub.layout_back_cover(
+    return pub.layout_back_cover(
         design,
         pub.Frame.digital(),
         blurb=meta.get("blurb", ""),
@@ -436,6 +450,19 @@ def create_back_cover_image(book_data: dict, out_png: Path, size_px: int = 2550,
         publisher=meta.get("publisher", ""),
         measure=measure,
     )
+
+
+def kdp_frame(number: int) -> pub.Frame:
+    """The KDP frame of interior page `number`: even pages bleed on the left."""
+    return pub.Frame.kdp(bleed_left=story_bleed(number, BLEED_IN)[0] > 0)
+
+
+def create_back_cover_image(book_data: dict, out_png: Path, size_px: int = 2550, *, paths: BookFolder, extras: dict):
+    """The 300 DPI back cover PNG: cover_back.png full bleed (else the night colour), a night
+    scrim with the blurb, the logo and an empty barcode slot (spec 023 AC-4.3)."""
+    design = load_design()
+    register_fonts(design)
+    layout = back_cover_layout(book_data, design, paths=paths)
     final_img = render_png(layout, size_px, design)
     final_img.save(out_png, dpi=(COVER_DPI, COVER_DPI))
     return final_img
@@ -484,14 +511,22 @@ def draw_cover_page(c: canvas.Canvas, png: Path, size: tuple[float, float], qual
     c.showPage()
 
 
-def build_pdfs(book_data: dict, design: dict, *, paths: BookFolder, extras: dict, plan: list[InteriorPage]) -> dict[str, str]:
+def build_pdfs(
+    book_data: dict,
+    design: dict,
+    *,
+    paths: BookFolder,
+    extras: dict,
+    plan: list[InteriorPage],
+    book: "Publication | None" = None,
+) -> dict[str, str]:
     """Builds the PDF editions (N-page digital, complete reader, P-page KDP interior) in the
     spec 023 look and returns the file names written."""
     meta = book_data["metadata"]
     stem = file_stem(meta["title"])
     stories = sorted_stories(book_data)
     names = edition_names(stem, len(stories), len(plan))
-    book = Publication.load(design, book_data, paths, extras)
+    book = book or Publication.load(design, book_data, paths, extras)
     dpi, quality = design["dpi"], design["dpi"]["jpeg_quality"]
     cache: dict = {}  # background rasters shared by the digital edition and the reader
     trim = (TRIM_IN * inch, TRIM_IN * inch)
@@ -533,9 +568,7 @@ def build_pdfs(book_data: dict, design: dict, *, paths: BookFolder, extras: dict
         paths.build_dir / names["kdp"], kdp_size, meta["title"] + " (KDP Print Interior)", meta["author"]
     )
     for entry in plan:
-        bleed_left = story_bleed(entry.number, BLEED_IN)[0] > 0
-        frame = pub.Frame.kdp(bleed_left=bleed_left)
-        page(c, book.layout(entry.kind, frame, entry.story), dpi["print"])
+        page(c, book.layout(entry.kind, kdp_frame(entry.number), entry.story), dpi["print"])
     c.save()
     return names
 
@@ -561,13 +594,20 @@ def reader_page_count(book_data: dict, *, paths: BookFolder) -> int:
     return covers + len(reader_kinds(book_data))
 
 
-def build_epub(book_data: dict, design: dict, *, paths: BookFolder, extras: dict) -> Path:
+def build_epub(
+    book_data: dict,
+    design: dict,
+    *,
+    paths: BookFolder,
+    extras: dict,
+    book: "Publication | None" = None,
+) -> Path:
     """The fixed-layout EPUB 3 (spec 023 AC-6.1-6.3): the complete reader's pages in order,
     each a 1200 px background with the layout's words, shapes and logo placed on it."""
     meta = book_data["metadata"]
     stem = file_stem(meta["title"])
     names = edition_names(stem, 0, 0)
-    book = Publication.load(design, book_data, paths, extras)
+    book = book or Publication.load(design, book_data, paths, extras)
     quality = design["dpi"]["jpeg_quality"]
     px = design["dpi"]["epub_px"]
     frame = pub.Frame.digital()
@@ -691,7 +731,6 @@ def main(argv: list[str] | None = None) -> int:
     except PublicationError as exc:
         print(f"build stopped: {exc}", file=sys.stderr)
         return 2
-    paths.build_dir.mkdir(parents=True, exist_ok=True)
     try:
         return build_all(book_data, design, paths=paths, extras=extras)
     except PublicationError as exc:
@@ -703,6 +742,11 @@ def build_all(book_data: dict, design: dict, *, paths: BookFolder, extras: dict)
     stem = file_stem(book_data["metadata"]["title"])
     plan = plan_interior(book_data, has_map=bool(map_pictures(paths.illustrations)))
     story_count = len(book_data["pages"])
+
+    print("0. Laying out every page...")
+    book = Publication.load(design, book_data, paths, extras)
+    book.check(plan)  # fail before writing: every page must fit first
+    paths.build_dir.mkdir(parents=True, exist_ok=True)
 
     print("1. Compositing 300 DPI Front & Back Covers...")
     front_png = paths.build_dir / f"{stem}_Front_Cover.png"
@@ -716,10 +760,10 @@ def build_all(book_data: dict, design: dict, *, paths: BookFolder, extras: dict)
     create_kdp_wrap_cover(front_img, back_img, wrap_png, wrap_pdf, len(plan))
 
     print(f"3. Building {story_count}-Page Digital PDF, Complete Reader PDF, and {len(plan)}-Page KDP Print Interior PDF...")
-    written = build_pdfs(book_data, design, paths=paths, extras=extras, plan=plan)
+    written = build_pdfs(book_data, design, paths=paths, extras=extras, plan=plan, book=book)
 
     print("4. Building the fixed-layout EPUB 3...")
-    build_epub(book_data, design, paths=paths, extras=extras)
+    build_epub(book_data, design, paths=paths, extras=extras, book=book)
 
     print("5. Building the web reader (index.html + reader/)...")
     build_reader(book_data, design, paths=paths, extras=extras)

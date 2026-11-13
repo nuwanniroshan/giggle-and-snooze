@@ -13,7 +13,7 @@ import html
 import shutil
 import uuid
 import zipfile
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
@@ -23,7 +23,7 @@ from PIL import Image
 from reportlab.pdfbase.ttfonts import TTFontFile
 
 from video_pipeline.library import PROJECT_ROOT
-from video_pipeline.publication import PageLayout, Shape, TextRun
+from video_pipeline.publication import LOGO_ALT, PageLayout, Shape, TextRun
 from video_pipeline.publication_render import font_paths
 
 ASSETS = Path("assets") / "publication"
@@ -163,7 +163,6 @@ def page_xhtml(
     page: EpubPage,
     *,
     metrics: Metrics,
-    image_alt: Callable[[Path], str],
     lang: str = "en",
     px: int = EPUB_PX,
 ) -> str:
@@ -176,7 +175,7 @@ def page_xhtml(
         for image in layout.images:
             x, y, w, h = (v * scale for v in (image.x, image.y, image.w, image.h))
             body.append(
-                f'<img class="im" src="images/{e(image.path.name)}" alt="{e(image_alt(image.path))}"'
+                f'<img class="im" src="images/{e(image.path.name)}" alt="{e(image.alt)}"'
                 f' style="left:{_px(x)};top:{_px(y)};width:{_px(w)};height:{_px(h)}"/>'
             )
         body += [
@@ -235,7 +234,6 @@ def write_epub(
     `pages[0]` is the front cover; `nav` lists (label, page index) for the table of contents."""
     lang = str(meta.get("language") or "en")
     metrics = role_metrics(design, root)
-    logo_alt = "Giggle and Snooze"
     images: dict[str, Path] = {}
     for page in pages:
         for image in page.layout.images if page.layout else ():
@@ -320,7 +318,7 @@ def write_epub(
             )
             zf.writestr(
                 f"OEBPS/{page.name}.xhtml",
-                page_xhtml(page, metrics=metrics, image_alt=lambda _p: logo_alt, lang=lang, px=px),
+                page_xhtml(page, metrics=metrics, lang=lang, px=px),
             )
     tmp.replace(out)
 
@@ -363,7 +361,6 @@ ARROW = (
     'stroke-linejoin="round"/></svg>'
 )
 LOGO_SRC = "reader/logo.png"
-LOGO_ALT = "Giggle and Snooze"
 
 
 def _pct(value: float) -> str:

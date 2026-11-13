@@ -12,8 +12,11 @@
   const story = scenes.filter((s) => s.dataset.page);
   let i = Math.max(0, Math.min(scenes.length - 1, Number(location.hash.slice(2)) || 0));
   let reading = false;
+  let wait = null; // the pause on a scene without a track; cleared whenever the scene changes
+  const SILENT_MS = 1500;
 
   function show(n) {
+    clearTimeout(wait);
     i = Math.max(0, Math.min(scenes.length - 1, n));
     scenes.forEach((s, k) => {
       s.classList.toggle("is-current", k === i);
@@ -28,22 +31,32 @@
     history.replaceState(null, "", `#p${i}`);
     if (reading) play();
   }
+  function advance() {
+    if (!reading) return;
+    if (i < scenes.length - 1) show(i + 1);
+    else setReading(false);
+  }
   function play() {
     const src = scenes[i].dataset.audio;
+    clearTimeout(wait);
     audio.pause();
-    if (!src) return;
+    if (!src) {
+      wait = setTimeout(advance, SILENT_MS);
+      return;
+    }
     audio.src = src;
     audio.play().catch(() => setReading(false));
   }
   function setReading(on) {
     reading = on;
+    if (!on) clearTimeout(wait);
     if (listen) {
       listen.setAttribute("aria-pressed", String(on));
       listen.textContent = on ? "Reading to you" : "Read to me";
     }
     on ? play() : audio.pause();
   }
-  audio.addEventListener("ended", () => { if (reading && i < scenes.length - 1) show(i + 1); });
+  audio.addEventListener("ended", advance);
   audio.addEventListener("error", () => setReading(false));
 
   prev.addEventListener("click", () => show(i - 1));

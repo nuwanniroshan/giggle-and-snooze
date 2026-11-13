@@ -81,6 +81,7 @@ LCH = tuple[float, float, float]
 TOP_BAND = (0.0, 0.4)
 BOTTOM_BAND = (0.6, 1.0)
 LINE_BOX = 1.25  # title line height, as a multiple of the title size
+LOGO_ALT = "Giggle and Snooze"
 
 
 class PublicationError(ValueError):
@@ -408,13 +409,14 @@ class TextRun:
 
 @dataclass(frozen=True)
 class ImageRun:
-    """A picture drawn whole into a top-left box (logo, contained map)."""
+    """A picture drawn whole into a top-left box (logo, contained map), with its alt text."""
 
     path: Path
     x: float
     y: float
     w: float
     h: float
+    alt: str = ""
 
 
 @dataclass(frozen=True)
@@ -551,6 +553,7 @@ class _Pic:
     w: float
     h: float
     gap: float = 0.0
+    alt: str = ""
 
     @property
     def height(self) -> float:
@@ -597,7 +600,7 @@ def _place(
                     TextRun(line, block.role, block.size, x + block.indent, base, block.color)
                 )
         elif isinstance(block, _Pic):
-            images.append(ImageRun(block.path, x, y, block.w, block.h))
+            images.append(ImageRun(block.path, x, y, block.w, block.h, block.alt))
         else:
             shapes.append(Shape("rect", x, y, block.w, block.h, block.color))
         y += block.height
@@ -659,6 +662,9 @@ def layout_story(
     p, ty = design["page"], design["type"]
     tone = page_tone(ramp(n, total, design), design)
     x0, y0, x1, y1 = frame.safe_box(design)
+    gap = p["folio_gap_u"] * u
+    outer_left = frame.trim_x > 0  # a left-hand print page: bleed and outer edge on the left
+    column_x = x0 + gap if outer_left else x0
     fit = fit_words(
         str(page.get("title", "")),
         str(page.get("text", "")),
@@ -668,7 +674,7 @@ def layout_story(
         leading=ty["story_leading"],
         title_gap=p["title_gap_u"] * u,
         column_chars=p["column_chars"],
-        full_column=x1 - p["folio_gap_u"] * u - x0,
+        full_column=x1 - gap - x0,
         max_height=p["words_max"] * frame.trim,
         floor=p["size_floor"],
         label=f"page {page.get('page_number', n)}",
@@ -689,7 +695,7 @@ def layout_story(
             gap=p["title_gap_u"] * u * fit.scale,
         )
     )
-    texts, _, _ = _place(blocks, x0, top)
+    texts, _, _ = _place(blocks, column_x, top)
     folio_size = ty["folio_u"] * u
     folio_y = y1 if side == "bottom" else y0 + DIGIT_CAP * folio_size
     texts.append(
@@ -697,10 +703,10 @@ def layout_story(
             str(page.get("page_number", n)),
             "display",
             folio_size,
-            x1,
+            x0 if outer_left else x1,
             folio_y,
             tone.ink_soft,
-            align="right",
+            align="left" if outer_left else "right",
         )
     )
     fade = p["fade_u"] * u
@@ -752,7 +758,7 @@ def layout_half_title(
     blocks: list[_Block] = []
     if logo is not None:
         w = design["logo"]["plain_u"] * u
-        blocks.append(_Pic(logo.path, w, w * logo.aspect))
+        blocks.append(_Pic(logo.path, w, w * logo.aspect, alt=LOGO_ALT))
     size = ty["display_u"] * u
     display_w = min(width, _measure_ch(plain["display_ch"], "display", size, measure))
     blocks.append(
@@ -919,7 +925,9 @@ def layout_map(
     pw, ph = picture_size
     scale = min(width / pw, max(0.0, bottom - top) / ph)
     w, h = pw * scale, ph * scale
-    image = ImageRun(picture, x0 + (width - w) / 2, top + (bottom - top - h) / 2, w, h)
+    image = ImageRun(
+        picture, x0 + (width - w) / 2, top + (bottom - top - h) / 2, w, h, f"Map: {title}"
+    )
     return PageLayout(
         frame.width,
         frame.height,
@@ -1060,7 +1068,7 @@ def layout_goodnight(
         )
     if logo is not None:
         w = design["logo"]["plain_u"] * u
-        blocks.append(_Pic(logo.path, w, w * logo.aspect, gap=gap))
+        blocks.append(_Pic(logo.path, w, w * logo.aspect, gap=gap, alt=LOGO_ALT))
     return _plain(design, frame, tone.scrim, blocks, "end")
 
 
@@ -1092,7 +1100,7 @@ def layout_drawing(
                 top,
                 x1 - x0,
                 y1 - top,
-                soft,
+                color(design, "ink"),
                 dashed=True,
                 line=d["line_u"] * u,
                 radius=d["radius_u"] * u,
@@ -1146,7 +1154,7 @@ def layout_front_cover(
     if logo is not None:
         w = design["logo"]["cover_u"] * u
         h = w * logo.aspect
-        images = (ImageRun(logo.path, x1 - w, y1 - h, w, h),)
+        images = (ImageRun(logo.path, x1 - w, y1 - h, w, h, LOGO_ALT),)
     else:
         texts.append(
             TextRun(publisher, "display", ty["cover_sub_u"] * u * 1.4, x1, y1, snooze, "right")
@@ -1185,7 +1193,11 @@ def layout_back_cover(
     publisher: str,
     measure: Measure,
 ) -> PageLayout:
-    """Back picture full bleed, a night scrim at the bottom with the blurb, logo and barcode slot."""
+    """Back picture full bleed, a night scrim at the bottom with the blurb, logo and barcode slot.
+
+    The blurb is fitted like the activity page (narrow column, then the full safe width, then
+    smaller sizes down to the floor) between the safe top and the logo. The scrim is solid from
+    the page bottom to the blurb's top, then fades over `fade_u`, never shorter than the band."""
     u, ty, lead, plain, back = (
         frame.u,
         design["type"],
@@ -1193,7 +1205,7 @@ def layout_back_cover(
         design["plain"],
         design["back"],
     )
-    x0, _, x1, y1 = frame.safe_box(design)
+    x0, y0, x1, y1 = frame.safe_box(design)
     night, moon = color(design, "night"), color(design, "moon")
     bw, bh = (v * u for v in back["barcode_u"])
     shapes = (
@@ -1213,23 +1225,38 @@ def layout_back_cover(
     if logo is not None:
         w = design["logo"]["plain_u"] * u
         h = w * logo.aspect
-        images = (ImageRun(logo.path, x0, y1 - h, w, h),)
+        images = (ImageRun(logo.path, x0, y1 - h, w, h, LOGO_ALT),)
         foot = max(foot, h)
     else:
         texts.append(TextRun(publisher, "display", ty["cover_sub_u"] * u * 1.4, x0, y1, moon))
-    size = ty["blurb_u"] * u
-    width = min(x1 - x0, _measure_ch(plain["blurb_ch"], "body", size, measure))
-    block = _Text(_wrap(blurb, "body", size, width, measure), "body", size, lead["blurb"], moon)
-    blurb_texts, _, _ = _place([block], x0, y1 - foot - plain["gap_u"] * u - block.height)
+    base = ty["blurb_u"] * u
+    bottom = y1 - foot - plain["gap_u"] * u
+    narrow = min(x1 - x0, _measure_ch(plain["blurb_ch"], "body", base, measure))
+    tries = [(1.0, narrow), (1.0, x1 - x0)]
+    tries += [(s, x1 - x0) for s in _scales(design["page"]["size_floor"])]
+    block = None
+    for scale, width in tries:
+        size = base * scale
+        block = _Text(_wrap(blurb, "body", size, width, measure), "body", size, lead["blurb"], moon)
+        if block.height <= bottom - y0:
+            break
+    else:
+        raise PublicationError(
+            f"back cover: metadata.blurb does not fit the safe area at "
+            f"{design['page']['size_floor']:.0%} size; shorten metadata.blurb"
+        )
+    top = bottom - block.height
+    blurb_texts, _, _ = _place([block], x0, top)
+    fade = design["page"]["fade_u"] * u
     band = back["scrim_band"] * frame.height
     scrim = Scrim(
-        frame.height - band,
+        min(top - fade, frame.height - band),
         frame.height,
         "bottom",
         night,
         back["alpha_edge"],
         back["alpha_mid"],
-        band / 2,
+        fade,
     )
     return PageLayout(
         frame.width,

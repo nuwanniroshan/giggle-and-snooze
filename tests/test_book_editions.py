@@ -196,10 +196,25 @@ def test_missing_config_key_is_named(tmp_path: Path) -> None:
 
 def test_book_print_extras_override_config() -> None:
     book = story_book(4)
-    book["print_extras"] = {"back_cover_headline": "Hello!"}
+    book["print_extras"] = {"bookplate_line": "Hello!"}
     extras = build.load_extras(ROOT, book)
-    assert extras["back_cover_headline"] == "Hello!"
+    assert extras["bookplate_line"] == "Hello!"
     assert extras["activity_title"] == "Can you find…?"
+
+
+DEAD_EXTRAS = ("bookplate_label", "front_footer", "back_cover_headline")
+
+
+def test_extras_need_no_dead_keys(tmp_path: Path) -> None:
+    """Spec 023 draws no bookplate label, front footer or back-cover headline."""
+    config = read_json(ROOT / "config" / "book_extras.json")
+    for key in DEAD_EXTRAS:
+        assert key not in config
+        assert key not in build.EXTRAS_KEYS
+        config.pop(key, None)
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "book_extras.json").write_text(json.dumps(config), encoding="utf-8")
+    assert build.load_extras(tmp_path, story_book(4))["bookplate_line"]
 
 
 def test_stale_editions_lists_other_counts_only(tmp_path: Path) -> None:
@@ -321,7 +336,8 @@ def test_kdp_interior_is_padded_with_drawing_pages(ten_page_build: Path) -> None
 
 
 def test_story_pages_alternate_bleed_side(ten_page_build: Path) -> None:
-    """Spec 023 AC-3.6: the picture covers the whole page; the words shift by the bleed."""
+    """Spec 023 AC-3.6: the picture covers the whole page; the words shift by the bleed (and,
+    FR-3, by the folio gap, which sits on the outer side)."""
     path = ten_page_build / "The_Lantern_Bug_Parade_KDP_24Page_Print_Interior.pdf"
     with pymupdf.open(path) as doc:
         for i in (3, 4):
@@ -331,7 +347,8 @@ def test_story_pages_alternate_bleed_side(ten_page_build: Path) -> None:
             assert bbox == pytest.approx((0, 0, 621, 630), abs=0.01)
         texts = [[b for b in doc[i].get_text("dict")["blocks"] if b["type"] == 0] for i in (3, 4)]
         xs = [blocks[0]["bbox"][0] for blocks in texts]
-    assert xs[0] - xs[1] == pytest.approx(0.125 * 72, abs=0.01)
+    gap = build.load_design()["page"]["folio_gap_u"] * 6.12  # FR-3: the folio gap goes outside
+    assert xs[0] - xs[1] == pytest.approx(0.125 * 72 + gap, abs=0.01)
 
 
 def page_pixel(path: Path, index: int, at: tuple[float, float]) -> tuple[int, int, int]:
@@ -372,6 +389,92 @@ def test_missing_font_stops_before_any_edition(
     assert build.main(["--book", "lantern-bug-parade", "--root", str(tmp_path)]) == 2
     assert "Missing-Face.ttf" in capsys.readouterr().err
     assert not build_dir.exists() or not any(build_dir.iterdir())
+
+
+def test_impossible_story_text_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    """Spec 023: every page is laid out (and fitted) before any edition file is written."""
+    book = story_book(10)
+    book["pages"][6]["text"] = " ".join(["A very long story sentence that never ends."] * 80)
+    build_dir = make_root(tmp_path, "lantern-bug-parade", book)
+    build_dir.mkdir(parents=True)
+    stem = "The_Lantern_Bug_Parade"
+    before = {
+        f"{stem}_10Page_Digital_Edition.pdf": b"%PDF old digital",
+        f"{stem}_Complete_Reader.pdf": b"%PDF old reader",
+        f"{stem}_Front_Cover.png": b"old front",
+        f"{stem}_Back_Cover.png": b"old back",
+        f"{stem}.epub": b"old epub",
+        "index.html": b"<p>old reader</p>",
+    }
+    for name, data in before.items():
+        (build_dir / name).write_bytes(data)
+    assert build.main(["--book", "lantern-bug-parade", "--root", str(tmp_path)]) == 2
+    assert "page 7" in capsys.readouterr().err
+    after = {p.name: p.read_bytes() for p in build_dir.iterdir()}
+    assert after == before
+
+
+def plan_file(build_dir: Path, page: int, sha: str, boxes: list[list[int]]) -> Path:
+    """An animation plan (spec 009) for one page of the tmp book; 48 x 48 px picture."""
+    from video_pipeline.motion_plan import PLAN_DIR
+
+    path = build_dir.parent / PLAN_DIR / f"page_{page:02d}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plan = {
+        "picture": {"sha256": sha, "width": 48, "height": 48},
+        "layers": [{"box": box} for box in boxes],
+    }
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    return path
+
+
+def test_story_focus_reads_the_pages_animation_plan(tmp_path: Path) -> None:
+    """AC-1.3/1.4: a current plan file picks crop and side; a stale or broken one is ignored."""
+    from video_pipeline.file_hash import sha256_file
+    from video_pipeline.library import book_folder
+
+    book = story_book(4)
+    build_dir = make_root(tmp_path, "lantern-bug-parade", book)
+    paths = book_folder("lantern-bug-parade", tmp_path)
+    page = sorted(book["pages"], key=lambda p: p["page_number"])[1]
+    assert page["layout"] == "image_top_text_bottom"  # the layout alone says bottom
+    sha = sha256_file(paths.illustrations / page["illustration_file"])
+    plan = plan_file(build_dir, 2, sha, [[0, 30, 24, 48], [10, 34, 30, 46], [0, 0, 2, 2]])
+    focus_x, side = build.story_focus(paths, page)
+    assert side == "top"  # the subject fills the bottom, so the words go to the top
+    assert focus_x == pytest.approx(15 / 48)
+    plan_file(build_dir, 2, "0" * 64, [[0, 30, 24, 48]])  # stale: another picture
+    assert build.story_focus(paths, page) == (0.5, "bottom")
+    plan.write_text("{not json", encoding="utf-8")
+    assert build.story_focus(paths, page) == (0.5, "bottom")
+
+
+def test_goodnight_page_uses_the_blueprints_outro_hook(tmp_path: Path) -> None:
+    """AC-3.3: a real blueprint.json with qa.outro_hook puts it on the Goodnight page."""
+    build_dir = make_root(tmp_path, "lantern-bug-parade", story_book(10))
+    hook = "Close your eyes and count the glowing bugs."
+    blueprint = {"qa": {"outro_hook": hook, "format": "gentle"}, "mood": {}}
+    (build_dir.parent / "blueprint.json").write_text(json.dumps(blueprint), encoding="utf-8")
+    assert build.main(["--book", "lantern-bug-parade", "--root", str(tmp_path)]) == 0
+    kdp = pdf_texts(build_dir / "The_Lantern_Bug_Parade_KDP_24Page_Print_Interior.pdf")
+    goodnight = " ".join(kdp[14].split())
+    assert "Goodnight" in goodnight and hook in goodnight
+    assert "For every little light." not in goodnight
+
+
+def test_wrap_cover_spine_is_the_night_colour(ten_page_build: Path) -> None:
+    """AC-4.4: back + night spine + front."""
+    night = build.pub.color(build.load_design(), "night")
+    w, _ = build.wrap_size_inches(24)
+    with Image.open(ten_page_build / "The_Lantern_Bug_Parade_KDP_Print_Wrap_Cover.png") as im:
+        rgb = im.convert("RGB")
+        mid = rgb.width // 2
+        assert rgb.width == round(w * 300)
+        for y in range(0, rgb.height, rgb.height // 10):
+            pixel = rgb.getpixel((mid, y))
+            assert all(abs(a - b) <= 2 for a, b in zip(pixel, night, strict=True)), (y, pixel)
 
 
 def test_wrap_cover_uses_interior_page_count(ten_page_build: Path) -> None:
