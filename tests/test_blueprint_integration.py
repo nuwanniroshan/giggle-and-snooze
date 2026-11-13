@@ -57,13 +57,14 @@ def test_design_story_book_pictures_script_then_edit_marks_stale(root, monkeypat
     # pictures: fake painter records every prompt
     prompts: list[str] = []
 
-    def paint(binary, prompt, reference, target):
+    def paint(binary, prompt, reference, target, **_titled):
         prompts.append(prompt)
         target.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (64, 64), "green").save(target)
 
     monkeypatch.setattr(illustrate, "codex_status", lambda: Path("/fake/codex"))
     monkeypatch.setattr(illustrate, "paint_one", paint)
+    monkeypatch.setattr(illustrate, "paint_titled_cover", paint)  # new books: titled (spec 022)
     monkeypatch.setattr(
         illustrate, "plan_page", lambda *a, **k: PlanOutcome(a[1]["page_number"], "written", "")
     )

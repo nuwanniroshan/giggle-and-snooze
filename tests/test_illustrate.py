@@ -527,3 +527,288 @@ def test_select_images_picks_one_and_refuses_unknown():
     assert select_images(BOOK, "S", "cover_back")[0] == "cover_back"
     with pytest.raises(IllustrateError, match="page_07"):
         select_images(BOOK, None, "page_07")
+
+
+# -- titled covers: paint, check and retry (spec 022, Phase 2) -----------------------------------
+
+TITLE, SUBTITLE = "Plops", "A Rainy Tale"
+GOOD = '{"title": "PLOPS", "subtitle": "A  Rainy\\nTale", "logo_whole": true}'
+WRONG = '{"title": "Plosp", "subtitle": "A Rainy Tale", "logo_whole": true}'
+CUT_LOGO = '{"title": "Plops", "subtitle": "A Rainy Tale", "logo_whole": false}'
+
+
+def titled_book() -> dict:
+    book = __import__("copy").deepcopy(BOOK)
+    book["metadata"].update(subtitle=SUBTITLE, cover_style="titled")
+    return book
+
+
+@pytest.fixture
+def cover_settings(tmp_path):
+    import dataclasses
+
+    from video_pipeline.covers import load_cover_settings
+
+    logo = tmp_path / "brand" / "logo.png"
+    logo.parent.mkdir()
+    Image.new("RGB", (64, 32), "orange").save(logo)
+    return dataclasses.replace(load_cover_settings(Path("config")), logo=Path("brand/logo.png"))
+
+
+class FakeCoverCodex:
+    """Stands in for `subprocess.run`: a paint command writes `cwd/out.png` (next size from
+    `sizes`, else 900x600 landscape or 700x700 for the square request); a check command writes the
+    next of `replies` to the `-o` path (an exception is raised, None writes nothing)."""
+
+    def __init__(self, replies=(), sizes=()):
+        self.replies = list(replies)
+        self.sizes = list(sizes)
+        self.paints: list[list[str]] = []
+        self.checked: list[tuple[int, int]] = []
+
+    def __call__(self, cmd, cwd=None, **kw):
+        import subprocess
+
+        assert kw.get("timeout") and kw.get("stdin") == subprocess.DEVNULL
+        if "--output-schema" in cmd:
+            with Image.open(cmd[cmd.index("-i") + 1]) as im:
+                self.checked.append(im.size)
+            reply = self.replies.pop(0) if self.replies else GOOD
+            if isinstance(reply, BaseException):
+                raise reply
+            if reply is not None:
+                Path(cmd[cmd.index("-o") + 1]).write_text(reply, encoding="utf-8")
+        else:
+            self.paints.append(list(cmd))
+            size = self.sizes.pop(0) if self.sizes else None
+            size = size or ((700, 700) if "square 1:1" in cmd[-1] else (900, 600))
+            Image.new("RGB", size, "blue").save(Path(cwd) / "out.png")
+        return __import__("subprocess").CompletedProcess(cmd, 0, "", "")
+
+
+def _cover_painter(settings, root, fake, lines=None):
+    import functools
+
+    from video_pipeline.illustrate import paint_titled_cover
+
+    return functools.partial(
+        paint_titled_cover,
+        words=(TITLE, SUBTITLE),
+        settings=settings,
+        root=root,
+        run=fake,
+        log=(lines.append if lines is not None else lambda _: None),
+    )
+
+
+def _paint(fake, settings, root, target, lines=None, reference=None):
+    painter = _cover_painter(settings, root, fake, lines)
+    painter(Path("codex"), "REQUEST", reference, target)
+
+
+def test_titled_book_paints_both_front_covers_with_logo_and_page_references(
+    tmp_path, cover_settings
+):  # AC-1.1, AC-1.3, AC-2.1, AC-3.1
+    fake = FakeCoverCodex()
+    folder = tmp_path / "ill"
+    done = illustrate(
+        titled_book(),
+        folder,
+        Path("codex"),
+        paint=_paint_real(),
+        log=lambda _: None,
+        settings=cover_settings,
+        paint_cover=_cover_painter(cover_settings, tmp_path, fake),
+    )
+    assert done == ["page_01", "page_02", "cover_front", "cover_front_print", "cover_back"]
+    assert len(fake.paints) == 2
+    for cmd in fake.paints:
+        inputs = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-i"]
+        assert inputs == [str(tmp_path / "brand" / "logo.png"), str(folder / "page_01.png")]
+    with Image.open(folder / "cover_front.png") as im:
+        assert im.width * 3 == im.height * 4 and min(im.size) >= 512
+    with Image.open(folder / "cover_front_print.png") as im:
+        assert im.width == im.height
+    assert fake.checked == [(800, 600), (700, 700)]  # the check sees the trimmed cover
+
+
+def test_accepts_first_passing_try_and_logs_reading(tmp_path, cover_settings):  # AC-3.5
+    fake, lines = FakeCoverCodex([GOOD]), []
+    _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front.png", lines)
+    assert len(fake.paints) == 1 and (tmp_path / "cover_front.png").is_file()
+    assert any("cover_front: accepted after 1 painting(s)" in s and "'PLOPS'" in s for s in lines)
+
+
+def test_retries_wrong_words_then_passes(tmp_path, cover_settings):  # AC-3.2, AC-3.3
+    fake, lines = FakeCoverCodex([WRONG, GOOD]), []
+    _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front.png", lines)
+    assert len(fake.paints) == 2
+    assert any("try 1 failed: title read as 'Plosp'" in s for s in lines)
+    assert any("accepted after 2 painting(s)" in s for s in lines)
+
+
+def test_logo_cut_counts_as_failed_try(tmp_path, cover_settings):  # AC-3.3
+    fake, lines = FakeCoverCodex([CUT_LOGO, GOOD]), []
+    _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front.png", lines)
+    assert len(fake.paints) == 2 and any("logo not whole" in s for s in lines)
+
+
+def test_check_timeout_or_bad_reply_counts_as_failed_try(tmp_path, cover_settings):  # AC-3.3
+    import subprocess
+
+    fake = FakeCoverCodex([subprocess.TimeoutExpired("codex", 1), "not json", GOOD])
+    lines: list[str] = []
+    _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front.png", lines)
+    assert len(fake.paints) == 3
+    assert any("try 1 failed" in s and "timed out" in s for s in lines)
+    assert any("try 2 failed" in s and "no readable answer" in s for s in lines)
+    assert any("accepted after 3 painting(s)" in s for s in lines)
+
+
+def test_missing_check_reply_counts_as_failed_try(tmp_path, cover_settings):
+    fake, lines = FakeCoverCodex([None, GOOD]), []
+    _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front.png", lines)
+    assert any("cover check gave no answer" in s for s in lines)
+
+
+def test_wrong_shape_is_painted_again(tmp_path, cover_settings):  # FR-3
+    fake, lines = FakeCoverCodex(sizes=[(600, 900)]), []
+    _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front.png", lines)
+    assert len(fake.paints) == 2 and len(fake.checked) == 1
+    assert any("try 1 failed" in s and "600x900" in s for s in lines)
+
+
+def test_three_failures_save_nothing_and_name_reason(tmp_path, cover_settings):  # AC-3.4
+    fake = FakeCoverCodex([WRONG, WRONG, WRONG], sizes=[(700, 700)] * 3)
+    with pytest.raises(IllustrateError) as exc:
+        _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front_print.png")
+    assert "cover_front_print.png" in str(exc.value)
+    assert "3 times" in str(exc.value) and "title read as 'Plosp'" in str(exc.value)
+    assert len(fake.paints) == 3
+    assert not list(tmp_path.glob("cover_front_print*"))
+
+
+def test_missing_logo_paints_no_cover_and_keeps_pages(tmp_path, cover_settings):  # AC-1.6
+    (tmp_path / "brand" / "logo.png").unlink()
+    fake = FakeCoverCodex()
+    folder = tmp_path / "ill"
+    with pytest.raises(IllustrateError, match=r"logo not found: .*brand/logo\.png"):
+        illustrate(
+            titled_book(),
+            folder,
+            Path("codex"),
+            paint=_paint_real(),
+            log=lambda _: None,
+            settings=cover_settings,
+            paint_cover=_cover_painter(cover_settings, tmp_path, fake),
+        )
+    assert sorted(p.name for p in folder.iterdir()) == ["page_01.png", "page_02.png"]
+    assert fake.paints == []
+
+
+def test_repaint_print_cover_keeps_bak_and_restores_on_failure(tmp_path, cover_settings):
+    from video_pipeline.illustrate import repaint_one
+
+    folder = tmp_path / "ill"
+    folder.mkdir()
+    Image.new("RGB", (600, 600), "red").save(folder / "page_01.png")
+    Image.new("RGB", (600, 600), "green").save(folder / "cover_front_print.png")
+    old = (folder / "cover_front_print.png").read_bytes()
+    fake = FakeCoverCodex([WRONG, WRONG, WRONG])
+    with pytest.raises(IllustrateError, match="3 times"):
+        repaint_one(
+            titled_book(),
+            folder,
+            Path("codex"),
+            "cover_front_print",
+            paint=_cover_painter(cover_settings, tmp_path, fake),
+            settings=cover_settings,
+            log=lambda _: None,
+        )
+    assert (folder / "cover_front_print.png").read_bytes() == old
+    assert (folder / "cover_front_print.png.bak").read_bytes() == old
+    assert "square 1:1" in fake.paints[0][-1]  # the print cover's own request
+    fake = FakeCoverCodex()
+    repaint_one(
+        titled_book(),
+        folder,
+        Path("codex"),
+        "cover_front_print",
+        paint=_cover_painter(cover_settings, tmp_path, fake),
+        settings=cover_settings,
+        log=lambda _: None,
+    )
+    assert (folder / "cover_front_print.png").read_bytes() != old
+
+
+def test_old_book_cover_prompts_unchanged(cover_settings):  # AC-5.3
+    art = {"style_prompt_prefix": "x"}
+    for style in (None, "STYLE"):
+        assert plan_images(BOOK, style, art=art, settings=cover_settings) == plan_images(
+            BOOK, style
+        )
+    titled = dict(plan_images(titled_book(), "STYLE", settings=cover_settings))
+    assert titled["cover_back"] == dict(plan_images(BOOK, "STYLE"))["cover_back"]
+
+
+def test_titled_requests_not_prefixed_with_style(cover_settings):  # FR-2
+    from video_pipeline.covers import cover_request
+
+    book = titled_book()
+    items = plan_images(book, "STYLE", settings=cover_settings)
+    assert [s for s, _ in items] == [
+        "page_01",
+        "page_02",
+        "cover_front",
+        "cover_front_print",
+        "cover_back",
+    ]
+    prompts = dict(items)
+    for stem in ("cover_front", "cover_front_print"):
+        assert prompts[stem] == cover_request(book, None, stem, cover_settings)
+        assert not prompts[stem].startswith("STYLE")
+    assert prompts["page_01"].startswith("STYLE\n\n")
+
+
+def test_print_cover_refused_for_old_book(repaint_world, capsys):
+    folder, events, _state, run = repaint_world
+    assert run("--cover", "print") == 1
+    assert "no print cover (it was made before titled covers)" in capsys.readouterr().err
+    assert events == []
+    assert not list(folder.illustrations.glob("*.bak"))
+
+
+def test_old_book_front_cover_repaint_uses_old_painter(repaint_world):  # AC-5.3
+    from video_pipeline.illustrate import cover_prompts
+
+    folder, events, _state, run = repaint_world
+    assert run("--cover", "front") == 0
+    book = __import__("json").loads(folder.book_json.read_text(encoding="utf-8"))
+    assert events[0][1] == "cover_front"
+    assert cover_prompts(book)["cover_front"] in events[0][3]
+
+
+@pytest.mark.parametrize(
+    ("side", "stem"), [("front", "cover_front"), ("print", "cover_front_print")]
+)
+def test_titled_book_cover_repaint_uses_titled_painter(repaint_world, monkeypatch, side, stem):
+    import json
+
+    from video_pipeline import illustrate as module
+
+    folder, events, _state, run = repaint_world
+    book = json.loads(folder.book_json.read_text(encoding="utf-8"))
+    book["metadata"].update(subtitle="Sub", cover_style="titled")
+    folder.book_json.write_text(json.dumps(book), encoding="utf-8")
+    seen: list = []
+
+    def fake_titled(binary, prompt, reference, target, *, words, settings, root):
+        seen.append((target.stem, words, root, prompt))
+        Image.new("RGB", (600, 600), "white").save(target)
+
+    monkeypatch.setattr(module, "paint_titled_cover", fake_titled)
+    assert run("--cover", side) == 0
+    assert events == []  # the old painter was not used
+    assert seen[0][:3] == (stem, (book["metadata"]["title"], "Sub"), folder.root)
+    if stem == "cover_front":  # the existing front cover is kept as a backup
+        assert (folder.illustrations / "cover_front.png.bak").is_file()
