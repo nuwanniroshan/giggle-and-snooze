@@ -1,7 +1,7 @@
 # Feature 023: Giggle & Snooze publication design
 
 **Status:** Approved
-**Version:** 1.0.0
+**Version:** 1.0.1
 **Created:** 2026-11-13
 **Last Updated:** 2026-11-13
 **Branch:** `feat/023-publication-design`
@@ -15,6 +15,7 @@ spec 020 (editions per book), spec 022 (titled covers)
 
 | Version | Date | Change |
 |---------|------|--------|
+| 1.0.1 | 2026-11-13 | PATCH: AC-1.4 names `full_bleed_card_top_*` (`image_top_text_bottom` keeps words at the bottom) |
 | 1.0.0 | 2026-11-13 | Initial draft, from the approved prototype in `prototypes/publication-design/`; display face Young Serif (licence) |
 
 ## Problem Statement
@@ -79,8 +80,8 @@ the words printed on it **so that** the book looks like a modern picture book.
   cropped around the plan's subject (the union of its two largest layer boxes) and the words
   go to the end (top or bottom) that overlaps that subject less.
 - [ ] **AC-1.4** Given a page without an animation plan When it is built Then the crop is
-  centred and the words follow the page's `layout` (`*_top_*` at the top, everything else at
-  the bottom).
+  centred and the words follow the page's `layout` (`full_bleed_card_top_*` at the top,
+  everything else at the bottom).
 - [ ] **AC-1.5** Given a page with `print_layout` (`focus_x` 0–1 and/or `words` "top" or
   "bottom") in book.json When it is built Then those values win over AC-1.3 and AC-1.4.
 
