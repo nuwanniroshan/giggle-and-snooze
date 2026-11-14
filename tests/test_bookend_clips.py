@@ -485,3 +485,62 @@ def test_real_blended_join_keeps_length_frames_and_sound_in_step(tmp_path):  # A
     assert all(abs(step - 1 / fps) < 0.001 for step in steps), "gap or overlap in the picture"
     assert times[-1] == pytest.approx(expected - 1 / fps, abs=0.01)  # no drift over the join
     assert len(times) == round(expected * fps)
+
+
+# --- chapter times (spec 024 AC-2.3) -----------------------------------------------------------
+
+
+def test_body_offset_is_opening_clips_minus_one_blend_each():
+    cfg = load_render_config(ROOT / "config" / "render.json")
+    blend = re_.blend_size(cfg) / cfg.fps
+    seconds = {"intro": LOGO_LEN, "open": OPEN_LEN, "close": CLOSE_LEN}
+    assert re_.body_offset([], seconds, cfg) == 0.0
+    assert re_.body_offset(["open"], seconds, cfg) == pytest.approx(OPEN_LEN - blend)
+    assert re_.body_offset(["intro", "open"], seconds, cfg) == pytest.approx(
+        LOGO_LEN + OPEN_LEN - 2 * blend
+    )
+
+
+def test_record_has_chapters_in_section_order(world, fake_probe):
+    _render(world)
+    record = _record(world)
+    chapters = record["chapters"]
+    assert [c["name"] for c in chapters] == [s["name"] for s in record["sections"]]
+    assert chapters[0]["start"] == 0.0
+    starts = [c["start"] for c in chapters]
+    assert starts == sorted(starts) and len(set(starts)) == len(starts)
+
+
+def test_record_chapters_shift_with_open_bookend(world, fake_probe):
+    _render(world)
+    plain = _record(world)["chapters"]
+    _bookends(world)
+    _render(world)
+    cfg = load_render_config(world["config"] / "render.json")
+    offset = OPEN_LEN - re_.blend_size(cfg) / cfg.fps
+    shifted = _record(world)["chapters"]
+    assert [c["name"] for c in shifted] == [c["name"] for c in plain]
+    for a, b in zip(plain, shifted, strict=True):
+        assert b["start"] == pytest.approx(a["start"] + offset, abs=0.002)
+
+
+def test_chapters_do_not_change_final_key(world, fake_probe):
+    _render(world)
+    path = world["video"] / f"{world['slug']}.json"
+    record = _record(world)
+    assert re_.render_check(world["folder"], world["root"]) == "up_to_date"
+    old = {k: v for k, v in record.items() if k != "chapters"}  # a record from before spec 024
+    path.write_text(json.dumps(old), encoding="utf-8")
+    assert re_.render_check(world["folder"], world["root"]) == "up_to_date"
+    edited = {**record, "chapters": [{"name": "intro", "start": 99.0}]}
+    path.write_text(json.dumps(edited), encoding="utf-8")
+    assert re_.render_check(world["folder"], world["root"]) == "up_to_date"
+
+
+def test_record_chapters_round_trip_to_youtube(world, fake_probe):
+    from video_pipeline.youtube import chapters_from_record, load_settings
+
+    _render(world)
+    book = load_json(world["book"])
+    chapters = chapters_from_record(_record(world), book, load_settings(world["config"]))
+    assert chapters and chapters[0].start == 0.0

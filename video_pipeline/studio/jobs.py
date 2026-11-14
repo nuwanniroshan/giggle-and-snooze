@@ -45,6 +45,9 @@ from video_pipeline.studio.books import (
     PREVIEW_STAGE,
     REPAINT_STAGE,
     STAGES,
+    YOUTUBE_STAGES,
+    YOUTUBE_TEXT_STAGE,
+    YOUTUBE_UPLOAD_STAGE,
     StudioPaths,
 )
 
@@ -63,6 +66,8 @@ STAGE_MODULES = {
     PAINT_STAGE: "video_pipeline.illustrate",
     REPAINT_STAGE: "video_pipeline.illustrate",
     AUTOPILOT_STAGE: "video_pipeline.autopilot",
+    YOUTUBE_TEXT_STAGE: "video_pipeline.youtube",
+    YOUTUBE_UPLOAD_STAGE: "video_pipeline.youtube",
 }
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 _ANSI = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
@@ -106,7 +111,9 @@ class Job:
 
 
 STORY_STAGES = ("ideas", "candidate", "book", "blueprint", "redesign")
-BOOK_STAGES = (PAINT_STAGE, PREVIEW_STAGE, REPAINT_STAGE, BUILD_STAGE, AUTOPILOT_STAGE)
+BOOK_STAGES = (
+    PAINT_STAGE, PREVIEW_STAGE, REPAINT_STAGE, BUILD_STAGE, AUTOPILOT_STAGE, *YOUTUBE_STAGES,
+)  # fmt: skip
 
 
 def story_command(stage: str, subject: str, paths: StudioPaths) -> list[str]:
@@ -157,6 +164,15 @@ def stage_command(
         flag, subject = ("--draft", book) if isinstance(book, str) else ("--book", book.slug)
         return [
             sys.executable, "-m", STAGE_MODULES[stage], flag, subject, "--root", str(paths.root),
+        ]  # fmt: skip
+    if stage in YOUTUBE_STAGES:  # spec 024: the youtube CLI takes its subcommand first
+        if stage == YOUTUBE_TEXT_STAGE:
+            sub, extra = "text", ["--force"] if force else []
+        else:
+            sub, extra = "upload", ["--yes"]  # the studio asked for confirmation already
+        return [
+            sys.executable, "-m", STAGE_MODULES[stage], sub,
+            "--book", book.slug, "--root", str(paths.root), *extra,
         ]  # fmt: skip
     if stage == BUILD_STAGE:  # a script, not a module (spec 019)
         root = Path(paths.root)

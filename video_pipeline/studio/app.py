@@ -32,6 +32,7 @@ import re
 import socket
 import sys
 import threading
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -49,6 +50,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from video_pipeline import synthesize_voices as sv
+from video_pipeline import youtube as yt
+from video_pipeline import youtube_api as yapi
 from video_pipeline.blueprint import BlueprintError, rebuild_style_bible
 from video_pipeline.contract import ConfigError
 from video_pipeline.drafts import DraftError, DraftStore
@@ -85,7 +88,15 @@ STAGE_BUTTONS = {
     "cut": "Cut layers",
     sb.PAINT_STAGE: "Paint pictures",
     sb.BUILD_STAGE: "Build book",
+    sb.YOUTUBE_TEXT_STAGE: "Write YouTube text",
+    sb.YOUTUBE_UPLOAD_STAGE: "Upload to YouTube",
 }
+# Spec 024: the settings page shows only these fixed notices (never text from the query).
+YOUTUBE_NOTICES = {
+    "connected": "Connected.",
+    "disconnected": "Disconnected. Not connected.",
+}
+_OAUTH_ERROR = re.compile(r"^[a-z_]{1,64}$")
 MASK_CACHE_SIZE = 32
 THUMB_WIDTH = 640  # spec 014 FR-1: covers and page pictures in lists
 THUMB_CACHE_SIZE = 96
@@ -224,7 +235,15 @@ class Studio:
         self.masks_lock = threading.Lock()
         self.thumbs: dict[tuple[str, int], bytes] = {}  # (path, mtime_ns) → JPEG (spec 014)
         self.drafts = DraftStore(paths.root)
+        self.port = port
         self.allowed_origins = {f"http://{HOST}:{port}", f"http://localhost:{port}"}
+        # Spec 024: one consent in flight at a time; the factories are swapped in tests (None:
+        # the real Google flow, client and revoke).
+        self.youtube_pending: yapi.Pending | None = None
+        self.youtube_flow_factory: Callable[..., object] | None = None
+        self.youtube_client_factory: Callable[[object], object] | None = None
+        self.youtube_revoke: Callable[[str], None] | None = None
+        self.youtube_load_credentials: Callable[..., object] | None = None
         self.templates = Jinja2Templates(directory=STUDIO_DIR / "templates")
         self.templates.env.autoescape = True
         self.templates.env.globals.update(
@@ -423,6 +442,10 @@ class Studio:
             missing = sb.paint_state(self.paths, book)["missing"]
             if missing:
                 return f"paint the missing pictures first: {', '.join(missing)}"
+        if stage == sb.YOUTUBE_TEXT_STAGE:
+            return sb.youtube_panel(self.paths, book)["write_disabled"]
+        if stage == sb.YOUTUBE_UPLOAD_STAGE:
+            return sb.youtube_panel(self.paths, book)["upload_disabled"]
         return None
 
     def last_job(
@@ -436,6 +459,7 @@ class Studio:
             sb.BUILD_STAGE,
             sb.AUTOPILOT_STAGE,
             "redesign",
+            *sb.YOUTUBE_STAGES,
         )
         jobs = [j for s in stages if (j := self.runner.latest(book.slug, s, page))]
         if not jobs:
@@ -505,6 +529,7 @@ class Studio:
             "build_button": STAGE_BUTTONS[sb.BUILD_STAGE],
             "build_blocked": busy or self.gate(book, sb.BUILD_STAGE),
             "autopilot": self.autopilot_panel(book, status, busy),
+            "youtube": self.youtube_panel(book, busy),
         }
         last, own = context["job"], context["autopilot"]["job"]
         if last and own and last["id"] == own["id"]:
@@ -543,12 +568,15 @@ class Studio:
         stage = request.path_params["stage"]
         runnable = (
             *sb.STAGES, *sb.ANIMATION_STAGES, sb.PAINT_STAGE, sb.BUILD_STAGE, sb.AUTOPILOT_STAGE,
+            *sb.YOUTUBE_STAGES,
         )  # fmt: skip
         if book is None or stage not in runnable:
             return self.not_found(request)
         back = f"/books/{book.slug}"
         if stage in sb.ANIMATION_STAGES:
             back += "/animation"
+        if stage in sb.YOUTUBE_STAGES:
+            back += "#youtube"
         with self.write_lock:
             refused = self._start_stage(book, stage, form)
         if refused is not None:
@@ -582,6 +610,22 @@ class Studio:
                 ]
                 return "Confirm regenerating the script", lines
             force = True
+        if stage == sb.YOUTUBE_TEXT_STAGE:
+            force = yt.YouTubePaths(sb.folder_of(self.paths, book)).text.is_file()
+            if force and form.get("confirm") != "1":
+                lines = [
+                    "This book already has YouTube text, perhaps edited by hand.",
+                    "Writing it again keeps the old file as a backup; confirm to rewrite.",
+                ]
+                return "Confirm rewriting the YouTube text", lines
+        if stage == sb.YOUTUBE_UPLOAD_STAGE:
+            if form.get("confirm") != "1":
+                lines = [
+                    "Uploading sends this book's video to the connected channel as a new "
+                    "Private video, made for kids; confirm to upload."
+                ]
+                return "Confirm the upload", lines
+            force = False
         extra = {"cover": cover} if cover is not None else {}
         cmd = self.command_for(stage, book, self.paths, force=force, page=page, **extra)
         try:
@@ -622,6 +666,144 @@ class Studio:
         if draft:
             return f"/drafts/{draft['id']}"
         return f"/books/{job['book']}" if sb.get_book(self.paths, job["book"]) else "/"
+
+    # --- YouTube (spec 024) ---------------------------------------------------------------------
+
+    def youtube_panel(self, book: sb.Book, busy: str | None) -> dict:
+        """`books.youtube_panel` with the latest upload job's log (for the percentage), whether
+        a YouTube job runs for this book, and the busy reason folded into both buttons."""
+        job = self.runner.latest(book.slug, sb.YOUTUBE_UPLOAD_STAGE)
+        log = None
+        if job is not None:
+            with contextlib.suppress(UnknownJob):
+                log = self.runner.log(job["id"], 0)[0]
+        panel = sb.youtube_panel(self.paths, book, upload_log=log)
+        panel["uploading"] = job is not None and job.get("state") == "running"
+        panel["job_running"] = self.youtube_job_running(book)
+        panel["write_blocked"] = busy or panel["write_disabled"]
+        panel["upload_blocked"] = busy or panel["upload_disabled"]
+        return panel
+
+    def youtube_job_running(self, book: sb.Book) -> bool:
+        job = self.runner.current()
+        return bool(job) and job["book"] == book.slug and job["stage"] in sb.YOUTUBE_STAGES
+
+    def youtube_settings(self) -> yt.YouTubeSettings:
+        return yt.load_settings(self.paths.config_dir)
+
+    async def youtube_page(self, request: Request) -> Response:
+        connection = sb.youtube_connection()
+        if connection["state"] == "connected":
+            connection.update(await run_in_threadpool(self.youtube_credentials_state))
+        notice = YOUTUBE_NOTICES.get(request.query_params.get("msg", ""))
+        context = {"nav": "youtube", "connection": connection, "notice": notice}
+        return self.render(request, "youtube.html", context)
+
+    def youtube_credentials_state(self) -> dict:
+        """Ask the stored connection whether Google still accepts it (AC-1.6). Contacts Google
+        only when the access token has expired and must be refreshed. Only our own messages
+        reach the page, never token text."""
+        load = self.youtube_load_credentials or yapi.load_credentials
+        try:
+            load(yapi.secrets_dir(), self.youtube_settings())
+        except yapi.ReconnectNeeded as exc:
+            return {"state": "reconnect_needed", "reconnect_reason": str(exc)}
+        except yapi.YouTubeError as exc:
+            return {"check_note": str(exc)}
+        return {}
+
+    def youtube_connect(self, request: Request) -> Response:
+        folder = yapi.secrets_dir()
+        redirect = f"http://{HOST}:{self.port}/youtube/callback"
+        try:
+            scopes = self.youtube_settings().scopes
+            pending = yapi.begin_consent(folder, redirect, scopes, time.time())
+        except (yt.YouTubeError, ConfigError) as exc:
+            return self.message(request, "Cannot connect", [str(exc)], 409, "/youtube")
+        with self.write_lock:
+            self.youtube_pending = pending  # a newer consent replaces an older one
+        return RedirectResponse(pending.auth_url, status_code=303)
+
+    def youtube_callback(self, request: Request) -> Response:
+        with self.write_lock:
+            pending, self.youtube_pending = self.youtube_pending, None
+        if pending is None:
+            lines = ["No connection was started from this studio; press Connect channel."]
+            return self.message(request, "Not connected", lines, 400, "/youtube")
+        query = {k: request.query_params[k] for k in ("state", "code", "error")
+                 if k in request.query_params}  # fmt: skip
+        if "error" in query and not _OAUTH_ERROR.match(query["error"]):
+            query["error"] = "an unknown error"  # Google's codes only; never echo other text
+        try:
+            yapi.finish_consent(
+                yapi.secrets_dir(),
+                pending,
+                query,
+                time.time(),
+                self.youtube_settings(),
+                flow_factory=self.youtube_flow_factory,
+                client_factory=self.youtube_client_factory,
+            )
+        except (yt.YouTubeError, ConfigError) as exc:
+            return self.message(request, "Not connected", [str(exc)], 400, "/youtube")
+        return RedirectResponse("/youtube?msg=connected", status_code=303)
+
+    async def youtube_disconnect(self, request: Request) -> Response:
+        form = await request.form()
+        if form.get("confirm") != "1":
+            lines = ["Disconnecting forgets the channel's stored access; confirm to disconnect."]
+            return self.message(request, "Confirm disconnecting", lines, 409, "/youtube")
+        await run_in_threadpool(yapi.disconnect, yapi.secrets_dir(), self.youtube_revoke)
+        return RedirectResponse("/youtube?msg=disconnected", status_code=303)
+
+    async def save_youtube_text(self, request: Request) -> Response:
+        form = await request.form()
+        return await run_in_threadpool(self._save_youtube_text, request, form)
+
+    def _save_youtube_text(self, request: Request, form) -> Response:
+        book = self.book_or_none(request)
+        if book is None:
+            return self.not_found(request)
+        back = f"/books/{book.slug}#youtube"
+        with self.write_lock:
+            if self.youtube_job_running(book):
+                lines = ["A YouTube job is running for this book; wait for it or stop it."]
+                return self.message(request, "YouTube text not saved", lines, 409, back)
+            try:
+                problems = sb.save_youtube_text(
+                    self.paths,
+                    book,
+                    str(form.get("title", "")),
+                    str(form.get("description", "")),
+                    str(form.get("tags", "")),
+                    datetime.now(UTC),
+                )
+            except (yt.YouTubeError, ConfigError, BookError) as exc:
+                problems = [str(exc)]
+        if problems:
+            return self.message(request, "YouTube text not saved", problems, 409, back)
+        return RedirectResponse(back, status_code=303)
+
+    def youtube_check(self, request: Request) -> Response:
+        book = self.book_or_none(request)
+        if book is None:
+            return self.not_found(request)
+        back = f"/books/{book.slug}#youtube"
+        folder = yapi.secrets_dir()
+        try:
+            if yapi.connected_channel(folder) is None:
+                raise yapi.ReconnectNeeded("Connect a channel on the YouTube page first")
+            credentials = yapi.load_credentials(folder, self.youtube_settings())
+            factory = self.youtube_client_factory or yapi.GoogleYouTube
+            yt.check_book(sb.folder_of(self.paths, book), factory(credentials))
+        except yapi.ReconnectNeeded as exc:
+            return self.message(request, "Reconnect needed", [str(exc)], 409, "/youtube")
+        except (yt.YouTubeError, ConfigError) as exc:
+            return self.message(request, "Cannot check on YouTube", [str(exc)], 409, back)
+        except Exception as exc:  # a network or Google error: its type only, never its text
+            lines = [f"YouTube could not be asked ({type(exc).__name__}); try again later."]
+            return self.message(request, "Cannot check on YouTube", lines, 502, back)
+        return RedirectResponse(back, status_code=303)
 
     # --- uploads --------------------------------------------------------------------------------
 
@@ -1565,6 +1747,12 @@ def create_app(
         Route("/books/{slug}/blueprint/style-bible", studio.rebuild_style_bible, methods=["POST"]),
         Route("/books/{slug}", studio.book_page),
         Route("/books/{slug}/run/{stage}", studio.run_stage, methods=["POST"]),
+        Route("/books/{slug}/youtube/text", studio.save_youtube_text, methods=["POST"]),
+        Route("/books/{slug}/youtube/check", studio.youtube_check, methods=["POST"]),
+        Route("/youtube", studio.youtube_page),
+        Route("/youtube/connect", studio.youtube_connect, methods=["POST"]),
+        Route("/youtube/callback", studio.youtube_callback),
+        Route("/youtube/disconnect", studio.youtube_disconnect, methods=["POST"]),
         Route("/books/{slug}/script", studio.script_page),
         Route("/books/{slug}/script", studio.save_script, methods=["POST"]),
         Route("/books/{slug}/script/reviewed", studio.mark_reviewed, methods=["POST"]),

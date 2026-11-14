@@ -172,6 +172,86 @@
       {% endif %}
     </section>
   </li>
+  {% set y = youtube %}
+  <li class="t-{{ 'done' if y.upload_state == 'current' else 'idle' }}" id="stage-youtube">
+    <span class="node" aria-hidden="true"></span>
+    <section class="panel" id="youtube">
+      <div class="stage-title">
+        <h2>YouTube</h2>
+        {% if y.upload_state == 'current' %}<span class="state t-done">On YouTube (Private)</span>
+        {% elif y.upload_state == 'older_cut' %}<span class="state t-attention">Older cut</span>
+        {% elif y.upload_state == 'not_found' %}<span class="state strong">Not found</span>{% endif %}
+        <a class="open" href="/youtube">YouTube settings</a>
+      </div>
+      {% if y.connection == 'connected' %}
+      <p class="stage-detail">Channel: {{ y.channel.title }}</p>
+      {% else %}
+      <p class="stage-detail">Not connected: <a href="/youtube">connect a channel on the YouTube page</a>.</p>
+      {% endif %}
+      {% if y.error %}<p class="strong">{{ y.error }}</p>{% endif %}
+      {% if y.last_upload %}
+      {% set u = y.last_upload %}
+      <p class="small">
+        {% if y.upload_state == 'not_found' %}<span class="strong">The video was not found on YouTube</span> (not found on YouTube; the record is kept):
+        {% else %}On YouTube (Private) on {{ u.channel_title }} since {{ u.uploaded_at }}:{% endif %}
+        <a href="{{ u.url }}" target="_blank" rel="noopener">{{ u.url }}</a>
+        {% if y.upload_state == 'older_cut' %}<span class="state t-attention">YouTube has an older cut</span>{% endif %}
+      </p>
+      {% if u.warnings %}{{ problem_list(u.warnings) }}{% endif %}
+      {% if y.uploads_count > 1 %}<p class="small muted">{{ y.uploads_count }} uploads recorded for this book.</p>{% endif %}
+      {% endif %}
+      {% if y.uploading %}<p class="stage-detail"><span class="state t-running">Uploading: {{ y.percent if y.percent is not none else 0 }}%</span></p>{% endif %}
+      <div class="controls">
+        {% if y.text %}
+        <details class="more">
+          <summary>Rewrite YouTube text</summary>
+          <form method="post" action="/books/{{ book.slug }}/run/youtube_text" class="inline">
+            <label class="check"><input type="checkbox" name="confirm" value="1" required{% if y.write_blocked %} disabled{% endif %}> Replace the YouTube text (the old file is kept as a backup)</label>
+            <button class="secondary" type="submit"{% if y.write_blocked %} disabled{% endif %}>Rewrite YouTube text</button>
+          </form>
+        </details>
+        {% else %}
+        <form method="post" action="/books/{{ book.slug }}/run/youtube_text" class="inline">
+          <button type="submit"{% if y.write_blocked %} disabled{% endif %}>Write YouTube text</button>
+        </form>
+        {% endif %}
+        {% if y.write_blocked %}<span class="reason">{{ y.write_blocked }}</span>{% endif %}
+      </div>
+      {% if y.text %}
+      <form method="post" action="/books/{{ book.slug }}/youtube/text" class="stack">
+        <label>Title <input type="text" name="title" value="{{ y.text.title or '' }}" maxlength="100" required{% if y.job_running %} disabled{% endif %}></label>
+        <label>Description <textarea name="description" rows="6" required{% if y.job_running %} disabled{% endif %}>{{ y.text.description or '' }}</textarea></label>
+        <label>Tags (comma-separated) <input type="text" name="tags" value="{{ (y.text.tags or [])|join(', ') }}"{% if y.job_running %} disabled{% endif %}></label>
+        <div class="controls">
+          <button class="secondary" type="submit"{% if y.job_running %} disabled{% endif %}>Save YouTube text</button>
+          {% if y.text.written_by %}<span class="reason">Written by {{ y.text.written_by }}{% if y.text.written_at %} at {{ y.text.written_at }}{% endif %}</span>{% endif %}
+        </div>
+      </form>
+      {{ problem_list(y.text_problems, 'youtube') }}
+      {% if y.description %}
+      <details class="more">
+        <summary>Full description as uploaded</summary>
+        <pre class="log">{{ y.description }}</pre>
+      </details>
+      {% endif %}
+      {% endif %}
+      <form method="post" action="/books/{{ book.slug }}/run/youtube_upload" class="stack">
+        {% if y.summary %}
+        <ul class="small">{% for line in y.summary %}<li>{{ line }}</li>{% endfor %}</ul>
+        {% endif %}
+        <div class="controls">
+          <label class="check"><input type="checkbox" name="confirm" value="1" required{% if y.upload_blocked %} disabled{% endif %}> Upload as a new Private video, made for kids</label>
+          <button{% if y.upload_blocked or y.last_upload %} class="secondary"{% endif %} type="submit"{% if y.upload_blocked %} disabled{% endif %}>Upload to YouTube</button>
+          {% if y.upload_blocked %}<span class="reason">{{ y.upload_blocked }}</span>{% endif %}
+        </div>
+      </form>
+      {% if y.last_upload and y.connection == 'connected' %}
+      <form method="post" action="/books/{{ book.slug }}/youtube/check" class="inline">
+        <button class="secondary" type="submit">Check on YouTube</button>
+      </form>
+      {% endif %}
+    </section>
+  </li>
 </ol>
 {{ job_log(job, 'Last run', 'No stage has run for this book in the studio yet.') }}
 </div>

@@ -93,6 +93,7 @@ from video_pipeline.timeline import (
     RenderConfig,
     Section,
     build_sections,
+    chapter_starts,
     load_render_config,
     page_section_name,
     section_key,
@@ -1169,6 +1170,17 @@ def blend_size(cfg: RenderConfig) -> int:
     return max(1, round(cfg.channel_blend_seconds * cfg.fps))
 
 
+def body_offset(
+    before_roles: Sequence[str], clip_seconds: dict[str, float], cfg: RenderConfig
+) -> float:
+    """Where the episode body starts in the final video: the clips joined before it, less one
+    dissolve per join (0.0 with none)."""
+    if not before_roles:
+        return 0.0
+    blend = blend_size(cfg) / cfg.fps
+    return sum(clip_seconds[role] for role in before_roles) - len(before_roles) * blend
+
+
 def blend_join_command(
     listing: Path, audio_sources: Sequence[Path], script: Path, out_path: Path, cfg: RenderConfig
 ) -> list[str]:
@@ -1633,6 +1645,9 @@ def render_video(
             "final_key": None if fell_back else final_key,
             "duration": round(duration, 3),
             "frames": total_frames(sections, cfg),
+            "chapters": chapter_starts(
+                sections, cfg, body_offset([r for r, _ in before], clip_seconds, cfg)
+            ),
             "sections": [
                 {"name": s.name, "key": k, "picture": str(pictures.files[s.picture])}
                 for s, k in zip(sections, made_keys, strict=True)

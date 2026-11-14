@@ -17,6 +17,8 @@ dependencies = [
     "coremltools>=8.3,<9",
     "onnxruntime>=1.31,<2",
     "opencv-python-headless>=4.10,<5",
+    "google-auth-oauthlib>=1.2",
+    "google-api-python-client>=2.150",
 ]
 
 [dependency-groups]
@@ -37,8 +39,9 @@ markers = [
     "tts: runs the real local voice model (slow; model must be downloaded)",
     "ffmpeg: runs the real ffmpeg binary",
     "models: runs the real segmentation/fill models (must be downloaded)",
+    "youtube: uploads to the real connected YouTube channel (needs a connected channel)",
 ]
-addopts = "-m 'not codex and not tts and not ffmpeg and not models'"
+addopts = "-m 'not codex and not tts and not ffmpeg and not models and not youtube'"
 
 [tool.ruff]
 target-version = "py312"
