@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import sys
+import tempfile
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
-from video_pipeline.cut_layers import dilate
+from video_pipeline.agents import build_codex_command, run_codex
+from video_pipeline.cut_layers import dilate, load_real_models, read_config
+from video_pipeline.library import PROJECT_ROOT, BookFolder
+from video_pipeline.motion_plan import Layer, _refusals
 
 CONFIG_FILE = "cleanup.json"
 COVER_STEMS = ("cover_front", "cover_front_print", "cover_back")
@@ -228,3 +236,148 @@ def cleanup_prompt(page: dict, size: tuple[int, int], settings: CleanupSettings)
         'characters. If the picture has no defects save {"regions": []}. Fix every listed error '
         f"and save again; at most {MAX_SAVES} saves."
     )
+
+
+@dataclass
+class CleanupOutcome:
+    status: str  # "cleaned" | "nothing" | "failed"
+    applied: list[dict] = field(default_factory=list)
+    skipped: list[dict] = field(default_factory=list)
+    reason: str = ""
+
+
+def _page_entry(book: dict, page_number: int) -> dict:
+    for page in book["pages"]:
+        if int(page["page_number"]) == page_number:
+            return page
+    raise CleanupError(f"page {page_number} is not in the book")
+
+
+def _ask_codex(
+    folder: BookFolder,
+    page: dict,
+    picture: Path,
+    size: tuple[int, int],
+    settings: CleanupSettings,
+    *,
+    binary: Path,
+    root: Path,
+    provider: Callable | None,
+) -> tuple[list[dict] | None, str]:
+    """Regions Codex saved, or (None, the first refusal) when every attempt was refused."""
+    base = cleanup_prompt(page, size, settings)
+    feedback = ["no attempts configured"]
+    number = int(page["page_number"])
+    with tempfile.TemporaryDirectory(prefix="kiddo-cleanup-") as tmp:
+        out = Path(tmp) / "regions.json"
+        for attempt in range(1, settings.attempts + 1):
+            text = base
+            if attempt > 1:
+                text += "\nThe last attempt was refused. Fix these problems and save again:\n"
+                text += "\n".join(f"- {problem}" for problem in feedback[:20])
+            command = build_codex_command(
+                binary,
+                sys.executable,
+                [
+                    "-m",
+                    "video_pipeline.cleanup_mcp",
+                    "--size",
+                    f"{size[0]}x{size[1]}",
+                    "--out",
+                    str(out),
+                    "--root",
+                    str(root),
+                ],
+                {"PYTHONPATH": str(PROJECT_ROOT)},
+                prompt=text,
+                images=[picture],
+            )
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            log_path = folder.build_dir / "agent" / f"{stamp}-cleanup-p{number:02d}-{attempt}.jsonl"
+            result = (provider or run_codex)(command, log_path, timeout_s=settings.time_limit_s)
+            if not out.exists():
+                feedback = _refusals(result)
+                continue
+            data = json.loads(out.read_text(encoding="utf-8"))
+            problems = region_problems(data, size, settings)  # the tool validated; check again
+            if problems:
+                feedback = problems
+                out.unlink(missing_ok=True)
+                continue
+            return data["regions"], ""
+    return None, feedback[0]
+
+
+def cleanup_page(
+    folder: BookFolder,
+    book: dict,
+    page_number: int,
+    *,
+    root: Path = PROJECT_ROOT,
+    binary: Path,
+    load_models: Callable | None = None,
+    provider: Callable | None = None,
+    yes: bool = False,
+    log: Callable[[str], None] = print,
+) -> CleanupOutcome:
+    """Flag artifacts with Codex, mask them with SAM, fill them with LaMa and replace the page
+    picture (old bytes kept as `.bak`). Only a story page; nothing is written unless at least one
+    region is applied (AC-1.1, AC-1.6). Episode files are never touched (AC-3.2)."""
+    page = _page_entry(book, page_number)
+    name = page.get("illustration_file") or f"page_{page_number:02d}.png"
+    picture = folder.illustrations / name
+    if Path(name).stem in COVER_STEMS:
+        raise CleanupError("only story pages are supported")
+    if not picture.is_file():
+        raise CleanupError(f"{picture.name} is missing")
+    root = Path(root)
+    settings = load_settings(root / "config")
+    before = picture.read_bytes()
+    with Image.open(picture) as im:
+        rgb = np.asarray(im.convert("RGB"))
+    size = (rgb.shape[1], rgb.shape[0])
+    regions, why = _ask_codex(
+        folder, page, picture, size, settings, binary=binary, root=root, provider=provider
+    )
+    if regions is None:
+        return CleanupOutcome("failed", reason=why)
+    if not regions:
+        log(f"page {page_number}: no artifacts found")
+        return CleanupOutcome("nothing")
+    models_cfg = read_config(root)
+    seg, fill = (load_models or load_real_models)(root, models_cfg)
+    probes = []
+    for i, r in enumerate(regions):
+        x0, y0, x1, y1 = r["box"]
+        probes.append(
+            Layer(
+                name=f"artifact_{i}",
+                box=(x0, y0, x1, y1),
+                include_points=[tuple(p) for p in r.get("include_points", [])],
+                z=1,
+                depth=0.5,
+                pivot=((x0 + x1) // 2, (y0 + y1) // 2),
+            )
+        )
+    result = apply_regions(rgb, regions, seg.masks(rgb, probes), fill, settings)
+    for a in result.applied:
+        log(f"filled region {a['index']}: {a['reason']}")
+    for s in result.skipped:
+        log(f"skipped region {s['index']}: {s['why']} ({s['reason']})")
+    if not result.applied:
+        return CleanupOutcome("failed", skipped=result.skipped, reason=result.skipped[0]["why"])
+    write_picture(result.image, picture, yes=yes)
+    _write_json(
+        record_path(picture),
+        {
+            "page_number": page_number,
+            "picture_sha256_before": hashlib.sha256(before).hexdigest(),
+            "picture_sha256_after": hashlib.sha256(picture.read_bytes()).hexdigest(),
+            "applied": result.applied,
+            "skipped": result.skipped,
+            "written_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "provider": "codex",
+            "reviewed": False,
+        },
+    )
+    return CleanupOutcome("cleaned", result.applied, result.skipped)

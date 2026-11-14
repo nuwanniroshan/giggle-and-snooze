@@ -33,7 +33,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from video_pipeline import cut_layers
+from video_pipeline import cleanup, cut_layers
 from video_pipeline.agents import AgentUnavailable, codex_status
 from video_pipeline.blueprint import (
     BlueprintError,
@@ -44,6 +44,7 @@ from video_pipeline.blueprint import (
     style_text,
 )
 from video_pipeline.characters import cover_characters_text, page_characters_text
+from video_pipeline.cleanup import CleanupError
 from video_pipeline.covers import (
     CHECK_SCHEMA,
     TITLED_STEMS,
@@ -58,6 +59,7 @@ from video_pipeline.covers import (
     titled_covers,
     trim_to_ratio,
 )
+from video_pipeline.cut_layers import ModelLoadError, ModelsMissing
 from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
 from video_pipeline.motion_plan import PlanError, PlanOutcome, load_limits, plan_page
 
@@ -437,10 +439,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--cut", action="store_true", help="with --page: cut the page's layers after its plan"
     )
+    parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="with --page: remove AI artifacts with Codex, SAM and LaMa (keeps a .bak)",
+    )
+    parser.add_argument("--yes", action="store_true", help="with --cleanup: overwrite an old .bak")
     parser.add_argument("--root", type=Path, default=PROJECT_ROOT)
     args = parser.parse_args(argv)
     if args.cut and args.page is None:
         parser.error("--cut needs --page")
+    if args.cleanup and args.cover:
+        parser.error("--cleanup applies to story pages only")
+    if args.cleanup and args.page is None:
+        parser.error("--cleanup needs --page")
     return args
 
 
@@ -482,6 +494,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 unplanned.append(Path(_page_file(page)).stem)
             return outcome
 
+        if args.cleanup:
+            return _cleanup_main(args, book, folder, binary)
         if args.page is not None or args.cover:
             return _repaint_main(args, book, folder, binary, style, planner, covers, paint_cover)
         print(f"painting illustrations into {folder.illustrations}")
@@ -502,8 +516,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         LibraryError,
         AgentUnavailable,
         BlueprintError,
+        CleanupError,
         CoverError,
         IllustrateError,
+        ModelLoadError,
+        ModelsMissing,
         OSError,
         KeyError,
         ValueError,
@@ -522,6 +539,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 COVER_STEMS = {"front": "cover_front", "print": "cover_front_print", "back": "cover_back"}
+
+
+def _cleanup_main(args, book, folder, binary) -> int:
+    """Clean one story page's artifacts; errors propagate to `main` (exit 1)."""
+    stem = page_stem(book, args.page)
+    outcome = cleanup.cleanup_page(
+        folder, book, args.page, root=args.root, binary=binary, yes=args.yes
+    )
+    if outcome.status == "cleaned":
+        print(
+            f"cleaned page {args.page}: {len(outcome.applied)} region(s) filled, "
+            f"{len(outcome.skipped)} skipped (old picture kept as {stem}.png.bak)"
+        )
+        return 0
+    if outcome.status == "nothing":
+        print(f"nothing to clean on page {args.page}")
+        return 0
+    print(f"error: cleanup of page {args.page} failed: {outcome.reason}", file=sys.stderr)
+    return 1
 
 
 def _repaint_main(args, book, folder, binary, style, planner, covers, paint_cover) -> int:
