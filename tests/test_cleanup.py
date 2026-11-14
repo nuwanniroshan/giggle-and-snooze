@@ -16,6 +16,14 @@ from video_pipeline import cleanup as cl
 from video_pipeline import cleanup_mcp
 from video_pipeline.agents import AgentEvent, AgentResult
 from video_pipeline.library import BookFolder
+from video_pipeline.motion_plan import (
+    MotionPlan,
+    load_limits,
+    picture_identity,
+    plan_path,
+    plan_state,
+    save_plan,
+)
 
 SIZE = (160, 90)
 W, H = SIZE
@@ -307,6 +315,41 @@ def test_cleanup_page_writes_bak_then_picture_and_record(book):  # AC-1.2, AC-1.
     assert _server_args(command)[:2] == ["-m", "video_pipeline.cleanup_mcp"]
     assert "160x90" in _server_args(command)
     assert "save_artifact_regions" in command[-1]
+
+
+def test_cleanup_makes_the_pages_plan_stale_by_picture_hash(book):  # AC-3.1
+    picture = picture_of(book)
+    plan = MotionPlan.model_validate(
+        {
+            "page_number": 1,
+            "picture": picture_identity(picture).model_dump(),
+            "provider": "codex",
+            "written_at": "2026-11-10T10:00:00Z",
+            "layers": [
+                {
+                    "name": "tree",
+                    "description": "the big tree",
+                    "box": [10, 10, 60, 80],
+                    "include_points": [[30, 40]],
+                    "exclude_points": [],
+                    "z": 1,
+                    "depth": 0.5,
+                    "pivot": [30, 80],
+                    "motions": [{"type": "sway", "amplitude": 2.0, "period_s": 6.0, "phase": 0.0}],
+                }
+            ],
+            "effects": [],
+        }
+    )
+    save_plan(plan_path(book, 1), plan)
+    page = {"page_number": 1, "illustration_file": "page_01.png"}
+    limits = load_limits(ROOT / "config")
+    assert plan_state(book, page, limits).state == "ok"
+
+    out = run(book, FakeCodex({"regions": [region(points=[(20, 20)])]}))
+
+    assert out.status == "cleaned"
+    assert plan_state(book, page, limits).state == "stale"
 
 
 def test_cleanup_page_probes_each_region_with_its_box_and_points(book):  # AC-1.2
