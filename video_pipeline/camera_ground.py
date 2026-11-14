@@ -3,14 +3,32 @@
 from __future__ import annotations
 
 import json
+import sys
+import tempfile
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
+from PIL import Image
 
+from video_pipeline import cut_layers
+from video_pipeline.agents import AgentResult, build_codex_command, codex_status, run_codex
+from video_pipeline.cut_layers import MANIFEST, Segmenter, SegmenterError, layers_dir, mask_bbox
 from video_pipeline.episode_tools import write_atomic
-from video_pipeline.library import BookFolder
-from video_pipeline.timeline import contain_size, page_section_name
+from video_pipeline.library import PROJECT_ROOT, BookFolder
+from video_pipeline.motion_plan import (
+    Layer,
+    _refusals,
+    load_limits,
+    page_picture,
+    picture_identity,
+    plan_state,
+)
+from video_pipeline.timeline import contain_size, load_render_config, page_section_name
 
 CONFIG_FILE = "camera.json"
 BANDS = ("top", "bottom")
@@ -252,3 +270,328 @@ def subject_prompt(
             "Save at most 3 times. If a save is refused, fix every listed error and save again.",
         ]
     )
+
+
+# -- the stage: name the subject with Codex, find its mask, write the camera file ------------------
+
+Provider = Callable[..., AgentResult]
+LoadSegmenter = Callable[[Path, dict], Segmenter]
+PROVIDER_NAME = "codex"
+
+
+@dataclass(frozen=True)
+class GroundOutcome:
+    page_number: int
+    status: Literal["written", "kept", "no_qa", "failed"]
+    reason: str = ""
+
+
+class _CutMissing(Exception):
+    """The page's cut layers are not on disk."""
+
+
+def _manifest(folder: BookFolder, page_number: int) -> dict:
+    try:
+        data = json.loads((layers_dir(folder, page_number) / MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise _CutMissing from None
+    if not isinstance(data, dict):
+        raise _CutMissing
+    return data
+
+
+def _entry_mask(
+    folder: BookFolder, page_number: int, entry: dict, size: tuple[int, int]
+) -> np.ndarray:
+    """The layer's opaque pixels placed on a picture-sized canvas (empty layer: all False)."""
+    width, height = size
+    mask = np.zeros((height, width), bool)
+    if entry.get("empty") or not entry.get("file"):
+        return mask
+    path = layers_dir(folder, page_number) / str(entry["file"])
+    try:
+        with Image.open(path) as im:
+            alpha = np.asarray(im.convert("RGBA"))[..., 3] > 0
+    except OSError:
+        raise _CutMissing from None
+    x, y = entry["offset"]
+    crop = alpha[: height - y, : width - x]
+    mask[y : y + crop.shape[0], x : x + crop.shape[1]] = crop
+    return mask
+
+
+def layer_mask(
+    folder: BookFolder, page_number: int, name: str, size: tuple[int, int]
+) -> np.ndarray:
+    """The cut mask of plan layer `name`; `_CutMissing` when the page is not cut."""
+    for entry in _manifest(folder, page_number).get("layers") or []:
+        if isinstance(entry, dict) and entry.get("name") == name:
+            return _entry_mask(folder, page_number, entry, size)
+    raise _CutMissing
+
+
+def layers_union(folder: BookFolder, page_number: int, size: tuple[int, int]) -> np.ndarray:
+    """Every cut layer's mask together (all False when the page is not cut)."""
+    width, height = size
+    union = np.zeros((height, width), bool)
+    try:
+        for entry in _manifest(folder, page_number).get("layers") or []:
+            if isinstance(entry, dict):
+                union |= _entry_mask(folder, page_number, entry, size)
+    except _CutMissing:
+        return np.zeros((height, width), bool)
+    return union
+
+
+def layer_row_counts(folder: BookFolder, page_number: int, size: tuple[int, int]) -> np.ndarray:
+    """Mask pixels per picture row over all cut layers (zeros when not cut)."""
+    return layers_union(folder, page_number, size).sum(axis=1)
+
+
+def _write(
+    folder: BookFolder,
+    number: int,
+    picture: dict,
+    status: str,
+    reason: str,
+    subject: dict | None,
+    target: dict | None,
+    band: str,
+) -> None:
+    write_atomic(
+        camera_path(folder, number),
+        {
+            "page_number": number,
+            "picture": picture,
+            "provider": PROVIDER_NAME,
+            "written_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "status": status,
+            "reason": reason,
+            "subject": subject,
+            "target": target,
+            "band": band,
+        },
+    )
+
+
+def _name_subject(
+    folder: BookFolder,
+    number: int,
+    script_page: dict,
+    layers: list[tuple[str, str]],
+    picture: Path,
+    size: tuple[int, int],
+    *,
+    binary: Path,
+    root: Path,
+    settings: CameraSettings,
+    provider: Provider | None,
+) -> tuple[dict | None, str]:
+    """Ask the agent until it saves a valid subject: (subject, "") or (None, first refusal)."""
+    base = subject_prompt(script_page, layers, size)
+    feedback = ["no attempts configured"]
+    with tempfile.TemporaryDirectory(prefix="kiddo-camera-") as tmp:
+        out = Path(tmp) / "subject.json"
+        for attempt in range(1, settings.attempts + 1):
+            text = base
+            if attempt > 1:
+                text += "\nThe last attempt was refused. Fix these problems and save again:\n"
+                text += "\n".join(f"- {problem}" for problem in feedback[:20])
+            command = build_codex_command(
+                binary,
+                sys.executable,
+                [
+                    "-m",
+                    "video_pipeline.camera_mcp",
+                    "--layers",
+                    ",".join(name for name, _ in layers),
+                    "--size",
+                    f"{size[0]}x{size[1]}",
+                    "--out",
+                    str(out),
+                ],
+                {"PYTHONPATH": str(PROJECT_ROOT)},
+                prompt=text,
+                images=[picture],
+            )
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            log = folder.build_dir / "agent" / f"{stamp}-camera-p{number:02d}-{attempt}.jsonl"
+            result = (provider or run_codex)(command, log, timeout_s=settings.time_limit_s)
+            if not out.exists():
+                feedback = _refusals(result)
+                continue
+            try:
+                subject = json.loads(out.read_text(encoding="utf-8"))
+            except ValueError as exc:
+                feedback = [f"saved subject is not JSON ({exc})"]
+                out.unlink(missing_ok=True)
+                continue
+            if bad := subject_problems(subject, [n for n, _ in layers], size):
+                feedback = bad
+                out.unlink(missing_ok=True)
+                continue
+            return subject, ""
+    return None, feedback[0]
+
+
+def ground_page(
+    folder: BookFolder,
+    book_page: dict,
+    script_page: dict,
+    settings: CameraSettings,
+    *,
+    canvas: tuple[int, int],
+    plan_layers: list[tuple[str, str]],
+    get_segmenter: Callable[[], Segmenter],
+    binary: Path,
+    root: Path,
+    force: bool = False,
+    provider: Provider | None = None,
+) -> GroundOutcome:
+    """Ground one page: keep a current ok/no-Q&A file (unless forced), else name the subject,
+    find its mask and write the camera file. A failure is recorded in the file and returned."""
+    number = int(script_page["page_number"])
+    picture = page_picture(folder, book_page)
+    if not picture.is_file():
+        return GroundOutcome(number, "failed", f"{picture.name} is missing")
+    identity = picture_identity(picture)
+    size = (identity.width, identity.height)
+    if not force:
+        data, _ = load_current(folder, number, identity.sha256)
+        if data is not None and data.get("status", "ok") != "failed":
+            return GroundOutcome(number, "kept")
+    ident = identity.model_dump()
+    layers_row_counts = layer_row_counts(folder, number, size)
+
+    def band_of(extra: np.ndarray | None = None) -> str:
+        counts = layers_row_counts
+        if extra is not None:
+            counts = (layers_union(folder, number, size) | extra).sum(axis=1)
+        return band_for_rows(counts, size, canvas, settings)
+
+    def fail(reason: str) -> GroundOutcome:
+        _write(folder, number, ident, "failed", reason, None, None, band_of())
+        return GroundOutcome(number, "failed", reason)
+
+    if not script_page.get("has_qa"):
+        _write(folder, number, ident, "no_qa", "", None, None, band_of())
+        return GroundOutcome(number, "no_qa")
+    subject, reason = _name_subject(
+        folder,
+        number,
+        script_page,
+        plan_layers,
+        picture,
+        size,
+        binary=binary,
+        root=root,
+        settings=settings,
+        provider=provider,
+    )
+    if subject is None:
+        return fail(reason)
+    try:
+        if "layer" in subject:
+            name, source = subject["layer"], "layer"
+            mask = layer_mask(folder, number, name, size)
+        else:
+            name, source = subject["phrase"].strip(), "sam"
+            x0, y0, x1, y1 = subject["box"]
+            with Image.open(picture) as im:
+                rgb = np.asarray(im.convert("RGB"))
+            probe = Layer(
+                name="subject",
+                box=(x0, y0, x1, y1),
+                z=1,
+                depth=0.5,
+                pivot=((x0 + x1) // 2, (y0 + y1) // 2),
+            )
+            mask = np.asarray(get_segmenter().masks(rgb, [probe])[0], bool)
+    except _CutMissing:
+        return fail(
+            "cut layers missing - run python -m video_pipeline.cut_layers "
+            f"--book {folder.slug} --page {number}"
+        )
+    except SegmenterError as exc:
+        return fail(f"segmentation failed: {exc}")
+    box = mask_bbox(mask) if mask.any() else None
+    if box is None:
+        return fail(f"the mask for {name!r} is empty")
+    share = float(mask.sum()) / (size[0] * size[1])
+    if share > settings.max_subject_share:
+        return fail(
+            f"the mask for {name!r} covers {share:.0%} of the picture "
+            f"(over the {settings.max_subject_share:.0%} share limit)"
+        )
+    target = target_for_box(box, size, canvas, settings)
+    _write(
+        folder,
+        number,
+        ident,
+        "ok",
+        "",
+        {"name": name, "source": source, "box": [int(v) for v in box]},
+        target,
+        band_of(mask),
+    )
+    return GroundOutcome(number, "written")
+
+
+def ground_book(
+    folder: BookFolder,
+    *,
+    root: Path,
+    pages: list[int] | None = None,
+    force: bool = False,
+    provider: Provider | None = None,
+    load_segmenter: LoadSegmenter | None = None,
+    binary: Path | None = None,
+    log: Callable[[str], None] = print,
+) -> list[GroundOutcome]:
+    """Ground every script page (or only `pages`). A failing page never stops the others;
+    AgentUnavailable is raised before any page. Never writes the episode script."""
+    root = Path(root)
+    binary = binary or codex_status()
+    settings = load_settings(root / "config")
+    limits = load_limits(root / "config")
+    render = load_render_config(root / "config" / "render.json")
+    canvas = (render.width, render.height)
+    book = json.loads(folder.book_json.read_text(encoding="utf-8"))
+    script = json.loads(folder.script_path.read_text(encoding="utf-8"))
+    book_pages = {int(p["page_number"]): p for p in book["pages"]}
+    segmenter: list[Segmenter] = []
+
+    def get_segmenter() -> Segmenter:
+        if not segmenter:
+            models = cut_layers.read_config(root)["models"]
+            segmenter.append((load_segmenter or cut_layers.load_real_segmenter)(root, models))
+        return segmenter[0]
+
+    outcomes: list[GroundOutcome] = []
+    for script_page in sorted(script["pages"], key=lambda p: int(p["page_number"])):
+        number = int(script_page["page_number"])
+        if (pages and number not in pages) or number not in book_pages:
+            continue
+        state = plan_state(folder, book_pages[number], limits)
+        layers = (
+            [(layer.name, layer.description) for layer in state.plan.layers]
+            if state.state == "ok" and state.plan
+            else []
+        )
+        outcome = ground_page(
+            folder,
+            book_pages[number],
+            script_page,
+            settings,
+            canvas=canvas,
+            plan_layers=layers,
+            get_segmenter=get_segmenter,
+            binary=binary,
+            root=root,
+            force=force,
+            provider=provider,
+        )
+        reason = f" - {outcome.reason}" if outcome.reason else ""
+        log(f"  page {outcome.page_number:02d}: {outcome.status}{reason}")
+        outcomes.append(outcome)
+    return outcomes

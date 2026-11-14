@@ -581,16 +581,22 @@ MLPACKAGE_FILES = (
 )
 
 
-def _required(base: Path, models_cfg: dict) -> list[Path]:
-    """Every file a complete download has: each .mlpackage's manifest, spec and weights (a
-    half-finished download can leave the manifest without the weights), and the LaMa file."""
-    seg, fill = models_cfg["segmenter"], models_cfg["fill"]
-    paths = [
+def _segmenter_required(base: Path, seg: dict) -> list[Path]:
+    return [
         model_path(base, seg) / name / part
         for name in _segmenter_files(seg)
         for part in MLPACKAGE_FILES
     ]
-    return [*paths, model_path(base, fill) / fill["file"]]
+
+
+def _required(base: Path, models_cfg: dict) -> list[Path]:
+    """Every file a complete download has: each .mlpackage's manifest, spec and weights (a
+    half-finished download can leave the manifest without the weights), and the LaMa file."""
+    fill = models_cfg["fill"]
+    return [
+        *_segmenter_required(base, models_cfg["segmenter"]),
+        model_path(base, fill) / fill["file"],
+    ]
 
 
 class SamCoreML:
@@ -723,6 +729,25 @@ def load_real_models(root: Path, models_cfg: dict) -> tuple[Segmenter, Inpainter
                 f"(a damaged download? delete that folder and run {DOWNLOAD_HINT})"
             ) from exc
     return loaded[0], loaded[1]
+
+
+def load_real_segmenter(root: Path, models_cfg: dict) -> Segmenter:
+    """Load only the segmenter (spec 025 NFR-1); same checks as `load_real_models`."""
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    base, cfg = models_dir(), models_cfg["segmenter"]
+    missing = [p for p in _segmenter_required(base, cfg) if not p.is_file()]
+    if missing:
+        raise ModelsMissing(f"models not downloaded ({missing[0]} is missing): run {DOWNLOAD_HINT}")
+    compute_unit_name(cfg)  # refuse the Neural Engine before loading
+    try:
+        return SamCoreML(base, cfg)
+    except SegmenterError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - coremltools raises many kinds
+        raise ModelLoadError(
+            f"could not load the segmenter model from {model_path(base, cfg)}: {exc} "
+            f"(a damaged download? delete that folder and run {DOWNLOAD_HINT})"
+        ) from exc
 
 
 def download(root: Path, *, snapshot: Callable[..., object] | None = None, log=print) -> list[str]:
