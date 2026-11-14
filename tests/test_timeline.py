@@ -966,3 +966,62 @@ def test_animation_block_does_not_change_cache_keys(cfg, script, timings, tmp_pa
         assert a == b
         assert section_key(a, "abc", cfg) == section_key(b, "abc", plain)
     assert transition_key("a", "b", cfg) == transition_key("a", "b", plain)
+
+
+# --- grounded camera and caption band (spec 025) --------------------------------------------
+
+
+@pytest.fixture
+def qa_timing():
+    return synth_timing(
+        "page-02",
+        [
+            {"speaker": "Storyteller", "role": "narration", "text": "A red car rolled by."},
+            {"speaker": "Kid 1", "role": "question", "text": "Where is the car going?"},
+        ],
+    )
+
+
+def test_grounded_target_on_canvas_16x9_and_square(cfg):
+    t = {"x": 0.25, "y": 0.5, "zoom": 1.4}
+    assert timeline.grounded_target_on_canvas(t, (1672, 941), cfg) == pytest.approx(
+        (1.4, 0.25, 0.5), abs=1e-3
+    )
+    sq = timeline.grounded_target_on_canvas(t, (1000, 1000), cfg)
+    assert sq == timeline.qa_target_on_canvas(t, cfg)  # same as the legacy square mapping
+
+
+def _page():
+    return {
+        "page_number": 2,
+        "ffmpeg_camera": {
+            "narration_motion": "static",
+            "qa_zoom_target": {"x": 0.5, "y": 0.5, "zoom": 1.3},
+        },
+    }
+
+
+def test_page_section_uses_grounding(cfg, qa_timing):
+    g = {
+        "status": "ok",
+        "band": "top",
+        "picture": {"width": 1672, "height": 941},
+        "target": {"x": 0.2, "y": 0.3, "zoom": 1.6},
+    }
+    s = timeline.page_section(_page(), qa_timing, cfg, "page_02", grounding=g)
+    assert s.caption_band == "top"
+    assert s.camera.qa_target == pytest.approx((1.6, 0.2, 0.3), abs=1e-3)
+
+
+def test_page_section_without_grounding_is_unchanged(cfg, qa_timing):
+    a = timeline.page_section(_page(), qa_timing, cfg, "page_02")
+    assert a.caption_band == "bottom"
+    assert timeline.section_key(a, "sha", cfg) == timeline.section_key(
+        dataclasses.replace(a, caption_band="bottom"), "sha", cfg
+    )
+
+
+def test_band_enters_key_only_when_top(cfg, qa_timing):
+    a = timeline.page_section(_page(), qa_timing, cfg, "page_02")
+    top = dataclasses.replace(a, caption_band="top")
+    assert timeline.section_key(a, "s", cfg) != timeline.section_key(top, "s", cfg)
