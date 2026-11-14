@@ -189,3 +189,42 @@ def _write_json(path: Path, data: dict) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     tmp.replace(path)
+
+
+MAX_SAVES = 3
+
+
+@dataclass
+class RegionTools:
+    """The save tool Codex calls: validates every payload and writes only a usable one."""
+
+    size: tuple[int, int]
+    settings: CleanupSettings
+    out: Path
+    saves: int = 0
+
+    def save_artifact_regions(self, data: object) -> dict:
+        self.saves += 1
+        if self.saves > MAX_SAVES:
+            return {"saved": False, "errors": [f"at most {MAX_SAVES} saves"]}
+        errors = region_problems(data, self.size, self.settings)
+        if errors:
+            return {"saved": False, "errors": errors}
+        _write_json(self.out, data)  # type: ignore[arg-type]
+        return {"saved": True, "errors": []}
+
+
+def cleanup_prompt(page: dict, size: tuple[int, int], settings: CleanupSettings) -> str:
+    w, h = size
+    return (
+        f"Look at the attached children's-book illustration ({w}x{h} pixels). Find only clear AI "
+        "painting defects: extra, missing or fused fingers or limbs, stray blobs, smudges, "
+        "garbled letters or marks, duplicated objects. Do not flag style choices, soft edges or "
+        f"anything intended. Page text for context: {page.get('text', '')!r}.\n"
+        "Save your findings once with the save_artifact_regions tool as "
+        '{"regions": [{"box": [x0, y0, x1, y1], "include_points": [[x, y], ...], "reason": "..."}]} '
+        f"in picture pixels: at most {settings.max_regions} regions, at most {settings.max_points} "
+        f"include_points each (a point on the defect), reason up to {settings.max_reason_chars} "
+        'characters. If the picture has no defects save {"regions": []}. Fix every listed error '
+        f"and save again; at most {MAX_SAVES} saves."
+    )
