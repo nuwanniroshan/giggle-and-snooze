@@ -98,6 +98,26 @@ def band_for_rows(
     return "top" if top < bottom else "bottom"
 
 
+def _subject_file_problems(subject: object) -> list[str]:
+    if not isinstance(subject, dict):
+        return ["subject must be an object"]
+    out: list[str] = []
+    name = subject.get("name")
+    if not isinstance(name, str) or not name.strip():
+        out.append("subject.name is missing")
+    box = subject.get("box")
+    ints = (
+        isinstance(box, list)
+        and len(box) == 4
+        and all(isinstance(v, int) and not isinstance(v, bool) for v in box)
+    )
+    if not ints:
+        out.append("subject.box must be 4 integers")
+    elif not (box[0] >= 0 and box[1] >= 0 and box[0] < box[2] and box[1] < box[3]):
+        out.append("subject.box must have 0 <= x0 < x1 and 0 <= y0 < y1")
+    return out
+
+
 def problems(data: object) -> list[str]:
     """Every problem with a camera file's content (FR-3, AC-4.4); empty when usable."""
     if not isinstance(data, dict):
@@ -108,6 +128,9 @@ def problems(data: object) -> list[str]:
         out.append("picture.sha256 is missing")
     if data.get("band") not in BANDS:
         out.append("band must be top or bottom")
+    subject = data.get("subject")
+    if subject is not None:
+        out.extend(_subject_file_problems(subject))
     target = data.get("target")
     if target is not None:
         ok = isinstance(target, dict) and all(
@@ -458,7 +481,11 @@ def ground_page(
     size = (identity.width, identity.height)
     if not force:
         data, _ = load_current(folder, number, identity.sha256)
-        if data is not None and data.get("status", "ok") != "failed":
+        if data is not None:  # AC-4.1: a current file is kept whatever its status
+            if data.get("status", "ok") == "failed":
+                return GroundOutcome(
+                    number, "kept", f"grounding failed earlier: {data.get('reason', '')}"
+                )
             return GroundOutcome(number, "kept")
     ident = identity.model_dump()
     layers_row_counts = layer_row_counts(folder, number, size)
@@ -470,6 +497,8 @@ def ground_page(
         return band_for_rows(counts, size, canvas, settings)
 
     def fail(reason: str) -> GroundOutcome:
+        retry = f"re-run ground_camera --book {folder.slug} --page {number} --force"
+        reason = f"{reason} - to retry, {retry}"
         _write(folder, number, ident, "failed", reason, None, None, band_of())
         return GroundOutcome(number, "failed", reason)
 

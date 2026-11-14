@@ -1025,3 +1025,53 @@ def test_band_enters_key_only_when_top(cfg, qa_timing):
     a = timeline.page_section(_page(), qa_timing, cfg, "page_02")
     top = dataclasses.replace(a, caption_band="top")
     assert timeline.section_key(a, "s", cfg) != timeline.section_key(top, "s", cfg)
+
+
+def test_failed_grounding_is_ignored_for_target_and_band(cfg, qa_timing):  # AC-3.2
+    g = {
+        "status": "failed",
+        "band": "top",
+        "reason": "empty mask",
+        "picture": {"width": 1672, "height": 941},
+        "target": None,
+    }
+    guessed = timeline.page_section(_page(), qa_timing, cfg, "page_02")
+    s = timeline.page_section(_page(), qa_timing, cfg, "page_02", grounding=g)
+    assert s.caption_band == "bottom"
+    assert s.camera.qa_target == guessed.camera.qa_target is not None
+
+
+def test_intro_and_outro_bands_stay_bottom(cfg, script, timings):  # AC-2.4
+    names = {f"page-{int(p['page_number']):02d}": "top" for p in script["pages"]}
+    groundings = {
+        n: {"status": "ok", "band": "top", "picture": {"width": 10, "height": 10}, "target": None}
+        for n in names
+    }
+    by_section = {n: n for n in timings}
+    sections = timeline.build_sections(script, timings, cfg, by_section, groundings)
+    by_name = {s.name: s for s in sections}
+    assert by_name["intro"].caption_band == "bottom"
+    assert by_name["outro"].caption_band == "bottom"
+    assert any(s.caption_band == "top" for s in sections if s.kind == "page")
+
+
+def test_section_key_payload_shape(cfg, qa_timing, monkeypatch):  # AC-3.5
+    seen: list[dict] = []
+    monkeypatch.setattr(timeline, "_hash", lambda payload: seen.append(payload) or "h")
+    a = timeline.page_section(_page(), qa_timing, cfg, "page_02")
+    timeline.section_key(a, "s", cfg)
+    timeline.section_key(dataclasses.replace(a, caption_band="top"), "s", cfg)
+    bottom, top = seen
+    assert "caption_band" not in bottom
+    assert set(top) - set(bottom) == {"caption_band"} and top["caption_band"] == "top"
+    assert set(bottom) == {
+        "kind",
+        "picture_sha",
+        "frames",
+        "captions",
+        "camera",
+        "backdrop",
+        "caption_style",
+        "caption_fonts",
+        *timeline._frame_settings(cfg),
+    }

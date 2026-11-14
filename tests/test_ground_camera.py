@@ -254,9 +254,18 @@ def test_layer_subject_without_cut_layers_fails(book):
 
 
 def test_script_untouched(book):
-    before = book.script_path.read_bytes()
+    marks = {
+        book.script_path: None,
+        book.episode_dir / "reviewed.json": b'{"reviewed": true}',
+        book.folder / "build" / "audio" / "status.json": b'{"status": "approved"}',
+    }
+    for path, data in marks.items():
+        if data is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+    before = {path: path.read_bytes() for path in marks}
     run(book, FakeCodex({2: [{"layer": "car"}]}))
-    assert book.script_path.read_bytes() == before
+    assert {path: path.read_bytes() for path in marks} == before
 
 
 def test_current_file_skipped_unless_forced(book):
@@ -280,10 +289,17 @@ def test_stale_file_is_regrounded(book):
     )
 
 
-def test_failed_file_is_retried(book):
+def test_failed_current_file_is_kept_unless_forced(book):  # AC-4.1
     codex = FakeCodex({3: [None, None, None, {"phrase": "kite", "box": [10, 10, 50, 40]}]})
-    assert run(book, codex, pages=[3])[0].status == "failed"
-    assert run(book, codex, pages=[3])[0].status == "written"
+    first = run(book, codex, pages=[3])[0]
+    assert first.status == "failed"
+    retry = f"re-run ground_camera --book {book.slug} --page 3 --force"
+    assert retry in first.reason and retry in read(book, 3)["reason"]
+    before = cg.camera_path(book, 3).read_bytes()
+    kept = run(book, codex, pages=[3])[0]
+    assert kept.status == "kept" and retry in kept.reason
+    assert cg.camera_path(book, 3).read_bytes() == before and len(codex.commands) == 3
+    assert run(book, codex, pages=[3], force=True)[0].status == "written"
 
 
 def test_agent_unavailable_is_raised_before_any_page(book, monkeypatch):
@@ -344,3 +360,24 @@ def test_cli_reports_errors(book, monkeypatch, capsys, exc):
 def test_cli_unknown_book_is_an_error(tmp_path, capsys):
     assert ground_camera.main(["--book", "nope", "--root", str(tmp_path)]) == 1
     assert "error:" in capsys.readouterr().err
+
+
+def test_mask_share_boundary(book):  # AC-1.6
+    limit = cg.load_settings(book.root / "config").max_subject_share
+    total = W * H
+    exact = round(limit * total)
+    assert exact / total == limit, "fixture picture must make the limit a whole pixel count"
+    for extra, status in ((0, "written"), (1, "failed")):
+        n = exact + extra
+        r, c = divmod(n, W)
+
+        class Seg:
+            def masks(self, image, layers, r=r, c=c):
+                mask = np.zeros(image.shape[:2], bool)
+                mask[:r, :] = True
+                mask[r, :c] = True
+                return [mask]
+
+        codex = FakeCodex({3: [{"phrase": "big", "box": [0, 0, W, H]}]})
+        out = run(book, codex, Seg(), pages=[3], force=True)
+        assert out[0].status == status, (extra, out[0].reason)

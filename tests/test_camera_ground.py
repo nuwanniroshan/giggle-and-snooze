@@ -84,6 +84,41 @@ def test_problems_rejects_bad_files():
     assert cg.problems({**good, "target": {"x": 0.5, "y": 0.5, "zoom": 2.5}})
 
 
+GOOD_SUBJECT = {"name": "car", "source": "layer", "box": [1, 1, 5, 5]}
+
+
+def _with_subject(subject):
+    return {
+        "picture": {"sha256": "a"},
+        "band": "top",
+        "status": "ok",
+        "subject": subject,
+        "target": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "car",
+        {**GOOD_SUBJECT, "name": ""},
+        {"source": "layer", "box": [1, 1, 5, 5]},
+        {**GOOD_SUBJECT, "box": [1, 1, 5]},
+        {**GOOD_SUBJECT, "box": [1, 1, 5, "x"]},
+        {**GOOD_SUBJECT, "box": [1.5, 1, 5, 5]},
+        {**GOOD_SUBJECT, "box": [5, 1, 5, 5]},
+        {**GOOD_SUBJECT, "box": [1, 6, 5, 5]},
+        {**GOOD_SUBJECT, "box": [-1, 1, 5, 5]},
+        {**GOOD_SUBJECT, "box": "1,1,5,5"},
+        {k: v for k, v in GOOD_SUBJECT.items() if k != "box"},
+    ],
+)
+def test_problems_rejects_bad_subject(subject):  # AC-4.4
+    assert cg.problems(_with_subject(GOOD_SUBJECT)) == []
+    assert cg.problems(_with_subject(subject))
+    assert cg.problems(_with_subject(None)) == []
+
+
 def test_load_current_reasons(tmp_path, folder_factory):
     folder = folder_factory(tmp_path)
     data, reason = cg.load_current(folder, 2, "sha")

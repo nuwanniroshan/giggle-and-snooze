@@ -811,7 +811,8 @@ def page_section(
     target = camera_cfg.get("qa_zoom_target")
     qa_frame = qa_target = None
     band = "bottom"
-    grounded = grounding if grounding and grounding.get("band") in ("top", "bottom") else None
+    usable = grounding and grounding.get("status", "ok") != "failed"  # AC-3.2: failed = guessed
+    grounded = grounding if usable and grounding.get("band") in ("top", "bottom") else None
     if grounded:
         band = grounded["band"]
     if qa_line is not None:
