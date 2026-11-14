@@ -8,6 +8,7 @@ from video_pipeline.illustrate import (
     build_image_command,
     check_image,
     illustrate,
+    parse_args,
     plan_images,
 )
 
@@ -831,3 +832,30 @@ def test_titled_book_cover_repaint_uses_titled_painter(repaint_world, monkeypatc
     assert seen[0][:3] == (stem, (book["metadata"]["title"], "Sub"), folder.root)
     if stem == "cover_front":  # the existing front cover is kept as a backup
         assert (folder.illustrations / "cover_front.png.bak").is_file()
+
+
+# -- artifact cleanup flags (spec 026) -----------------------------------------------------------
+
+
+def test_cleanup_flag_needs_page(capsys):  # AC-4.1
+    with pytest.raises(SystemExit) as exc:
+        parse_args(["--book", "x", "--cleanup"])
+    assert exc.value.code == 2
+    assert "--cleanup needs --page" in capsys.readouterr().err
+
+
+def test_cleanup_refuses_covers(capsys):  # AC-3.3
+    with pytest.raises(SystemExit) as exc:
+        parse_args(["--book", "x", "--cover", "front", "--cleanup"])
+    assert exc.value.code == 2
+    assert "story pages only" in capsys.readouterr().err
+
+
+def test_cleanup_with_page_and_yes_parses():
+    args = parse_args(["--book", "x", "--page", "3", "--cleanup", "--yes"])
+    assert args.cleanup and args.yes and args.page == 3
+
+
+def test_plain_page_repaint_has_no_cleanup_or_yes():
+    args = parse_args(["--book", "x", "--page", "3"])
+    assert args.cleanup is False and args.yes is False
