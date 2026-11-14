@@ -46,6 +46,32 @@
   <div style="margin-top: var(--s-4)">{{ job_log(repaint_job, 'Picture repaint', '') }}</div>
   {% endif %}
 </section>
+<section class="panel" id="cleanup">
+  <div class="panel-head"><h2>Cleanup</h2>{% if cleanup.state != 'none' %}<span class="state t-{{ 'done' if cleanup.state == 'accepted' else 'attention' }}">{{ 'accepted' if cleanup.state == 'accepted' else 'to review' }}</span>{% endif %}</div>
+  <p class="muted">Finds stray blobs and other artifacts, removes them with a mask and a fill, and keeps the previous picture as a backup. Its plan and layers show stale; run Plan and Cut again.</p>
+  <form method="post" action="/books/{{ book.slug }}/animation/{{ row.page_number }}/cleanup" class="inline">
+    {% if cleanup.has_bak %}<label class="check"><input type="checkbox" name="confirm" value="1" required{% if cleanup_blocked %} disabled{% endif %}> Overwrite the existing backup picture (.bak)</label>{% endif %}
+    <button class="secondary" type="submit"{% if cleanup_blocked %} disabled{% endif %}>Clean artifacts</button>
+    {% if cleanup_blocked %}<span class="reason">{{ cleanup_blocked }}</span>{% endif %}
+  </form>
+  {% if cleanup.state != 'none' %}
+  <div class="before-after">
+    <figure class="anim"><img src="{{ bak_url }}" alt="Page {{ row.page_number }} before cleanup"><figcaption>Before (.bak)</figcaption></figure>
+    <figure class="anim"><img src="{{ picture_url }}" alt="Page {{ row.page_number }} after cleanup"><figcaption>After</figcaption></figure>
+  </div>
+  {% if cleanup.applied %}<h3>Cleaned regions</h3><ul>{% for a in cleanup.applied %}<li>{{ a.reason }}</li>{% endfor %}</ul>{% endif %}
+  {% if cleanup.skipped %}<h3>Skipped regions</h3><ul>{% for a in cleanup.skipped %}<li><strong>{{ a.reason }}</strong>: {{ a.why }}</li>{% endfor %}</ul>{% endif %}
+  <div class="controls">
+    {% if cleanup.state == 'review' %}
+    <form method="post" action="/books/{{ book.slug }}/animation/{{ row.page_number }}/cleanup/accept" class="inline"><button type="submit"{% if cleanup_blocked %} disabled{% endif %}>Accept</button></form>
+    {% endif %}
+    <form method="post" action="/books/{{ book.slug }}/animation/{{ row.page_number }}/cleanup/revert" class="inline"><button class="secondary" type="submit"{% if cleanup_blocked %} disabled{% endif %}>Revert to the .bak</button></form>
+  </div>
+  {% endif %}
+  {% if cleanup_job %}
+  <div style="margin-top: var(--s-4)">{{ job_log(cleanup_job, 'Artifact cleanup', '') }}</div>
+  {% endif %}
+</section>
 <section class="panel">
   <div class="panel-head"><h2>Preview</h2>{% if row.will_animate %}<span class="state t-done">animated</span>{% else %}<span class="state">still: {{ row.still_reason }}</span>{% endif %}</div>
   <p class="muted">Renders this page with its voice, camera and captions (the voice track is needed, not the audio approval). The full render reuses it.</p>

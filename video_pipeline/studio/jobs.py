@@ -40,6 +40,7 @@ from video_pipeline.studio.books import (
     ANIMATION_STAGES,
     AUTOPILOT_STAGE,
     BUILD_STAGE,
+    CLEANUP_STAGE,
     COVER_SIDES,
     PAINT_STAGE,
     PREVIEW_STAGE,
@@ -66,6 +67,7 @@ STAGE_MODULES = {
     PREVIEW_STAGE: "video_pipeline.render_episode",
     PAINT_STAGE: "video_pipeline.illustrate",
     REPAINT_STAGE: "video_pipeline.illustrate",
+    CLEANUP_STAGE: "video_pipeline.illustrate",
     AUTOPILOT_STAGE: "video_pipeline.autopilot",
     YOUTUBE_TEXT_STAGE: "video_pipeline.youtube",
     YOUTUBE_UPLOAD_STAGE: "video_pipeline.youtube",
@@ -113,7 +115,7 @@ class Job:
 
 STORY_STAGES = ("ideas", "candidate", "book", "blueprint", "redesign")
 BOOK_STAGES = (
-    PAINT_STAGE, PREVIEW_STAGE, REPAINT_STAGE, BUILD_STAGE, AUTOPILOT_STAGE, *YOUTUBE_STAGES,
+    PAINT_STAGE, PREVIEW_STAGE, REPAINT_STAGE, CLEANUP_STAGE, BUILD_STAGE, AUTOPILOT_STAGE, *YOUTUBE_STAGES,
 )  # fmt: skip
 
 
@@ -186,6 +188,8 @@ def stage_command(
         )
     if stage == PREVIEW_STAGE and page is None:
         raise ValueError("the preview stage needs a page number")
+    if stage == CLEANUP_STAGE and page is None:
+        raise ValueError("the cleanup stage needs a page number")
     if stage == REPAINT_STAGE and (page is None) == (cover is None):
         raise ValueError("the repaint stage needs exactly one of a page number or a cover")
     if stage == REPAINT_STAGE and cover is not None and cover not in COVER_SIDES:
@@ -203,12 +207,14 @@ def stage_command(
         cmd.append("--reviewed")
     if stage == "render":
         cmd += ["--sfx-dir", str(paths.sfx_dir)]
-    if force:
+    if force and stage != CLEANUP_STAGE:
         cmd.append("--force")
     if stage == PREVIEW_STAGE:
         cmd += ["--preview-page", str(int(page))]
     if stage == REPAINT_STAGE:
         cmd += ["--cover", cover] if cover is not None else ["--page", str(int(page)), "--cut"]
+    if stage == CLEANUP_STAGE:  # spec 026: --yes confirms overwriting an existing .bak
+        cmd += ["--page", str(int(page)), "--cleanup", *(["--yes"] if force else [])]
     return cmd
 
 

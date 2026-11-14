@@ -1,0 +1,9 @@
+{
+  "max_regions": 6,
+  "max_points": 4,
+  "max_reason_chars": 120,
+  "margin_px": 6,
+  "max_region_share": 0.05,
+  "attempts": 3,
+  "time_limit_s": 600
+}

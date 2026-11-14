@@ -49,6 +49,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
+from video_pipeline import cleanup
 from video_pipeline import synthesize_voices as sv
 from video_pipeline import youtube as yt
 from video_pipeline import youtube_api as yapi
@@ -57,6 +58,7 @@ from video_pipeline.contract import ConfigError
 from video_pipeline.drafts import DraftError, DraftStore
 from video_pipeline.episode import BookError, load_book
 from video_pipeline.library import PROJECT_ROOT
+from video_pipeline.motion_plan import page_picture
 from video_pipeline.render_episode import VideoPaths, voices_command
 from video_pipeline.studio import books as sb
 from video_pipeline.studio.jobs import Busy, JobRunner, StudioLocked, UnknownJob, stage_command
@@ -434,6 +436,8 @@ class Studio:
             rows = sb.page_animation(self.paths, book)
             if not any(r["cut_state"] == "cut" for r in rows):
                 return f"cut layers first – run {sb.STAGE_LABELS['cut']} (Cut layers)"
+        if stage == sb.CLEANUP_STAGE and not self.page_picture_file(book, page).is_file():
+            return "paint the picture first"
         if stage == "voices":
             if not sb.script_path(self.paths, book).exists():
                 return "generate the script first"
@@ -461,6 +465,7 @@ class Studio:
             *sb.ANIMATION_STAGES,
             sb.PAINT_STAGE,
             sb.REPAINT_STAGE,
+            sb.CLEANUP_STAGE,
             sb.BUILD_STAGE,
             sb.AUTOPILOT_STAGE,
             "redesign",
@@ -604,6 +609,14 @@ class Studio:
             lines = [f"Repainting replaces {what} (one picture of ChatGPT image quota); confirm."]
             return "Confirm repainting this picture", lines
         force = form.get("force") == "1"
+        if stage == sb.CLEANUP_STAGE:  # spec 026 AC-2.2: an existing .bak would be overwritten
+            force = cleanup.bak_path(self.page_picture_file(book, page)).exists()
+            if force and form.get("confirm") != "1":
+                lines = [
+                    f"Page {page} already has a backup picture (a repaint or an earlier cleanup).",
+                    "The existing .bak would be overwritten; confirm to clean.",
+                ]
+                return "Confirm cleaning this picture", lines
         if stage == sb.PAINT_STAGE and force and form.get("confirm") != "1":
             lines = ["Repainting replaces every picture (ChatGPT image quota); confirm to repaint."]
             return "Confirm repainting every picture", lines
@@ -1430,6 +1443,10 @@ class Studio:
             "prompt_blocked": self.painting_reason(book),
             "repaint_blocked": busy or self.gate(book, sb.REPAINT_STAGE, number),
             "repaint_job": self.last_job(book, (sb.REPAINT_STAGE,), number),
+            "cleanup": row["cleanup"],
+            "cleanup_blocked": busy or self.gate(book, sb.CLEANUP_STAGE, number),
+            "cleanup_job": self.last_job(book, (sb.CLEANUP_STAGE,), number),
+            "bak_url": f"/media/{book.slug}/illustration_bak/{row['picture']}",
         }
         return self.render(request, "animation_page.html", context, status)
 
@@ -1459,6 +1476,54 @@ class Studio:
         if refused is not None:
             title, lines = refused
             return self.message(request, title, lines, 409, back)
+        return RedirectResponse(back, status_code=303)
+
+    def page_picture_file(self, book: sb.Book, page: int | None) -> Path:
+        """The picture file of story `page` (it may not exist yet)."""
+        folder = sb.folder_of(self.paths, book)
+        for p in load_book(book.book_path)["pages"]:
+            if int(p["page_number"]) == page:
+                return page_picture(folder, p)
+        return folder.illustrations / f"page_{int(page or 0):02d}.png"
+
+    async def cleanup_page(self, request: Request) -> Response:
+        form = await request.form()
+        return await run_in_threadpool(self._cleanup_page, request, form)
+
+    def _cleanup_page(self, request: Request, form) -> Response:
+        """Start artifact cleanup of one story page as a stage job (spec 026 AC-4.2)."""
+        book = self.book_or_none(request)
+        number = request.path_params["number"]
+        rows = sb.page_animation(self.paths, book) if book else []
+        if book is None or not any(r["page_number"] == number for r in rows):
+            return self.not_found(request)
+        back = f"/books/{book.slug}/animation/{number}"
+        with self.write_lock:
+            refused = self._start_stage(book, sb.CLEANUP_STAGE, form, page=number)
+        if refused is not None:
+            title, lines = refused
+            return self.message(request, title, lines, 409, back)
+        return RedirectResponse(back, status_code=303)
+
+    def cleanup_review(self, request: Request) -> Response:
+        """Accept or revert a cleaned page (spec 026 AC-2.4, AC-2.5), back to its page view."""
+        book = self.book_or_none(request)
+        number = request.path_params["number"]
+        rows = sb.page_animation(self.paths, book) if book else []
+        if book is None or not any(r["page_number"] == number for r in rows):
+            return self.not_found(request)
+        back = f"/books/{book.slug}/animation/{number}"
+        with self.write_lock:
+            if busy := self.busy_reason():
+                return self.message(request, "Busy", [f"Refused: {busy}."], 409, back)
+            picture = self.page_picture_file(book, number)
+            act = (
+                cleanup.accept_page if request.url.path.endswith("/accept") else cleanup.revert_page
+            )
+            try:
+                act(picture)
+            except cleanup.CleanupError as exc:
+                return self.message(request, "Cannot do that", [str(exc)], 409, back)
         return RedirectResponse(back, status_code=303)
 
     async def repaint_cover(self, request: Request) -> Response:
@@ -1568,6 +1633,17 @@ class Studio:
             except BookError:
                 return None
             return folder.illustrations / name if name in required else None
+        if kind == "illustration_bak":  # spec 026: the picture before a cleanup, story pages only
+            try:
+                pages = load_book(book.book_path)["pages"]
+            except BookError:
+                return None
+            folder = sb.folder_of(self.paths, book)
+            for p in pages:
+                picture = page_picture(folder, p)
+                if picture.name == name:
+                    return cleanup.bak_path(picture)
+            return None
         audio = _audio_paths(self.paths, book)
         if kind == "preview":
             return audio.preview if name == "preview.wav" else None
@@ -1773,6 +1849,19 @@ def create_app(
         ),
         Route(
             "/books/{slug}/animation/{number:int}/repaint", studio.repaint_page, methods=["POST"]
+        ),
+        Route(
+            "/books/{slug}/animation/{number:int}/cleanup", studio.cleanup_page, methods=["POST"]
+        ),
+        Route(
+            "/books/{slug}/animation/{number:int}/cleanup/accept",
+            studio.cleanup_review,
+            methods=["POST"],
+        ),
+        Route(
+            "/books/{slug}/animation/{number:int}/cleanup/revert",
+            studio.cleanup_review,
+            methods=["POST"],
         ),
         Route("/books/{slug}/animation/{number:int}/prompt", studio.save_prompt, methods=["POST"]),
         Route("/books/{slug}/repaint-cover", studio.repaint_cover, methods=["POST"]),

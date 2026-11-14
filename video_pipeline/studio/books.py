@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from video_pipeline import cleanup
 from video_pipeline import synthesize_voices as sv
 from video_pipeline import youtube as yt
 from video_pipeline import youtube_api as yapi
@@ -74,6 +75,8 @@ PAINT_STAGE = "paint"
 # Spec 019: repaints one page (then plans and cuts it) or one cover; shown on the page view and the
 # Pictures panel only, never as a pipeline stage state.
 REPAINT_STAGE = "repaint"
+# Spec 026: removes AI artifacts from one story page (illustrate --page N --cleanup); page view only.
+CLEANUP_STAGE = "cleanup"
 COVER_SIDES = ("front", "print", "back")  # every side a repaint job accepts (spec 022)
 # Spec 024: Codex writes the book's YouTube text; the upload sends the video (never autopilot).
 YOUTUBE_TEXT_STAGE = "youtube_text"
@@ -99,6 +102,7 @@ STAGE_LABELS = {
     "preview": "page preview",
     PAINT_STAGE: "picture painting",
     REPAINT_STAGE: "picture repaint",
+    CLEANUP_STAGE: "artifact cleanup",
     BUILD_STAGE: "book build",
     "blueprint": "blueprint design",
     "redesign": "blueprint design",
@@ -960,6 +964,35 @@ def camera_row(folder: BookFolder, page: dict, plan: object) -> dict:
     }
 
 
+def cleanup_row(folder: BookFolder, page: dict | int) -> dict:
+    """The page's artifact cleanup (spec 026) from `<stem>.cleanup.json` and the `.bak`: `state`
+    (none without a readable record, review until accepted, then accepted), the record's
+    `applied` and `skipped` regions and whether the `.bak` exists."""
+    picture = (
+        folder.illustrations / f"page_{page:02d}.png"
+        if isinstance(page, int)
+        else page_picture(folder, page)
+    )
+    row = {
+        "state": "none",
+        "applied": [],
+        "skipped": [],
+        "has_bak": cleanup.bak_path(picture).is_file(),
+    }
+    try:
+        data = json.loads(cleanup.record_path(picture).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return row
+    if not isinstance(data, dict):
+        return row
+    return {
+        **row,
+        "state": "accepted" if data.get("reviewed") is True else "review",
+        "applied": [a for a in data.get("applied") or [] if isinstance(a, dict)],
+        "skipped": [a for a in data.get("skipped") or [] if isinstance(a, dict)],
+    }
+
+
 def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
     """Per story page, read from disk on every call (AC-5.5): `page_number`, `plan_state` (none,
     ok, stale, invalid, no_picture, or unavailable when the animation config cannot be read),
@@ -989,6 +1022,7 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "cut_state": NO_CUT,
                 "empty_layers": [],
                 "camera": camera_row(folder, p, None),
+                "cleanup": cleanup_row(folder, p),
                 **_will_animate(paths, folder, p, script_pages, settings),
             }
             for p in sorted(pages, key=lambda p: int(p["page_number"]))
@@ -1017,6 +1051,7 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "cut_state": cut,
                 "empty_layers": empty,
                 "camera": camera_row(folder, page, st.plan),
+                "cleanup": cleanup_row(folder, page),
                 **_will_animate(paths, folder, page, script_pages, settings),
             }
         )
