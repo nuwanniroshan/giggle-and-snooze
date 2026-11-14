@@ -139,12 +139,20 @@ def test_brief_with_narration_limits_has_the_narration_block():  # AC-1.6
     brief = build_brief(book, load_json(CAST_PATH), plan, feelings=_narration_feelings())
     assert "NARRATION TAGS" in brief
     block = brief.split("NARRATION TAGS", 1)[1].split("RULES", 1)[0]
-    assert "At most 1 per page and at most 4 in this book (8 pages)" in block
+    assert "at most 1 per page and at most 4 in this book (8 pages)" in block
     assert '"narration_tags"' in block and '"page_number": N' in block
     assert '"position": "start" or "end"' in block
     assert "giggle, laugh, chuckle, gasp, sigh, yawn" in block and "no angle brackets" in block
     assert "Never inside a quotation" in block
-    assert "this story calls for them" in block and "every book" in block
+    assert "Read each page and place a tag wherever the story really has" in block
+    assert "gasp-worthy surprise, a sigh of relief, a chuckle at a funny line" in block
+    assert "yawn at a truly sleepy moment" in block
+    assert "ceilings, not targets" in block
+    assert "most books have a few moments worth a tag" in block
+    assert "aim to use roughly the allowance" in block
+    assert "A page without such a moment simply gets none" in block
+    assert "No tags at all is fine" not in block
+    assert "do not repeat a pattern you would use in every book" in block.lower()
     assert "never add a yawn at the end just because it is bedtime" in block
     assert "<giggle>" not in block and "<yawn>" not in block
 

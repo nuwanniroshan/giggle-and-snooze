@@ -90,11 +90,13 @@ narration so it sounds alive. Put them in the optional "narration_tags" list: ea
 {{"page_number": N, "sentence": S, "position": "start" or "end", "tag": "gasp"}}, where S counts \
 the sentences of that page's TEXT from 1 and the tag is one of giggle, laugh, chuckle, gasp, \
 sigh, yawn (write the name only, no angle brackets).
-- Use them only where this story calls for them: a gasp at a surprise, a sigh of relief, a \
-yawn where a character is truly sleepy. Do not repeat a pattern you would use in every book, and \
-never add a yawn at the end just because it is bedtime.
-- At most {limits.per_page_max} per page and at most {limits.book_max(pages)} in this book \
-({pages} pages). Never inside a quotation. No tags at all is fine for a page that needs none.
+- Read each page and place a tag wherever the story really has a gasp-worthy surprise, a sigh of \
+relief, a chuckle at a funny line, or a yawn at a truly sleepy moment. A page without such a \
+moment simply gets none. Do not repeat a pattern you would use in every book, and never add a \
+yawn at the end just because it is bedtime.
+- The limits are ceilings, not targets, but most books have a few moments worth a tag, so where \
+such moments exist, aim to use roughly the allowance: at most {limits.per_page_max} per page and \
+at most {limits.book_max(pages)} in this book ({pages} pages). Never inside a quotation.
 """
 
 
