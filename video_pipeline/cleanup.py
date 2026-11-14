@@ -113,16 +113,20 @@ class Applied:
 
 
 def apply_regions(rgb, regions, masks, fill, settings: CleanupSettings) -> Applied:
-    """Fill every region whose mask is non-empty and at most `max_region_share` of the picture;
+    """`masks` holds one boolean mask per region, or the exception the segmenter raised for it.
+    Fill every region whose mask is non-empty and at most `max_region_share` of the picture;
     skip the rest with a reason (AC-1.4). One fill call for all kept masks."""
     total = rgb.shape[0] * rgb.shape[1]
     hole = np.zeros(rgb.shape[:2], bool)
     applied: list[dict] = []
     skipped: list[dict] = []
     for i, (region, mask) in enumerate(zip(regions, masks, strict=True)):
+        base = {"index": i, "box": region["box"], "reason": region["reason"]}
+        if isinstance(mask, Exception):  # the segmenter failed for this region
+            skipped.append({**base, "why": f"segmentation failed: {mask}"})
+            continue
         mask = np.asarray(mask, bool)
         share = float(mask.sum()) / total
-        base = {"index": i, "box": region["box"], "reason": region["reason"]}
         if not mask.any():
             skipped.append({**base, "why": "empty mask"})
         elif share > settings.max_region_share:
@@ -308,6 +312,22 @@ def _ask_codex(
     return None, feedback[0]
 
 
+def _region_masks(seg, rgb: np.ndarray, probes: list) -> list:
+    """One mask per probe: the batch call, else one probe at a time, keeping the exception for
+    each region that raises (AC-1.4)."""
+    try:
+        return list(seg.masks(rgb, probes))
+    except Exception:  # noqa: BLE001 - fall back to per-region calls
+        pass
+    out: list = []
+    for probe in probes:
+        try:
+            out.append(seg.masks(rgb, [probe])[0])
+        except Exception as exc:  # noqa: BLE001
+            out.append(exc)
+    return out
+
+
 def cleanup_page(
     folder: BookFolder,
     book: dict,
@@ -330,11 +350,16 @@ def cleanup_page(
         raise CleanupError("only story pages are supported")
     if not picture.is_file():
         raise CleanupError(f"{picture.name} is missing")
+    bak = bak_path(picture)
+    if bak.exists() and not yes:  # AC-2.2: before any Codex call or model load
+        raise CleanupError(f"{bak.name} already exists and would be overwritten; confirm (--yes)")
     root = Path(root)
     settings = load_settings(root / "config")
     before = picture.read_bytes()
     with Image.open(picture) as im:
-        rgb = np.asarray(im.convert("RGB"))
+        if im.mode != "RGB":
+            raise CleanupError(f"unsupported picture mode {im.mode} (expected RGB)")
+        rgb = np.asarray(im)
     size = (rgb.shape[1], rgb.shape[0])
     regions, why = _ask_codex(
         folder, page, picture, size, settings, binary=binary, root=root, provider=provider
@@ -359,7 +384,7 @@ def cleanup_page(
                 pivot=((x0 + x1) // 2, (y0 + y1) // 2),
             )
         )
-    result = apply_regions(rgb, regions, seg.masks(rgb, probes), fill, settings)
+    result = apply_regions(rgb, regions, _region_masks(seg, rgb, probes), fill, settings)
     for a in result.applied:
         log(f"filled region {a['index']}: {a['reason']}")
     for s in result.skipped:

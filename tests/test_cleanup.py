@@ -522,3 +522,181 @@ def test_codex_that_never_saves_fails_after_three_calls(book):
     assert out.status == "failed" and len(codex.commands) == 3
     assert picture.read_bytes() == old
     assert not cl.bak_path(picture).exists()
+
+
+# --- review findings ------------------------------------------------------------------------
+
+
+class _RaisingSeg(FakeSeg):
+    """Raises for the batch call and for any probe whose box starts at x0 in `bad`."""
+
+    def __init__(self, bad: set[int] | None = None):
+        super().__init__()
+        self.bad = bad
+
+    def masks(self, image, layers):
+        if self.bad is None or len(layers) > 1 or layers[0].box[0] in self.bad:
+            raise RuntimeError(f"sam broke at {layers[0].box[0]}")
+        return super().masks(image, layers)
+
+
+def _run_with_seg(folder, seg, payload):
+    def load(root, cfg):
+        return seg, FakeFill()
+
+    return cl.cleanup_page(
+        folder,
+        book_data(folder),
+        1,
+        root=ROOT,
+        binary=BINARY,
+        load_models=load,
+        provider=FakeCodex(payload),
+        log=lambda line: None,
+    )
+
+
+def test_segmentation_failure_in_one_region_skips_only_that_region(book):  # AC-1.4
+    payload = {"regions": [region((10, 10, 30, 30)), region((50, 50, 60, 60))]}
+    out = _run_with_seg(book, _RaisingSeg({50}), payload)
+    assert out.status == "cleaned"
+    assert [a["index"] for a in out.applied] == [0]
+    assert [s["index"] for s in out.skipped] == [1]
+    assert out.skipped[0]["why"].startswith("segmentation failed: ")
+    assert "sam broke at 50" in out.skipped[0]["why"]
+
+
+def test_segmentation_failure_in_every_region_fails_and_writes_nothing(book):  # AC-1.4, AC-1.6
+    picture = picture_of(book)
+    old = picture.read_bytes()
+    payload = {"regions": [region((10, 10, 30, 30)), region((50, 50, 60, 60))]}
+    out = _run_with_seg(book, _RaisingSeg(), payload)
+    assert out.status == "failed"
+    assert len(out.skipped) == 2
+    assert all(s["why"].startswith("segmentation failed: ") for s in out.skipped)
+    assert picture.read_bytes() == old
+    assert not cl.bak_path(picture).exists() and not cl.record_path(picture).exists()
+
+
+def test_model_load_errors_still_propagate(book):
+    from video_pipeline.cut_layers import ModelsMissing
+
+    def load(root, cfg):
+        raise ModelsMissing("no models")
+
+    with pytest.raises(ModelsMissing):
+        cl.cleanup_page(
+            book,
+            book_data(book),
+            1,
+            root=ROOT,
+            binary=BINARY,
+            load_models=load,
+            provider=FakeCodex({"regions": [region()]}),
+            log=lambda line: None,
+        )
+
+
+def test_existing_bak_refused_before_codex_or_models(book):  # AC-2.2
+    cl.bak_path(picture_of(book)).write_bytes(b"older")
+    codex = FakeCodex({"regions": [region()]})
+    loads: list[int] = []
+    with pytest.raises(cl.CleanupError, match="already exists"):
+        run(book, codex, loads=loads, yes=False)
+    assert codex.commands == [] and loads == []
+
+
+def test_non_rgb_picture_is_refused(book):  # NFR-4
+    picture = picture_of(book)
+    Image.fromarray(gradient(), "RGB").convert("RGBA").save(picture)
+    old = picture.read_bytes()
+    codex = FakeCodex({"regions": [region()]})
+    with pytest.raises(cl.CleanupError, match="unsupported picture mode"):
+        run(book, codex)
+    assert codex.commands == [] and picture.read_bytes() == old
+
+
+def test_written_picture_keeps_size_and_rgb(book):  # NFR-4
+    run(book, FakeCodex({"regions": [region()]}))
+    with Image.open(picture_of(book)) as im:
+        assert im.mode == "RGB" and im.size == SIZE
+
+
+def test_failed_picture_save_leaves_original_and_no_tmp_files(book, monkeypatch):
+    picture = picture_of(book)
+    old = picture.read_bytes()
+    real_replace = Path.replace
+
+    def broken_replace(self, target):
+        if Path(target) == picture:
+            raise OSError("disk full")
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", broken_replace)
+    with pytest.raises(OSError, match="disk full"):
+        cl.write_picture(gradient(), picture, yes=False)
+    assert picture.read_bytes() == old
+    assert cl.bak_path(picture).read_bytes() == old
+    assert not [p for p in picture.parent.iterdir() if ".tmp" in p.name]
+
+
+def test_region_exactly_at_the_share_limit_is_applied_one_pixel_more_is_skipped():
+    rgb = np.full((10, 10, 3), 100, np.uint8)
+    settings = cl.CleanupSettings(
+        max_regions=6, max_points=4, max_reason_chars=120, margin_px=0, max_region_share=0.05
+    )
+    at_limit = np.zeros((10, 10), bool)
+    at_limit.flat[:5] = True  # 5 / 100 == 0.05
+    over = np.zeros((10, 10), bool)
+    over.flat[:6] = True
+    ok = cl.apply_regions(rgb, [region((0, 0, 5, 1))], [at_limit], FakeFill(), settings)
+    assert [a["index"] for a in ok.applied] == [0]
+    no = cl.apply_regions(rgb, [region((0, 0, 6, 1))], [over], FakeFill(), settings)
+    assert no.applied == [] and len(no.skipped) == 1
+
+
+def _plan_for(picture: Path) -> MotionPlan:
+    return MotionPlan.model_validate(
+        {
+            "page_number": 1,
+            "picture": picture_identity(picture).model_dump(),
+            "provider": "codex",
+            "written_at": "2026-11-10T10:00:00Z",
+            "layers": [
+                {
+                    "name": "tree",
+                    "description": "the big tree",
+                    "box": [10, 10, 60, 80],
+                    "include_points": [[30, 40]],
+                    "exclude_points": [],
+                    "z": 1,
+                    "depth": 0.5,
+                    "pivot": [30, 80],
+                    "motions": [{"type": "sway", "amplitude": 2.0, "period_s": 6.0, "phase": 0.0}],
+                }
+            ],
+            "effects": [],
+        }
+    )
+
+
+def test_plan_for_old_picture_is_ok_again_after_revert(book):  # AC-3.1
+    picture = picture_of(book)
+    page = {"page_number": 1, "illustration_file": "page_01.png"}
+    limits = load_limits(ROOT / "config")
+    save_plan(plan_path(book, 1), _plan_for(picture))
+    run(book, FakeCodex({"regions": [region()]}))
+    assert plan_state(book, page, limits).state == "stale"
+    cl.revert_page(picture)
+    assert plan_state(book, page, limits).state == "ok"
+
+
+def test_plan_for_cleaned_picture_is_stale_after_revert(book):  # AC-3.1
+    picture = picture_of(book)
+    page = {"page_number": 1, "illustration_file": "page_01.png"}
+    limits = load_limits(ROOT / "config")
+    run(book, FakeCodex({"regions": [region()]}))
+    save_plan(plan_path(book, 1), _plan_for(picture))
+    assert plan_state(book, page, limits).state == "ok"
+    cl.revert_page(picture)
+    assert plan_state(book, page, limits).state == "stale"
