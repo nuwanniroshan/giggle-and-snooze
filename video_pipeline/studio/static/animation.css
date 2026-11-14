@@ -4,6 +4,7 @@ figure.anim img { width: 100%; border-radius: var(--r-md); }
 figure.anim svg { position: absolute; top: 0; left: 0; width: 100%; height: auto; pointer-events: none; }
 figure.anim figcaption { margin-top: var(--s-3); font-size: var(--text-sm); color: var(--muted); }
 figure.anim rect { fill: none; stroke-width: calc(var(--u) * 0.4); }
+figure.anim rect.subject { stroke: var(--paint-light); }
 figure.anim rect.effect { stroke: var(--paint-light); stroke-dasharray: calc(var(--u) * 1.5) var(--u); }
 figure.anim text { fill: var(--paint-light); stroke: var(--paint-dark); stroke-width: calc(var(--u) * 0.3); paint-order: stroke; font-family: var(--font-body); font-weight: 700; }
 figure.anim circle { stroke: var(--paint-dark); stroke-width: calc(var(--u) * 0.3); }

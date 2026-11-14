@@ -1,5 +1,5 @@
 {% macro tone_of(state) -%}
-{{ {'done': 'done', 'finished': 'done', 'approved': 'done', 'running': 'running', 'failed': 'failed', 'interrupted': 'failed', 'needs_review': 'attention', 'out_of_date': 'attention', 'stale': 'failed', 'invalid': 'failed', 'ok': 'done', 'cut': 'done'}.get(state, 'idle') }}
+{{ {'done': 'done', 'finished': 'done', 'approved': 'done', 'running': 'running', 'failed': 'failed', 'interrupted': 'failed', 'needs_review': 'attention', 'out_of_date': 'attention', 'stale': 'failed', 'invalid': 'failed', 'ok': 'done', 'cut': 'done', 'current': 'done'}.get(state, 'idle') }}
 {%- endmacro %}
 {% macro badge(state) -%}
 <span class="state t-{{ tone_of(state) }}{% if state in ('failed', 'interrupted') %} strong{% endif %}">{{ state_word(state) }}</span>

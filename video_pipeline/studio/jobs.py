@@ -62,6 +62,7 @@ STAGE_MODULES = {
     "render": "video_pipeline.render_episode",
     "plan": "video_pipeline.motion_plan",
     "cut": "video_pipeline.cut_layers",
+    "ground": "video_pipeline.ground_camera",
     PREVIEW_STAGE: "video_pipeline.render_episode",
     PAINT_STAGE: "video_pipeline.illustrate",
     REPAINT_STAGE: "video_pipeline.illustrate",

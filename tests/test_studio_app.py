@@ -1375,3 +1375,50 @@ def test_titled_book_thumbnail_and_hero_use_the_video_cover(bare):  # AC-5.2
     assert hero and hero.group(1) == f"/media/{PILOT_SLUG}/illustration/cover_front.png"
     side = re.findall(rf'src="(/media/{PILOT_SLUG}/thumb/[^"?]+)', html)
     assert side and all(src.endswith("/cover_front.png") for src in side)
+
+
+# --- spec 025: camera grounding in the Animation view ------------------------------------------
+
+
+def test_animation_view_shows_the_camera_column(animated):  # AC-4.2
+    from tests.test_studio_books import _camera_file
+    from video_pipeline.motion_plan import picture_identity
+
+    s, folder, _ah = animated
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
+    assert "camera missing" in text_of(html)
+    sha = picture_identity(folder.illustrations / "page_01.png").sha256
+    _camera_file(folder, 1, sha, band="top")
+    text = text_of(s.client.get(f"/books/{PILOT_SLUG}/animation").text)
+    assert "camera current" in text and "captions top" in text
+
+
+def test_animation_page_shows_the_camera_subject(animated):  # AC-4.2
+    from tests.test_studio_books import _camera_file
+    from video_pipeline.motion_plan import picture_identity
+
+    s, folder, _ah = animated
+    sha = picture_identity(folder.illustrations / "page_01.png").sha256
+    _camera_file(folder, 1, sha)
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation/1").text
+    text = text_of(html)
+    assert "red square" in text and "[20, 12, 36, 28]" in text
+    assert "zoom 1.5" in text and "top" in text
+    assert 'class="subject"' in html
+    _camera_file(folder, 1, sha, status="failed", reason="the mask is empty")
+    assert "the mask is empty" in text_of(s.client.get(f"/books/{PILOT_SLUG}/animation/1").text)
+
+
+def test_run_ground_needs_cut_layers_then_starts_a_job(animated):  # AC-4.3
+    s, folder, ah = animated
+    r = s.client.post(f"/books/{PILOT_SLUG}/run/ground")
+    assert r.status_code == 409 and "cut layers first" in r.text
+    ah.cut(folder, pages=[1])
+    r = s.client.post(f"/books/{PILOT_SLUG}/run/ground")
+    assert r.status_code == 303
+    assert r.headers["location"] == f"/books/{PILOT_SLUG}/animation"
+    s.wait()
+    assert [c[:2] for c in s.commands.calls] == [("ground", PILOT_SLUG)]
+    assert (
+        "camera grounding" in text_of(s.client.get(f"/books/{PILOT_SLUG}/animation").text).lower()
+    )

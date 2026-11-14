@@ -617,10 +617,11 @@ def _rows(paths, book):
 
 
 def test_animation_stages_are_separate_from_the_episode_flow():
-    assert sb.ANIMATION_STAGES == ("plan", "cut")
+    assert sb.ANIMATION_STAGES == ("plan", "cut", "ground")
     assert not set(sb.ANIMATION_STAGES) & set(sb.STAGES)
     assert sb.STAGE_LABELS["plan"] == "motion planning"
     assert sb.STAGE_LABELS["cut"] == "layer cutting"
+    assert sb.STAGE_LABELS["ground"] == "camera grounding"
 
 
 def test_page_animation_plan_states(tmp_path):  # AC-5.1
@@ -913,3 +914,52 @@ def test_titled_paint_state_waits_for_print_cover(studio):
     picture(folder.illustrations / "cover_front_print.png")
     state = sb.paint_state(studio, book)
     assert state["missing"] == [] and state["state"] != "not_started"
+
+
+# --- spec 025: camera grounding rows ---------------------------------------------------------
+
+
+def _camera_file(folder, n, sha, status="ok", reason="", band="top"):
+    import json
+
+    from video_pipeline.camera_ground import camera_path
+
+    path = camera_path(folder, n)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "page_number": n,
+        "picture": {"file": f"page_{n:02d}.png", "sha256": sha},
+        "status": status,
+        "reason": reason,
+        "subject": {"name": "red square", "source": "layer", "box": [20, 12, 36, 28]},
+        "target": {"x": 0.44, "y": 0.42, "zoom": 1.5},
+        "band": band,
+    }
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_page_animation_camera_states(tmp_path):
+    from video_pipeline.motion_plan import picture_identity
+
+    paths, book, folder, ah = _anim_book(tmp_path)
+    sha = picture_identity(folder.illustrations / "page_01.png").sha256
+    rows = _rows(paths, book)
+    assert rows[1]["camera"]["state"] == "missing"
+    assert rows[4]["camera"]["state"] == "—"  # no plan
+    _camera_file(folder, 1, sha)
+    cam = _rows(paths, book)[1]["camera"]
+    assert cam["state"] == "current" and cam["subject"] == "red square"
+    assert cam["box"] == [20, 12, 36, 28] and cam["band"] == "top"
+    assert cam["target"] == {"x": 0.44, "y": 0.42, "zoom": 1.5}
+    _camera_file(folder, 2, "0" * 64)
+    stale = _rows(paths, book)[2]["camera"]
+    assert stale["state"] == "stale" and "stale" in stale["reason"]
+    _camera_file(
+        folder,
+        3,
+        picture_identity(folder.illustrations / "page_03.png").sha256,
+        status="failed",
+        reason="the mask is empty",
+    )
+    failed = _rows(paths, book)[3]["camera"]
+    assert failed["state"] == "failed" and failed["reason"] == "the mask is empty"

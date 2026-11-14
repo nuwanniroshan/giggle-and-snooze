@@ -10,7 +10,7 @@
   </div>
 </header>
 <section class="panel">
-  <p class="muted small">Plan pictures writes a motion plan for each painted page (kept plans are not replaced); Cut layers cuts the planned layers out and fills the background.</p>
+  <p class="muted small">Plan pictures writes a motion plan for each painted page (kept plans are not replaced); Cut layers cuts the planned layers out and fills the background; Ground camera names what each Q&A picture is about, aims the camera at it and picks the emptier caption edge.</p>
   <div style="margin-top: var(--s-4)">{{ animation_controls(book, controls) }}</div>
 </section>
 {% if rows %}
@@ -23,6 +23,8 @@
       <div class="badges">
         <span class="state t-{{ tone_of(r.plan_state) }}{% if r.plan_state in ('stale', 'invalid') %} strong{% endif %}">plan {{ r.plan_state }}</span>
         <span class="state t-{{ tone_of(r.cut_state) }}">{{ r.cut_state }}</span>
+        <span class="state t-{{ tone_of(r.camera.state) }}">camera {{ r.camera.state }}</span>
+        {% if r.camera.state == 'current' %}<span class="state t-idle">captions {{ r.camera.band }}</span>{% endif %}
         {% if r.will_animate %}<span class="state t-done">animated</span>{% endif %}
       </div>
       {% if not r.will_animate %}<span class="why">still: {{ r.still_reason }}</span>{% endif %}
