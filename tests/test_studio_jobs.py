@@ -539,11 +539,11 @@ def test_orphan_without_a_recorded_start_time_is_only_marked(studio, tmp_path):
         old.wait()
 
 
-def test_stage_command_plan_and_cut(tmp_path):  # spec 009 AC-5.4
-    from video_pipeline import cut_layers, motion_plan
+def test_stage_command_plan_cut_and_ground(tmp_path):  # spec 009 AC-5.4, spec 025 AC-4.3
+    from video_pipeline import cut_layers, ground_camera, motion_plan
 
     paths, pilot, _ = book_and_added(tmp_path)
-    for stage, module in (("plan", motion_plan), ("cut", cut_layers)):
+    for stage, module in (("plan", motion_plan), ("cut", cut_layers), ("ground", ground_camera)):
         cmd = sj.stage_command(stage, pilot, paths)
         assert cmd == [
             sys.executable,

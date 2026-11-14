@@ -83,9 +83,28 @@
       {% for p in l.include_points %}<circle class="inc" cx="{{ p[0] }}" cy="{{ p[1] }}" r="{{ unit }}"/>{% endfor %}
       {% for p in l.exclude_points %}<circle class="exc" cx="{{ p[0] }}" cy="{{ p[1] }}" r="{{ unit }}"/>{% endfor %}
       {% endfor %}
+      {% if camera.box %}{% set b = camera.box %}
+      <rect class="subject" x="{{ b[0] }}" y="{{ b[1] }}" width="{{ b[2] - b[0] }}" height="{{ b[3] - b[1] }}"/>
+      <text x="{{ b[0] + unit }}" y="{{ b[3] - unit }}" font-size="{{ unit * 2.4 }}">camera: {{ camera.subject }}</text>
+      {% endif %}
     </svg>
-    <figcaption class="muted">Boxes in each layer's mask colour. Filled dots are include points, hollow dots are exclude points; dashed boxes are effect regions.</figcaption>
+    <figcaption class="muted">Boxes in each layer's mask colour; the solid white box is the camera's subject. Filled dots are include points, hollow dots are exclude points; dashed boxes are effect regions.</figcaption>
   </figure>
+</section>
+<section class="panel">
+  <h2>Camera</h2>
+  <p>
+    <span class="state t-{{ tone_of(camera.state) }}">camera {{ camera.state }}</span>
+    {% if camera.subject %}<strong>{{ camera.subject }}</strong>{% endif %}
+  </p>
+  {% if camera.state == 'current' or camera.subject %}
+  <ul class="small">
+    <li>Box <span class="mono">{{ camera.box|list }}</span></li>
+    {% if camera.target %}<li>Target <span class="mono">x {{ camera.target.x }}, y {{ camera.target.y }}, zoom {{ camera.target.zoom }}</span></li>{% else %}<li>No camera target (no Q&amp;A on this page)</li>{% endif %}
+    <li>Captions on the <strong>{{ camera.band }}</strong> edge</li>
+  </ul>
+  {% endif %}
+  {% if camera.reason %}<p class="muted small">{{ camera.reason }}</p>{% endif %}
 </section>
 <section class="panel">
   <h2>Layers</h2>

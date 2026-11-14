@@ -86,6 +86,7 @@ STAGE_BUTTONS = {
     "render": "Render video",
     "plan": "Plan pictures",
     "cut": "Cut layers",
+    "ground": "Ground camera",
     sb.PAINT_STAGE: "Paint pictures",
     sb.BUILD_STAGE: "Build book",
     sb.YOUTUBE_TEXT_STAGE: "Write YouTube text",
@@ -429,6 +430,10 @@ class Studio:
                     f"no voice track for page {page}: synthesize the voices first – "
                     f"run {voices_command(book.slug)}"
                 )
+        if stage == "ground":
+            rows = sb.page_animation(self.paths, book)
+            if not any(r["cut_state"] == "cut" for r in rows):
+                return f"cut layers first – run {sb.STAGE_LABELS['cut']} (Cut layers)"
         if stage == "voices":
             if not sb.script_path(self.paths, book).exists():
                 return "generate the script first"
@@ -1402,10 +1407,12 @@ class Studio:
         numbers = [r["page_number"] for r in rows]
         at = numbers.index(number)
         cut = row["cut_state"] == "cut"
+        camera = row["camera"]
         context = {
             "book": book,
             "row": row,
             "plan": row["plan"],
+            "camera": camera,
             "palette": [f"rgb{c}" for c in sb.MASK_PALETTE],
             "picture_url": f"/media/{book.slug}/illustration/{row['picture']}",
             "mask_url": f"/media/{book.slug}/mask/page_{number:02d}.png" if cut else None,

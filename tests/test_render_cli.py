@@ -816,3 +816,90 @@ def test_render_preview_result(world):
     )
     assert result.path == world["video"] / "preview" / "page_04.mp4"
     assert result.animated is False and result.reason.startswith("no plan")
+
+
+# --- spec 025: grounded camera and caption band wiring --------------------------------------
+
+
+def _qa_page(world) -> int:
+    script = load_json(world["script_path"])
+    return next(
+        int(p["page_number"])
+        for p in script["pages"]
+        if p["has_qa"] and p["ffmpeg_camera"].get("qa_zoom_target")
+    )
+
+
+def _write_camera(world, page: int, **extra) -> None:
+    from video_pipeline import camera_ground
+    from video_pipeline.file_hash import sha256_file
+
+    folder = world["folder"]
+    pic = folder.illustrations / f"page_{page:02d}.png"
+    data = {
+        "picture": {"sha256": sha256_file(pic), "width": 64, "height": 64},
+        "band": "top",
+        "status": "ok",
+        "subject": {"name": "car", "source": "layer", "box": [1, 1, 9, 9]},
+        "target": {"x": 0.1, "y": 0.2, "zoom": 1.5},
+        **extra,
+    }
+    path = camera_ground.camera_path(folder, page)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def _page_sections(world):
+    inputs = re_._load_inputs(world["folder"], world["root"])
+    return {s.name: s for s in inputs.sections if s.kind == "page"}, inputs
+
+
+def test_current_camera_file_sets_target_and_band(world):  # AC-3.1
+    page = _qa_page(world)
+    name = page_section_name(page)
+    before, _ = _page_sections(world)
+    _write_camera(world, page)
+    after, inputs = _page_sections(world)
+    assert before[name].caption_band == "bottom"
+    assert after[name].caption_band == "top"
+    assert after[name].camera.qa_target != before[name].camera.qa_target
+    assert after[name].camera.qa_target[1:] == pytest.approx((0.1, 0.2), abs=0.2)
+    others = [n for n in after if n != name]
+    assert all(after[n] == before[n] for n in others)  # AC-3.5: other pages unchanged
+    assert f"page {page:02d}" not in dict(inputs.still_notes)
+
+
+def test_invalid_camera_file_is_ignored_with_a_note(world):  # AC-4.4
+    page = _qa_page(world)
+    name = page_section_name(page)
+    before, _ = _page_sections(world)
+    _write_camera(world, page, subject={"name": "car", "box": [9, 9, 1, 1]})
+    after, inputs = _page_sections(world)
+    assert after[name] == before[name]
+    notes = dict(inputs.still_notes)
+    assert "invalid camera file" in notes[f"page {page:02d}"]
+    assert "subject.box" in notes[f"page {page:02d}"]
+
+
+def test_failed_camera_file_keeps_guess_and_bottom_band(world):  # AC-3.2
+    page = _qa_page(world)
+    name = page_section_name(page)
+    before, _ = _page_sections(world)
+    _write_camera(world, page, status="failed", reason="empty mask", target=None, subject=None)
+    after, inputs = _page_sections(world)
+    assert after[name] == before[name]
+    assert "grounding failed" in dict(inputs.still_notes)[f"page {page:02d}"]
+
+
+def test_every_caption_card_uses_the_section_band(world, monkeypatch, tmp_path):  # AC-2.3
+    page = _qa_page(world)
+    _write_camera(world, page)
+    sections, inputs = _page_sections(world)
+    section = sections[page_section_name(page)]
+    assert section.caption_band == "top" and len(section.captions) >= 1
+    bands: list[str] = []
+    monkeypatch.setattr(
+        re_, "render_caption", lambda text, cfg, path, band="bottom": bands.append(band)
+    )
+    paths = re_._render_captions(section, tmp_path, inputs.cfg)
+    assert bands == ["top"] * len(section.captions) == ["top"] * len(paths)

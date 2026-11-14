@@ -32,6 +32,7 @@ from video_pipeline.blueprint import (
     load_context,
     read_use,
 )
+from video_pipeline.camera_ground import load_current
 from video_pipeline.characters import sheet
 from video_pipeline.contract import ConfigError, load_disallowed_terms, validate_script
 from video_pipeline.covers import titled_covers
@@ -50,6 +51,7 @@ from video_pipeline.motion_plan import (
     LIMITS_FILE,
     load_limits,
     page_picture,
+    picture_identity,
     plan_path,
     plan_state,
 )
@@ -93,6 +95,7 @@ STAGE_LABELS = {
     "render": "video render",
     "plan": "motion planning",
     "cut": "layer cutting",
+    "ground": "camera grounding",
     "preview": "page preview",
     PAINT_STAGE: "picture painting",
     REPAINT_STAGE: "picture repaint",
@@ -119,7 +122,7 @@ AUTOPILOT_STEP_STATUS = {
     "build": "editions",
 }
 # Spec 009: run as studio jobs, but outside the script → voices → render flow.
-ANIMATION_STAGES = ("plan", "cut")
+ANIMATION_STAGES = ("plan", "cut", "ground")
 # Spec 010: one story page rendered with its voice; started per page, not from the stage buttons.
 PREVIEW_STAGE = "preview"
 NO_CUT = "—"
@@ -929,6 +932,34 @@ def _will_animate(
     return {"will_animate": el.animated, "still_reason": el.reason}
 
 
+def camera_row(folder: BookFolder, page: dict, plan: object) -> dict:
+    """The page's camera grounding (spec 025) for the Animation view: `state` (current, missing,
+    stale, failed, or "—" when the page has no plan), and the file's `subject` name, `box`,
+    `target`, `band` and the `reason` (the failure, or why the file cannot be used)."""
+    row = {"state": NO_CUT, "subject": "", "box": None, "target": None, "band": "", "reason": ""}
+    if plan is None:
+        return row
+    try:
+        sha = picture_identity(page_picture(folder, page)).sha256
+    except (OSError, ValueError):
+        return row
+    data, reason = load_current(folder, int(page["page_number"]), sha)
+    if data is None:
+        # an unreadable or invalid file counts as failed; the reason says why
+        state = {"no": "missing", "stale": "stale"}.get(reason.split()[0], "failed")
+        return {**row, "state": state, "reason": reason}
+    subject = data.get("subject") or {}
+    failed = data.get("status") == "failed"
+    return {
+        "state": "failed" if failed else "current",
+        "subject": str(subject.get("name") or ""),
+        "box": subject.get("box"),
+        "target": data.get("target"),
+        "band": data["band"],
+        "reason": str(data.get("reason") or ""),
+    }
+
+
 def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
     """Per story page, read from disk on every call (AC-5.5): `page_number`, `plan_state` (none,
     ok, stale, invalid, no_picture, or unavailable when the animation config cannot be read),
@@ -957,6 +988,7 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "plan": None,
                 "cut_state": NO_CUT,
                 "empty_layers": [],
+                "camera": camera_row(folder, p, None),
                 **_will_animate(paths, folder, p, script_pages, settings),
             }
             for p in sorted(pages, key=lambda p: int(p["page_number"]))
@@ -984,6 +1016,7 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "plan": st.plan,
                 "cut_state": cut,
                 "empty_layers": empty,
+                "camera": camera_row(folder, page, st.plan),
                 **_will_animate(paths, folder, page, script_pages, settings),
             }
         )

@@ -508,3 +508,23 @@ def test_limiter_leaves_a_quiet_mix_alone():
     mix = np.full(1000, 0.1)
     frames.limit_peaks(mix, 0.89, 30.0, SR)
     assert np.all(mix == 0.1)
+
+
+# --- caption band (spec 025) ----------------------------------------------------------------
+
+
+def test_caption_top_band_sits_at_margin(cfg, tmp_path):
+    out = tmp_path / "c.png"
+    render_caption("A short line", cfg, out, band="top")
+    with Image.open(out) as im:
+        alpha = np.asarray(im)[..., 3]
+    ys = np.where(alpha.any(axis=1))[0]
+    assert ys.min() == cfg.captions.margin
+    assert ys.max() < cfg.height // 2
+
+
+def test_caption_default_is_bottom(cfg, tmp_path):
+    a, b = tmp_path / "a.png", tmp_path / "b.png"
+    render_caption("A short line", cfg, a)
+    render_caption("A short line", cfg, b, band="bottom")
+    assert a.read_bytes() == b.read_bytes()
