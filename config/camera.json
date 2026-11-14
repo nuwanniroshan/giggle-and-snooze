@@ -1,0 +1,10 @@
+{
+  "zoom_min": 1.0,
+  "zoom_max": 2.0,
+  "zoom_margin": 0.15,
+  "band_fraction": 0.25,
+  "min_mask_share": 0.002,
+  "max_subject_share": 0.6,
+  "attempts": 3,
+  "time_limit_s": 600
+}

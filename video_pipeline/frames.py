@@ -16,7 +16,14 @@ import soundfile as sf
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, UnidentifiedImageError
 
 from video_pipeline.synthesize_voices import write_wav_atomic
-from video_pipeline.timeline import RenderConfig, Section, section_times, total_frames, wrap_lines
+from video_pipeline.timeline import (
+    RenderConfig,
+    Section,
+    contain_size,
+    section_times,
+    total_frames,
+    wrap_lines,
+)
 
 PAGE_TURN_FILE = "page_turn.wav"
 _LINE_GAP = 0.25  # gap between caption lines, as a fraction of the font size
@@ -65,21 +72,9 @@ def canvas_parts(
     backdrop = backdrop.filter(ImageFilter.GaussianBlur(cfg.backdrop.blur))
     darken = cfg.backdrop.darken
     backdrop = backdrop.point(lambda v: round(v * darken))
-    front = _contain_size(picture.size, size)
+    front = contain_size(picture.size, size)
     offset = ((size[0] - front[0]) // 2, (size[1] - front[1]) // 2)
     return backdrop, front, offset
-
-
-def _contain_size(image: tuple[int, int], size: tuple[int, int]) -> tuple[int, int]:
-    """The size `ImageOps.contain(image, size)` resizes to (Pillow's arithmetic, so the still
-    canvas stays byte-identical)."""
-    im_ratio = image[0] / image[1]
-    dest_ratio = size[0] / size[1]
-    if im_ratio == dest_ratio:
-        return size
-    if im_ratio > dest_ratio:
-        return size[0], round(image[1] / image[0] * size[0])
-    return round(image[0] / image[1] * size[1]), size[1]
 
 
 def compose_canvas(picture_path: Path, cfg: RenderConfig, out_path: Path) -> None:

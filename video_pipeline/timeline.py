@@ -716,6 +716,32 @@ def qa_target_on_canvas(target: dict, cfg: RenderConfig) -> Point:
     )
 
 
+def contain_size(image: tuple[int, int], size: tuple[int, int]) -> tuple[int, int]:
+    """The size `ImageOps.contain(image, size)` resizes to (Pillow's arithmetic, so the still
+    canvas stays byte-identical)."""
+    im_ratio = image[0] / image[1]
+    dest_ratio = size[0] / size[1]
+    if im_ratio == dest_ratio:
+        return size
+    if im_ratio > dest_ratio:
+        return size[0], round(image[1] / image[0] * size[0])
+    return round(image[0] / image[1] * size[1]), size[1]
+
+
+def grounded_target_on_canvas(
+    target: dict, picture_size: tuple[int, int], cfg: RenderConfig
+) -> Point:
+    """Map a grounded Q&A target (x, y in picture fractions) to canvas fractions, for a picture
+    drawn `contain`-fit and centred (spec 025). Equals `qa_target_on_canvas` for square pictures."""
+    front_w, front_h = contain_size(picture_size, (cfg.width, cfg.height))
+    left, top = (cfg.width - front_w) / 2, (cfg.height - front_h) / 2
+    return (
+        float(target["zoom"]),
+        (left + float(target["x"]) * front_w) / cfg.width,
+        (top + float(target["y"]) * front_h) / cfg.height,
+    )
+
+
 # --- sections -------------------------------------------------------------------------------
 
 
