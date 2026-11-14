@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from video_pipeline.library import BookFolder
-from video_pipeline.timeline import contain_size
+from video_pipeline.timeline import contain_size, page_section_name
 
 CONFIG_FILE = "camera.json"
 BANDS = ("top", "bottom")
@@ -120,3 +120,43 @@ def load_current(folder: BookFolder, page_number: int, picture_sha: str) -> tupl
     if data["picture"]["sha256"] != picture_sha:
         return None, f"stale camera file (picture changed) - {fix}"
     return data, ""
+
+
+def load_groundings(
+    folder: BookFolder,
+    script: dict,
+    by_section: dict[str, str],
+    picture_sha: dict[str, str],
+) -> tuple[dict[str, dict], list[tuple[str, str]]]:
+    """{section name: current camera file} for story pages, plus ("page NN", note) log lines for
+    pages that fall back to the guessed target (AC-3.2). `by_section` maps a section name to its
+    logical picture id and `picture_sha` is keyed by that id. A book with no `camera` folder
+    renders as before and logs nothing."""
+    found: dict[str, dict] = {}
+    notes: list[tuple[str, str]] = []
+    folder_exists = (folder.folder / "camera").is_dir()
+    for page in script["pages"]:
+        number = int(page["page_number"])
+        name = page_section_name(number)
+        sha = picture_sha.get(by_section.get(name, ""))
+        if sha is None:
+            continue
+        data, reason = load_current(folder, number, sha)
+        if data is None:
+            if folder_exists:
+                notes.append(
+                    (
+                        f"page {number:02d}",
+                        f"camera: guessed target and bottom captions - {reason}",
+                    )
+                )
+            continue
+        found[name] = data
+        if data.get("status", "ok") != "ok":  # failed grounding: page_section ignores its target
+            notes.append(
+                (
+                    f"page {number:02d}",
+                    f"camera: guessed target - grounding failed: {data.get('reason', '')}",
+                )
+            )
+    return found, notes

@@ -88,3 +88,31 @@ def test_load_current_reasons(tmp_path, folder_factory):
     folder = folder_factory(tmp_path)
     data, reason = cg.load_current(folder, 2, "sha")
     assert data is None and "ground_camera" in reason
+
+
+def _write_camera(folder, n, sha, **extra):
+    import json
+
+    path = cg.camera_path(folder, n)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {"picture": {"sha256": sha, "width": 10, "height": 10}, "band": "top", **extra}
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_load_groundings(tmp_path, folder_factory):
+    folder = folder_factory(tmp_path)
+    script = {"pages": [{"page_number": n} for n in (1, 2, 3, 4)]}
+    by_section = {f"page-{n:02d}": f"page_{n:02d}" for n in (1, 2, 3, 4)}
+    shas = {f"page_{n:02d}": f"sha{n}" for n in (1, 2, 3, 4)}
+    # No camera folder: nothing found, nothing logged (AC-3.5).
+    assert cg.load_groundings(folder, script, by_section, shas) == ({}, [])
+    _write_camera(folder, 1, "sha1", status="ok")  # current
+    _write_camera(folder, 3, "old")  # stale
+    _write_camera(folder, 4, "sha4", status="failed", reason="empty mask")  # failed
+    found, notes = cg.load_groundings(folder, script, by_section, shas)
+    assert set(found) == {"page-01", "page-04"}
+    by_page = dict(notes)
+    assert set(by_page) == {"page 02", "page 03", "page 04"}
+    assert "no camera file" in by_page["page 02"]
+    assert "stale" in by_page["page 03"]
+    assert "empty mask" in by_page["page 04"]

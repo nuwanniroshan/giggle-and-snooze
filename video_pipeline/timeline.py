@@ -754,6 +754,7 @@ class Section:
     track: str | None
     captions: list[CaptionCard] = field(default_factory=list)
     camera: Camera = field(default_factory=lambda: Camera("static", 1, CENTRE, CENTRE))
+    caption_band: str = "bottom"
 
 
 def _ceil_frames(seconds: float, fps: int) -> int:
@@ -791,9 +792,16 @@ def _track_frames(timing: dict, cfg: RenderConfig) -> int:
     return _ceil_frames(cfg.lead_in + float(timing["duration"]) + cfg.hold, cfg.fps)
 
 
-def page_section(page: dict, timing: dict, cfg: RenderConfig, picture: str) -> Section:
+def page_section(
+    page: dict,
+    timing: dict,
+    cfg: RenderConfig,
+    picture: str,
+    grounding: dict | None = None,
+) -> Section:
     """One story page's section from its script page and its track's timing alone: the same
-    section `build_sections` makes for it (spec 010 FR-15, the page preview)."""
+    section `build_sections` makes for it (spec 010 FR-15, the page preview). A current camera
+    file (`grounding`, spec 025) sets the caption band and, when ok, the Q&A target."""
     name = page_section_name(int(page["page_number"]))
     frames = _track_frames(timing, cfg)
     camera_cfg = page.get("ffmpeg_camera", {})
@@ -802,9 +810,21 @@ def page_section(page: dict, timing: dict, cfg: RenderConfig, picture: str) -> S
     qa_line = next((line for line in timing["lines"] if line.get("role") != "narration"), None)
     target = camera_cfg.get("qa_zoom_target")
     qa_frame = qa_target = None
-    if qa_line is not None and target:
-        qa_frame = round((cfg.lead_in + float(qa_line["start"])) * cfg.fps)
-        qa_target = qa_target_on_canvas(target, cfg)
+    band = "bottom"
+    grounded = grounding if grounding and grounding.get("band") in ("top", "bottom") else None
+    if grounded:
+        band = grounded["band"]
+    if qa_line is not None:
+        if grounded and grounded.get("status") == "ok" and grounded.get("target"):
+            qa_target = grounded_target_on_canvas(
+                grounded["target"],
+                (grounded["picture"]["width"], grounded["picture"]["height"]),
+                cfg,
+            )
+        elif target:
+            qa_target = qa_target_on_canvas(target, cfg)
+        if qa_target is not None:
+            qa_frame = round((cfg.lead_in + float(qa_line["start"])) * cfg.fps)
     return Section(
         name,
         "page",
@@ -821,6 +841,7 @@ def page_section(page: dict, timing: dict, cfg: RenderConfig, picture: str) -> S
             qa_target,
             round(cfg.motion.qa_ease * cfg.fps) if qa_frame is not None else 0,
         ),
+        caption_band=band,
     )
 
 
@@ -829,11 +850,13 @@ def build_sections(
     timings: dict[str, dict],
     cfg: RenderConfig,
     pictures: dict[str, str] | None = None,
+    groundings: dict[str, dict] | None = None,
 ) -> list[Section]:
     """Sections in order: intro, pages by page number, back-cover beat, outro.
 
     `timings` maps track name (`intro`, `page-PP`, `outro`) to its timing JSON; `pictures` maps a
     section name to its logical picture id (defaults: front cover, `page_PP`, back cover).
+    `groundings` maps `page-PP` to a current camera file (spec 025).
     """
     chosen = default_pictures(script) | dict(pictures or {})
 
@@ -861,7 +884,11 @@ def build_sections(
     )
     for page in sorted(script["pages"], key=lambda p: int(p["page_number"])):
         name = page_section_name(int(page["page_number"]))
-        sections.append(page_section(page, timing(name), cfg, chosen[name]))
+        sections.append(
+            page_section(
+                page, timing(name), cfg, chosen[name], grounding=(groundings or {}).get(name)
+            )
+        )
     frames = round(cfg.back_cover_seconds * cfg.fps)
     sections.append(
         Section(
@@ -967,6 +994,7 @@ def section_key(section: Section, picture_sha: str, cfg: RenderConfig) -> str:
             "frames": section.frames,
             "captions": [asdict(card) for card in section.captions],
             "camera": asdict(section.camera),
+            **({"caption_band": section.caption_band} if section.caption_band != "bottom" else {}),
             "backdrop": asdict(cfg.backdrop),
             "caption_style": asdict(cfg.captions),
             "caption_fonts": [

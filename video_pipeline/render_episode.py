@@ -34,8 +34,8 @@ import numpy as np
 import soundfile as sf
 from PIL import Image, UnidentifiedImageError
 
+from video_pipeline import camera_ground, sound_library, timeline
 from video_pipeline import channel_blend as blend
-from video_pipeline import sound_library, timeline
 from video_pipeline.animate import (
     AnimationError,
     PageAnimation,
@@ -726,7 +726,7 @@ def _render_captions(section: Section, work: Path, cfg: RenderConfig) -> list[Pa
     captions = []
     for number, card in enumerate(section.captions):
         path = work / f"caption_{number:03d}.png"
-        render_caption(card.text, cfg, path)
+        render_caption(card.text, cfg, path, band=section.caption_band)
         captions.append(path)
     return captions
 
@@ -898,13 +898,16 @@ def _load_inputs(folder: BookFolder, root: Path) -> _Inputs:
     for path in pictures.files.values():
         _check_picture(path)
     picture_sha = {pid: sha256_file(path) for pid, path in pictures.files.items()}
+    groundings, camera_notes = camera_ground.load_groundings(
+        folder, script, pictures.by_section, picture_sha
+    )
     try:
-        sections = build_sections(script, timings, cfg, pictures.by_section)
+        sections = build_sections(script, timings, cfg, pictures.by_section, groundings)
     except ValueError as exc:
         raise RenderError(str(exc)) from None
     _check_overrides(script, cfg)
     eligibility, still_notes = _page_eligibility(folder, book, script, cfg, Path(root))
-    still_notes = cover_notes + still_notes
+    still_notes = cover_notes + camera_notes + still_notes
     keys, still_keys = [], []
     for s in sections:
         key = section_key(s, picture_sha[s.picture], cfg)
@@ -1808,11 +1811,15 @@ def render_preview(
     picture = _page_picture(folder, book_page)
     _check_picture(picture)
     _check_overrides(script, cfg)
+    sha = sha256_file(picture)
+    grounding, _reason = camera_ground.load_current(folder, page, sha)
     try:
-        section = timeline.page_section(script_page, timings[name], cfg, f"page_{page:02d}")
+        section = timeline.page_section(
+            script_page, timings[name], cfg, f"page_{page:02d}", grounding=grounding
+        )
     except (KeyError, TypeError, ValueError) as exc:
         raise RenderError(f"unusable track timing for {name}: {exc}") from None
-    still_key = section_key(section, sha256_file(picture), cfg)
+    still_key = section_key(section, sha, cfg)
     el = page_eligibility(folder, book_page, script_page, cfg.animation, root)
     key = animated_key(still_key, el, cfg.animation) if el.animated else still_key
 

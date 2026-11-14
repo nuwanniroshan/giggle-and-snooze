@@ -111,9 +111,10 @@ def _text_block(lines: list[str], font) -> tuple[int, int, int]:
     return width, ascent + descent, round(font.size * _LINE_GAP)
 
 
-def render_caption(text: str, cfg: RenderConfig, out_path: Path) -> None:
+def render_caption(text: str, cfg: RenderConfig, out_path: Path, band: str = "bottom") -> None:
     """Write a transparent RGBA W×H caption: white centred lines on a black translucent rounded
-    band, `margin` above the bottom edge (AC-4.4).
+    band, `margin` above the bottom edge (AC-4.4), or `margin` below the top edge when
+    `band="top"` (spec 025).
 
     Lines come from `timeline.wrap_lines`; more than `max_lines` is a ValueError (cards are split
     upstream). If the block would be wider than the frame allows (an over-long word), the font is
@@ -139,10 +140,10 @@ def render_caption(text: str, cfg: RenderConfig, out_path: Path) -> None:
 
     band_w, band_h = width + 2 * style.padding, block_h + 2 * style.padding
     x0 = (cfg.width - band_w) // 2
-    y1 = cfg.height - style.margin
-    y0 = y1 - band_h
-    band = Image.new("RGBA", (cfg.width, cfg.height), (0, 0, 0, 0))
-    ImageDraw.Draw(band).rounded_rectangle(
+    y0 = style.margin if band == "top" else cfg.height - style.margin - band_h
+    y1 = y0 + band_h
+    plate = Image.new("RGBA", (cfg.width, cfg.height), (0, 0, 0, 0))
+    ImageDraw.Draw(plate).rounded_rectangle(
         (x0, y0, x0 + band_w - 1, y1 - 1),
         radius=style.padding,
         fill=(0, 0, 0, round(style.band_opacity * 255)),
@@ -154,7 +155,7 @@ def render_caption(text: str, cfg: RenderConfig, out_path: Path) -> None:
         line_w = font.getlength(line)
         draw.text((round((cfg.width - line_w) / 2), y), line, font=font, fill=(255, 255, 255, 255))
         y += line_h + gap
-    _save_png_atomic(Image.alpha_composite(band, layer), out_path)
+    _save_png_atomic(Image.alpha_composite(plate, layer), out_path)
 
 
 # --- page-turn sound ------------------------------------------------------------------------
