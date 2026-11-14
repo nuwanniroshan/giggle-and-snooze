@@ -195,6 +195,47 @@ def test_existing_script_without_emotions_is_byte_identical():  # AC-2.3: old sc
     assert "emotion" not in json.dumps(script)
 
 
+def test_narration_tag_limits_from_config(tmp_path):  # spec 028 FR-3
+    from video_pipeline.emotions import NarrationLimits
+
+    assert load_emotions(CONFIG_DIR).narration == NarrationLimits(
+        per_page_max=1, per_book_ratio=0.5
+    )
+    config = _config(
+        tmp_path, lambda d: d.update(narration_tags={"per_page_max": 2, "per_book_ratio": 1})
+    )
+    limits = load_emotions(config).narration
+    assert (limits.per_page_max, limits.per_book_ratio, limits.book_max(5)) == (2, 1.0, 5)
+    assert NarrationLimits(per_page_max=1, per_book_ratio=0.5).book_max(5) == 3  # rounded up
+
+
+def test_narration_tag_limits_are_optional(tmp_path):  # spec 028: older configs keep working
+    config = _config(tmp_path, lambda d: d.pop("narration_tags", None))
+    assert load_emotions(config).narration is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("per_page_max", 0), ("per_book_ratio", 2), ("per_book_ratio", 0)],
+)
+def test_bad_narration_tag_limits_name_the_field(tmp_path, field, value):  # spec 028
+    def mutate(data):
+        data["narration_tags"] = {"per_page_max": 1, "per_book_ratio": 0.5, field: value}
+
+    with pytest.raises(ConfigError) as exc:
+        load_emotions(_config(tmp_path, mutate))
+    assert f"narration_tags.{field}" in str(exc.value)
+
+
+def test_unknown_narration_tag_key_is_refused(tmp_path):
+    config = _config(
+        tmp_path,
+        lambda d: d.update(narration_tags={"per_page_max": 1, "per_book_ratio": 0.5, "x": 1}),
+    )
+    with pytest.raises(ConfigError, match="narration_tags"):
+        load_emotions(config)
+
+
 def test_config_copy_used_by_test_roots_has_emotions(tmp_path):
     shutil.copytree(CONFIG_DIR, tmp_path / "config")
     assert load_emotions(tmp_path / "config").names == load_emotions(CONFIG_DIR).names
