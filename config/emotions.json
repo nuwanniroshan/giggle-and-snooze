@@ -9,5 +9,6 @@
     "sleepy":    {"speed": 0.88, "semitones": -1,   "gain_db": -3},
     "whisper":   {"speed": 0.92, "semitones": 0,    "gain_db": -7}
   },
-  "generation": {"tags_per_moment_min": 1, "tags_per_moment_max": 2, "feelings_per_moment_min": 1}
+  "generation": {"tags_per_moment_min": 1, "tags_per_moment_max": 2, "feelings_per_moment_min": 1},
+  "narration_tags": {"per_page_max": 1, "per_book_ratio": 0.5}
 }

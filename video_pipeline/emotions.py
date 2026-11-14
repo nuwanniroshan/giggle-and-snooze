@@ -5,6 +5,7 @@ sound-tag and feeling counts generated banter must meet. Read from `config/emoti
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -45,11 +46,26 @@ class Generation(BaseModel):
         return self
 
 
-class EmotionSettings(BaseModel):
+class NarrationLimits(BaseModel):
+    """Narration sound-tag limits for newly generated banter (spec 028)."""
+
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+    per_page_max: int = Field(ge=1, le=3)
+    per_book_ratio: float = Field(gt=0, le=1)
+
+    def book_max(self, pages: int) -> int:
+        """The most narration tags a book of `pages` story pages may get (rounded up)."""
+        return math.ceil(self.per_book_ratio * pages)
+
+
+class EmotionSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
     feelings: dict[str, Feeling]
     generation: Generation
+    # spec 028: JSON key `narration_tags`; a config without it places no narration tags
+    narration: NarrationLimits | None = Field(default=None, alias="narration_tags")
 
     @model_validator(mode="after")
     def _neutral_changes_nothing(self) -> EmotionSettings:

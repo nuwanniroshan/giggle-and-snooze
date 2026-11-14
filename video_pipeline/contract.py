@@ -80,12 +80,24 @@ class Moment(BaseModel):
     lines: list[BanterLine] = Field(min_length=2, max_length=5)
 
 
+class NarrationTag(BaseModel):
+    """A sound tag the writer wants on a narration sentence (spec 028)."""
+
+    page_number: int
+    sentence: int = Field(ge=1)
+    position: Literal["start", "end"]
+    # a plain string so a bad tag is refused naming the entry (checked against ALLOWED_TAGS)
+    tag: str
+
+
 class Banter(BaseModel):
-    """What the text model returns: every spoken line that is not read from the book."""
+    """What the text model returns: every spoken line that is not read from the book, plus
+    optional sound tags to place on narration sentences (spec 028; absent means none)."""
 
     intro: list[BanterLine] = Field(min_length=2, max_length=4)
     moments: list[Moment]
     outro: list[BanterLine] = Field(min_length=3, max_length=5)
+    narration_tags: list[NarrationTag] = Field(default_factory=list)
 
 
 def parse_banter(raw: str) -> Banter:

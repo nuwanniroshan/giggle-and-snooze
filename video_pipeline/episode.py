@@ -33,7 +33,7 @@ from video_pipeline.timeline import parse_grade
 
 if TYPE_CHECKING:
     from video_pipeline.blueprint import Ambience, Blueprint
-    from video_pipeline.emotions import Generation
+    from video_pipeline.emotions import Generation, NarrationLimits
 
 MIN_PAGES = 5
 MAX_PAGES = 32
@@ -118,10 +118,26 @@ def load_book(path: Path) -> dict:
     return book
 
 
-def split_narration(text: str) -> list[str]:
+def _decorate(sentence: str, number: int, decorations: dict[tuple[int, str], str]) -> str:
+    """`sentence` (numbered from 1) with its spec 028 start/end tags added, if any."""
+    start, end = decorations.get((number, "start")), decorations.get((number, "end"))
+    if start:
+        sentence = f"{start} {sentence}"
+    if end:
+        sentence = f"{sentence} {end}"
+    return sentence
+
+
+def split_narration(text: str, decorations: dict[tuple[int, str], str] | None = None) -> list[str]:
+    """The page text as narration lines; `decorations` {(sentence, position): "<tag>"} adds
+    sound tags at sentence edges first (spec 028). Grouping counts words without tags, so the
+    line breaks are those of the plain text."""
     lines: list[str] = []
     current: list[str] = []
-    for sentence in split_sentences(text):
+    sentences = split_sentences(text)
+    if decorations:
+        sentences = [_decorate(s, i, decorations) for i, s in enumerate(sentences, start=1)]
+    for sentence in sentences:
         candidate = [*current, sentence]
         too_big = (
             len(candidate) > MAX_NARRATION_SENTENCES
@@ -228,12 +244,13 @@ def assemble_script(
 ) -> dict:
     title = book["metadata"]["title"]
     moments = {moment.page_number: moment for moment in banter.moments}
+    decorations = valid_decorations(banter, book)
     pages = []
     for page in book["pages"]:
         number = page["page_number"]
         lines = [
             {"speaker": "storyteller", "role": "narration", "text": text}
-            for text in split_narration(page["text"])
+            for text in split_narration(page["text"], decorations.get(number))
         ]
         entry = {
             "page_number": number,
@@ -325,3 +342,115 @@ def banter_feeling_errors(banter: Banter, plan: EpisodePlan, gen: Generation) ->
                 "neutral that fits the moment"
             )
     return errors
+
+
+# --- spec 028: narration sound tags --------------------------------------------------------------
+
+POSITIONS = ("start", "end")
+
+
+def _quote_open_after(sentences: list[str], count: int) -> bool:
+    """True when a quotation is still open after the first `count` sentences: a straight `"`
+    toggles, a curly `“` opens and `”` closes."""
+    opened = False
+    for ch in " ".join(sentences[:count]):
+        if ch == '"':
+            opened = not opened
+        elif ch == "“":
+            opened = True
+        elif ch == "”":
+            opened = False
+    return opened
+
+
+def _has_edge_tag(sentence: str, position: str) -> bool:
+    """True when the sentence already begins (`start`) or ends (`end`) with a tag."""
+    words = sentence.split(" ")
+    return bool(TAG_RE.fullmatch(words[0] if position == "start" else words[-1]))
+
+
+def _entry(raw: object) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    dump = getattr(raw, "model_dump", None)
+    return dump() if callable(dump) else {}
+
+
+def _tag_entry_problems(entry: dict, pages: dict[int, list[str]]) -> list[str]:
+    """Why one narration-tag entry cannot be placed (limits and duplicates aside)."""
+    problems: list[str] = []
+    number, sentence = entry.get("page_number"), entry.get("sentence")
+    position, name = entry.get("position"), entry.get("tag")
+    if name not in ALLOWED_TAGS:
+        problems.append(f"tag {name!r} is not one of {', '.join(ALLOWED_TAGS)}")
+    if position not in POSITIONS:
+        problems.append(f"position {position!r} must be start or end")
+    is_int = isinstance(number, int) and not isinstance(number, bool)
+    sentences = pages.get(number) if is_int else None
+    if sentences is None:
+        return [*problems, f"page {number!r} is not a story page of the book"]
+    if isinstance(sentence, bool) or not isinstance(sentence, int):
+        return [*problems, f"sentence must be a number from 1 to {len(sentences)}"]
+    if not 1 <= sentence <= len(sentences):
+        return [*problems, f"sentence must be 1-{len(sentences)} on page {number}"]
+    if position not in POSITIONS:
+        return problems
+    text = sentences[sentence - 1]
+    if _quote_open_after(sentences, sentence - 1 if position == "start" else sentence):
+        problems.append(f"the {position} of this sentence is inside a quotation")
+    if _has_edge_tag(text, position):
+        problems.append(f"the {position} of this sentence already carries a tag")
+    return problems
+
+
+def _book_sentences(book: dict) -> dict[int, list[str]]:
+    return {int(page["page_number"]): split_sentences(page["text"]) for page in book["pages"]}
+
+
+def narration_tag_errors(tags_list: list, book: dict, limits: NarrationLimits) -> list[str]:
+    """Every problem with the writer's `narration_tags` against the book and the generation
+    limits (spec 028 FR-3, FR-5); [] means every entry can be placed. Entries are dicts or
+    `NarrationTag`s. Only newly generated banter is held to this, never saved scripts."""
+    pages = _book_sentences(book)
+    errors: list[str] = []
+    seen: set[tuple[int, int, str]] = set()
+    per_page: dict[int, int] = {}
+    for i, raw in enumerate(tags_list, start=1):
+        entry = _entry(raw)
+        number, sentence = entry.get("page_number"), entry.get("sentence")
+        where = f"narration tag {i} (page {number}, sentence {sentence})"
+        problems = _tag_entry_problems(entry, pages)
+        errors += [f"{where}: {problem}" for problem in problems]
+        if isinstance(number, int) and not isinstance(number, bool) and number in pages:
+            per_page[number] = per_page.get(number, 0) + 1
+        key = (number, sentence, entry.get("position"))
+        if not problems and key in seen:
+            errors.append(f"{where}: duplicate of an earlier entry at the same position")
+        if not problems:
+            seen.add(key)
+    errors += [
+        f"page {number}: {count} narration tags (at most {limits.per_page_max} per page)"
+        for number, count in sorted(per_page.items())
+        if count > limits.per_page_max
+    ]
+    total, cap = len(tags_list), limits.book_max(len(pages))
+    if total > cap:
+        errors.append(
+            f"{total} narration tags (at most {cap} for {len(pages)} pages: about one per "
+            "two pages)"
+        )
+    return errors
+
+
+def valid_decorations(banter: Banter, book: dict) -> dict[int, dict[tuple[int, str], str]]:
+    """The narration tags that can be placed, per page: {page: {(sentence, position): "<tag>"}}.
+
+    Entries that fail a check are left out (`narration_tag_errors` reports them), so assembly
+    never fails on a bad entry; the first of two entries at one position wins."""
+    pages = _book_sentences(book)
+    out: dict[int, dict[tuple[int, str], str]] = {}
+    for tag in banter.narration_tags:
+        if _tag_entry_problems(tag.model_dump(), pages):
+            continue
+        out.setdefault(tag.page_number, {}).setdefault((tag.sentence, tag.position), f"<{tag.tag}>")
+    return out
