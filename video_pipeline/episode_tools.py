@@ -27,6 +27,7 @@ from video_pipeline.episode import (
     banter_feeling_errors,
     banter_plan_errors,
     load_book,
+    narration_tag_errors,
     plan_episode,
 )
 from video_pipeline.library import BookFolder
@@ -123,6 +124,10 @@ class EpisodeTools:
         errors = banter_plan_errors(parsed, self.plan)
         if self.emotions is not None:
             errors += banter_feeling_errors(parsed, self.plan, self.emotions.generation)
+        if self.emotions is not None and self.emotions.narration is not None:
+            errors += narration_tag_errors(
+                parsed.narration_tags, self.book, self.emotions.narration
+            )
         errors += validate_script(script, self.book, self.terms, allowed, self.feeling_names)
         return (None, errors) if errors else (script, [])
 

@@ -128,3 +128,94 @@ def test_interrupted_write_keeps_previous_file(monkeypatch, tmp_path):  # Reliab
         write_atomic(target, {"new": True})
     assert target.read_text(encoding="utf-8") == "previous"
     assert list(tmp_path.iterdir()) == [target]
+
+
+# --- spec 028: narration tags in generated banter -----------------------------------------------
+
+
+def _tag(page, sentence, position="start", name="gasp"):
+    return {"page_number": page, "sentence": sentence, "position": position, "tag": name}
+
+
+def _tagged_banter(tools, *tags) -> dict:
+    return {**valid_banter(tools), "narration_tags": list(tags)}
+
+
+def _narration(script, page) -> list[str]:
+    entry = next(p for p in script["pages"] if p["page_number"] == page)
+    return [line["text"] for line in entry["lines"] if line["role"] == "narration"]
+
+
+def test_check_places_a_valid_narration_tag(tmp_path):  # AC-1.1, AC-1.3
+    from video_pipeline.contract import strip_tags
+
+    tools = make_tools(tmp_path)
+    script, errors = tools.check(_tagged_banter(tools, _tag(1, 2, "start", "gasp")))
+    assert errors == [] and script is not None
+    lines = _narration(script, 1)
+    assert any("<gasp>" in line for line in lines)
+    text = tools.book["pages"][0]["text"]
+    assert strip_tags(" ".join(lines)).split() == text.split()
+
+
+def test_check_refuses_two_tags_on_a_page(tmp_path):  # AC-2.1, AC-2.4
+    tools = make_tools(tmp_path)
+    script, errors = tools.check(_tagged_banter(tools, _tag(1, 1, "end"), _tag(1, 2, "end")))
+    assert script is None
+    assert any("page 1" in e and "narration tags" in e for e in errors)
+
+
+def test_check_refuses_more_tags_than_the_book_allows(tmp_path):  # AC-2.2
+    tools = make_tools(tmp_path)
+    tags = [_tag(n, 1, "end") for n in range(1, 6)]  # 8 pages: at most 4
+    script, errors = tools.check(_tagged_banter(tools, *tags))
+    assert script is None
+    assert any("5 narration tags" in e and "at most 4" in e for e in errors)
+
+
+def test_check_lists_narration_and_other_problems_together(tmp_path):  # AC-2.4
+    tools = make_tools(tmp_path)
+    banter = _tagged_banter(tools, _tag(1, 1, "end"), _tag(1, 2, "end"))
+    banter["moments"] = banter["moments"][:-1]
+    script, errors = tools.check(banter)
+    assert script is None
+    assert any("narration tags" in e for e in errors)
+    assert any("narration tags" not in e for e in errors)
+
+
+def test_validate_script_does_not_enforce_the_generation_limits(tmp_path):  # AC-3.2
+    tools = make_tools(tmp_path)
+    script, errors = tools.check(valid_banter(tools))
+    assert errors == []
+    page = next(p for p in script["pages"] if p["page_number"] == 3)
+    for line in page["lines"]:
+        if line["role"] == "narration":
+            line["text"] = "<gasp> " + line["text"] + " <sigh> <yawn>"
+    terms = tools.terms
+    assert validate_script(script, tools.book, terms, None, tools.feeling_names) == []
+
+
+def test_without_narration_limits_tags_add_no_limit_errors(tmp_path):  # FR-6
+    tools = make_tools(tmp_path)
+    tools.emotions = tools.emotions.model_copy(update={"narration": None})
+    tags = [_tag(1, 1, "end"), _tag(1, 2, "end"), _tag(99, 1), _tag(2, 50)]
+    script, errors = tools.check(_tagged_banter(tools, *tags))
+    assert errors == [] and script is not None
+    # the two valid page-1 entries are still placed; the invalid ones are skipped
+    assert sum("<" in line for line in _narration(script, 1)) >= 1
+    assert all("<" not in line for line in _narration(script, 2))
+
+
+def test_get_episode_plan_schema_lists_narration_tags(tmp_path):  # AC-4.1
+    plan = make_tools(tmp_path).get_episode_plan()
+    assert "narration_tags" in plan["banter_schema"]["properties"]
+
+
+def test_save_refuses_over_limit_narration_tags_and_accepts_valid(tmp_path):  # AC-4.1
+    tools = make_tools(tmp_path)
+    refused = tools.save_episode_script(_tagged_banter(tools, _tag(1, 1, "end"), _tag(1, 2, "end")))
+    assert refused["saved"] is False and any("narration tags" in e for e in refused["errors"])
+    assert not tools.out.exists()
+    saved = tools.save_episode_script(_tagged_banter(tools, _tag(1, 2, "start", "gasp")))
+    assert saved["saved"] is True
+    assert any("<gasp>" in line for line in _narration(load_json(tools.out), 1))

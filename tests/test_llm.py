@@ -116,3 +116,53 @@ def test_build_brief_is_the_prompt_without_reply_format():
     prompt = build_prompt(book, cast, plan)
     assert prompt.startswith(brief)
     assert "Reply with JSON only" in prompt and '"title": "Banter"' in prompt
+
+
+# --- spec 028: the NARRATION TAGS block ---------------------------------------------------------
+
+
+def _narration_feelings(**limits):
+    from video_pipeline.emotions import load_emotions
+    from video_pipeline.episode_tools import CONFIG_DIR
+
+    settings = load_emotions(CONFIG_DIR)
+    if limits:
+        from video_pipeline.emotions import NarrationLimits
+
+        settings = settings.model_copy(update={"narration": NarrationLimits(**limits)})
+    return settings
+
+
+def test_brief_with_narration_limits_has_the_narration_block():  # AC-1.6
+    book = load_json(MINI_BOOK)
+    plan = plan_episode(book, 7)
+    brief = build_brief(book, load_json(CAST_PATH), plan, feelings=_narration_feelings())
+    assert "NARRATION TAGS" in brief
+    block = brief.split("NARRATION TAGS", 1)[1].split("RULES", 1)[0]
+    assert "At most 1 per page and at most 4 in this book (8 pages)" in block
+    assert '"narration_tags"' in block and '"page_number": N' in block
+    assert '"position": "start" or "end"' in block
+    assert "giggle, laugh, chuckle, gasp, sigh, yawn" in block and "no angle brackets" in block
+    assert "Never inside a quotation" in block
+    assert "this story calls for them" in block and "every book" in block
+    assert "never add a yawn at the end just because it is bedtime" in block
+    assert "<giggle>" not in block and "<yawn>" not in block
+
+
+def test_brief_without_narration_limits_is_unchanged():  # FR-6
+    book = load_json(MINI_BOOK)
+    plan = plan_episode(book, 7)
+    settings = _narration_feelings().model_copy(update={"narration": None})
+    brief = build_brief(book, load_json(CAST_PATH), plan, feelings=settings)
+    assert "NARRATION TAGS" not in brief and "narration_tags" not in brief
+    from video_pipeline.llm import _narration_block
+
+    full = _narration_feelings()
+    with_block = build_brief(book, load_json(CAST_PATH), plan, feelings=full)
+    assert with_block.replace(_narration_block(full.narration, 8), "") == brief
+
+
+def test_gemini_prompt_carries_the_narration_tags_schema():  # AC-4.2
+    book = load_json(MINI_BOOK)
+    prompt = build_prompt(book, load_json(CAST_PATH), plan_episode(book, 7))
+    assert "narration_tags" in prompt

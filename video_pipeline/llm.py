@@ -13,7 +13,7 @@ from video_pipeline.episode import EpisodePlan
 
 if TYPE_CHECKING:
     from video_pipeline.blueprint import Blueprint
-    from video_pipeline.emotions import EmotionSettings
+    from video_pipeline.emotions import EmotionSettings, NarrationLimits
 
 CLOUD_MODEL = "gemini-2.5-flash"
 GEMINI_KEY_ENV = "GEMINI_API_KEY"
@@ -82,6 +82,22 @@ least {need} line(s) with a feeling other than neutral that fits what is happeni
 """
 
 
+def _narration_block(limits: NarrationLimits, pages: int) -> str:
+    return f"""
+NARRATION TAGS
+- The Storyteller reads the book text word for word, but you may add a few sound tags to the \
+narration so it sounds alive. Put them in the optional "narration_tags" list: each entry is \
+{{"page_number": N, "sentence": S, "position": "start" or "end", "tag": "gasp"}}, where S counts \
+the sentences of that page's TEXT from 1 and the tag is one of giggle, laugh, chuckle, gasp, \
+sigh, yawn (write the name only, no angle brackets).
+- Use them only where this story calls for them: a gasp at a surprise, a sigh of relief, a \
+yawn where a character is truly sleepy. Do not repeat a pattern you would use in every book, and \
+never add a yawn at the end just because it is bedtime.
+- At most {limits.per_page_max} per page and at most {limits.book_max(pages)} in this book \
+({pages} pages). Never inside a quotation. No tags at all is fine for a page that needs none.
+"""
+
+
 def build_brief(
     book: dict,
     cast: dict,
@@ -113,6 +129,8 @@ def build_brief(
     direction = "" if blueprint is None else _direction_block(blueprint)
     if feelings is not None:
         direction += _feelings_block(feelings, len(plan.qa_speakers))
+    if feelings is not None and feelings.narration is not None:
+        direction += _narration_block(feelings.narration, len(book["pages"]))
     tags_hint = "" if feelings is None else " Use them where they fit."
     return f"""You write the spoken banter for a cozy read-aloud storytime video of the children's \
 book "{title}" ({meta.get("age_range", "young children")}). The Storyteller reads every page \
