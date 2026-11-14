@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import BookFolder
 from video_pipeline.timeline import contain_size, page_section_name
 
@@ -160,3 +161,94 @@ def load_groundings(
                 )
             )
     return found, notes
+
+
+MAX_PHRASE = 80
+MAX_SAVES = 3
+
+
+def subject_problems(
+    subject: object, layer_names: list[str], picture_size: tuple[int, int]
+) -> list[str]:
+    """Every reason a named subject is refused (empty list: accepted)."""
+    if not isinstance(subject, dict):
+        return ["subject must be an object with `layer`, or `phrase` and `box`"]
+    layer, phrase, box = subject.get("layer"), subject.get("phrase"), subject.get("box")
+    if layer is not None:
+        if phrase is not None or box is not None:
+            return ["give either `layer`, or `phrase` and `box`, not both"]
+        if layer in layer_names:
+            return []
+        return [f"layer {layer!r} is not one of: {', '.join(layer_names) or '(none)'}"]
+    errors: list[str] = []
+    if not isinstance(phrase, str) or not phrase.strip() or len(phrase) > MAX_PHRASE:
+        errors.append(f"phrase must be 1-{MAX_PHRASE} characters")
+    w, h = picture_size
+    ok = (
+        isinstance(box, list)
+        and len(box) == 4
+        and all(isinstance(v, int) and not isinstance(v, bool) for v in box)
+        and 0 <= box[0] < box[2] <= w
+        and 0 <= box[1] < box[3] <= h
+    )
+    if not ok:
+        errors.append(
+            f"box must be [x0, y0, x1, y1] integers inside the {w}x{h} picture, x0<x1, y0<y1"
+        )
+    return errors
+
+
+@dataclass
+class SubjectTools:
+    """The validating save tool Codex calls to name a page's Q&A subject."""
+
+    layer_names: list[str]
+    picture_size: tuple[int, int]
+    out: Path
+    saves: int = 0
+
+    def save_camera_subject(self, subject: object) -> dict:
+        self.saves += 1
+        if self.saves > MAX_SAVES:
+            return {"saved": False, "errors": [f"at most {MAX_SAVES} saves"]}
+        errors = subject_problems(subject, self.layer_names, self.picture_size)
+        if errors:
+            return {"saved": False, "errors": errors}
+        write_atomic(self.out, subject)  # type: ignore[arg-type]
+        return {"saved": True, "errors": []}
+
+
+def subject_prompt(
+    page: dict,
+    layer_names_with_descriptions: list[tuple[str, str]],
+    picture_size: tuple[int, int],
+) -> str:
+    """The Codex request for one page's Q&A subject (pure)."""
+    qa = [
+        f"- {line.get('speaker', '')}: {line['text']}"
+        for line in page.get("lines", [])
+        if line.get("role") != "narration"
+    ]
+    layers = [f"- {name}: {desc}" for name, desc in layer_names_with_descriptions]
+    w, h = picture_size
+    grounding = page.get("qa_grounding") or "(none)"
+    return "\n".join(
+        [
+            "The attached picture is a page of a children's book. Two kids ask questions about it.",
+            "",
+            "The kids' questions and answers:",
+            *qa,
+            "",
+            f"What the question is about (from the script): {grounding}",
+            "",
+            f"Picture size: {w}x{h} pixels.",
+            "Layers of this picture (name: description):",
+            *(layers or ["- (none)"]),
+            "",
+            "Name the single thing the kids' question is about and save it with the "
+            "save_camera_subject tool. If it is one of the listed layers, save "
+            '{"layer": "<name>"}. Otherwise save {"phrase": "<2-6 words>", '
+            '"box": [x0, y0, x1, y1]} with the box in picture pixels around that thing.',
+            "Save at most 3 times. If a save is refused, fix every listed error and save again.",
+        ]
+    )
