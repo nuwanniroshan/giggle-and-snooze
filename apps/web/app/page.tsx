@@ -1,25 +1,55 @@
-import { BookGrid } from "@/components/book-grid";
-import { SetupNote } from "@/components/setup-note";
-import { Button } from "@/components/ui/button";
-import { listBooks } from "@/lib/books";
-import { site } from "@/lib/site";
+import type { Metadata } from "next";
 
-export default async function Home() {
-  const books = (await listBooks()).slice(0, 6);
+import { ProductsGrid } from "@/components/product/products-grid";
+import { Container } from "@/components/ui/container";
+import { Page } from "@/components/ui/page";
+import { Sections } from "@/components/ui/sections";
+import { shopConfig } from "@/lib/config";
+import { buildAlternates, buildOpenGraph } from "@/lib/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const title = "Home";
+  const description = shopConfig.site.description;
+  return {
+    title: `${title} | ${shopConfig.site.name}`,
+    description,
+    alternates: buildAlternates({ pathname: "/" }),
+    openGraph: buildOpenGraph({
+      title,
+      description,
+      url: "/",
+      type: "website",
+    }),
+  };
+}
+
+export default function HomePage() {
   return (
-    <div className="space-y-12">
-      <SetupNote />
-      <section className="space-y-4 rounded-3xl bg-secondary/60 px-6 py-12 md:px-12">
-        <h1 className="text-4xl font-semibold md:text-5xl">{site.tagline}</h1>
-        <p className="max-w-xl text-muted-foreground">
-          Illustrated bedtime stories. Read some free, buy your favourites, or join for the whole shelf.
-        </p>
-        <div className="flex gap-3">
-          <Button size="lg" render={<a href="/books" />}>Browse books</Button>
-          <Button size="lg" variant="outline" render={<a href="/membership" />}>Become a member</Button>
-        </div>
-      </section>
-      <BookGrid books={books} />
-    </div>
+    <Page className="pt-0">
+      <Sections>
+        <section className="grid grid-cols-1">
+          <div className="col-start-1 row-start-1 hidden md:block md:aspect-4/1" />
+          <div className="relative col-start-1 row-start-1 flex items-center justify-center px-5 py-10 lg:px-10">
+            <div className="flex flex-col items-center text-center gap-2.5">
+              <h1 className="text-3xl md:text-5xl max-w-3xl text-foreground">
+                {shopConfig.site.tagline}
+              </h1>
+              <p className="text-sm md:text-base max-w-xl text-foreground">
+                {shopConfig.site.description}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <Container>
+          <ProductsGrid
+            title="Latest books"
+            eagerCount={4}
+            limit={8}
+            collectionUrl="/collections/all"
+          />
+        </Container>
+      </Sections>
+    </Page>
   );
 }

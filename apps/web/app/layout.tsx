@@ -1,66 +1,71 @@
-import type { Metadata } from "next";
-import Link from "next/link";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
-import { site } from "@/lib/site";
 
-const description = "Illustrated bedtime stories to read, giggle at and fall asleep to.";
+import { Footer } from "@/components/footer";
+import { Nav } from "@/components/nav";
+import { SiteSchema } from "@/components/schema/site-schema";
+import { shopConfig } from "@/lib/config";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(site.url),
-  title: { default: `${site.name}: ${site.tagline}`, template: `%s | ${site.name}` },
-  description,
-  openGraph: {
-    type: "website",
-    siteName: site.name,
-    title: `${site.name}: ${site.tagline}`,
-    description,
-    url: site.url,
-  },
-  twitter: { card: "summary_large_image", title: site.name, description },
+export const ensureStatic = "prefetch";
+
+export const viewport: Viewport = {
+  themeColor: "#fffaf2",
 };
 
-const footerLinks = [
-  { href: "/books", label: "Books" },
-  { href: "/membership", label: "Membership" },
-  { href: "/terms", label: "Terms" },
-  { href: "/privacy", label: "Privacy" },
-  { href: "/refunds", label: "Refunds" },
-];
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
-      <body className="flex min-h-dvh flex-col font-sans antialiased">
-        <header className="border-b bg-secondary/40">
-          <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4">
-            <Link href="/" className="text-lg font-semibold tracking-tight">
-              <span aria-hidden="true">🌙 </span>
-              {site.name}
-            </Link>
-            <div className="flex gap-6 text-sm">
-              <Link href="/books" className="hover:underline">Books</Link>
-              <Link href="/membership" className="hover:underline">Membership</Link>
-              <Link href="/account" className="hover:underline">Account</Link>
-            </div>
-          </nav>
-        </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">{children}</main>
-        <footer className="border-t bg-secondary/40 py-8 text-sm text-muted-foreground">
-          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              © {new Date().getFullYear()} {site.name}. {site.tagline}
-            </p>
-            <ul className="flex flex-wrap gap-4">
-              {footerLinks.map((l) => (
-                <li key={l.href}>
-                  <Link href={l.href} className="hover:underline">{l.label}</Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </footer>
+    <html lang={shopConfig.localization.locale}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} flex min-h-dvh flex-col font-sans antialiased`}
+      >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-100 focus:rounded-md focus:bg-background focus:px-5 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-foreground focus:outline-none"
+        >
+          Skip to content
+        </a>
+        <SiteSchema />
+
+        <Nav />
+        <main id="main-content" className="flex flex-1 flex-col min-w-0">
+          {children}
+        </main>
+        <Footer />
       </body>
     </html>
   );
 }
+
+export const generateMetadata = async (): Promise<Metadata> => {
+  const title = `${shopConfig.site.name}: ${shopConfig.site.tagline}`;
+  return {
+    description: shopConfig.site.description,
+    generator: shopConfig.site.name,
+    metadataBase: new URL(shopConfig.site.url),
+    openGraph: {
+      description: shopConfig.site.description,
+      images: [{ url: "/og-default.png", width: 1200, height: 628 }],
+      siteName: shopConfig.site.name,
+      title,
+      type: "website",
+      url: shopConfig.site.url,
+    },
+    title: {
+      default: title,
+      template: `%s | ${shopConfig.site.name}`,
+    },
+    twitter: { card: "summary_large_image", description: shopConfig.site.description, title },
+  };
+};
