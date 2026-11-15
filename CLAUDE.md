@@ -74,7 +74,7 @@ uv run pytest -m youtube                                                # opt-in
 
 ## Monorepo (spec 029)
 
-Polyglot monorepo; the Python studio and `books/` stay at the root (ADR-029-monorepo-layout). Needs Node >= 22.12 (`.nvmrc` = 24) and pnpm for the JS side.
+Polyglot monorepo; the Python studio and `books/` stay at the root (ADR-029-monorepo-layout). Node 20.9+ works for the store (Tailwind's `magic-string` is pinned to 0.30 in `pnpm-workspace.yaml` so Turbopack does not need `require(esm)`); `.nvmrc` = 24 is preferred. Run `pnpm install` again after pulling.
 
 - `apps/web`: public store at giggleandsnooze.com (Next.js 16, UI base copied from `vercel/shop`, MIT notice in `LICENSE.vercel-shop`; Shopify code removed). Supabase auth/catalog/entitlements + Stripe checkout and membership. Copy `.env.example` to `apps/web/.env.local`. Run: `pnpm install && pnpm web`.
 - `apps/reader`: git submodule of Readest (AGPL-3.0, pinned), the eReader for read.giggleandsnooze.com. Own pnpm workspace, excluded from ours: run `pnpm install` inside `apps/reader` once, then `pnpm reader` (needs the reader's `.env.web`). Publish the fork's source before launch (ADR-029-reader-readest-agpl).

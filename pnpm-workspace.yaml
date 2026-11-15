@@ -2,3 +2,6 @@ packages:
   - "apps/*"
   - "!apps/reader"
   - "packages/*"
+
+overrides:
+  "@tailwindcss/node>magic-string": 0.30.21
