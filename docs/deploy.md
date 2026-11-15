@@ -51,8 +51,7 @@ Topology:
    `checkout.session.async_payment_succeeded`. Refunds and disputes do not remove an entitlement yet (manual:
    delete the row in `entitlements`).
 4. Customer portal: Settings, Billing, Customer portal, enable cancel subscription and payment method update.
-   (A "Manage membership" button calling the portal is not built yet; until then cancellation goes through
-   Stripe-sent receipts or the owner.)
+   (The account page's "Manage membership" button opens this portal via `/api/billing-portal`.)
 5. Local test: `stripe listen --forward-to localhost:3000/api/stripe/webhook` and use its `whsec_` secret.
 6. Going live: repeat with live keys, new webhook endpoint and secret; swap all three Stripe variables.
 
