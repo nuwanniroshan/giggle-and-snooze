@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/giggle_and_snooze_logo.png" alt="Giggle & Snooze" width="360">
+</p>
+
 # Giggle & Snooze: Kiddo
 
 A pipeline that turns an illustrated children's book into publishable outputs:
@@ -6,7 +10,7 @@ A pipeline that turns an illustrated children's book into publishable outputs:
 2. **Storytime video factory.** A 16:9 1080p YouTube read-aloud video, made from the same book. Covers the episode script, voices, animation, render and YouTube upload. A local web studio runs the stages.
 3. **Storefront (monorepo).** A public store (`apps/web`), an eReader (`apps/reader`, a Readest fork), and Supabase (`supabase/`).
 
-Pilot book: *The Snail Mail Express: A Whisperwood Hollow Story* (`books/the-snail-mail-express/`).
+Each book lives in its own folder, `books/<slug>/`. Every command below takes `--book <slug>`.
 
 Design docs: [`PRD.md`](PRD.md), specs in `docs/specs/`, the deploy guide in [`docs/deploy.md`](docs/deploy.md). Project rules for Claude Code are in [`CLAUDE.md`](CLAUDE.md) and `.claude/rules/`.
 
@@ -32,7 +36,7 @@ Design docs: [`PRD.md`](PRD.md), specs in `docs/specs/`, the deploy guide in [`d
 
 ## Requirements
 
-The video pipeline is built for **Apple Silicon (M1 Pro, 16 GB)** and runs stages one at a time to fit memory. Book production and the storefront run on any machine with the tools below, but the voice, animation and segmentation models need macOS on Apple Silicon.
+The video pipeline targets **Apple Silicon Macs** (developed on an M1 Pro with 16 GB) and runs stages one at a time to fit memory. Book production and the storefront run on any machine with the tools below, but the voice, animation and segmentation models need macOS on Apple Silicon.
 
 | Tool | Version | Needed for | Install (macOS, Homebrew) |
 |---|---|---|---|
@@ -180,8 +184,8 @@ uv run pytest                       # should pass on the new machine
 
 ```bash
 # Books
-.venv/bin/python scripts/compose_missing_illustrations.py --book the-snail-mail-express
-.venv/bin/python scripts/build_book.py --book the-snail-mail-express
+.venv/bin/python scripts/compose_missing_illustrations.py --book <slug>   # only for books with composited pictures
+.venv/bin/python scripts/build_book.py --book <slug>
 
 # Video (stage 1: script, stage 2: voices, stage 3: render)
 uv run python -m video_pipeline.generate_script --book <slug>
@@ -215,12 +219,11 @@ Only one studio can run per project (a lock in `build/studio/studio.lock`). Stop
 Print and digital editions for each book, built into `books/<slug>/build/`.
 
 ```bash
-# 1. Regenerate the composited illustrations (pages 3, 6, 7, 10, 11, 14, 15, 19 and map_whisperwood.png).
-#    This overwrites those files.
-.venv/bin/python scripts/compose_missing_illustrations.py --book the-snail-mail-express
+# 1. Only for books that use composited pictures (see CLAUDE.md). This overwrites those picture files.
+.venv/bin/python scripts/compose_missing_illustrations.py --book <slug>
 
 # 2. Build every deliverable.
-.venv/bin/python scripts/build_book.py --book the-snail-mail-express
+.venv/bin/python scripts/build_book.py --book <slug>
 ```
 
 Outputs in `books/<slug>/build/`:
@@ -448,4 +451,4 @@ Shared settings, not secrets, are in `config/*.json`. Sensible defaults are ther
 - **Supabase `db:start` fails:** Docker must be running. Free ports `54321`–`54324` if another project uses them.
 - **Reader submodule is empty:** run `git submodule update --init --recursive`.
 - **YouTube "Reconnect needed":** run `uv run python -m video_pipeline.youtube connect`.
-- **Not on Apple Silicon:** the voice, animation and segmentation models are built for Apple Silicon (M1 Pro is the target). Other platforms are untested.
+- **Not on Apple Silicon:** the voice, animation and segmentation models are built for Apple Silicon. Other platforms are untested.
