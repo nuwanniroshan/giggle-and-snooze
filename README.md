@@ -19,8 +19,8 @@ Design docs: [`PRD.md`](PRD.md), specs in `docs/specs/`, the deploy guide in [`d
 ## Contents
 
 - [Requirements](#requirements)
-- [Setup on a new machine](#setup-on-a-new-machine)
-- [Moving from another machine: what to copy](#moving-from-another-machine-what-to-copy)
+- [Setup](#setup)
+- [Local files not in git](#local-files-not-in-git)
 - [Everyday commands](#everyday-commands)
 - [Studio (web UI)](#studio-web-ui)
 - [Book production](#book-production)
@@ -56,7 +56,7 @@ Nothing needs a paid API key for the default path. Codex uses the ChatGPT plan q
 
 ---
 
-## Setup on a new machine
+## Setup
 
 Run these in a terminal, from the folder where the project should live.
 
@@ -102,7 +102,7 @@ uv run python -m video_pipeline.synthesize_voices download   # Orpheus voice mod
 uv run python -m video_pipeline.cut_layers download           # SAM 2.1 Core ML + LaMa ONNX
 ```
 
-Models are stored in `$KIDDO_MODELS_DIR`, or `~/.cache/kiddo/models` if unset. Copy this folder from the old machine to skip the downloads (see [what to copy](#moving-from-another-machine-what-to-copy)).
+Models are stored in `$KIDDO_MODELS_DIR`, or `~/.cache/kiddo/models` if unset. Keep a copy of this folder to skip the downloads next time (see [Local files not in git](#local-files-not-in-git)).
 
 ### 5. Sign in to the providers
 
@@ -155,27 +155,27 @@ Open http://127.0.0.1:8765. The studio binds to 127.0.0.1 only, so it is reachab
 
 ---
 
-## Moving from another machine: what to copy
+## Local files not in git
 
-The repo contains the book source, scripts, configs, sounds and fonts. It does **not** contain the items below. Copy them yourself over a trusted channel (encrypted drive, password manager, or AirDrop). Do not commit them, and do not paste the secrets into chat.
+The repo contains the book source, scripts, configs, sounds and fonts. It does **not** contain the items below. Keep them in a safe place (an encrypted drive or password manager). Do not commit them, and do not paste the secrets into chat.
 
 | Item | Where it lives | In git? | Needed? | If you skip it |
 |---|---|---|---|---|
-| Book builds and story drafts | `books/<slug>/build/`, `build/`, `drafts/` | no (git-ignored) | optional | Rebuild with the commands below. Drafts are not recoverable from git, so copy `drafts/` if you want them. |
+| Book builds and story drafts | `books/<slug>/build/`, `build/`, `drafts/` | no (git-ignored) | optional | Rebuild with the commands below. Drafts are not in git; back up `drafts/` if you want to keep them. |
 | Model cache | `~/.cache/kiddo/models` (or `$KIDDO_MODELS_DIR`) | no | saves a multi-GB download | Run the two `download` commands. |
-| YouTube OAuth files | `~/.config/kiddo/youtube/` (or `$KIDDO_YOUTUBE_DIR`): `client_secret.json`, `token.json`, `channel.json` | no, secret | only for uploads | Run `uv run python -m video_pipeline.youtube connect` again. Copy `client_secret.json` (from Google Cloud) as the same file. |
+| YouTube OAuth files | `~/.config/kiddo/youtube/` (or `$KIDDO_YOUTUBE_DIR`): `client_secret.json`, `token.json`, `channel.json` | no, secret | only for uploads | Run `uv run python -m video_pipeline.youtube connect` again. Re-download `client_secret.json` from Google Cloud if you no longer have it. |
 | Env files | `apps/web/.env.local`, `apps/reader/.env.web` | no, secret | only for storefront and reader | Recreate from `.env.example` and the Supabase keys. |
 | Your own Claude Code memory | `~/.claude/projects/...` | no | nice to have | Start fresh; the project's `CLAUDE.md` carries the rules. |
 | Shell variables | `~/.zshrc` (`GEMINI_API_KEY`, `KIDDO_*`, `SUPABASE_*`) | no, secret | as needed | Export them again. |
 | Supabase service-role key, Stripe keys | your dashboards | no, secret | production only | See [`docs/deploy.md`](docs/deploy.md). Never store them in the repo. |
 
-**Do not copy:** `.venv/` (rebuild with `uv sync`), `node_modules/` (rebuild with `pnpm install`), `.DS_Store`, `.pytest_cache/`, `.ruff_cache/`. These are machine-specific.
+**Rebuild rather than keep:** `.venv/` (rebuild with `uv sync`), `node_modules/` (rebuild with `pnpm install`), `.DS_Store`, `.pytest_cache/`, `.ruff_cache/`. These are machine-specific.
 
-Quick check after the copy:
+Quick check:
 
 ```bash
-git status                          # should be clean apart from what you copied in
-uv run pytest                       # should pass on the new machine
+git status                          # should be clean
+uv run pytest                       # should pass
 ```
 
 ---
@@ -315,7 +315,7 @@ uv run python -m video_pipeline.write_story blueprint --draft <draft-id> [--then
 uv run python -m video_pipeline.write_story blueprint --book <slug>   # old blueprint kept as .bak
 ```
 
-Drafts live in `drafts/` (git-ignored). Copy the folder to keep them.
+Drafts live in `drafts/` (git-ignored). Back up the folder to keep them.
 
 ### Sound library
 
