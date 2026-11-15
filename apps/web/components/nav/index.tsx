@@ -32,7 +32,14 @@ export function Nav() {
         <MobileMenu items={MOBILE_ITEMS} />
 
         <Link className="flex items-center shrink-0" href="/">
-          <span className="text-xl leading-4">{shopConfig.site.name}</span>
+          {/* Logo is 1256x733; the height sets the nav size, the width follows the ratio. */}
+          <img
+            src="/brand/giggle-and-snooze-logo.png"
+            alt={shopConfig.site.name}
+            width={1256}
+            height={733}
+            className="h-12 w-auto md:h-14"
+          />
         </Link>
 
         <QuickLinks items={NAV_ITEMS} />

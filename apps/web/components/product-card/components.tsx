@@ -52,7 +52,7 @@ function ProductCardImage({
   return (
     <div
       data-slot="product-card-image"
-      className={cn("relative aspect-square overflow-hidden", className)}
+      className={cn("relative aspect-square overflow-hidden rounded-3xl", className)}
     >
       {src ? (
         <Image
@@ -87,7 +87,7 @@ function ProductCardTitle({ className, children, ...props }: ComponentProps<"h3"
   return (
     <h3
       data-slot="product-card-title"
-      className={cn("text-sm font-medium text-foreground line-clamp-1", className)}
+      className={cn("font-display text-base text-foreground line-clamp-1", className)}
       {...props}
     >
       {children}
@@ -120,7 +120,7 @@ function ProductCardBadge({ children, className }: { children: ReactNode; classN
     <span
       data-slot="product-card-badge"
       className={cn(
-        "absolute left-2.5 top-2.5 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground backdrop-blur-sm",
+        "absolute left-2.5 top-2.5 rounded-full bg-brand-yellow px-3 py-1 font-display text-sm text-night shadow-sm",
         className,
       )}
     >

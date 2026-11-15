@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fredoka, Geist_Mono, Nunito } from "next/font/google";
 
 import "./globals.css";
 
@@ -11,11 +11,16 @@ import { shopConfig } from "@/lib/config";
 export const ensureStatic = "prefetch";
 
 export const viewport: Viewport = {
-  themeColor: "#fffaf2",
+  themeColor: "#fff8ee",
 };
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const fredoka = Fredoka({
+  variable: "--font-fredoka",
+  subsets: ["latin"],
+});
+
+const nunito = Nunito({
+  variable: "--font-nunito",
   subsets: ["latin"],
 });
 
@@ -28,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang={shopConfig.localization.locale}>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} flex min-h-dvh flex-col font-sans antialiased`}
+        className={`${fredoka.variable} ${nunito.variable} ${geistMono.variable} flex min-h-dvh flex-col font-sans antialiased`}
       >
         <a
           href="#main-content"
