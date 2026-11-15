@@ -81,6 +81,7 @@ Polyglot monorepo; the Python studio and `books/` stay at the root (ADR-029-mono
 - `supabase/`: migrations (catalog, entitlements, memberships, private `epubs` bucket, RLS) and `tests/access.sql`.
 - `uv run python -m video_pipeline.publish_store --book <slug> [--access free|members|paid] [--price-cents N] [--publish]`: uploads the built EPUB and cover and upserts the catalog row (draft unless `--publish`). Needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 - Deploy (Supabase, Stripe, Vercel, DNS, AGPL link, launch checklist, owner-only actions): `docs/deploy.md`. Reader changes live as patches in `apps/reader-patches/` until the public Readest fork exists.
+- Local stack (no cloud): Docker running, then `pnpm db:start` (Supabase CLI is a root devDependency; Postgres :54322, API :54321, Studio :54323, Mailpit :54324 for magic-link emails). Migrations and `seed.sql` apply on start; `pnpm db:reset` rebuilds. Put the keys from `pnpm exec supabase status -o env` into `apps/web/.env.local`.
 - Stories and status: `docs/specs/029-storefront-monorepo/prd.md`.
 
 ## Architecture
