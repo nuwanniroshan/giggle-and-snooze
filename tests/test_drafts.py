@@ -34,6 +34,17 @@ def test_new_draft_is_written_and_listed(root):  # FR-4
     assert [r["id"] for r in store.list()] == [record["id"]]
 
 
+def test_stray_files_in_drafts_folder_are_ignored(root):  # macOS writes .DS_Store here
+    store = dr.DraftStore(root)
+    record = store.new_draft(idea(), pages=8, author="Test Author")
+    (root / "drafts" / ".DS_Store").write_bytes(b"\x00\x01")
+    (root / "drafts" / "ideas").mkdir()
+    (root / "drafts" / "ideas" / ".DS_Store").write_bytes(b"\x00")
+    assert [r["id"] for r in store.list()] == [record["id"]]
+    assert store.latest_run("ideas") is None
+    assert store.mark_interrupted_all() == 1  # the one draft was still designing
+
+
 def test_draft_survives_a_new_store(root):  # FR-4: kept across restarts
     first = dr.DraftStore(root)
     record = first.new_draft(idea(), pages=8, author="Test Author")
@@ -159,7 +170,9 @@ def test_draft_written_before_spec_018_still_becomes_a_book(root):  # AC-2.3
     store = dr.DraftStore(root)
     record = store.new_draft(idea(), pages=8, author="Test Author")
     store.update(record["id"], state="ready", book=pre_018_book(), attempts=1, problems=[])
-    data = json.loads(BookFolder(store.create_book(record["id"]), root).book_json.read_text("utf-8"))
+    data = json.loads(
+        BookFolder(store.create_book(record["id"]), root).book_json.read_text("utf-8")
+    )
     assert "characters" not in data["style_bible"]
     assert all("characters_on_page" not in p for p in data["pages"])
 

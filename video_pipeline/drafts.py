@@ -49,7 +49,8 @@ def _now() -> str:
 def _read(path: Path) -> dict | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        # Missing, not a folder (e.g. Finder's `.DS_Store` in drafts/), or unreadable: no record.
         return None
     return data if isinstance(data, dict) else None
 
