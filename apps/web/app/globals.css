@@ -7,7 +7,15 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-shop: #5A31F4;
-  --font-sans: var(--font-geist-sans);
+  --color-night: var(--night);
+  --color-night-foreground: var(--night-foreground);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-lilac: var(--brand-lilac);
+  --font-sans: var(--font-nunito);
+  --font-display: var(--font-fredoka);
   --font-mono: var(--font-geist-mono);
   --text-xxs: 0.625rem;
   /* Headings track tighter as they grow (Geist behavior); attaches to every text-* utility. */
@@ -45,29 +53,39 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Giggle & Snooze palette, sampled from assets/brand/giggle_and_snooze_logo.png:
+   the orange/yellow "GIGGLE", the blue/lilac "SNOOZE", the teal ampersand and the night sky. */
 :root {
-  --radius: 0.625rem;
-  --background: #fffaf2;
-  --foreground: #2a2438;
+  --radius: 1.25rem;
+  --brand-orange: #f07800;
+  --brand-yellow: #f0c000;
+  --brand-teal: #2bb8a8;
+  --brand-blue: #3048a8;
+  --brand-lilac: #c0a8f0;
+  --night: #1c1640;
+  --night-foreground: #fff8ee;
+
+  --background: #fff8ee;
+  --foreground: #1c1640;
   --card: #ffffff;
-  --card-foreground: #171717;
+  --card-foreground: #1c1640;
   --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #2b2a5c;
+  --popover-foreground: #1c1640;
+  --primary: #3048a8;
   --primary-foreground: #ffffff;
-  --secondary: #fbe7c6;
-  --secondary-foreground: #171717;
-  --muted: #f4e9d8;
-  --muted-foreground: #666666;
-  --accent: #fdf0d9;
-  --accent-foreground: #171717;
+  --secondary: #ffe59a;
+  --secondary-foreground: #1c1640;
+  --muted: #efe7ff;
+  --muted-foreground: #5b5480;
+  --accent: #d6f4ef;
+  --accent-foreground: #1c1640;
   --destructive: #cc0001;
   --destructive-foreground: #f4f4f4;
-  --positive: #00ba5a;
+  --positive: #1f9d7a;
   --positive-foreground: #ffffff;
-  --border: #e6d8c0;
-  --input: #ececec;
-  --ring: #6b69b8;
+  --border: #e5daf7;
+  --input: #e5daf7;
+  --ring: #f07800;
 }
 
 @layer components {
@@ -83,6 +101,12 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-fredoka), var(--font-nunito), sans-serif;
+    letter-spacing: 0;
   }
   button,
   [role="button"] {

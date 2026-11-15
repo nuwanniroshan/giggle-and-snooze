@@ -13,8 +13,8 @@ const LINKS = [
 
 export function Footer() {
   return (
-    <footer>
-      <Container className="pt-20 pb-10">
+    <footer className="bg-night text-night-foreground">
+      <Container className="pt-16 pb-10">
         <Sections className="gap-10">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-5">
             <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 sm:justify-start">
@@ -22,13 +22,13 @@ export function Footer() {
                 <MenuLink
                   key={link.url}
                   url={link.url}
-                  className="cursor-pointer text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  className="cursor-pointer rounded-full px-3 py-1 font-display text-base text-night-foreground/85 transition-colors hover:bg-night-foreground/10 hover:text-brand-yellow"
                 >
                   {link.title}
                 </MenuLink>
               ))}
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-night-foreground/70">
               © {shopConfig.site.name}. {shopConfig.site.tagline}
             </p>
           </div>
