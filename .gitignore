@@ -9,3 +9,9 @@ build/
 books/*/build/
 drafts/
 .claude/settings.local.json
+node_modules/
+.next/
+.vercel/
+.turbo/
+supabase/.temp/
+supabase/.branches/

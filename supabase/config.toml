@@ -1,0 +1,13 @@
+# Minimal local Supabase config. Run `supabase init` to expand it if needed.
+project_id = "giggle-and-snooze"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://giggleandsnooze.com", "https://read.giggleandsnooze.com"]

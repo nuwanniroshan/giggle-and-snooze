@@ -72,6 +72,16 @@ uv run pytest -m youtube                                                # opt-in
 
 `ffmpeg` (Homebrew, no rubberband) is installed on the host for the video pipeline. The Codex CLI ships inside the ChatGPT app (`/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`, logged in with ChatGPT).
 
+## Monorepo (spec 029)
+
+Polyglot monorepo; the Python studio and `books/` stay at the root (ADR-029-monorepo-layout). Needs Node >= 22.12 (`.nvmrc` = 24) and pnpm for the JS side.
+
+- `apps/web`: public store at giggleandsnooze.com (Next.js 16, UI base copied from `vercel/shop`, MIT notice in `LICENSE.vercel-shop`; Shopify code removed). Supabase auth/catalog/entitlements + Stripe checkout and membership. Copy `.env.example` to `apps/web/.env.local`. Run: `pnpm install && pnpm web`.
+- `apps/reader`: git submodule of Readest (AGPL-3.0, pinned), the eReader for read.giggleandsnooze.com. Own pnpm workspace, excluded from ours: run `pnpm install` inside `apps/reader` once, then `pnpm reader` (needs the reader's `.env.web`). Publish the fork's source before launch (ADR-029-reader-readest-agpl).
+- `supabase/`: migrations (catalog, entitlements, memberships, private `epubs` bucket, RLS) and `tests/access.sql`.
+- `uv run python -m video_pipeline.publish_store --book <slug> [--access free|members|paid] [--price-cents N] [--publish]`: uploads the built EPUB and cover and upserts the catalog row (draft unless `--publish`). Needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+- Stories and status: `docs/specs/029-storefront-monorepo/prd.md`.
+
 ## Architecture
 
 - **`books/<slug>/book.json` is the source of truth for each book.** Keys: `metadata` (title, author, trim/bleed sizes, page counts, blurb, dedication…), `style_bible` (art-style prompt prefix, character descriptions for Clara and Barnaby), and `pages` (20 entries: `page_number`, `title`, `text`, `layout`, `illustration_file`, and an illustration `prompt`). The per-page `prompt` descriptions are what lets the video pipeline script Q&A without vision models.
