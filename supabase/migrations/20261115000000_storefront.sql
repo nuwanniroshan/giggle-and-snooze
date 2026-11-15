@@ -77,7 +77,10 @@ alter table entitlements enable row level security;
 alter table memberships enable row level security;
 
 create policy "profile: own row" on profiles for select using (id = auth.uid());
-create policy "profile: update own" on profiles for update using (id = auth.uid());
+create policy "profile: update own" on profiles for update using (id = auth.uid()) with check (id = auth.uid());
+-- Users may change only their display name; stripe_customer_id is written by the server (service role).
+revoke update on profiles from anon, authenticated;
+grant update (display_name) on profiles to authenticated;
 create policy "books: published are public" on books for select using (published);
 create policy "entitlements: own rows" on entitlements for select using (user_id = auth.uid());
 create policy "memberships: own row" on memberships for select using (user_id = auth.uid());

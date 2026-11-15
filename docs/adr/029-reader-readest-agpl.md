@@ -31,4 +31,4 @@ The user asked to use Readest (github.com/readest/readest) as the eReader. Reade
 
 ## Consequences
 
-AGPL obligations apply to the reader only; the store, Python pipeline and books keep their own licences. Readest's own Supabase tables may share the project with the store or use a second project; the story decides after reading its schema. If fixed-layout rendering is poor, fall back to Option B for the reader story only. Needs a legal sanity check before launch.
+AGPL obligations apply to the reader only; the store, Python pipeline and books keep their own licences. The reader uses a separate Supabase project (or none, keeping its library in the browser): Readest's own tables (`books`, `files`, ...) collide with the store's catalog and its RLS and storage layout would mix with entitlements (see `reader-notes.md`). The handoff is `/?src=<signed URL>` through `apps/reader-patches`. If fixed-layout rendering is poor, fall back to Option B for the reader story only. Needs a legal sanity check before launch.

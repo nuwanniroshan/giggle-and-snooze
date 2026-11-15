@@ -1,0 +1,90 @@
+diff --git a/apps/readest-app/src/app/library/page.tsx b/apps/readest-app/src/app/library/page.tsx
+index 0608784..dcc1f0c 100644
+--- a/apps/readest-app/src/app/library/page.tsx
++++ b/apps/readest-app/src/app/library/page.tsx
+@@ -719,6 +719,42 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
+     return params.toString();
+   })();
+ 
++  // Open a book from `/?src=<url>` (Giggle & Snooze storefront handoff): fetch the
++  // EPUB, import it like a picked file, then open it in the reader.
++  const srcParam = searchParams?.get('src') || '';
++  const srcHandled = useRef<string | null>(null);
++  useEffect(() => {
++    if (!srcParam || !appService || !libraryLoaded) return;
++    if (srcHandled.current === srcParam) return;
++    srcHandled.current = srcParam;
++    (async () => {
++      try {
++        const url = new URL(srcParam);
++        if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('bad src');
++        const res = await fetch(url.toString());
++        if (!res.ok) throw new Error(`HTTP ${res.status}`);
++        const blob = await res.blob();
++        const name = decodeURIComponent(url.pathname.split('/').pop() || '') || 'book.epub';
++        const file = new File([blob], /\.epub$/i.test(name) ? name : `${name}.epub`, {
++          type: 'application/epub+zip',
++        });
++        const { importedHashes } = await importBooks([{ file }], '');
++        const params = new URLSearchParams(window.location.search);
++        params.delete('src');
++        navigateToLibrary(router, params.toString());
++        if (importedHashes[0]) setPendingNavigationBookIds([importedHashes[0]]);
++      } catch (error) {
++        console.error('Failed to open book from src:', error);
++        eventDispatcher.dispatch('toast', {
++          message: _('Failed to open the book. The link may have expired.'),
++          timeout: 5000,
++          type: 'error',
++        });
++      }
++    })();
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [srcParam, appService, libraryLoaded]);
++
+   useEffect(() => {
+     if (pendingNavigationBookIds) {
+       const bookIds = pendingNavigationBookIds;
+@@ -951,7 +987,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
+     files: SelectedFile[],
+     groupId?: string,
+     options: { silent?: boolean } = {},
+-  ): Promise<{ failedPaths: string[]; importedCount: number }> =>
++  ): Promise<{ failedPaths: string[]; importedCount: number; importedHashes: string[] }> =>
+     // Whole runs are serialized (see enqueueImportRun); the lookup index is
+     // built inside the run so a queued run sees everything the previous one
+     // imported.
+@@ -961,7 +997,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
+     files: SelectedFile[],
+     groupId?: string,
+     options: { silent?: boolean } = {},
+-  ): Promise<{ failedPaths: string[]; importedCount: number }> => {
++  ): Promise<{ failedPaths: string[]; importedCount: number; importedHashes: string[] }> => {
+     setLoading(true);
+     const { library } = useLibraryStore.getState();
+     // Build the lookup index ONCE per import batch so each book lookup is
+@@ -977,6 +1013,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
+     const failedImports: Array<{ filename: string; errorMessage: string }> = [];
+     const failedPaths: string[] = [];
+     const successfulImports: string[] = [];
++    const importedHashes: string[] = [];
+ 
+     // Readest's own Books/ prefix is resolved once at app init and persisted
+     // in `settings.localBooksDir`. We hand it to `ingestFile` so the in-place
+@@ -1064,6 +1101,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
+         );
+         if (!book) return null;
+         successfulImports.push(book.title);
++        importedHashes.push(book.hash);
+         return book;
+       } catch (error) {
+         const filename = typeof file === 'string' ? file : file.name;
+@@ -1134,7 +1172,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
+     }
+ 
+     setLoading(false);
+-    return { failedPaths, importedCount: successfulImports.length };
++    return { failedPaths, importedCount: successfulImports.length, importedHashes };
+   };
+ 
+   /**

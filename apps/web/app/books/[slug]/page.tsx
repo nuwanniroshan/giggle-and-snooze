@@ -1,17 +1,32 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 
+import { SetupNote } from "@/components/setup-note";
+import { Button } from "@/components/ui/button";
 import { coverUrl, getBook, priceLabel } from "@/lib/books";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+
+async function canReadFull(userId: string, bookId: string): Promise<boolean> {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return false;
+  const { data } = await createAdminClient().rpc("can_read_book", { p_user: userId, p_book: bookId });
+  return data === true;
+}
 
 export default async function BookPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const book = await getBook(slug);
-  if (!book) notFound();
+  if (!book) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return <SetupNote />;
+    notFound();
+  }
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
+  const user = data.user;
+  const entitled = user ? await canReadFull(user.id, book.id) : false;
   const cover = coverUrl(book.cover_path);
-  const buyable = book.access === "paid";
+  const buyable = book.access === "paid" && !entitled;
+  const readHref = `/api/books/${book.slug}/read`;
 
   return (
     <article className="grid gap-8 md:grid-cols-2">
@@ -23,18 +38,20 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
         {book.subtitle && <p className="text-muted-foreground">{book.subtitle}</p>}
         {book.blurb && <p>{book.blurb}</p>}
         <p className="text-sm text-muted-foreground">{priceLabel(book)}{book.page_count ? ` · ${book.page_count} pages` : ""}</p>
+        {book.member_included && book.access !== "free" && (
+          <p className="rounded-lg bg-secondary/60 px-3 py-2 text-sm">Members read this too.</p>
+        )}
         <div className="flex flex-wrap gap-3">
-          <a href={`/api/books/${book.slug}/read`} className="rounded-md bg-primary px-5 py-2 text-sm text-primary-foreground">
-            {book.access === "free" ? "Read free" : "Read"}
-          </a>
-          {buyable && data.user && (
+          {entitled && <Button render={<a href={readHref} />}>{book.access === "free" ? "Read free" : "Read"}</Button>}
+          {!entitled && user && book.has_sample && <Button render={<a href={readHref} />}>Read sample</Button>}
+          {buyable && user && (
             <form action="/api/checkout" method="post">
               <input type="hidden" name="kind" value="book" />
               <input type="hidden" name="slug" value={book.slug} />
-              <button className="rounded-md border px-5 py-2 text-sm">Buy {priceLabel(book)}</button>
+              <Button type="submit" variant="outline">Buy {priceLabel(book)}</Button>
             </form>
           )}
-          {!data.user && <a href="/account" className="rounded-md border px-5 py-2 text-sm">Sign in to read or buy</a>}
+          {!user && <Button variant="outline" render={<a href="/account" />}>Sign in to read or buy</Button>}
         </div>
       </div>
     </article>

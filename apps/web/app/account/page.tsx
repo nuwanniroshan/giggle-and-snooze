@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
 
+import { supabaseConfigured } from "@/lib/books";
+import { SetupNote } from "@/components/setup-note";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { site } from "@/lib/site";
 
@@ -15,6 +18,16 @@ async function signIn(formData: FormData) {
   redirect("/account?sent=1");
 }
 
+async function signInWithGoogle() {
+  "use server";
+  const supabase = await createClient();
+  const { data } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${site.url}/auth/callback` },
+  });
+  redirect(data.url ?? "/account?error=google");
+}
+
 async function signOut() {
   "use server";
   const supabase = await createClient();
@@ -22,19 +35,28 @@ async function signOut() {
   redirect("/account");
 }
 
-export default async function Account({ searchParams }: { searchParams: Promise<{ sent?: string }> }) {
-  const { sent } = await searchParams;
+export default async function Account({ searchParams }: { searchParams: Promise<{ sent?: string; error?: string }> }) {
+  const { sent, error } = await searchParams;
+  if (!supabaseConfigured()) return <SetupNote />;
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
 
   if (!data.user) {
     return (
-      <form action={signIn} className="max-w-sm space-y-4">
+      <div className="max-w-sm space-y-6">
         <h1 className="text-3xl font-semibold">Sign in</h1>
-        <input name="email" type="email" required placeholder="you@example.com" className="w-full rounded-md border px-3 py-2" />
-        <button className="rounded-md bg-primary px-5 py-2 text-sm text-primary-foreground">Email me a sign-in link</button>
+        <p className="text-sm text-muted-foreground">For parents and grown-ups. Children read on your account.</p>
+        <form action={signInWithGoogle}>
+          <Button type="submit" variant="outline" size="lg" className="w-full">Continue with Google</Button>
+        </form>
+        <p className="text-center text-xs text-muted-foreground">or</p>
+        <form action={signIn} className="space-y-4">
+          <input name="email" type="email" required placeholder="you@example.com" className="w-full rounded-md border bg-background px-3 py-2" />
+          <Button type="submit" size="lg" className="w-full">Email me a sign-in link</Button>
+        </form>
         {sent && <p className="text-sm text-muted-foreground">Check your email for the link.</p>}
-      </form>
+        {error && <p className="text-sm text-destructive">Google sign-in is not available right now. Try the email link.</p>}
+      </div>
     );
   }
 
@@ -54,7 +76,7 @@ export default async function Account({ searchParams }: { searchParams: Promise<
           })}
         </ul>
       </section>
-      <form action={signOut}><button className="rounded-md border px-5 py-2 text-sm">Sign out</button></form>
+      <form action={signOut}><Button type="submit" variant="outline">Sign out</Button></form>
     </div>
   );
 }

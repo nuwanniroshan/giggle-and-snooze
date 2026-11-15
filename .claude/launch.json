@@ -4,8 +4,39 @@
     {
       "name": "studio",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "python", "-m", "video_pipeline.studio"],
+      "runtimeArgs": [
+        "run",
+        "python",
+        "-m",
+        "video_pipeline.studio"
+      ],
       "port": 8765
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "/Users/swiveltech/.nvm/versions/node/v24.11.1/bin/node",
+      "runtimeArgs": ["apps/web/node_modules/next/dist/bin/next", "dev", "apps/web", "-p", "3000"],
+      "port": 3000
+    },
+    {
+      "name": "reader",
+      "runtimeExecutable": "/Users/swiveltech/.nvm/versions/node/v24.11.1/bin/node",
+      "runtimeArgs": ["apps/reader/apps/readest-app/node_modules/dotenv-cli/cli.js", "-e", "apps/reader/apps/readest-app/.env.web", "--", "apps/reader/apps/readest-app/node_modules/next/dist/bin/next", "dev", "apps/reader/apps/readest-app", "-p", "3001"],
+      "port": 3001
+    },
+    {
+      "name": "publication-proto",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8790",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "."
+      ],
+      "port": 8790
     }
   ]
 }

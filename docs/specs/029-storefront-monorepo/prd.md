@@ -64,7 +64,7 @@ Anything under Non-Goals, mobile apps from Readest's Tauri targets, and changes 
 
 ## Open Questions (defaults taken)
 
-- One Supabase project shared by store and reader (default) vs separate.
+- Store and reader Supabase: decided separate (see ADR-029-reader-readest-agpl and `reader-notes.md`).
 - Membership price and which books are member-included: placeholder test prices.
 - Public GitHub fork of Readest under the user's account: needs the user's approval.
 
@@ -73,11 +73,12 @@ Anything under Non-Goals, mobile apps from Readest's Tauri targets, and changes 
 | Story | State |
 |---|---|
 | S1 skeleton | Done (workspace, `.nvmrc`, `.env.example`, root scripts, CLAUDE.md) |
-| S2 schema | Written (`supabase/migrations`, `tests/access.sql`); **not executed**: Docker was not running |
-| S3 store shell | Partial: template UI kit + home, books, book page, membership, account; typecheck and `next build` pass (Node 24) |
-| S4 auth | Email magic link only; Google not wired |
-| S5 payments | Checkout and webhook written; **untested** against Stripe |
-| S6 access | `/api/books/[slug]/read` written, untested |
-| S7 reader | Submodule added at pinned upstream commit; not installed, branded or tested with fixed-layout EPUB |
+| S2 schema | Done and verified in Postgres 15 with Supabase stubs: `supabase/tests/access.sql` and the RLS block checks passed. Review fix since: users can update only `profiles.display_name` (column grant); not re-run in Postgres |
+| S3 store shell | Done pending owner design approval; typecheck and `next build` pass (Node 24) |
+| S4 auth | Done pending design approval (email magic link and Google code paths); provider setup in `docs/deploy.md`, nothing configured |
+| S5 payments | Checkout and webhook written and reviewed (webhook returns 500 on database errors so Stripe retries; stale cancelled subscriptions no longer overwrite a live one); not run against Stripe |
+| S6 access | `/api/books/[slug]/read` written and reviewed, not run against a live project |
+| S7 reader | Patch (`apps/reader-patches`) and `reader-notes.md` done; open-from-`src` verified on a real EPUB locally; **not forked**, not branded, no production build |
 | S8 publish | `video_pipeline/publish_store.py` with 3 unit tests; not run against Supabase |
-| S9 deploy, S10 launch | Not started |
+| S9 deploy | Docs done (`docs/deploy.md`); nothing deployed |
+| S10 launch hygiene | Done pending design approval and legal review (legal pages exist); AGPL source link in the reader and analytics not done |

@@ -80,6 +80,7 @@ Polyglot monorepo; the Python studio and `books/` stay at the root (ADR-029-mono
 - `apps/reader`: git submodule of Readest (AGPL-3.0, pinned), the eReader for read.giggleandsnooze.com. Own pnpm workspace, excluded from ours: run `pnpm install` inside `apps/reader` once, then `pnpm reader` (needs the reader's `.env.web`). Publish the fork's source before launch (ADR-029-reader-readest-agpl).
 - `supabase/`: migrations (catalog, entitlements, memberships, private `epubs` bucket, RLS) and `tests/access.sql`.
 - `uv run python -m video_pipeline.publish_store --book <slug> [--access free|members|paid] [--price-cents N] [--publish]`: uploads the built EPUB and cover and upserts the catalog row (draft unless `--publish`). Needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+- Deploy (Supabase, Stripe, Vercel, DNS, AGPL link, launch checklist, owner-only actions): `docs/deploy.md`. Reader changes live as patches in `apps/reader-patches/` until the public Readest fork exists.
 - Stories and status: `docs/specs/029-storefront-monorepo/prd.md`.
 
 ## Architecture

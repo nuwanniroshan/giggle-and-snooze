@@ -47,27 +47,27 @@
 
 :root {
   --radius: 0.625rem;
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fffaf2;
+  --foreground: #2a2438;
   --card: #ffffff;
   --card-foreground: #171717;
   --popover: #ffffff;
   --popover-foreground: #171717;
-  --primary: #000000;
+  --primary: #2b2a5c;
   --primary-foreground: #ffffff;
-  --secondary: #e9e9e9;
+  --secondary: #fbe7c6;
   --secondary-foreground: #171717;
-  --muted: #e9e9e9;
+  --muted: #f4e9d8;
   --muted-foreground: #666666;
-  --accent: #efefef;
+  --accent: #fdf0d9;
   --accent-foreground: #171717;
   --destructive: #cc0001;
   --destructive-foreground: #f4f4f4;
   --positive: #00ba5a;
   --positive-foreground: #ffffff;
-  --border: #c8c8c8;
+  --border: #e6d8c0;
   --input: #ececec;
-  --ring: #5a5a5a;
+  --ring: #6b69b8;
 }
 
 @layer components {
