@@ -354,8 +354,14 @@ The picture is attached. It is {width}x{height} pixels; all coordinates are in t
 Page text: {text}
 What the picture shows: {prompt}
 Characters: {characters}
-Choose 1-{max_layers} layers worth moving (characters, their parts like hair or antennae, \
-foreground leaves, water, clouds). For each: name (snake_case), description, a tight box \
+Choose 1-{max_layers} safe, isolated whole shapes worth moving (clouds, detached leaves, \
+or a whole character with clear space around it). This is cutout animation, not skeletal rigging. \
+Do not detach heads, limbs, facial features, shells or overlapping body parts: there is no \
+reconstructed joint or hidden anatomy behind them. Do not move a shape clipped by the frame. \
+Prefer one clean movement over several risky ones. If nothing can move cleanly, use one layer \
+with motions [] and depth 0, and let the camera supply motion. Include points on every intended \
+component; exclude nearby characters. Use depth 0 for grounded subjects to avoid sliding. \
+For each: name (snake_case), description, a tight box \
 [x0,y0,x1,y1], optional include_points/exclude_points, z (higher = in front), depth \
 (0 far .. 1 near), pivot [x,y] where it would hinge, and motions from {motions} \
 (amplitude: degrees for sway/rotate max {rot}; fraction of the shorter side for bob/shift \

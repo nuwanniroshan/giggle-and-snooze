@@ -16,6 +16,16 @@
     "feather_px": 2
   },
   "models": {
+    "onnx_segmenter": {
+      "repo": "onnx-community/sam2.1-hiera-small-ONNX",
+      "revision": "a7df49d8de14b9d2e4504d1687b0d568f905fd8d",
+      "encoder": "onnx/vision_encoder.onnx",
+      "decoder": "onnx/prompt_encoder_mask_decoder.onnx",
+      "compute_units": "CPUExecutionProvider",
+      "preprocess": {"mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]},
+      "license": "Apache-2.0 (SAM 2.1)",
+      "source": "https://huggingface.co/onnx-community/sam2.1-hiera-small-ONNX"
+    },
     "segmenter": {
       "repo": "apple/coreml-sam2.1-small",
       "revision": "883f5787eb0be35ce6965907a8bc1f5320a5a02e",

@@ -69,7 +69,8 @@ def script_sha256(path: Path) -> str:
     the same before and after such a key is added.
     """
     try:
-        raw = Path(path).read_text(encoding="utf-8")
+        with Path(path).open(encoding="utf-8", newline="") as stream:
+            raw = stream.read()
         data = json.loads(raw)
     except (ValueError, UnicodeDecodeError):
         return sha256_file(path)
@@ -88,4 +89,6 @@ def script_sha256(path: Path) -> str:
     # keep the file's own trailing newline (or lack of one), so a hand-saved script without it
     # also hashes the same before and after such a key is added
     text = json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if raw.endswith("\n") else "")
+    if "\r\n" in raw:
+        text = text.replace("\n", "\r\n")
     return hashlib.sha256(text.encode("utf-8")).hexdigest()

@@ -8,22 +8,25 @@ dependencies = [
     "reportlab>=4",
     "pydantic>=2.7",
     "mcp>=2.3,<3",
-    "mlx-audio==0.6.4",
+    "psutil>=6; sys_platform == 'win32'",
     "soundfile>=0.12",
     "starlette>=1.10,<2",
     "uvicorn>=0.54",
     "jinja2>=3.1",
     "python-multipart>=0.0.33",
-    "coremltools>=8.3,<9",
+    "coremltools>=8.3,<9; sys_platform != 'win32'",
     "onnxruntime>=1.31,<2",
     "opencv-python-headless>=4.10,<5",
     "google-auth-oauthlib>=1.2",
     "google-api-python-client>=2.150",
+    "kokoro-onnx>=0.6.1",
+    "huggingface-hub>=2.4.0",
 ]
 
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "pymupdf>=2.1",
     "pytest>=8",
     "ruff>=0.6",
 ]

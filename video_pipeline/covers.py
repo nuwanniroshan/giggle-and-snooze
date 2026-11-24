@@ -8,6 +8,7 @@ books lack it and keep their old covers.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -141,9 +142,21 @@ CODEX_FLAGS = (
     "-c",
     'web_search="disabled"',
 )
+
+
+def image_codex_flags() -> list[str]:
+    flags = list(CODEX_FLAGS)
+    # Ignoring user config also drops windows.sandbox. Without a backend,
+    # Codex on Windows downgrades workspace-write to read-only.
+    if sys.platform == "win32":
+        flags += ["-c", 'windows.sandbox="elevated"']
+    return flags
+
+
 PAINT_TASK = (
-    "Use the image generation tool to create this picture, then copy the generated image file to "
-    "./out.png with the shell and reply with only that path."
+    "Use the image generation tool to create this picture. Reply with only the absolute local "
+    "path of the generated image. Do not use the shell to copy it to ./out.png; "
+    "the calling pipeline will copy the image itself."
 )
 
 
@@ -165,12 +178,11 @@ def _art_block(book: dict, art: dict | None) -> str:
 
 def _logo_rule(settings: CoverSettings) -> str:
     return (
-        f'- The "{settings.logo_name}" logo from reference image 1, reproduced faithfully '
-        f"({settings.logo_description}), as a corner publisher mark about {settings.logo_width_pct}% of the cover width, COMPLETE and "
-        f"fully visible. Place the whole logo at least {settings.safe_side_pct}% of the finished "
+        f'- Do not add the "{settings.logo_name}" (Giggle and Snooze) logo, channel name, '
+        'publisher mark, branding badge or watermark anywhere on the cover. '
+        f"Keep the title, subtitle and main character at least {settings.safe_side_pct}% of the finished "
         "cover's width away from the left and right edges and at least "
-        f"{settings.safe_top_bottom_pct}% from the top and bottom edges, with clear space around "
-        "it. Do not restyle the logo into the book's medium."
+        f"{settings.safe_top_bottom_pct}% from the top and bottom edges."
     )
 
 
@@ -190,8 +202,8 @@ def cover_request(book: dict, art: dict | None, stem: str, settings: CoverSettin
     if art_block:
         parts.append(art_block)
     parts.append(
-        f'Reference image 1 is the channel logo "{settings.logo_name}". Reference image 2 is a '
-        "page from this book: keep the characters' looks exactly as shown there."
+        "Reference image 1, when supplied, is a page from this book: "
+        "keep the characters' looks exactly as shown there."
     )
     rules = [f"- {rule}" for rule in settings.layout_rules] + [_logo_rule(settings)]
     parts.append("Cover layout, like a real published picture book cover:\n" + "\n".join(rules))
@@ -204,8 +216,8 @@ def cover_request(book: dict, art: dict | None, stem: str, settings: CoverSettin
 def build_cover_command(
     binary: Path, request: str, logo: Path, reference: Path | None
 ) -> list[str]:
-    """Codex command that paints one cover: the logo first, then the story page when given."""
-    command = [str(binary), *CODEX_FLAGS, "-i", str(logo)]
+    """Paint a cover with only the story page attached; logo is a legacy unused argument."""
+    command = [str(binary), *image_codex_flags()]
     if reference is not None:
         command += ["-i", str(reference)]
     return [*command, "--", f"{PAINT_TASK}\n\n{request}"]
@@ -245,9 +257,9 @@ CHECK_SCHEMA = {
     "properties": {
         "title": {"type": "string"},
         "subtitle": {"type": "string"},
-        "logo_whole": {"type": "boolean"},
+        "logo_absent": {"type": "boolean"},
     },
-    "required": ["title", "subtitle", "logo_whole"],
+    "required": ["title", "subtitle", "logo_absent"],
     "additionalProperties": False,
 }
 
@@ -261,12 +273,13 @@ def build_check_command(
         '- "title": the main title exactly as lettered (line breaks as spaces; keep the spelling '
         "and punctuation exactly as you see them).\n"
         '- "subtitle": the smaller subtitle exactly as lettered ("" if there is none).\n'
-        f'- "logo_whole": true only if the complete "{logo_name}" logo is visible and no part of '
-        "it is cut off by an edge of the picture."
+        f'- "logo_absent": true only if the "{logo_name}" (Giggle and Snooze) logo and '
+        "channel branding are entirely absent. Any complete or partial logo, publisher mark "
+        "or branding badge makes this false."
     )
     return [
         str(binary),
-        *CODEX_FLAGS,
+        *image_codex_flags(),
         "--output-schema",
         str(schema),
         "-o",
@@ -282,7 +295,7 @@ def build_check_command(
 class CoverReading:
     title: str
     subtitle: str
-    logo_whole: bool
+    logo_absent: bool
 
 
 def parse_reading(text: str) -> CoverReading:
@@ -296,10 +309,10 @@ def parse_reading(text: str) -> CoverReading:
         or set(data) != set(CHECK_SCHEMA["required"])
         or not isinstance(data["title"], str)
         or not isinstance(data["subtitle"], str)
-        or not isinstance(data["logo_whole"], bool)
+        or not isinstance(data["logo_absent"], bool)
     ):
         raise CoverError(f"cover check gave no readable answer: {text.strip()[:200]!r}")
-    return CoverReading(data["title"], data["subtitle"], data["logo_whole"])
+    return CoverReading(data["title"], data["subtitle"], data["logo_absent"])
 
 
 QUOTES = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})
@@ -320,6 +333,6 @@ def check_problem(reading: CoverReading, title: str, subtitle: str) -> str | Non
         return f"title read as {reading.title!r}"
     if not words_match(subtitle, reading.subtitle):
         return f"subtitle read as {reading.subtitle!r}"
-    if not reading.logo_whole:
-        return "logo not whole"
+    if not reading.logo_absent:
+        return "unwanted cover logo or branding"
     return None

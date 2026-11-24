@@ -1,0 +1,67 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "6b2f7becbabca4e03a43403ba2820cbdaab7aad68465238a87a1dfddaa958482",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-22T14:25:30+00:00",
+  "layers": [
+    {
+      "name": "ollo",
+      "description": "Whole isolated Ollo silhouette, moving as one piece with a very gentle vertical float; no detached body parts.",
+      "box": [
+        637,
+        152,
+        1090,
+        546
+      ],
+      "include_points": [
+        [
+          853,
+          326
+        ],
+        [
+          747,
+          503
+        ],
+        [
+          974,
+          487
+        ]
+      ],
+      "exclude_points": [
+        [
+          649,
+          202
+        ],
+        [
+          1044,
+          268
+        ],
+        [
+          840,
+          536
+        ]
+      ],
+      "z": 2,
+      "depth": 0.0,
+      "pivot": [
+        864,
+        354
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.004,
+          "period_s": 9.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

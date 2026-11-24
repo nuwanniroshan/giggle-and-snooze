@@ -126,7 +126,7 @@ def _write_private(path: Path, text: str) -> None:
     tmp = path.with_name(path.name + ".tmp")
     try:
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        os.fchmod(fd, 0o600)
+        os.chmod(tmp, 0o600)  # fchmod is POSIX-only; Windows needs the path form
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
         tmp.replace(path)

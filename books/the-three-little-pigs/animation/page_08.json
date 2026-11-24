@@ -1,0 +1,161 @@
+{
+  "page_number": 8,
+  "picture": {
+    "file": "page_08.png",
+    "sha256": "94483e7086b7139f283231195d095d6445c74470242cab15d8ab617b4cbcbb9d",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:18:51+00:00",
+  "layers": [
+    {
+      "name": "meadow_grass",
+      "description": "Dark foreground grass blades across the lower-left pane, excluding flowers, painted wind streaks, and the window frame.",
+      "box": [
+        892,
+        416,
+        1204,
+        568
+      ],
+      "include_points": [
+        [
+          923,
+          477
+        ],
+        [
+          968,
+          513
+        ],
+        [
+          1092,
+          509
+        ]
+      ],
+      "exclude_points": [
+        [
+          933,
+          534
+        ],
+        [
+          1011,
+          516
+        ],
+        [
+          1175,
+          534
+        ]
+      ],
+      "z": 1,
+      "depth": 0.24,
+      "pivot": [
+        1044,
+        563
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.85,
+          "period_s": 8.0,
+          "phase": 0.16,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "wolf",
+      "description": "Wolf's gray silhouette and cream muzzle, with paws planted in the grass. Exclude the free scarf tail.",
+      "box": [
+        1297,
+        320,
+        1597,
+        499
+      ],
+      "include_points": [
+        [
+          1363,
+          392
+        ],
+        [
+          1466,
+          446
+        ],
+        [
+          1565,
+          412
+        ]
+      ],
+      "exclude_points": [
+        [
+          1491,
+          377
+        ]
+      ],
+      "z": 2,
+      "depth": 0.36,
+      "pivot": [
+        1432,
+        491
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.009,
+          "period_s": 8.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "scarf_tail",
+      "description": "Free rust-red scarf from behind Wolf's neck to the fringed tip.",
+      "box": [
+        1419,
+        353,
+        1552,
+        414
+      ],
+      "include_points": [
+        [
+          1452,
+          388
+        ],
+        [
+          1494,
+          378
+        ],
+        [
+          1532,
+          372
+        ]
+      ],
+      "exclude_points": [
+        [
+          1459,
+          410
+        ],
+        [
+          1520,
+          395
+        ]
+      ],
+      "z": 3,
+      "depth": 0.37,
+      "pivot": [
+        1426,
+        404
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 4.0,
+          "phase": 0.12,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

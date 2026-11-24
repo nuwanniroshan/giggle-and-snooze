@@ -76,6 +76,35 @@ def test_ideas_are_saved_to_the_run(root, monkeypatch):  # AC-1.1
     assert record["state"] == "ready" and len(record["payload"]["ideas"]) == 3
 
 
+def test_studio_ideas_command_saves_suggestions(root, monkeypatch):
+    from video_pipeline.studio.books import StudioPaths
+    from video_pipeline.studio.jobs import story_command
+
+    store = DraftStore(root)
+    run = store.new_run("ideas")
+    use(monkeypatch, FakeCodex([ideas_payload()]))
+    command = story_command("ideas", run, StudioPaths(root))
+    assert ws.main(command[3:]) == 0
+    assert store.read_run(run)["state"] == "ready"
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["ideas", "--run", "test"],
+        ["candidate", "--run", "test"],
+        ["book", "--draft", "test"],
+        ["blueprint", "--draft", "test", "--then-book"],
+        ["blueprint", "--book", "test"],
+    ],
+)
+def test_root_is_accepted_before_or_after_story_command(tmp_path, args):
+    root_args = ["--root", str(tmp_path)]
+    assert ws.parse_args(root_args + args).root == tmp_path
+    assert ws.parse_args(args + root_args).root == tmp_path
+    assert ws.parse_args(args).root == ws.PROJECT_ROOT
+
+
 def test_invalid_ideas_are_retried_with_the_problems(root, monkeypatch):  # FR-7
     store = DraftStore(root)
     run = store.new_run("ideas")
@@ -175,6 +204,8 @@ def test_run_logs_stay_with_the_draft(root, monkeypatch):  # FR-9
 def test_book_prompt_asks_for_the_sheet_and_page_names():  # FR-1
     assert '"characters"' in ws.BOOK_PROMPT and '"characters_on_page"' in ws.BOOK_PROMPT
     assert "look" in ws.BOOK_PROMPT
+    assert "fresh, varied names" in ws.BOOK_PROMPT
+    assert "overused stock names" in ws.BOOK_PROMPT
 
 
 def test_submit_book_tool_describes_the_sheet():  # FR-1

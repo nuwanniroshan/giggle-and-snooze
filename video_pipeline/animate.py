@@ -50,7 +50,7 @@ from video_pipeline.motion_plan import (
 )
 from video_pipeline.timeline import AnimationSettings, Camera, EffectDefaults, _hash, camera_at
 
-ANIMATION_VERSION = 2  # 2: speed follows intensity; rest frames match the still canvas
+ANIMATION_VERSION = 3  # 3: stationary foreground layers retain their z order
 REFERENCE_SIDE = 1024  # effect sizes in the config are px on a picture with this shorter side
 EDGE_TAPER_PX = 24.0  # haze and ripple fade to nothing over this many px at a box edge (at 1024)
 ZOOM_MAX = 10.0  # zoompan's zoom range
@@ -186,7 +186,7 @@ class LayerState:
     layer: Layer  # the plan layer (geometry)
     rgba: np.ndarray  # premultiplied float32 h×w×4, 0..1
     offset: tuple[int, int]  # top-left in picture pixels (from the manifest)
-    moving: bool  # has motions or depth; static layers are baked into the base once
+    moving: bool  # rendered each frame; includes stationary layers in front of moving ones
 
     @property
     def size(self) -> tuple[int, int]:
@@ -756,7 +756,13 @@ def load_page_animation(
         fps=fps,
         frames=frames,
     )
+    moving_seen = False
     for ls in states:
+        moving_seen = moving_seen or ls.moving
+        if moving_seen:
+            # Baking a stationary foreground into the base puts ALL moving layers over it.
+            # Keep it in the ordered compositor instead, with its identity transform.
+            ls.moving = True
         if not ls.moving:
             got = _warp(ls, _with_offset(np.eye(2, 3), ls.offset), width, height)
             if got is not None:

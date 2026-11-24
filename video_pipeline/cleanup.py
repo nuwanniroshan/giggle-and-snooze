@@ -369,7 +369,7 @@ def cleanup_page(
     if not regions:
         log(f"page {page_number}: no artifacts found")
         return CleanupOutcome("nothing")
-    models_cfg = read_config(root)
+    models_cfg = read_config(root)["models"]
     seg, fill = (load_models or load_real_models)(root, models_cfg)
     probes = []
     for i, r in enumerate(regions):

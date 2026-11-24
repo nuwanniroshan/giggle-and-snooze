@@ -1,0 +1,171 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "f23b8adcd892d89bc688f7ae882ba30695e2333575b32a1a69ef5100189dcf9b",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:10:48+00:00",
+  "layers": [
+    {
+      "name": "left_cloud",
+      "description": "Cream cloud in the open sky above the left roof slope.",
+      "box": [
+        175,
+        57,
+        480,
+        137
+      ],
+      "include_points": [
+        [
+          329,
+          84
+        ],
+        [
+          244,
+          116
+        ]
+      ],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.05,
+      "pivot": [
+        328,
+        98
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.018,
+          "period_s": 12.0,
+          "phase": 0.0,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "poppy_and_sandwich",
+      "description": "Seated Poppy including both ears, curly tail, hooves, hands and sandwich.",
+      "box": [
+        503,
+        203,
+        925,
+        791
+      ],
+      "include_points": [
+        [
+          595,
+          350
+        ],
+        [
+          802,
+          264
+        ],
+        [
+          730,
+          410
+        ],
+        [
+          666,
+          563
+        ],
+        [
+          812,
+          537
+        ],
+        [
+          566,
+          683
+        ],
+        [
+          713,
+          748
+        ],
+        [
+          884,
+          724
+        ]
+      ],
+      "exclude_points": [
+        [
+          531,
+          267
+        ],
+        [
+          904,
+          462
+        ],
+        [
+          804,
+          769
+        ]
+      ],
+      "z": 2,
+      "depth": 0.65,
+      "pivot": [
+        756,
+        759
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.004,
+          "period_s": 6.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "left_lavender",
+      "description": "Purple flower spike in the lower-left foreground, hinged near the base of its stalk.",
+      "box": [
+        20,
+        675,
+        112,
+        864
+      ],
+      "include_points": [
+        [
+          57,
+          772
+        ],
+        [
+          85,
+          721
+        ],
+        [
+          30,
+          837
+        ]
+      ],
+      "exclude_points": [
+        [
+          115,
+          808
+        ]
+      ],
+      "z": 3,
+      "depth": 0.95,
+      "pivot": [
+        23,
+        861
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 6.0,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

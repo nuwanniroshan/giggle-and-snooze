@@ -2,194 +2,91 @@
   "page_number": 6,
   "picture": {
     "file": "page_06.png",
-    "sha256": "bdab7e176bc8fcbd096876f7e913ad34c4cbc389f540ecfc6a88ce8dbf8d0b9b",
-    "width": 1254,
-    "height": 1254
+    "sha256": "3a03e7d9399b46ac4bf4429ed421ac2b518eb89ecce66b95d04ffe246f0ba804",
+    "width": 1536,
+    "height": 864
   },
   "provider": "codex",
-  "written_at": "2026-11-10T19:44:51+00:00",
+  "written_at": "2026-11-24T08:03:40+00:00",
   "layers": [
     {
-      "name": "mira_breath",
-      "description": "Mira's raincoat torso and scarf gently expand with a slow calming breath; hands and resting pose stay relaxed.",
+      "name": "small_breeze_curl",
+      "description": "The small detached cream-colored breeze curl below the two long wisps, over the rock to the right of the lighthouse.",
       "box": [
-        507,
-        529,
-        810,
-        845
+        1320,
+        335,
+        1357,
+        359
       ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 3,
-      "depth": 0.7,
+      "include_points": [
+        [
+          1326,
+          348
+        ],
+        [
+          1338,
+          355
+        ],
+        [
+          1352,
+          349
+        ]
+      ],
+      "exclude_points": [
+        [
+          1336,
+          319
+        ],
+        [
+          1318,
+          359
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
       "pivot": [
-        662,
-        809
+        1339,
+        350
       ],
       "motions": [
         {
-          "type": "breathe",
-          "amplitude": 0.008,
-          "period_s": 7.0,
+          "type": "rotate",
+          "amplitude": 1.2,
+          "period_s": 8.0,
           "phase": 0.0,
           "direction": null
-        }
-      ]
-    },
-    {
-      "name": "pip_resting",
-      "description": "Pip resting against Mira's shoulder, with a barely perceptible sleepy breathing motion.",
-      "box": [
-        445,
-        486,
-        657,
-        674
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 4,
-      "depth": 0.73,
-      "pivot": [
-        577,
-        599
-      ],
-      "motions": [
-        {
-          "type": "breathe",
-          "amplitude": 0.006,
-          "period_s": 7.0,
-          "phase": 0.08,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "hair_tips",
-      "description": "Loose curls on the left side of Mira's hair drift very gently with the soft exhaled breeze.",
-      "box": [
-        451,
-        389,
-        654,
-        599
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 2,
-      "depth": 0.69,
-      "pivot": [
-        641,
-        414
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 0.55,
-          "period_s": 7.0,
-          "phase": 0.25,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "shelter_leaves",
-      "description": "Hanging green leaves at the upper left move faintly at their stems.",
-      "box": [
-        167,
-        0,
-        481,
-        230
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 5,
-      "depth": 0.8,
-      "pivot": [
-        370,
-        9
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 0.45,
-          "period_s": 9.0,
-          "phase": 0.2,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "soft_breeze_curl",
-      "description": "Small pale illustrated breeze curl to the left of Mira's hair floats softly without lettering.",
-      "box": [
-        434,
-        375,
-        547,
-        442
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 4,
-      "depth": 0.65,
-      "pivot": [
-        487,
-        409
-      ],
-      "motions": [
-        {
-          "type": "shift",
-          "amplitude": 0.002,
-          "period_s": 7.0,
-          "phase": 0.4,
-          "direction": [
-            -1.0,
-            -0.2
-          ]
         }
       ]
     }
   ],
   "effects": [
     {
-      "type": "glow",
+      "type": "rain",
       "region": {
         "box": [
-          823,
-          153,
-          1158,
-          309
+          4,
+          69,
+          427,
+          329
         ],
         "layer": null
       },
-      "intensity": 0.16,
-      "colour": "#ffd376"
+      "intensity": 0.11,
+      "colour": null
     },
     {
       "type": "water_ripple",
       "region": {
         "box": [
-          0,
-          525,
-          433,
-          649
+          109,
+          416,
+          334,
+          504
         ],
         "layer": null
       },
-      "intensity": 0.1,
+      "intensity": 0.09,
       "colour": null
-    },
-    {
-      "type": "rain",
-      "region": {
-        "box": [
-          0,
-          0,
-          322,
-          570
-        ],
-        "layer": null
-      },
-      "intensity": 0.08,
-      "colour": "#becde5"
     }
   ]
 }

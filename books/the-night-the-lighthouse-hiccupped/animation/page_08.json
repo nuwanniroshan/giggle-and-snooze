@@ -2,90 +2,62 @@
   "page_number": 8,
   "picture": {
     "file": "page_08.png",
-    "sha256": "19114ccc0370e7fd7383dfb67409ca5695e3a736ceb93a565ec820406560a30d",
-    "width": 1254,
-    "height": 1254
+    "sha256": "0ed047b6b11d77d52a3fff4f2892205f9ab5f942486aaa303e1082b8ea29e9f1",
+    "width": 1672,
+    "height": 941
   },
   "provider": "codex",
-  "written_at": "2026-11-10T19:47:34+00:00",
+  "written_at": "2026-11-24T08:08:34+00:00",
   "layers": [
     {
-      "name": "pip",
-      "description": "White gull Pip with spread wings, orange beak and dangling feet.",
+      "name": "offshore_sailboat",
+      "description": "Whole nearer offshore sailboat, including the mast, both sails and the red hull.",
       "box": [
-        697,
-        478,
-        867,
-        614
+        233,
+        335,
+        279,
+        389
       ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 3,
-      "depth": 0.6,
+      "include_points": [
+        [
+          257,
+          339
+        ],
+        [
+          250,
+          372
+        ],
+        [
+          264,
+          373
+        ],
+        [
+          254,
+          384
+        ]
+      ],
+      "exclude_points": [
+        [
+          231,
+          384
+        ],
+        [
+          278,
+          392
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
       "pivot": [
-        786,
-        551
+        256,
+        383
       ],
       "motions": [
         {
           "type": "bob",
-          "amplitude": 0.003,
-          "period_s": 4.8,
-          "phase": 0.2,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "mira_scarf_tail",
-      "description": "Two blue scarf tails flowing left behind Mira; keep her coat and hair fixed.",
-      "box": [
-        618,
-        740,
-        719,
-        816
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 4,
-      "depth": 0.8,
-      "pivot": [
-        710,
-        760
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 1.5,
-          "period_s": 5.6,
-          "phase": 0.1,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "lighthouse",
-      "description": "Entire smiling lighthouse including red roof, lantern room, tower and both tiny stone feet; move together in a very gentle walking bob.",
-      "box": [
-        896,
-        299,
-        1201,
-        839
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 2,
-      "depth": 0.78,
-      "pivot": [
-        1044,
-        809
-      ],
-      "motions": [
-        {
-          "type": "bob",
-          "amplitude": 0.0012,
-          "period_s": 5.8,
-          "phase": 0.6,
+          "amplitude": 0.0015,
+          "period_s": 8.0,
+          "phase": 0.0,
           "direction": null
         }
       ]
@@ -93,27 +65,13 @@
   ],
   "effects": [
     {
-      "type": "glow",
-      "region": {
-        "box": [
-          1047,
-          374,
-          1158,
-          450
-        ],
-        "layer": null
-      },
-      "intensity": 0.16,
-      "colour": "#ffd888"
-    },
-    {
       "type": "water_ripple",
       "region": {
         "box": [
-          174,
-          920,
-          387,
-          1084
+          291,
+          568,
+          538,
+          615
         ],
         "layer": null
       },

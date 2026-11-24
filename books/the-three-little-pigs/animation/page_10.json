@@ -1,0 +1,162 @@
+{
+  "page_number": 10,
+  "picture": {
+    "file": "page_10.png",
+    "sha256": "38ec75bf0811795d8064a034f5437fe10a3865e428688372f1ded38c3a67df66",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:22:18+00:00",
+  "layers": [
+    {
+      "name": "tea_stream",
+      "description": "Exposed amber stream between the teapot spout and the tea surface",
+      "box": [
+        462,
+        543,
+        488,
+        602
+      ],
+      "include_points": [
+        [
+          474,
+          561
+        ],
+        [
+          478,
+          586
+        ]
+      ],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.78,
+      "pivot": [
+        467,
+        546
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.55,
+          "period_s": 4.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "toast_plate",
+      "description": "Blue-rimmed plate and both slices of toast where Poppy offers them",
+      "box": [
+        812,
+        391,
+        1047,
+        509
+      ],
+      "include_points": [
+        [
+          896,
+          427
+        ],
+        [
+          972,
+          442
+        ],
+        [
+          995,
+          479
+        ]
+      ],
+      "exclude_points": [
+        [
+          833,
+          464
+        ],
+        [
+          847,
+          475
+        ]
+      ],
+      "z": 3,
+      "depth": 0.65,
+      "pivot": [
+        843,
+        475
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.55,
+          "period_s": 8.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pebble_feet",
+      "description": "Pebble’s two pink feet peeking out of the blue overall cuffs",
+      "box": [
+        1060,
+        561,
+        1257,
+        689
+      ],
+      "include_points": [
+        [
+          1097,
+          600
+        ],
+        [
+          1196,
+          637
+        ]
+      ],
+      "exclude_points": [
+        [
+          1124,
+          574
+        ],
+        [
+          1236,
+          592
+        ]
+      ],
+      "z": 2,
+      "depth": 0.62,
+      "pivot": [
+        1151,
+        583
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.012,
+          "period_s": 8.0,
+          "phase": 0.5,
+          "direction": [
+            0.85,
+            -0.2
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          675,
+          139,
+          793,
+          217
+        ],
+        "layer": null
+      },
+      "intensity": 0.13,
+      "colour": "#ffcc76"
+    }
+  ]
+}

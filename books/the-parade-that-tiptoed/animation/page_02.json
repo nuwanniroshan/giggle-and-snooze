@@ -1,0 +1,159 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "9f269e6f6cedfb9c5982a10668d78d202803997aa7fc9339165aae63aa26bf2b",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-22T04:17:46+00:00",
+  "layers": [
+    {
+      "name": "small_cloud",
+      "description": "Cream cloud above the center roof drifts gently sideways.",
+      "box": [
+        723,
+        86,
+        946,
+        174
+      ],
+      "include_points": [
+        [
+          850,
+          119
+        ],
+        [
+          775,
+          150
+        ]
+      ],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.08,
+      "pivot": [
+        835,
+        151
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.017,
+          "period_s": 11.0,
+          "phase": 0.12,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "daisies_by_gate",
+      "description": "Two white daisies and their shared fan of green foliage at the base of the wall.",
+      "box": [
+        809,
+        602,
+        1027,
+        780
+      ],
+      "include_points": [
+        [
+          917,
+          645
+        ],
+        [
+          967,
+          705
+        ],
+        [
+          866,
+          731
+        ],
+        [
+          928,
+          752
+        ]
+      ],
+      "exclude_points": [
+        [
+          1020,
+          610
+        ],
+        [
+          816,
+          766
+        ]
+      ],
+      "z": 4,
+      "depth": 0.68,
+      "pivot": [
+        935,
+        773
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 7.0,
+          "phase": 0.37,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "ms_lily_raised_hand",
+      "description": "Ms. Lily’s open palm and fingers tilt softly from the wrist at her lavender cuff.",
+      "box": [
+        932,
+        300,
+        1077,
+        432
+      ],
+      "include_points": [
+        [
+          1001,
+          383
+        ],
+        [
+          1038,
+          327
+        ],
+        [
+          964,
+          351
+        ]
+      ],
+      "exclude_points": [
+        [
+          1070,
+          419
+        ],
+        [
+          1000,
+          308
+        ],
+        [
+          944,
+          422
+        ]
+      ],
+      "z": 6,
+      "depth": 0.77,
+      "pivot": [
+        1060,
+        413
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.65,
+          "period_s": 6.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

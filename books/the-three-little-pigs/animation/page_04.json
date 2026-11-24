@@ -1,0 +1,213 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "46a709c58f223fb3c841059f85eb5664d06c8f4f58ea679019be6303a980b08b",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:12:29+00:00",
+  "layers": [
+    {
+      "name": "cream_forelock",
+      "description": "Pebble’s cream forelock, including its dark outline and tapered tips.",
+      "box": [
+        370,
+        259,
+        580,
+        416
+      ],
+      "include_points": [
+        [
+          493,
+          302
+        ],
+        [
+          445,
+          362
+        ],
+        [
+          541,
+          364
+        ]
+      ],
+      "exclude_points": [
+        [
+          374,
+          304
+        ],
+        [
+          579,
+          340
+        ],
+        [
+          496,
+          409
+        ]
+      ],
+      "z": 4,
+      "depth": 0.73,
+      "pivot": [
+        525,
+        285
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.55,
+          "period_s": 6.0,
+          "phase": 0.15,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "meadow_daisy",
+      "description": "Cream daisy with yellow center and upright stem immediately left of the cottage.",
+      "box": [
+        925,
+        463,
+        985,
+        580
+      ],
+      "include_points": [
+        [
+          954,
+          489
+        ],
+        [
+          951,
+          540
+        ]
+      ],
+      "exclude_points": [
+        [
+          918,
+          532
+        ],
+        [
+          980,
+          554
+        ]
+      ],
+      "z": 2,
+      "depth": 0.52,
+      "pivot": [
+        947,
+        573
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.25,
+          "period_s": 6.0,
+          "phase": 0.42,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_lavender",
+      "description": "The tall purple lavender spike and its narrow stem at the lower left.",
+      "box": [
+        12,
+        741,
+        94,
+        938
+      ],
+      "include_points": [
+        [
+          52,
+          816
+        ],
+        [
+          39,
+          851
+        ],
+        [
+          29,
+          908
+        ]
+      ],
+      "exclude_points": [
+        [
+          84,
+          915
+        ],
+        [
+          79,
+          870
+        ]
+      ],
+      "z": 5,
+      "depth": 0.96,
+      "pivot": [
+        24,
+        934
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.45,
+          "period_s": 6.0,
+          "phase": 0.05,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "high_cloud",
+      "description": "The long cream cloud high above Pebble, to the left of the sun.",
+      "box": [
+        598,
+        20,
+        952,
+        115
+      ],
+      "include_points": [
+        [
+          774,
+          57
+        ],
+        [
+          630,
+          98
+        ],
+        [
+          898,
+          88
+        ]
+      ],
+      "exclude_points": [
+        [
+          620,
+          57
+        ],
+        [
+          918,
+          51
+        ]
+      ],
+      "z": 1,
+      "depth": 0.04,
+      "pivot": [
+        775,
+        90
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.018,
+          "period_s": 12.0,
+          "phase": 0.18,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

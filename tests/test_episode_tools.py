@@ -130,6 +130,25 @@ def test_interrupted_write_keeps_previous_file(monkeypatch, tmp_path):  # Reliab
     assert list(tmp_path.iterdir()) == [target]
 
 
+def test_write_retries_a_briefly_locked_file(monkeypatch, tmp_path):
+    target = tmp_path / "episode_script.json"
+    target.write_text("previous", encoding="utf-8")
+    real = episode_tools.os.replace
+    calls = []
+
+    def reader_once(src, dst):
+        calls.append((src, dst))
+        if len(calls) == 1:
+            raise PermissionError("the file is open by a reader")
+        return real(src, dst)
+
+    monkeypatch.setattr(episode_tools.os, "replace", reader_once)
+    write_atomic(target, {"new": True})
+    assert len(calls) == 2
+    assert json.loads(target.read_text(encoding="utf-8")) == {"new": True}
+    assert list(tmp_path.iterdir()) == [target]
+
+
 # --- spec 028: narration tags in generated banter -----------------------------------------------
 
 

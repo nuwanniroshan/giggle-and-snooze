@@ -120,24 +120,24 @@ def test_request_has_exact_words_art_layout_and_safe_area():  # AC-1.2, AC-1.3
     )
     assert 'Book: "Mira and the Moon Kite" — subtitle "A Windy Hill Story".' in request
     assert "Story: Mira builds a kite that wants to reach the moon." in request
-    assert "as a corner publisher mark about 14% of the cover width" in request  # AC-1.2
+    assert 'Do not add the "Giggle & Snooze" (Giggle and Snooze) logo' in request
     assert "Soft gouache on cold-press paper, gentle grain." in request
     assert "Medium: gouache. Line: Loose brown pencil outlines." in request
     assert "Lighting: Warm late-afternoon light." in request
     assert "Palette: moss #6B8F3A, plum #6A3D6E. Avoid: neon colours, photo realism." in request
-    assert 'Reference image 1 is the channel logo "Giggle & Snooze".' in request
-    assert "Reference image 2 is a page from this book" in request
+    assert "Reference image 1, when supplied, is a page from this book" in request
+    assert "Reference image 2" not in request
     for rule in settings.layout_rules:
         assert f"- {rule}" in request
-    assert "about 14% of the cover width" in request
+    assert "branding badge or watermark" in request
     assert (
         "at least 12% of the finished cover's width away from the left and right edges" in request
     )
     assert "at least 5% from the top and bottom edges" in request
-    assert f"({settings.logo_description})" in request  # FR-2: the logo look comes from config
+    assert settings.logo_description not in request
     other = dataclasses.replace(settings, logo_description="same chunky red letters")
     changed = covers.cover_request(_book(), ART, "cover_front", other)
-    assert changed != request and "(same chunky red letters)" in changed
+    assert changed == request
     assert "Bright crayon" not in request  # the blueprint wins over the style bible
     order = [
         request.index("Book:"),
@@ -195,20 +195,38 @@ def test_request_adds_character_looks():  # spec 018
     )
 
 
-def test_cover_command_attaches_logo_then_page_and_no_style_line(tmp_path):  # AC-1.3
+@pytest.mark.parametrize("platform", ["win32", "linux", "darwin"])
+def test_image_commands_configure_windows_sandbox(monkeypatch, platform):
+    from video_pipeline import illustrate
+
+    monkeypatch.setattr(covers.sys, "platform", platform)
+    commands = [
+        illustrate.build_image_command(Path("codex"), "paint", None),
+        covers.build_cover_command(Path("codex"), "paint", Path("logo.png"), None),
+        covers.build_check_command(
+            Path("codex"), Path("cover.png"), Path("schema.json"), Path("reply.json"), "Logo"
+        ),
+    ]
+    for command in commands:
+        assert command[command.index("--sandbox") + 1] == "workspace-write"
+        overrides = [command[i + 1] for i, arg in enumerate(command) if arg == "-c"]
+        assert ('windows.sandbox="elevated"' in overrides) == (platform == "win32")
+
+
+def test_cover_command_attaches_only_page_and_no_style_line(tmp_path):  # AC-1.3
     from video_pipeline import illustrate
 
     binary, logo, page = tmp_path / "codex", tmp_path / "logo.png", tmp_path / "page_01.png"
     command = covers.build_cover_command(binary, "REQUEST", logo, page)
     assert command[:10] == illustrate.build_image_command(binary, "x", None)[:10]
     images = [command[i + 1] for i, arg in enumerate(command) if arg == "-i"]
-    assert images == [str(logo), str(page)]
+    assert images == [str(page)]
     assert command[-2] == "--"
     assert command[-1].startswith("Use the image generation tool to create this picture")
     assert command[-1].endswith("\n\nREQUEST")
     assert illustrate.STYLE_LINE not in command[-1]
     no_page = covers.build_cover_command(binary, "REQUEST", logo, None)
-    assert [a for a in no_page if a == "-i"] == ["-i"]
+    assert "-i" not in no_page
 
 
 def _png(path, size):
@@ -276,16 +294,16 @@ def test_check_command_sends_only_the_cover_and_schema(tmp_path):  # FR-4
     assert command[command.index("-o") + 1] == str(reply)
     assert command[-2] == "--"
     task = command[-1]
-    assert '"title"' in task and '"subtitle"' in task and '"logo_whole"' in task
+    assert '"title"' in task and '"subtitle"' in task and '"logo_absent"' in task
     assert '"Giggle & Snooze"' in task
     assert "Mira and the Moon Kite" not in " ".join(command)
-    assert set(covers.CHECK_SCHEMA["required"]) == {"title", "subtitle", "logo_whole"}
+    assert set(covers.CHECK_SCHEMA["required"]) == {"title", "subtitle", "logo_absent"}
     assert covers.CHECK_SCHEMA["additionalProperties"] is False
 
 
 def test_parse_reading_ok_and_bad():
     reading = covers.parse_reading(
-        '\n {"title": "Mira and the Moon Kite", "subtitle": "", "logo_whole": true}\n'
+        '\n {"title": "Mira and the Moon Kite", "subtitle": "", "logo_absent": true}\n'
     )
     assert reading == covers.CoverReading("Mira and the Moon Kite", "", True)
     for bad in (
@@ -293,9 +311,9 @@ def test_parse_reading_ok_and_bad():
         "not json",
         "[]",
         '{"title": "A", "subtitle": "B"}',
-        '{"title": "A", "subtitle": "B", "logo_whole": "yes"}',
-        '{"title": 3, "subtitle": "B", "logo_whole": true}',
-        '{"title": "A", "subtitle": "B", "logo_whole": true, "extra": 1}',
+        '{"title": "A", "subtitle": "B", "logo_absent": "yes"}',
+        '{"title": 3, "subtitle": "B", "logo_absent": true}',
+        '{"title": "A", "subtitle": "B", "logo_absent": true, "extra": 1}',
     ):
         with pytest.raises(covers.CoverError, match="cover check gave no readable answer"):
             covers.parse_reading(bad)
@@ -322,7 +340,7 @@ def test_check_problem_reasons():
     assert covers.check_problem(bad_sub, "Mira and the Moon Kite", "A Windy Hill Story") == (
         "subtitle read as ''"
     )
-    no_logo = covers.CoverReading("Mira and the Moon Kite", "A Windy Hill Story", False)
-    assert covers.check_problem(no_logo, "Mira and the Moon Kite", "A Windy Hill Story") == (
-        "logo not whole"
+    with_logo = covers.CoverReading("Mira and the Moon Kite", "A Windy Hill Story", False)
+    assert covers.check_problem(with_logo, "Mira and the Moon Kite", "A Windy Hill Story") == (
+        "unwanted cover logo or branding"
     )

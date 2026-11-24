@@ -41,8 +41,8 @@ def run(script, tmp_path, engine=None, cfg=CFG, prons=None, force=False):
     return jobs, paths, outcomes, names, rebuilt, engine
 
 
-def test_spoken_text_keeps_allowed_tags_and_drops_others():  # AC-2.3
-    assert spoken_text("<giggle> Hi <whisper>there</whisper>!", {}) == "<giggle> Hi there !"
+def test_spoken_text_drops_sound_tags_and_other_markup():  # AC-2.3
+    assert spoken_text("<giggle> Hi <whisper>there</whisper>!", {}) == "Hi there !"
 
 
 def test_spoken_text_applies_pronunciations_whole_word():  # AC-5.1
@@ -73,11 +73,11 @@ def test_plan_jobs_covers_every_line_with_role_voices(script):  # AC-1.1, AC-2.1
     assert jobs[0].line_id == "intro-01" and jobs[-1].track == "outro"
     assert "page-01-01" in {j.line_id for j in jobs}
     voices = {j.speaker: j.voice for j in jobs}
-    assert voices == {"storyteller": "tara", "kid_older": "zac", "kid_younger": "zoe"}
+    assert voices == {"storyteller": "af_heart", "kid_older": "kid_leo", "kid_younger": "kid_mia"}
     assert {j.speaker: j.semitones for j in jobs} == {
         "storyteller": 0.0,
-        "kid_older": 2.0,
-        "kid_younger": 3.0,
+        "kid_older": 0.5,
+        "kid_younger": 1.0,
     }
 
 
@@ -99,15 +99,11 @@ def test_clip_key_identity():  # FR-7
     assert base != clip_key("Hello there.", "tara", 0, other_model)
 
 
-def test_voice_config_limits_bf16_support_repo_to_tokenizer_files():
-    repos = {repo: (revision, files) for repo, revision, files in CFG.model.support_repos}
-    assert repos["mlx-community/snac_24khz"][1] is None
-    assert repos["mlx-community/orpheus-3b-0.1-ft-bf16"][1] == (
-        "config.json",
-        "tokenizer.json",
-        "tokenizer_config.json",
-        "special_tokens_map.json",
-    )
+def test_saved_orpheus_cast_uses_kokoro_voices(script):
+    script["cast"]["storyteller"]["voice"] = "tara"
+    jobs = plan_jobs(script, CFG, {})
+    assert {job.voice for job in jobs if job.speaker == "storyteller"} == {"af_heart"}
+    assert all("<" not in job.spoken for job in jobs)
 
 
 def test_pronunciation_changes_only_affected_lines(script):  # AC-5.4
@@ -158,7 +154,7 @@ def test_failing_attempt_is_retried_with_a_new_seed(script, tmp_path):  # AC-3.3
 def test_line_failing_every_attempt_is_reported(script, tmp_path):  # AC-3.4
     target = script["intro"]["lines"][0]["text"]
     with pytest.raises(LineFailed) as excinfo:
-        run(script, tmp_path, engine=FakeEngine(bad={target: 99}))
+        run(script, tmp_path, engine=FakeEngine(bad={spoken_text(target, {}): 99}))
     [(job, problems)] = excinfo.value.failures
     assert job.line_id == "intro-01" and any("clipping" in p for p in problems)
     paths = AudioPaths(tmp_path / "audio")
@@ -247,7 +243,7 @@ def test_pitch_shift_receives_the_role_lift(script, tmp_path):  # AC-2.2 wiring
 
     jobs = plan_jobs(script, CFG, {})
     synthesize_clips(jobs, AudioPaths(tmp_path / "a"), FakeEngine, CFG, shift=recording_shift)
-    assert set(seen) == {0.0, 2.0, 3.0}
+    assert set(seen) == {0.0, 0.5, 1.0}
 
 
 def test_engine_with_another_sample_rate_is_rejected(script, tmp_path):
@@ -372,13 +368,14 @@ def test_engine_error_names_the_line(script, tmp_path):  # review fix 6
 
 def test_pitch_shift_error_names_the_line(script, tmp_path):  # review fix 6
     def failing(audio, sample_rate, semitones, *_):
-        if semitones == 3.0:
+        if semitones == 2.0:
             raise sv.PitchShiftError("ffmpeg pitch shift failed: bad")
         return audio
 
-    jobs = plan_jobs(script, CFG, {})
+    cfg = dataclasses.replace(CFG, pitch_semitones={**CFG.pitch_semitones, "kid_younger": 2.0})
+    jobs = plan_jobs(script, cfg, {})
     with pytest.raises(sv.LineError, match=r"\(kid_younger\): PitchShiftError: ffmpeg"):
-        synthesize_clips(jobs, AudioPaths(tmp_path / "a"), FakeEngine, CFG, shift=failing)
+        synthesize_clips(jobs, AudioPaths(tmp_path / "a"), FakeEngine, cfg, shift=failing)
 
 
 def test_lines_sharing_a_failing_clip_are_all_named(script, tmp_path):  # review fix 7
@@ -403,8 +400,8 @@ def test_reused_clip_failing_current_checks_is_resynthesized(script, tmp_path): 
 
 
 def test_plan_jobs_rejects_two_roles_sharing_a_voice(script):  # AC-2.4
-    script["cast"]["kid_younger"]["voice"] = "zac"
-    with pytest.raises(ConfigError, match="kid_older.*kid_younger.*zac"):
+    script["cast"]["kid_younger"]["voice"] = "kid_leo"
+    with pytest.raises(ConfigError, match="kid_older.*kid_younger.*kid_leo"):
         plan_jobs(script, CFG, {})
 
 
@@ -503,10 +500,7 @@ def _all_lines(script):
     return lines + [(f"outro-{i:02d}", x) for i, x in enumerate(script["outro"]["lines"], 1)]
 
 
-def test_neutral_clip_key_is_unchanged_from_before_spec_017():  # AC-2.3
-    # keys made by the code before spec 017 (pinned), so neutral clips are reused as they are
-    assert clip_key("Hello there.", "tara", 0, CFG) == "9ceb5d205738660be09936198fa9dcc5"
-    assert clip_key("Hi!", "zoe", 3, CFG) == "78da23d9d0d463a04296a7a97373c25a"
+def test_neutral_clip_key_matches_unspecified_delivery():
     neutral = EMOTIONS.feeling("neutral")
     assert clip_key("Hello there.", "tara", 2, CFG, "neutral", neutral) == clip_key(
         "Hello there.", "tara", 2, CFG

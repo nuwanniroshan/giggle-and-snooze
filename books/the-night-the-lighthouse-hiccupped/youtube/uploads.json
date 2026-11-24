@@ -1,0 +1,22 @@
+{
+  "uploads": [
+    {
+      "video_id": "012gp-1eNGY",
+      "url": "https://www.youtube.com/watch?v=012gp-1eNGY",
+      "channel_id": "UClYlIXPK2NtB7rospIa9H0Q",
+      "channel_title": "Giggle & Snooze",
+      "uploaded_at": "2026-11-24T11:19:36+00:00",
+      "final_key": "51c32355ea2d67a884c5463a968c105d310fe1d5a1fba1854d773c822fce0aaa",
+      "video_sha256": "99c334d3ec886dd7465e7280d4a2476bef1cd1790a330010cbf200e083804740",
+      "text_sha256": "562e474da3b6d6b456fe24aa57ce0ce6b5907b395694a19365fc70943daa061a",
+      "category_id": "27",
+      "privacy": "private",
+      "made_for_kids": true,
+      "warnings": [
+        "thumbnail not set: HTTP 403 The authenticated user doesn't have permissions to upload and set custom video thumbnails."
+      ],
+      "state": "uploaded",
+      "checked_at": null
+    }
+  ]
+}

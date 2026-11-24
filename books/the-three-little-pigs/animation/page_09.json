@@ -1,0 +1,242 @@
+{
+  "page_number": 9,
+  "picture": {
+    "file": "page_09.png",
+    "sha256": "2cbb59b4fbee86ed6bb17362321434b3baa3ae2011ae71d34d46af18e191f128",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:20:32+00:00",
+  "layers": [
+    {
+      "name": "chimney_smoke",
+      "description": "Cream smoke curl above the chimney, with the base held in place.",
+      "box": [
+        590,
+        0,
+        835,
+        101
+      ],
+      "include_points": [
+        [
+          615,
+          80
+        ],
+        [
+          687,
+          57
+        ],
+        [
+          793,
+          34
+        ]
+      ],
+      "exclude_points": [],
+      "z": 1,
+      "depth": 0.32,
+      "pivot": [
+        615,
+        96
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.1,
+          "period_s": 8.8,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "wolf_scarf_tails",
+      "description": "The two loose red scarf ends trailing left from Wolf’s neck.",
+      "box": [
+        1163,
+        485,
+        1362,
+        596
+      ],
+      "include_points": [
+        [
+          1188,
+          522
+        ],
+        [
+          1246,
+          525
+        ],
+        [
+          1248,
+          564
+        ],
+        [
+          1323,
+          507
+        ]
+      ],
+      "exclude_points": [
+        [
+          1190,
+          565
+        ],
+        [
+          1305,
+          575
+        ],
+        [
+          1350,
+          534
+        ]
+      ],
+      "z": 4,
+      "depth": 0.64,
+      "pivot": [
+        1353,
+        493
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.5,
+          "period_s": 4.8,
+          "phase": 0.18,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip_ear",
+      "description": "The freckled pig’s floppy ear extending to the left.",
+      "box": [
+        302,
+        542,
+        360,
+        604
+      ],
+      "include_points": [
+        [
+          326,
+          571
+        ]
+      ],
+      "exclude_points": [
+        [
+          357,
+          594
+        ],
+        [
+          304,
+          538
+        ]
+      ],
+      "z": 3,
+      "depth": 0.57,
+      "pivot": [
+        350,
+        574
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 1.6,
+          "period_s": 7.1,
+          "phase": 0.35,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pebble_forelock",
+      "description": "The pale tuft hanging over the blue-overalls pig’s forehead.",
+      "box": [
+        611,
+        498,
+        682,
+        560
+      ],
+      "include_points": [
+        [
+          644,
+          530
+        ]
+      ],
+      "exclude_points": [
+        [
+          669,
+          552
+        ],
+        [
+          612,
+          507
+        ]
+      ],
+      "z": 3,
+      "depth": 0.57,
+      "pivot": [
+        674,
+        508
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.3,
+          "period_s": 6.4,
+          "phase": 0.7,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_lavender",
+      "description": "Purple flower spikes and slender stems at the lower-left edge.",
+      "box": [
+        0,
+        766,
+        155,
+        941
+      ],
+      "include_points": [
+        [
+          28,
+          820
+        ],
+        [
+          83,
+          844
+        ],
+        [
+          120,
+          897
+        ]
+      ],
+      "exclude_points": [
+        [
+          137,
+          849
+        ],
+        [
+          85,
+          903
+        ]
+      ],
+      "z": 5,
+      "depth": 0.96,
+      "pivot": [
+        48,
+        938
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.8,
+          "period_s": 5.9,
+          "phase": 0.47,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

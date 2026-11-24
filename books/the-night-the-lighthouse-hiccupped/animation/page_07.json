@@ -2,130 +2,78 @@
   "page_number": 7,
   "picture": {
     "file": "page_07.png",
-    "sha256": "2dc6c694a645c5b9c61865ba5751d4fae942a7b630e6dfcc1e5853f0e0467fe0",
-    "width": 1254,
-    "height": 1254
+    "sha256": "50c6a0970c7344ecbf8bb7ac7d1ec82711c489c839de1d15d36f0569edf02320",
+    "width": 1536,
+    "height": 864
   },
   "provider": "codex",
-  "written_at": "2026-11-10T19:46:12+00:00",
+  "written_at": "2026-11-24T08:06:49+00:00",
   "layers": [
     {
-      "name": "pip_head",
-      "description": "Pip's white head and orange beak, making a tiny settling nod beside the lamp shade.",
+      "name": "fishing_boat",
+      "description": "Whole red fishing boat with white cabin, mast, and rigging, immediately left of the pier",
       "box": [
-        859,
-        218,
-        978,
-        311
+        1091,
+        454,
+        1199,
+        562
       ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 4,
-      "depth": 0.55,
-      "pivot": [
-        949,
-        298
-      ],
-      "motions": [
-        {
-          "type": "rotate",
-          "amplitude": 0.7,
-          "period_s": 6.5,
-          "phase": 0.15,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "mira_hair",
-      "description": "Loose outer curls of Mira's dark hair stirring softly in the sea breeze; keep face and coat fixed.",
-      "box": [
-        185,
-        480,
-        489,
-        732
-      ],
-      "include_points": [],
-      "exclude_points": [
+      "include_points": [
         [
-          405,
-          586
+          1124,
+          549
         ],
         [
-          434,
-          636
+          1176,
+          548
         ],
         [
-          364,
-          674
+          1151,
+          525
+        ],
+        [
+          1127,
+          462
+        ],
+        [
+          1117,
+          507
+        ],
+        [
+          1163,
+          498
+        ],
+        [
+          1103,
+          528
         ]
       ],
-      "z": 5,
-      "depth": 0.7,
+      "exclude_points": [
+        [
+          1207,
+          534
+        ],
+        [
+          1141,
+          564
+        ],
+        [
+          1090,
+          538
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
       "pivot": [
-        371,
-        526
+        1145,
+        547
       ],
       "motions": [
         {
-          "type": "sway",
-          "amplitude": 0.6,
-          "period_s": 7.0,
-          "phase": 0.2,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "scarf_tails",
-      "description": "Two blue scarf ends extending left behind Mira, moving gently from their attachment at her neck.",
-      "box": [
-        161,
-        702,
-        337,
-        878
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 3,
-      "depth": 0.68,
-      "pivot": [
-        326,
-        716
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 1.1,
-          "period_s": 7.0,
-          "phase": 0.35,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "right_coastal_grass",
-      "description": "Fine grass tips on the right hillside, with the lighthouse and rocks held still.",
-      "box": [
-        1138,
-        569,
-        1253,
-        849
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 2,
-      "depth": 0.6,
-      "pivot": [
-        1202,
-        842
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 0.8,
-          "period_s": 8.0,
-          "phase": 0.5,
+          "type": "bob",
+          "amplitude": 0.008,
+          "period_s": 7.5,
+          "phase": 0.0,
           "direction": null
         }
       ]
@@ -136,15 +84,15 @@
       "type": "water_ripple",
       "region": {
         "box": [
-          0,
-          703,
-          186,
-          1017
+          795,
+          547,
+          1085,
+          607
         ],
         "layer": null
       },
       "intensity": 0.12,
-      "colour": "#f7cd83"
+      "colour": null
     }
   ]
 }

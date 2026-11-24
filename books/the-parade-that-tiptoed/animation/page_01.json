@@ -1,0 +1,219 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "339233120b03624b0097fed6edafa8e052e9c7a6f6ba5850e7ca7e6ae5fec850",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-22T04:16:25+00:00",
+  "layers": [
+    {
+      "name": "pip",
+      "description": "Pip’s full visible marching silhouette, including teal overalls, both shoes, and the raised yellow horn.",
+      "box": [
+        655,
+        0,
+        1438,
+        864
+      ],
+      "include_points": [
+        [
+          922,
+          180
+        ],
+        [
+          987,
+          432
+        ],
+        [
+          766,
+          495
+        ],
+        [
+          1218,
+          723
+        ],
+        [
+          787,
+          829
+        ],
+        [
+          1332,
+          64
+        ]
+      ],
+      "exclude_points": [
+        [
+          680,
+          270
+        ],
+        [
+          1171,
+          354
+        ],
+        [
+          1383,
+          264
+        ]
+      ],
+      "z": 4,
+      "depth": 0.88,
+      "pivot": [
+        799,
+        844
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.006,
+          "period_s": 3.2,
+          "phase": 0.1,
+          "direction": null
+        },
+        {
+          "type": "rotate",
+          "amplitude": 0.42,
+          "period_s": 3.2,
+          "phase": 0.34,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bea",
+      "description": "Bea’s full visible silhouette, including her red bob, both hands held mid-clap, and orange-toed shoes.",
+      "box": [
+        132,
+        3,
+        618,
+        864
+      ],
+      "include_points": [
+        [
+          354,
+          157
+        ],
+        [
+          458,
+          292
+        ],
+        [
+          548,
+          281
+        ],
+        [
+          390,
+          463
+        ],
+        [
+          196,
+          784
+        ],
+        [
+          517,
+          805
+        ]
+      ],
+      "exclude_points": [
+        [
+          584,
+          349
+        ],
+        [
+          156,
+          496
+        ],
+        [
+          317,
+          719
+        ]
+      ],
+      "z": 3,
+      "depth": 0.75,
+      "pivot": [
+        210,
+        805
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.007,
+          "period_s": 3.2,
+          "phase": 0.54,
+          "direction": null
+        },
+        {
+          "type": "rotate",
+          "amplitude": 0.36,
+          "period_s": 3.2,
+          "phase": 0.68,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_daisies",
+      "description": "The three white daisies and their green stems and leaves in the right foreground planter.",
+      "box": [
+        1242,
+        470,
+        1536,
+        715
+      ],
+      "include_points": [
+        [
+          1389,
+          511
+        ],
+        [
+          1423,
+          615
+        ],
+        [
+          1490,
+          555
+        ],
+        [
+          1336,
+          586
+        ],
+        [
+          1463,
+          665
+        ]
+      ],
+      "exclude_points": [
+        [
+          1260,
+          490
+        ],
+        [
+          1518,
+          476
+        ],
+        [
+          1290,
+          704
+        ]
+      ],
+      "z": 5,
+      "depth": 0.94,
+      "pivot": [
+        1458,
+        689
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 6.4,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

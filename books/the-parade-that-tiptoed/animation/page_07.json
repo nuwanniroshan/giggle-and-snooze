@@ -1,0 +1,122 @@
+{
+  "page_number": 7,
+  "picture": {
+    "file": "page_07.png",
+    "sha256": "2fd0cb86fe1f77ea63684134dad65dff8b1ebf50438ea136fbff32e2443a0ea9",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-22T04:25:17+00:00",
+  "layers": [
+    {
+      "name": "ms_lily_left_hand",
+      "description": "Ms. Lily’s open hand on the left side of the image, ending at the lavender cuff.",
+      "box": [
+        1007,
+        108,
+        1132,
+        251
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.7,
+      "pivot": [
+        1092,
+        231
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.8,
+          "period_s": 4.8,
+          "phase": 0.06,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "ms_lily_right_hand",
+      "description": "Ms. Lily’s open hand on the right side of the image, ending at the lavender cuff.",
+      "box": [
+        1463,
+        155,
+        1597,
+        302
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 5,
+      "depth": 0.7,
+      "pivot": [
+        1496,
+        282
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.65,
+          "period_s": 4.8,
+          "phase": 0.55,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip_waving_hand",
+      "description": "Pip’s raised palm and fingers, ending at the wrist.",
+      "box": [
+        904,
+        263,
+        1008,
+        371
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 6,
+      "depth": 0.83,
+      "pivot": [
+        934,
+        354
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.4,
+          "period_s": 4.8,
+          "phase": 0.23,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bea_waving_hand",
+      "description": "Bea’s raised palm and fingers, ending at the wrist.",
+      "box": [
+        462,
+        205,
+        555,
+        324
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 4,
+      "depth": 0.74,
+      "pivot": [
+        502,
+        305
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.15,
+          "period_s": 4.8,
+          "phase": 0.34,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

@@ -185,6 +185,15 @@ def test_steps_run_in_spec_order_from_an_empty_book(paths, monkeypatch):  # AC-2
     assert {s["result"] for s in record["steps"]} == {"done"}
 
 
+def test_no_editions_finishes_after_the_video(paths, monkeypatch):
+    world = World().install(monkeypatch)
+    assert go(paths, world, editions=False) == 0
+    assert world.calls == ALL_STEPS[:-1]
+    steps = {s["stage"]: s["result"] for s in run_file(paths)["steps"]}
+    assert steps["build"] == "skipped"
+    assert run_file(paths)["state"] == "finished"
+
+
 def test_done_steps_are_skipped(paths, monkeypatch):  # AC-2.2
     world = World(missing=[], unplanned=[], uncut=[], script="ok").install(monkeypatch)
     assert go(paths, world) == 0

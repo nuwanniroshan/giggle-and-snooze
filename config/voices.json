@@ -1,26 +1,60 @@
 {
   "model": {
-    "repo": "mlx-community/orpheus-3b-0.1-ft-4bit",
-    "revision": "b30aed4ecfa03c0177a5419b51919d14a105f183",
-    "support_repos": [
-      {"repo": "mlx-community/snac_24khz", "revision": "556af1cd3b1c5f2d294f6aa9bb886245d7b716ac"},
-      {
-        "repo": "mlx-community/orpheus-3b-0.1-ft-bf16",
-        "revision": "3786aac51797181edddeb0d89a8253deaee99aab",
-        "files": ["config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"]
-      }
-    ],
-    "temperature": 0.6,
-    "top_p": 0.8,
-    "max_tokens": 3000,
+    "repo": "thewh1teagle/kokoro-onnx",
+    "revision": "model-files-v1.0",
     "seed": 7
   },
-  "supported_voices": ["tara", "leah", "jess", "leo", "dan", "mia", "zac", "zoe"],
-  "pitch_semitones": {"storyteller": 0, "kid_older": 2, "kid_younger": 3},
-  "pauses": {"same_speaker": 0.4, "speaker_change": 0.7, "narration_to_qa": 1.0, "between_tracks": 1.0},
-  "checks": {
-    "min_duration": 0.3, "max_silence": 1.5, "min_wps": 1.2, "max_wps": 4.0,
-    "silence_db": -40, "edge_silence": 0.1, "cutoff_window": 0.2, "max_attempts": 3
+  "supported_voices": [
+    "af_heart",
+    "af_bella",
+    "af_nicole",
+    "am_michael",
+    "am_adam",
+    "af_sarah",
+    "am_fenrir",
+    "af_sky",
+    "kid_leo",
+    "kid_mia"
+  ],
+  "voice_blends": {
+    "kid_leo": {"af_sky": 0.65, "am_michael": 0.35},
+    "kid_mia": {"af_bella": 0.60, "af_sky": 0.40}
   },
-  "sample_rate": 24000
+  "pitch_semitones": {
+    "storyteller": 0,
+    "kid_older": 0.5,
+    "kid_younger": 1.0
+  },
+  "role_delivery": {
+    "storyteller": {"speed": 0.94, "sentence_pause": 0.35, "clause_pause": 0.15},
+    "kid_older": {"speed": 0.84, "sentence_pause": 0.45, "clause_pause": 0.22},
+    "kid_younger": {"speed": 0.80, "sentence_pause": 0.55, "clause_pause": 0.28}
+  },
+  "pauses": {
+    "same_speaker": 0.4,
+    "speaker_change": 0.7,
+    "narration_to_qa": 1.0,
+    "between_tracks": 1.0
+  },
+  "checks": {
+    "min_duration": 0.3,
+    "max_silence": 1.5,
+    "min_wps": 1.2,
+    "max_wps": 4.0,
+    "silence_db": -40,
+    "edge_silence": 0.1,
+    "cutoff_window": 0.2,
+    "max_attempts": 3
+  },
+  "sample_rate": 24000,
+  "legacy_voices": {
+    "tara": "af_heart",
+    "leah": "af_bella",
+    "jess": "af_nicole",
+    "leo": "am_michael",
+    "dan": "am_adam",
+    "mia": "af_sarah",
+    "zac": "am_fenrir",
+    "zoe": "af_sky"
+  }
 }

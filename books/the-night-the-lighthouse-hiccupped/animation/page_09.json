@@ -2,134 +2,31 @@
   "page_number": 9,
   "picture": {
     "file": "page_09.png",
-    "sha256": "6d40c28d7b55646b6eb9adee86c0ca2e4da19e5fc56f8b6e35080aa620d9e56e",
-    "width": 1254,
-    "height": 1254
+    "sha256": "41abf37f1b1270fde7f4593463d330eadb1ed314dd83440c0ab6fd3f32e75135",
+    "width": 1672,
+    "height": 941
   },
   "provider": "codex",
-  "written_at": "2026-11-10T20:23:30+00:00",
+  "written_at": "2026-11-24T08:10:15+00:00",
   "layers": [
     {
-      "name": "mira_curls",
-      "description": "Outer curls of Mira's dark hair, keeping her face and coat still.",
+      "name": "harbor_scene",
+      "description": "Stationary full illustration for gentle camera motion.",
       "box": [
-        936,
-        203,
-        1080,
-        301
+        0,
+        0,
+        1672,
+        941
       ],
       "include_points": [],
       "exclude_points": [],
-      "z": 5,
-      "depth": 0.75,
+      "z": 0,
+      "depth": 0.0,
       "pivot": [
-        999,
-        266
+        836,
+        470
       ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 0.7,
-          "period_s": 5.5,
-          "phase": 0.2,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "pip",
-      "description": "White and gray seagull beside Mira on the gallery rail.",
-      "box": [
-        1072,
-        262,
-        1177,
-        367
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 5,
-      "depth": 0.75,
-      "pivot": [
-        1124,
-        361
-      ],
-      "motions": [
-        {
-          "type": "breathe",
-          "amplitude": 0.008,
-          "period_s": 4.8,
-          "phase": 0.6,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "near_fishing_boat",
-      "description": "Foreground red fishing boat with its mast, cabin, rigging and floats; exclude surrounding water.",
-      "box": [
-        141,
-        651,
-        344,
-        872
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 4,
-      "depth": 0.65,
-      "pivot": [
-        244,
-        824
-      ],
-      "motions": [
-        {
-          "type": "bob",
-          "amplitude": 0.0013,
-          "period_s": 5.6,
-          "phase": 0.1,
-          "direction": null
-        },
-        {
-          "type": "rotate",
-          "amplitude": 0.45,
-          "period_s": 6.8,
-          "phase": 0.35,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "far_fishing_boat",
-      "description": "Smaller blue and gold fishing boat entering the harbor, including mast and cabin; exclude surrounding water.",
-      "box": [
-        376,
-        615,
-        503,
-        747
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 3,
-      "depth": 0.45,
-      "pivot": [
-        439,
-        721
-      ],
-      "motions": [
-        {
-          "type": "bob",
-          "amplitude": 0.001,
-          "period_s": 6.4,
-          "phase": 0.65,
-          "direction": null
-        },
-        {
-          "type": "rotate",
-          "amplitude": 0.35,
-          "period_s": 7.2,
-          "phase": 0.8,
-          "direction": null
-        }
-      ]
+      "motions": []
     }
   ],
   "effects": [
@@ -137,29 +34,15 @@
       "type": "water_ripple",
       "region": {
         "box": [
-          12,
-          730,
-          700,
-          1004
-        ],
-        "layer": null
-      },
-      "intensity": 0.16,
-      "colour": "#e9bd67"
-    },
-    {
-      "type": "glow",
-      "region": {
-        "box": [
-          924,
-          171,
-          1179,
-          317
+          1138,
+          584,
+          1390,
+          692
         ],
         "layer": null
       },
       "intensity": 0.12,
-      "colour": "#ffd276"
+      "colour": null
     }
   ]
 }

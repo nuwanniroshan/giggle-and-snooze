@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "playful-quiet-solidarity",
+    "label": "Playful Quiet Solidarity",
+    "summary": "A sunny neighborhood march finds a new kind of fun when the children make space for a sleeping baby.",
+    "roles": {
+      "storyteller": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Keeps the same marching pulse as the words soften from stomp to tiptoe."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "lively",
+        "quirk": "Counts the quiet steps aloud once, then counts the next steps on their fingers."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "bouncy",
+        "quirk": "Finishes each parade call with an extra-big silent wave."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "glazed-ceramic-tile-relief",
+    "medium_label": "Glazed Ceramic Tile Relief",
+    "palette": [
+      {
+        "name": "Kiln Black",
+        "hex": "#11110D"
+      },
+      {
+        "name": "Marigold Glaze",
+        "hex": "#B58300"
+      },
+      {
+        "name": "Burnished Copper",
+        "hex": "#A65E00"
+      },
+      {
+        "name": "Old Gold",
+        "hex": "#D59B00"
+      },
+      {
+        "name": "Porcelain Gray",
+        "hex": "#D9DBD6"
+      }
+    ],
+    "line": "Round contours pressed into clay with shallow incised seams.",
+    "lighting": "Soft afternoon light from one side catches the raised glaze.",
+    "composition": "Broad rows of sidewalk tiles guide the eye from lifted heels to patting hands to waving fingers. Keep faces and gestures large.",
+    "style_prompt_prefix": "Children’s picture-book illustration built from hand-modeled glazed ceramic relief tiles, rounded clay silhouettes, broad matte sidewalk tiles, soft afternoon light, and clear expressive faces.",
+    "avoid": [
+      "Sharp or broken tile edges",
+      "Mirror-bright glaze",
+      "Crowded backgrounds",
+      "Text baked into the artwork"
+    ]
+  },
+  "qa": {
+    "format_key": "silent-gesture-conductor",
+    "format_label": "Be the Silent Parade Conductor",
+    "question_types": [
+      "Silent beat matching",
+      "Gesture sequencing",
+      "Perspective taking"
+    ],
+    "intro_hook": "Hold up your hands like a parade conductor. Can you show us a beat without making a sound?",
+    "outro_hook": "Conduct our last three moves together. Tiptoe, pat your knees softly, and wave to the baby’s window.",
+    "moments_min": 3,
+    "moments_max": 3,
+    "kid_notes": {
+      "kid_older": "Invite them to conduct the tiptoe, pat, wave sequence and explain how it helps the baby stay asleep.",
+      "kid_younger": "Show one move at a time and welcome a finger tiptoe, a soft knee pat, or a silent wave."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "birds_morning"
+    ],
+    "sfx": [
+      "page_flip"
+    ],
+    "music_direction": "Use softly plucked strings for a small marching tune. Keep the pulse when the parade changes, then leave room for a full silent beat at the baby’s window."
+  },
+  "animation": {
+    "intensity": 0.55,
+    "effects": [
+      "glow"
+    ]
+  },
+  "rationale": "The march keeps its rhythm as the children change how they move, so the read-aloud lets young viewers feel how making room for someone can keep the fun going. Raised ceramic shapes make the quieter gestures easy to see."
+}

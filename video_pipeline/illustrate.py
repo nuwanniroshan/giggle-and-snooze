@@ -6,8 +6,8 @@
 
 Paints `page_NN.png` for every page, then `cover_front.png` and `cover_back.png`, into
 `books/<slug>/illustrations/`. A book marked with titled covers (spec 022) instead gets a lettered
-4:3 video cover `cover_front.png` and a square print cover `cover_front_print.png`, each with the
-channel logo; every titled cover is read back by Codex (title, subtitle, whole logo) and painted
+4:3 video cover `cover_front.png` and a square print cover `cover_front_print.png`, without channel
+branding; every titled cover is read back by Codex (title, subtitle, absence of branding) and painted
 again until it passes, up to `tries` in `config/covers.json` (a failed cover is never saved). Existing files are kept unless `--force`. Page 1 is painted first
 and goes to every later image as a reference so the characters look the same on every page.
 Uses the ChatGPT login of the Codex CLI (the same one the script and story stages use).
@@ -54,6 +54,7 @@ from video_pipeline.covers import (
     build_cover_command,
     check_problem,
     cover_request,
+    image_codex_flags,
     load_cover_settings,
     parse_reading,
     titled_covers,
@@ -139,23 +140,13 @@ def _page_file(page: dict) -> str:
 
 
 def build_image_command(binary: Path, prompt: str, reference: Path | None) -> list[str]:
-    command = [
-        str(binary),
-        "exec",
-        "--ephemeral",
-        "--skip-git-repo-check",
-        "--ignore-user-config",
-        "--ignore-rules",
-        "--sandbox",
-        "workspace-write",
-        "-c",
-        'web_search="disabled"',
-    ]
+    command = [str(binary), *image_codex_flags()]
     if reference is not None:
         command += ["-i", str(reference)]
     task = (
-        "Use the image generation tool to create this picture, then copy the generated image "
-        f"file to ./out.png with the shell and reply with only that path.\n\n{STYLE_LINE}\n\n"
+        "Use the image generation tool to create this picture. Reply with only the absolute "
+        "local path of the generated image. Do not use the shell to copy it to ./out.png; "
+        f"the calling pipeline will copy the image itself.\n\n{STYLE_LINE}\n\n"
         f"{prompt}"
     )
     return [*command, "--", task]
@@ -203,7 +194,8 @@ def paint_one(binary: Path, prompt: str, reference: Path | None, target: Path) -
 
 
 def _paint_once(binary: Path, prompt: str, reference: Path | None, target: Path) -> None:
-    with tempfile.TemporaryDirectory(prefix="kiddo-image-") as tmp:
+    # Windows sandbox helpers can retain handles briefly after Codex exits.
+    with tempfile.TemporaryDirectory(prefix="kiddo-image-", ignore_cleanup_errors=True) as tmp:
         work = Path(tmp)
         try:
             result = subprocess.run(
@@ -211,6 +203,8 @@ def _paint_once(binary: Path, prompt: str, reference: Path | None, target: Path)
                 cwd=work,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=IMAGE_TIMEOUT_S,
                 check=False,
                 stdin=subprocess.DEVNULL,
@@ -219,14 +213,49 @@ def _paint_once(binary: Path, prompt: str, reference: Path | None, target: Path)
             raise IllustrateError(f"{target.name}: timed out after {IMAGE_TIMEOUT_S} s") from None
         out = work / "out.png"
         if not out.is_file():
-            tail = (result.stderr or result.stdout).strip()[-300:]
+            out = _returned_image(result.stdout, work) or out
+        if not out.is_file():
+            _check_provider_limit(result)
+            tail = (result.stderr or result.stdout or "").strip()[-300:]
             raise IllustrateError(f"{target.name}: no image was produced. {tail}")
+        out = _processing_copy(out)
         crop_to_landscape(out)
         check_image(out)
         target.parent.mkdir(parents=True, exist_ok=True)
         partial = target.with_name(target.name + ".tmp")
         partial.write_bytes(out.read_bytes())
         partial.replace(target)
+
+
+def _processing_copy(source: Path) -> Path:
+    """Edit a pipeline-owned file, not the sandbox's potentially read-only output."""
+    copied = source.with_name("processed.png")
+    copied.write_bytes(source.read_bytes())
+    return copied
+
+
+def _check_provider_limit(result: subprocess.CompletedProcess) -> None:
+    for line in ((result.stderr or "") + "\n" + (result.stdout or "")).splitlines():
+        if "usage limit" in line.lower() or "usage_limit_reached" in line.lower():
+            raise AgentUnavailable(
+                "Codex usage limit reached; resume autopilot when usage is available. "
+                "Completed pictures are saved. " + line.strip()
+            )
+
+
+def _returned_image(stdout: str | None, work: Path) -> Path | None:
+    """Copy the provider's returned local image into our writable workspace."""
+    for line in reversed((stdout or "").splitlines()):
+        candidate = Path(line.strip().strip('`"'))
+        if (
+            candidate.is_absolute()
+            and candidate.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+            and candidate.is_file()
+        ):
+            target = work / "out.png"
+            target.write_bytes(candidate.read_bytes())
+            return target
+    return None
 
 
 def _paint_cover_once(
@@ -239,6 +268,8 @@ def _paint_cover_once(
             cwd=work,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=IMAGE_TIMEOUT_S,
             check=False,
             stdin=subprocess.DEVNULL,
@@ -247,22 +278,27 @@ def _paint_cover_once(
         raise IllustrateError(f"painting timed out after {IMAGE_TIMEOUT_S} s") from None
     out = work / "out.png"
     if not out.is_file():
+        out = _returned_image(result.stdout, work) or out
+    if not out.is_file():
+        _check_provider_limit(result)
         tail = (result.stderr or result.stdout or "").strip()[-300:]
         raise IllustrateError(f"no image was produced. {tail}")
     return out
 
 
 def _read_cover(binary: Path, cover: Path, settings: CoverSettings, work: Path, run):
-    """Codex reads the trimmed cover back (title, subtitle, whole logo)."""
+    """Codex reads the trimmed cover back (title, subtitle, absence of branding)."""
     schema = work / "check_schema.json"
     schema.write_text(json.dumps(CHECK_SCHEMA), encoding="utf-8")
     reply = work / "reply.json"
     try:
-        run(
+        result = run(
             build_check_command(binary, cover, schema, reply, settings.logo_name),
             cwd=work,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=IMAGE_TIMEOUT_S,
             check=False,
             stdin=subprocess.DEVNULL,
@@ -270,6 +306,7 @@ def _read_cover(binary: Path, cover: Path, settings: CoverSettings, work: Path, 
     except subprocess.TimeoutExpired:
         raise IllustrateError(f"cover check timed out after {IMAGE_TIMEOUT_S} s") from None
     if not reply.is_file():
+        _check_provider_limit(result)
         raise IllustrateError("cover check gave no answer")
     return parse_reading(reply.read_text(encoding="utf-8"))
 
@@ -286,19 +323,18 @@ def paint_titled_cover(
     run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     log: Callable[[str], None] = print,
 ) -> None:
-    """Paint one titled cover (spec 022): paint with the logo and `reference` attached, trim to the
+    """Paint one titled cover (spec 022): paint with only `reference` attached, trim to the
     cover's shape, read it back and compare with `words` (title, subtitle). A failed try is
     painted again, up to `settings.tries`; only a passing cover is written to `target`."""
     logo = root / settings.logo
-    if not logo.is_file():
-        raise IllustrateError(f"{target.name}: logo not found: {logo}")
     shape = settings.shapes[target.stem]
     reason = ""
     for attempt in range(1, settings.tries + 1):
-        with tempfile.TemporaryDirectory(prefix="kiddo-cover-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="kiddo-cover-", ignore_cleanup_errors=True) as tmp:
             work = Path(tmp)
             try:
                 out = _paint_cover_once(binary, prompt, logo, reference, work, run)
+                out = _processing_copy(out)
                 trim_to_ratio(out, shape)
                 check_image(out)
                 reading = _read_cover(binary, out, settings, work, run)
@@ -498,6 +534,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cleanup_main(args, book, folder, binary)
         if args.page is not None or args.cover:
             return _repaint_main(args, book, folder, binary, style, planner, covers, paint_cover)
+        art_sha = blueprint_sha256(folder.blueprint_path) if style else None
+        # A new book can take several runs to finish. Record its direction before
+        # the first image so interrupted runs retain provenance when resumed.
+        # Existing artwork keeps its old mark until a full repaint succeeds.
+        if art_sha and not any(folder.illustrations.glob("*.png")):
+            record_use(folder, "art", art_sha)
         print(f"painting illustrations into {folder.illustrations}")
         painted = illustrate(
             book,
@@ -511,7 +553,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             **covers,
         )
         if style and len(painted) == len(plan_images(book, style, **covers)):
-            record_use(folder, "art", blueprint_sha256(folder.blueprint_path))
+            record_use(folder, "art", art_sha)
     except (
         LibraryError,
         AgentUnavailable,

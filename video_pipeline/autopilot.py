@@ -1,10 +1,11 @@
 """Autopilot: carry a book from a chosen idea to a finished video and editions (spec 021).
 
-    python -m video_pipeline.autopilot (--book SLUG | --draft ID) [--root R]
+    python -m video_pipeline.autopilot (--book SLUG | --draft ID) [--root R] [--no-editions]
 
 The stages run one at a time, in this order, each as a child process with exactly the argv the
 studio uses (`jobs.stage_command`, FR-1): paint (which also plans each page) -> plan -> cut layers
 -> script -> automatic review mark -> voices -> automatic approval -> render -> build editions.
+With `--no-editions` the run finishes after the video and never calls build_book.py.
 A stage that is already done and up to date is skipped (AC-2.2), so a new run resumes at the first
 unfinished stage (AC-4.2). The first failure stops the run with the stage and the reason; nothing
 later starts (AC-4.1). With `--draft`, the draft's blueprint and story are written first, then the
@@ -356,13 +357,18 @@ def _failure_reason(label: str, code: int, tail: list[str]) -> str:
     return f"{head}: " + "\n".join(lines)
 
 
-def _run_steps(paths: sb.StudioPaths, slug: str, record: RunRecord, run_child: RunChild) -> int:
+def _run_steps(
+    paths: sb.StudioPaths, slug: str, record: RunRecord, run_child: RunChild, *, editions: bool = True
+) -> int:
     book = sb.get_book(paths, slug)
     if book is None:
         return record.fail("book", f"no book {slug!r}")
     if book.error:
         return record.fail("book", f"the book data has a problem: {book.error}")
     for step in STEPS:
+        if step.name == "build" and not editions:
+            record.step("build", "skipped")
+            continue
         label = STEP_LABELS[step.name]
         try:
             why = step.needs(paths, book)
@@ -400,12 +406,13 @@ def run(
     *,
     run_child: RunChild = _run_child,
     job_id: str | None = None,
+    editions: bool = True,
 ) -> int:
     """Run every unfinished stage of book `slug` in order; 0 when all are done, 1 on the first
     failure, 143 when stopped. The run file says which stage and why."""
     record = RunRecord(paths, slug, book=slug, job_id=job_id)
     try:
-        return _run_steps(paths, slug, record, run_child)
+        return _run_steps(paths, slug, record, run_child, editions=editions)
     except Stopped:
         return record.stopped()
 
@@ -416,6 +423,7 @@ def run_draft(
     *,
     run_child: RunChild = _run_child,
     job_id: str | None = None,
+    editions: bool = True,
 ) -> int:
     """Write the draft's blueprint and story (unless it is ready), create the book (no draft
     review stop, AC-1.1), then run the book's stages."""
@@ -448,7 +456,7 @@ def run_draft(
             return record.fail("create", f"the book could not be created: {exc}")
         record.move_to(slug, book=slug)
         record.step("create", "done")
-        return _run_steps(paths, slug, record, run_child)
+        return _run_steps(paths, slug, record, run_child, editions=editions)
     except Stopped:
         return record.stopped()
 
@@ -463,6 +471,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     subject.add_argument("--book", help="book slug")
     subject.add_argument("--draft", help="draft id: write the story and create the book first")
     parser.add_argument("--root", type=Path, default=PROJECT_ROOT, help="project root")
+    parser.add_argument(
+        "--no-editions", action="store_true", help="stop after the video; do not build EPUB/PDFs"
+    )
     return parser.parse_args(argv)
 
 
@@ -471,9 +482,10 @@ def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, _on_sigterm)
     paths = sb.StudioPaths(Path(args.root))
     job_id = os.environ.get("KIDDO_JOB_ID") or None
+    editions = not args.no_editions
     if args.draft:
-        return run_draft(paths, args.draft, job_id=job_id)
-    return run(paths, args.book, job_id=job_id)
+        return run_draft(paths, args.draft, job_id=job_id, editions=editions)
+    return run(paths, args.book, job_id=job_id, editions=editions)
 
 
 if __name__ == "__main__":

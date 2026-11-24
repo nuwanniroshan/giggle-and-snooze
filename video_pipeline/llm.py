@@ -79,6 +79,13 @@ where they fit, spread across the intro, moments and outro. Use at least {low} a
 - Give each intro, moment and outro line an "emotion" saying how it is spoken, from: \
 {", ".join(feelings.names)}. Leave it out (neutral) for plain lines. Every moment needs at \
 least {need} line(s) with a feeling other than neutral that fits what is happening.
+- Use the available emotions to shape delivery: calm or sleepy for slower, lower, softer \
+speech; whisper for a quiet aside; happy or excited for a slightly faster, brighter, louder \
+reaction; surprised for a brief lift; curious for a question. Use only names listed above. \
+Return to a calmer delivery after an excited beat. Keep changes gentle, not constant or random.
+- An emotion applies to the whole line. When delivery changes, start a separate line, even \
+for the same speaker, within the section's line limits. For example, a short surprised \
+reaction can be followed by a separate calm explanation. Do not cram both into one line.
 """
 
 
@@ -163,6 +170,19 @@ storyteller inviting viewers to subscribe and come back for the next story.
 {direction}
 RULES
 - Kid lines are at most 25 words.
+- Skip non-word vocalizations such as "Shh", "Shhhhhh", "Psst", "Brrr", "Hmm" and stretched \
+letter sounds in the dialogue you write. Local speech may spell them out. Omit the sound; \
+if its meaning matters, use ordinary words such as "Let us be quiet." Never simulate a \
+sound by repeating letters. This rule applies to new dialogue, not the book's verbatim text.
+- Write for natural spoken rhythm, not one continuous rush. Keep each line to one short \
+thought or emotional beat. Use full stops for clear pauses between thoughts and commas \
+for brief breaths within a sentence. Let a reaction or question finish before the response. \
+Give a reveal room to land before explaining it. Vary short reactions with gentle, unhurried \
+sentences; avoid long chains of clauses. Use separate lines for distinct beats within the \
+required line counts. Do not use repeated punctuation, ellipses or extra spaces as timers.
+- Express delivery through the supported emotion field when available and through sentence \
+boundaries. Never put spoken instructions such as "pause", "speak slowly", "raise voice" or \
+"lower voice" into the text, and never invent pause, speed, volume or SSML tags.
 - The only allowed inline tags are <giggle> <laugh> <chuckle> <gasp> <sigh> <yawn>.{tags_hint} \
 No other tags, markup or stage directions: no asterisks (*giggles*), no square brackets ([laughs]), no \
 parenthesised directions ((whispering)) and no underscores (_softly_).

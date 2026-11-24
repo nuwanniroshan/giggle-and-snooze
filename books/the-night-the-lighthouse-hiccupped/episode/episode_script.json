@@ -9,20 +9,20 @@
   "cast": {
     "storyteller": {
       "name": "Storyteller",
-      "engine": "orpheus",
-      "voice": "tara",
+      "engine": "kokoro",
+      "voice": "af_heart",
       "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
     },
     "kid_older": {
       "name": "Leo (Age 8)",
-      "engine": "orpheus",
-      "voice": "zac",
+      "engine": "kokoro",
+      "voice": "kid_leo",
       "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
     },
     "kid_younger": {
       "name": "Mia (Age 5)",
-      "engine": "orpheus",
-      "voice": "zoe",
+      "engine": "kokoro",
+      "voice": "kid_mia",
       "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
     }
   },
@@ -31,19 +31,18 @@
     "lines": [
       {
         "speaker": "storyteller",
-        "text": "Snuggle in, everyone. Tonight we're reading The Night the Lighthouse Hiccupped."
+        "text": "Come settle in for The Night the Lighthouse Hiccupped.",
+        "emotion": "calm"
       },
       {
         "speaker": "kid_younger",
-        "text": "<giggle> That's a very big thing to get the hiccups!"
+        "text": "<gasp> A whole lighthouse can hiccup?",
+        "emotion": "surprised"
       },
       {
         "speaker": "kid_older",
-        "text": "I wonder what a lighthouse hiccup sounds like."
-      },
-      {
-        "speaker": "storyteller",
-        "text": "Let's open the book and listen together."
+        "text": "I wonder what happens to its light when it does.",
+        "emotion": "curious"
       }
     ]
   },
@@ -58,7 +57,7 @@
         {
           "speaker": "storyteller",
           "role": "narration",
-          "text": "Mira polished the lighthouse lamp while Pip fluffed his feathers. Then—HIC!—the lighthouse lifted its little stone feet and bounced off the hill."
+          "text": "Mira polished the lighthouse lamp while Pip fluffed his feathers. <gasp> Then—HIC!—the lighthouse lifted its little stone feet and bounced off the hill."
         },
         {
           "speaker": "storyteller",
@@ -90,22 +89,25 @@
           "text": "“Slow feet, soft voice,” said Mira, easing the branches aside. With room to move, the lighthouse followed her down the path."
         },
         {
-          "speaker": "kid_older",
-          "role": "question",
-          "text": "Is Mira moving the branches so the lighthouse has room to follow her?"
-        },
-        {
           "speaker": "kid_younger",
           "role": "reaction",
-          "text": "<giggle> Those tiny stone feet! Even its lamp is getting tickled."
+          "text": "<giggle> Those leaves are tickling its lamp!",
+          "emotion": "happy"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Is that why Mira is holding the branches back?",
+          "emotion": "curious"
         },
         {
           "speaker": "storyteller",
           "role": "answer",
-          "text": "Yes, Leo. Mira gently moves the branches aside to make room. Mia, those little feet have quite a walk ahead of them in this forest."
+          "text": "Yes. She's making room for the lighthouse to walk beside her.",
+          "emotion": "calm"
         }
       ],
-      "qa_grounding": "branches tickled its lamp"
+      "qa_grounding": "moving leafy branches"
     },
     {
       "page_number": 3,
@@ -149,19 +151,22 @@
           "text": "Its beam swung round and round, so Mira rang her little bell. “Follow the ding,” she said, and the lighthouse followed her sound."
         },
         {
-          "speaker": "kid_older",
-          "role": "question",
-          "text": "Does the bell help the lighthouse follow Mira when everything looks foggy?"
-        },
-        {
           "speaker": "kid_younger",
           "role": "reaction",
-          "text": "The fog looks like a fluffy scarf! And Pip is flying right beside Mira."
+          "text": "<chuckle> Its light is drawing swirls in the fog!",
+          "emotion": "happy"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "How does that little bell help it find Mira?",
+          "emotion": "curious"
         },
         {
           "speaker": "storyteller",
           "role": "answer",
-          "text": "Yes! The lighthouse follows the bell's ding through the fog. That fog does look soft as a scarf, with Pip staying close beside Mira."
+          "text": "The lighthouse can hear where Mira is, even through the thick fog.",
+          "emotion": "calm"
         }
       ],
       "qa_grounding": "rang her little bell"
@@ -181,7 +186,7 @@
         {
           "speaker": "storyteller",
           "role": "narration",
-          "text": "Pip tucked close, and together they waited until the rumble rolled away."
+          "text": "Pip tucked close, and together they waited until the rumble rolled away. <sigh>"
         }
       ]
     },
@@ -219,7 +224,7 @@
         {
           "speaker": "storyteller",
           "role": "narration",
-          "text": "Hic! A tiny jump rattled the lamp shade crooked."
+          "text": "Hic! A tiny jump rattled the lamp shade crooked. <chuckle>"
         },
         {
           "speaker": "storyteller",
@@ -229,12 +234,14 @@
         {
           "speaker": "kid_younger",
           "role": "reaction",
-          "text": "<giggle> Pip's fixing that crooked lamp shade with his beak! Such a little helper."
+          "text": "<giggle> Pip fixed the lampshade with his beak!",
+          "emotion": "happy"
         },
         {
           "speaker": "storyteller",
           "role": "answer",
-          "text": "He gives it a gentle nudge to straighten it. Mira adds a kind pat, and after another soft breath, the light stays steady."
+          "text": "One little nudge from his beak set it straight again.",
+          "emotion": "calm"
         }
       ],
       "qa_grounding": "tilted golden lamp shade"
@@ -283,12 +290,14 @@
         {
           "speaker": "kid_older",
           "role": "question",
-          "text": "So is the steady beam showing the boats where the harbor is?"
+          "text": "Is that wide beam what helps the boats find the harbor?",
+          "emotion": "curious"
         },
         {
           "speaker": "storyteller",
           "role": "answer",
-          "text": "Yes, Leo. The long golden beam stretches over the water, and the two boats follow its light into the quiet harbor."
+          "text": "Yes. The boats can see the light from the water and use it to find their way in.",
+          "emotion": "calm"
         }
       ],
       "qa_grounding": "followed the light"
@@ -318,19 +327,18 @@
     "lines": [
       {
         "speaker": "kid_younger",
-        "text": "Pip all snuggled in his basket is my favorite cozy bit."
+        "text": "<sigh> Pip looks so cozy in his basket.",
+        "emotion": "sleepy"
       },
       {
         "speaker": "kid_older",
-        "text": "I liked how Mira stayed with the lighthouse when it needed a rest."
+        "text": "My favorite part was when the lighthouse said thank you.",
+        "emotion": "happy"
       },
       {
         "speaker": "storyteller",
-        "text": "A little patience and a friend nearby can feel so comforting. Thank you for sharing this story with us."
-      },
-      {
-        "speaker": "storyteller",
-        "text": "Subscribe and come back for our next story. We'll have another cozy tale waiting for you."
+        "text": "Thanks for reading with us. Subscribe and come back for our next story.",
+        "emotion": "calm"
       }
     ]
   }

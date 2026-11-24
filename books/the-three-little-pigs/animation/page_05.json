@@ -1,0 +1,172 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "f9908dd8fb5c6e534a24ebc3e2a8ba38e804d85a6b4b8905016791075851fb63",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:13:55+00:00",
+  "layers": [
+    {
+      "name": "window_cloud",
+      "description": "Cream cloud high in the right windowpane",
+      "box": [
+        754,
+        76,
+        867,
+        119
+      ],
+      "include_points": [
+        [
+          821,
+          96
+        ]
+      ],
+      "exclude_points": [
+        [
+          762,
+          81
+        ],
+        [
+          859,
+          115
+        ]
+      ],
+      "z": 1,
+      "depth": 0.12,
+      "pivot": [
+        811,
+        103
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.02,
+          "period_s": 8.0,
+          "phase": 0.2,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "floral_cushion",
+      "description": "Yellow floral cushion between Pebble’s hooves, with its bottom resting on the bench",
+      "box": [
+        654,
+        468,
+        980,
+        686
+      ],
+      "include_points": [
+        [
+          804,
+          558
+        ],
+        [
+          914,
+          612
+        ]
+      ],
+      "exclude_points": [
+        [
+          704,
+          479
+        ],
+        [
+          678,
+          634
+        ],
+        [
+          969,
+          669
+        ]
+      ],
+      "z": 3,
+      "depth": 0.68,
+      "pivot": [
+        818,
+        672
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.008,
+          "period_s": 4.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pebble",
+      "description": "Pebble in blue overalls, including both hooves overlapping the floral cushion",
+      "box": [
+        351,
+        222,
+        796,
+        835
+      ],
+      "include_points": [
+        [
+          539,
+          389
+        ],
+        [
+          491,
+          675
+        ],
+        [
+          738,
+          462
+        ],
+        [
+          645,
+          626
+        ],
+        [
+          394,
+          632
+        ],
+        [
+          529,
+          273
+        ]
+      ],
+      "exclude_points": [
+        [
+          682,
+          510
+        ],
+        [
+          726,
+          527
+        ],
+        [
+          675,
+          680
+        ]
+      ],
+      "z": 4,
+      "depth": 0.76,
+      "pivot": [
+        514,
+        815
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.003,
+          "period_s": 4.0,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

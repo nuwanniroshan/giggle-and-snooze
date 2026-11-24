@@ -1,0 +1,270 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "1dff4e8c7ec9fdcbff88ae63e3901e04220745418597cf1dbbf827d12ef37cb8",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-22T04:20:39+00:00",
+  "layers": [
+    {
+      "name": "pip_tip_toe",
+      "description": "Pip’s full silhouette, including the raised arm, both shoes and the tucked yellow horn. Rock gently over the planted toe.",
+      "box": [
+        674,
+        5,
+        1207,
+        874
+      ],
+      "include_points": [
+        [
+          745,
+          131
+        ],
+        [
+          978,
+          47
+        ],
+        [
+          933,
+          217
+        ],
+        [
+          908,
+          365
+        ],
+        [
+          975,
+          477
+        ],
+        [
+          843,
+          636
+        ],
+        [
+          805,
+          818
+        ],
+        [
+          928,
+          818
+        ],
+        [
+          1135,
+          169
+        ]
+      ],
+      "exclude_points": [
+        [
+          1090,
+          242
+        ],
+        [
+          1115,
+          400
+        ],
+        [
+          780,
+          561
+        ]
+      ],
+      "z": 2,
+      "depth": 0.72,
+      "pivot": [
+        949,
+        859
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.35,
+          "period_s": 5.6,
+          "phase": 0.08,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip_wave",
+      "description": "Pip’s raised palm and fingers, with the wrist as the hinge.",
+      "box": [
+        1088,
+        94,
+        1207,
+        211
+      ],
+      "include_points": [
+        [
+          1141,
+          169
+        ],
+        [
+          1137,
+          121
+        ],
+        [
+          1171,
+          126
+        ],
+        [
+          1188,
+          155
+        ],
+        [
+          1109,
+          144
+        ]
+      ],
+      "exclude_points": [
+        [
+          1093,
+          101
+        ],
+        [
+          1195,
+          103
+        ],
+        [
+          1202,
+          188
+        ]
+      ],
+      "z": 4,
+      "depth": 0.74,
+      "pivot": [
+        1122,
+        198
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.6,
+          "period_s": 2.8,
+          "phase": 0.32,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bea_pat",
+      "description": "Bea’s lower forearm and hand resting on her knee. Give the hand a tiny rocking pat.",
+      "box": [
+        359,
+        503,
+        530,
+        652
+      ],
+      "include_points": [
+        [
+          391,
+          527
+        ],
+        [
+          428,
+          567
+        ],
+        [
+          480,
+          602
+        ],
+        [
+          499,
+          631
+        ]
+      ],
+      "exclude_points": [
+        [
+          363,
+          575
+        ],
+        [
+          479,
+          556
+        ],
+        [
+          527,
+          646
+        ]
+      ],
+      "z": 3,
+      "depth": 0.77,
+      "pivot": [
+        381,
+        514
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.65,
+          "period_s": 5.6,
+          "phase": 0.36,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bea_wave",
+      "description": "Bea’s lifted bare forearm and open hand, hinged at the elbow inside the green sleeve.",
+      "box": [
+        600,
+        247,
+        748,
+        489
+      ],
+      "include_points": [
+        [
+          628,
+          449
+        ],
+        [
+          648,
+          392
+        ],
+        [
+          680,
+          337
+        ],
+        [
+          680,
+          270
+        ],
+        [
+          717,
+          289
+        ]
+      ],
+      "exclude_points": [
+        [
+          608,
+          332
+        ],
+        [
+          736,
+          367
+        ],
+        [
+          667,
+          472
+        ]
+      ],
+      "z": 4,
+      "depth": 0.78,
+      "pivot": [
+        619,
+        477
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.55,
+          "period_s": 2.8,
+          "phase": 0.44,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

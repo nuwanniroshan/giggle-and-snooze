@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "cozy-builder-confidence",
+    "label": "Cozy Builder Confidence",
+    "summary": "Sunny enthusiasm for making things gives way to brief, gentle suspense and the relief of three siblings snug together.",
+    "roles": {
+      "storyteller": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Gives the wolf a soft, airy huff and warms the voice as each pig reaches safety."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "lively",
+        "quirk": "Compares the houses using concrete words like floppy, bendy, and sturdy."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "calm",
+        "quirk": "Gives a little sigh of relief whenever a sibling reaches safety."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "hand-printed-linocut",
+    "medium_label": "Hand-Printed Linocut",
+    "palette": [
+      {
+        "name": "Oat Paper",
+        "hex": "#E6D4AC"
+      },
+      {
+        "name": "Blackberry Ink",
+        "hex": "#30252D"
+      },
+      {
+        "name": "Brick Clay",
+        "hex": "#AD503A"
+      },
+      {
+        "name": "Pale Cornflower",
+        "hex": "#9BAFD1"
+      },
+      {
+        "name": "Meadow Olive",
+        "hex": "#777F4A"
+      }
+    ],
+    "line": "Rounded carved contours with soft ink grain and distinct marks for straw, sticks, and brick.",
+    "lighting": "Soft afternoon light outdoors and warm oat-colored light inside the brick house.",
+    "composition": "Use wide, eye-level views. On each blown-house page, show the pig already reaching a sibling on the same spread, with clear space between the pigs and wolf.",
+    "style_prompt_prefix": "Hand-printed linocut picture-book illustration on oat paper, rounded carved silhouettes, tactile ink grain, broad color shapes, expressive little pigs, gentle afternoon light.",
+    "avoid": [
+      "Sharp teeth and looming wolf close-ups",
+      "Flying debris near the pigs",
+      "Dark chase scenes",
+      "Photorealism"
+    ]
+  },
+  "qa": {
+    "format_key": "builder-show-and-tell",
+    "format_label": "Builder Show and Tell",
+    "question_types": [
+      "Point to a building material",
+      "Compare two building materials",
+      "Explain how a home helped the siblings"
+    ],
+    "intro_hook": "Can you use your builder eyes to spot what each pig makes a house from?",
+    "outro_hook": "Show me the house that kept all three pigs safe. What helped it stay standing?",
+    "moments_min": 3,
+    "moments_max": 4,
+    "kid_notes": {
+      "kid_younger": "Invite pointing or naming one material, with time to answer.",
+      "kid_older": "Invite one comparison or a reason the brick house kept everyone safe."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "birds_morning",
+      "wind_loop"
+    ],
+    "sfx": [
+      "footsteps_grass",
+      "page_flip"
+    ],
+    "music_direction": "Use sparse nylon-string guitar and soft marimba. Keep the wind brief and low beneath the narrator, then return to the warm tune when the siblings reach safety."
+  },
+  "animation": {
+    "intensity": 0.45,
+    "effects": [
+      "falling_leaves",
+      "glow"
+    ]
+  },
+  "rationale": "Linocut textures make the three materials easy to tell apart, and builder show and tell gives children a way to connect the careful brickwork with the siblings staying safe. Same-page arrivals and quiet sound keep the wolf scenes gentle."
+}

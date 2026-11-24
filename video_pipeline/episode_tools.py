@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -57,7 +58,15 @@ def write_atomic(path: Path, data: dict) -> None:
     tmp = path.with_name(path.name + ".tmp")
     try:
         tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        os.replace(tmp, path)  # noqa: PTH105 - tests patch episode_tools.os.replace
+        for attempt in range(20):
+            try:
+                os.replace(tmp, path)  # noqa: PTH105 - tests patch episode_tools.os.replace
+                return
+            except PermissionError:
+                # A reader (the studio polling this file) can briefly deny the replace on Windows.
+                if attempt == 19:
+                    raise
+                time.sleep(0.05)
     finally:
         tmp.unlink(missing_ok=True)
 

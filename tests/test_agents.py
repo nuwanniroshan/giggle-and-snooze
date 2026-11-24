@@ -35,7 +35,24 @@ def test_find_codex_prefers_env(monkeypatch, tmp_path):
     assert find_codex() == binary
 
 
+@pytest.mark.skipif(agents.os.name != "nt", reason="Windows app discovery")
+def test_find_codex_uses_installed_windows_app(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    binary = tmp_path / "app/resources/codex.exe"
+    binary.parent.mkdir(parents=True)
+    binary.touch()
+    monkeypatch.delenv(agents.CODEX_BIN_ENV, raising=False)
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    monkeypatch.setattr(agents, "CODEX_SEARCH", ())
+    monkeypatch.setattr(
+        agents.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=f"{tmp_path}\n")
+    )
+    assert find_codex() == binary
+
+
 def test_find_codex_checks_known_locations(monkeypatch, tmp_path):
+    monkeypatch.setattr(agents, "windows_codex", lambda: None)
     monkeypatch.delenv(agents.CODEX_BIN_ENV, raising=False)
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
     binary = fake_bin(tmp_path, "true")
@@ -59,6 +76,7 @@ def test_codex_status_not_logged_in(monkeypatch, tmp_path):  # AC-6.6
 
 
 def test_codex_status_not_installed(monkeypatch, tmp_path):  # AC-6.6
+    monkeypatch.setattr(agents, "windows_codex", lambda: None)
     monkeypatch.delenv(agents.CODEX_BIN_ENV, raising=False)
     monkeypatch.setenv("PATH", str(tmp_path))
     monkeypatch.setattr(agents, "CODEX_SEARCH", ())
@@ -154,6 +172,18 @@ def test_run_codex_streams_events_and_keeps_log(tmp_path):
     assert log_path.with_suffix(".stderr.log").exists()
 
 
+def test_run_codex_reads_utf8_events(tmp_path):
+    import sys
+
+    message = "A wolf says \u201cHello!\u201d \u2014 \u732a"
+    event = {"type": "item.completed", "item": {"type": "agent_message", "text": message}}
+    payload = (json.dumps(event, ensure_ascii=False) + '\n{"type":"turn.completed"}\n').encode("utf-8")
+    code = f"import sys; sys.stdout.buffer.write({payload!r})"
+    result = run_codex([sys.executable, "-c", code], tmp_path / "run.jsonl")
+    assert result.ok
+    assert result.events[0].text == message
+
+
 def test_run_codex_time_limit(tmp_path):  # FR-7: 10-minute limit
     binary = fake_bin(tmp_path, "exec sleep 5")  # exec: kill reaches sleep, closing stdout
     result = run_codex([str(binary)], tmp_path / "run.jsonl", timeout_s=0.5)
@@ -200,3 +230,46 @@ def test_run_codex_runs_in_an_empty_directory(tmp_path):  # AC-6.8: no project f
 def test_run_codex_missing_binary(tmp_path):
     with pytest.raises(AgentUnavailable, match="could not start"):
         run_codex([str(tmp_path / "nope")], tmp_path / "run.jsonl")
+
+
+@pytest.mark.skipif(agents.os.name != "nt", reason="Windows directory locking")
+def test_completed_run_survives_locked_working_directory(tmp_path):
+    import subprocess
+    import sys
+
+    holders = []
+    directories = []
+
+    def hold_directory(event):
+        if event.kind != "say":
+            return
+        directory = Path(event.text)
+        directories.append(directory)
+        holder = subprocess.Popen(
+            [sys.executable, "-c", "import time; print('ready', flush=True); time.sleep(60)"],
+            cwd=directory,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        holders.append(holder)
+        assert holder.stdout.readline().strip() == "ready"
+
+    code = (
+        "import json, os; "
+        "print(json.dumps({'type': 'item.completed', 'item': "
+        "{'type': 'agent_message', 'text': os.getcwd()}}), flush=True); "
+        "print(json.dumps({'type': 'turn.completed'}), flush=True)"
+    )
+    try:
+        result = run_codex(
+            [sys.executable, "-c", code], tmp_path / "run.jsonl", on_event=hold_directory
+        )
+        assert result.ok and result.events[-1].kind == "done"
+        assert directories[0].is_dir()  # locked during best-effort cleanup
+    finally:
+        for holder in holders:
+            holder.terminate()
+            holder.wait(timeout=10)
+            holder.stdout.close()
+        for directory in directories:
+            directory.rmdir()  # only the empty temporary directory created by this run

@@ -1,0 +1,298 @@
+{
+  "book_slug": "the-cloud-who-packed-a-picnic",
+  "title": "The Cloud Who Packed a Picnic",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "kokoro",
+      "voice": "af_heart",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "kokoro",
+      "voice": "kid_leo",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "kokoro",
+      "voice": "kid_mia",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "What could a cloud bring to a picnic?",
+        "emotion": "curious"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> I want to give the little cloud a hug.",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Let's open The Cloud Who Packed a Picnic.",
+        "emotion": "calm"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Zadie spread a picnic blanket on the hill. Tavi brought a pear."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Ollo floated down to see. \"Come and share!\" called Zadie."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Ollo reached for the pear. It slipped through his fluffy arms."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Tavi stopped it with his nose. <chuckle> \"A rolling picnic!\" said Zadie."
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<giggle> Tavi caught it with his nose!",
+          "emotion": "happy"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "What if Ollo tries something smaller?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Something smaller might be easier to hold. Let's see what he tries.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "with his nose",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Ollo tried a little cup. That slipped through, too."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Zadie picked it up. Ollo's fluffy shoulders drooped."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The sun warmed the hill. Zadie fanned her face."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Tavi tucked his head into his shell. Ollo drifted closer."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "If Ollo floats over the blanket, could his shadow cool them down?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "Why is Tavi peeking out of his shell?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "His shell gives him a little shade. If Ollo moves over the blanket, his shadow might give Zadie some shade too.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "Ollo drifted closer",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "A cool patch followed Ollo across the blanket. Zadie pointed to it."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Tavi peeked out. <sigh> \"Your shade could keep us cool!\" said Zadie."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Ollo stretched his fluffy arms. His shade reached every corner."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "\"I brought a cool spot!\" he said. \"Just what we needed,\" said Zadie."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ],
+      "animation": false
+    },
+    {
+      "page_number": 7,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "They shared the pear and the peaceful hill. Tavi rested beside Zadie."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Above them, Ollo curled into a cosy puff. There was a place at the picnic for everyone."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Ollo kept his friends cool with his shadow. What could I bring to a picnic with my friends?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "You could bring a game you love to play. Then everyone can join in.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "still shading his friends",
+      "ambience": [
+        "birds_morning"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> Point to Ollo. Can you stretch your arms as wide as he did?",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Think of one thing only you can bring to a friendship.",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Subscribe and come back for our next story.",
+        "emotion": "calm"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  }
+}

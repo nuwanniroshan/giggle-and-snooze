@@ -621,8 +621,8 @@ def _edition_sources(paths: StudioPaths, book: Book) -> list[Path]:
 def editions_state(paths: StudioPaths, book: Book) -> dict:
     """The editions' `{state, detail, files, missing}` from files (spec 019 FR-3): `blocked`
     while pictures are missing (named), `not_started` ("not built") with no edition file,
-    `out_of_date` when book.json, a picture or the blueprint is newer than the oldest edition
-    file, else `done` ("built")."""
+    `out_of_date` when book.json, a picture or the blueprint is newer than the builder's last
+    output (the web reader), else `done` ("built")."""
     files = edition_files(paths, book)
     missing = paint_state(paths, book)["missing"]
     if missing:
@@ -630,8 +630,9 @@ def editions_state(paths: StudioPaths, book: Book) -> dict:
         return {**_state("blocked", detail), "files": files, "missing": missing}
     if not files:
         return {**_state("not_started", "not built"), "files": [], "missing": []}
-    oldest = min(f["mtime"] for f in files)
-    changed = [p.name for p in _edition_sources(paths, book) if p.stat().st_mtime > oldest]
+    marker = stage_output(paths, book, BUILD_STAGE)
+    built_at = marker.stat().st_mtime if marker.is_file() else min(f["mtime"] for f in files)
+    changed = [p.name for p in _edition_sources(paths, book) if p.stat().st_mtime > built_at]
     if changed:
         detail = f"changed since the build: {', '.join(changed[:5])}"
         if len(changed) > 5:
