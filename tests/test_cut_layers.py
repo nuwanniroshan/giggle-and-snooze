@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import resource
 import shutil
 import socket
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -104,6 +104,44 @@ def fake_models(counter: list | None = None):
 
 def no_models(root: Path, cfg: dict):
     raise AssertionError("load_models must not be called")
+
+
+def test_mask_drops_unprompted_face_fragments_and_remote_components():
+    mask = np.zeros((100, 120), bool)
+    mask[20:45, 45:70] = True  # intended cloud
+    mask[60:66, 48:54] = True  # disconnected eye inside the generous box
+    mask[20:40, 5:20] = True  # another character outside it
+    layer = Layer.model_validate(
+        {
+            "name": "cloud",
+            "box": [40, 15, 80, 75],
+            "include_points": [[55, 30]],
+            "z": 1,
+            "depth": 0,
+            "pivot": [55, 30],
+        }
+    )
+    refined = cut_layers.refine_layer_mask(mask, layer)
+    assert refined[30, 55]
+    assert not refined[62, 50]
+    assert not refined[30, 10]
+
+
+def test_mask_keeps_separate_prompted_components():
+    mask = np.zeros((100, 120), bool)
+    mask[20:30, 45:55] = True
+    mask[40:50, 65:75] = True
+    layer = Layer.model_validate(
+        {
+            "name": "cloud",
+            "box": [40, 15, 80, 55],
+            "include_points": [[50, 25], [70, 45]],
+            "z": 1,
+            "depth": 0,
+            "pivot": [55, 30],
+        }
+    )
+    assert np.array_equal(cut_layers.refine_layer_mask(mask, layer), mask)
 
 
 def write_picture(folder: BookFolder, n: int = 1, square: bool = True) -> Path:
@@ -446,6 +484,7 @@ def _fake_models_dir(base: Path, *, without_prompt_weights: bool = False) -> Non
 
 def test_half_downloaded_package_without_weights_is_missing(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("KIDDO_MODELS_DIR", str(tmp_path / "models"))
+    monkeypatch.setattr(cut_layers.sys, "platform", "darwin")
     _fake_models_dir(tmp_path / "models", without_prompt_weights=True)
     with pytest.raises(ModelsMissing) as err:
         load_real_models(ROOT, MODELS_CFG)
@@ -457,6 +496,7 @@ def test_main_exits_1_with_a_message_when_a_model_fails_to_load(
     book: BookFolder, tmp_path: Path, monkeypatch, capsys
 ) -> None:
     monkeypatch.setenv("KIDDO_MODELS_DIR", str(tmp_path / "models"))
+    monkeypatch.setattr(cut_layers.sys, "platform", "darwin")
     _fake_models_dir(tmp_path / "models")
 
     class Broken:
@@ -483,7 +523,9 @@ def test_model_path_is_repo_and_short_revision(tmp_path: Path) -> None:
     assert model_path(tmp_path, cfg) == tmp_path / "apple__coreml-sam2.1-small@883f5787eb0b"
 
 
-def test_download_stores_real_files_and_prints_what(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("platform", ["darwin", "win32"])
+def test_download_stores_real_files_and_prints_what(tmp_path: Path, monkeypatch, platform) -> None:
+    monkeypatch.setattr(cut_layers.sys, "platform", platform)
     monkeypatch.setenv("KIDDO_MODELS_DIR", str(tmp_path))
     calls: list[dict] = []
 
@@ -493,13 +535,16 @@ def test_download_stores_real_files_and_prints_what(tmp_path: Path, monkeypatch)
 
     lines: list[str] = []
     paths = download(ROOT, snapshot=fake_snapshot, log=lines.append)
-    seg, fill = MODELS_CFG["segmenter"], MODELS_CFG["fill"]
+    seg, fill = cut_layers.segmenter_config(MODELS_CFG), MODELS_CFG["fill"]
     assert [c["repo_id"] for c in calls] == [seg["repo"], fill["repo"]]
     assert [c["revision"] for c in calls] == [seg["revision"], fill["revision"]]
     assert calls[0]["local_dir"] == str(model_path(tmp_path, seg))
-    assert calls[0]["allow_patterns"] == [
-        f"{seg[k]}/*" for k in ("encoder", "prompt_encoder", "decoder")
-    ]
+    expected = (
+        [seg[k] + suffix for k in ("encoder", "decoder") for suffix in ("", "_data")]
+        if platform == "win32"
+        else [f"{seg[k]}/*" for k in ("encoder", "prompt_encoder", "decoder")]
+    )
+    assert calls[0]["allow_patterns"] == expected
     assert calls[1]["allow_patterns"] == [fill["file"]]
     assert paths == [str(model_path(tmp_path, seg)), str(model_path(tmp_path, fill))]
     text = "\n".join(lines)
@@ -617,8 +662,8 @@ def test_cut_hash_changes_with_cut_inputs_only() -> None:
 
 def test_model_ids_include_compute_unit_and_provider() -> None:
     ids = model_ids(MODELS_CFG)
-    seg, fill = MODELS_CFG["segmenter"], MODELS_CFG["fill"]
-    assert ids["segmenter"] == f"{seg['repo']}@{seg['revision']}:CPU_AND_GPU"
+    seg, fill = cut_layers.segmenter_config(MODELS_CFG), MODELS_CFG["fill"]
+    assert ids["segmenter"] == f"{seg['repo']}@{seg['revision']}:{seg['compute_units']}"
     assert ids["fill"] == f"{fill['repo']}@{fill['revision']}:CPUExecutionProvider"
     changed = json.loads(json.dumps(MODELS_CFG))
     changed["segmenter"]["postprocess"]["clean"]["close_px"] = 9
@@ -791,7 +836,15 @@ def test_real_cut_pilot_page_one(tmp_path: Path) -> None:
     again = cut_book(folder, root=folder.root, pages=[1], force=True, log=lines.append)
     assert [r.status for r in again] == ["cut"]
     assert {p.name: p.read_bytes() for p in out.iterdir()} == files  # bit-exact
-    peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**3  # bytes on macOS
+    if sys.platform == "win32":
+        import psutil
+
+        peak_gb = psutil.Process().memory_info().peak_wset / 1024**3
+    else:
+        import resource
+
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        peak_gb = peak / (1024**3 if sys.platform == "darwin" else 1024**2)
     print(f"\nreal cut: {seconds:.2f} s first page, {again[0].detail} again, peak {peak_gb:.2f} GB")
     assert seconds <= 10
     assert peak_gb <= 4

@@ -1,0 +1,361 @@
+{
+  "book_slug": "the-three-little-pigs",
+  "title": "The Three Little Pigs",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "kokoro",
+      "voice": "af_heart",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "kokoro",
+      "voice": "kid_leo",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "kokoro",
+      "voice": "kid_mia",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Snuggle in for The Three Little Pigs. Can you use your builder eyes to spot what each pig makes a house from?",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> My builder eyes are wide open!",
+        "emotion": "happy"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip, Poppy, and Pebble set out to build houses. They walked down the same sunny lane so they could live close enough to wave."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip stacked straw, bundle by bundle. The bundles were light, so by snack time Pip had a house! <chuckle>"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "See that yellow bundle by the apple? Can you point to what Pip built with? Take your time.",
+          "emotion": "calm"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "<gasp> Pip has a whole house by snack time! Is straw lighter to lift than bricks?",
+          "emotion": "surprised"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "There’s the straw, all bundled up. Yes, straw is light to lift, so Pip could stack it quickly. Bricks are heavier.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "the last yellow bundle",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Poppy tied sticks, bundle by bundle. The sticks made a shady roof, so Poppy ate lunch on the doorstep."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pebble laid bricks, one by one. When a brick wobbled, Pebble set it straight."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "By teatime, even the tallest wall stood steady."
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "Can you point to the red things in that straight row? What are they called? Take your time.",
+          "emotion": "calm"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Straw looks floppy. Are bricks sturdier because they don’t bend?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Those are bricks. They’re hard and hold their shape. See how Pebble straightened that wobbly brick so the wall would stand steady?",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "straight row of warm red bricks",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pebble fitted the door, then slid the bolt across. Click!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Inside, Pebble set out three cushions so there would be room for everyone."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Wolf huffed, and the straw flew up like dry leaves. Scamper, scamper!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip ran next door, and Poppy opened the door wide. <sigh>"
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Wolf huffed, and the sticks clattered down like wooden spoons. <gasp> Scamper, scamper!"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip and Poppy ran to Pebble, who tucked them inside and slid the bolt. Click!"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<sigh> They both got inside. Can you point to what Pebble made the house from? I’ll give you a moment.",
+          "emotion": "calm"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Those are bricks. Pebble got Pip and Poppy inside and slid the bolt to hold the door shut.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "slid the bolt",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 8,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Wolf huffed, and the grass bent low. Wolf puffed, and the scarf fluttered."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "The bricks stayed put, and the three little pigs stayed snug. <sigh>"
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 9,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Wolf's cheeks grew tired. The bricks stayed put, so Wolf wrapped up in the scarf and went home."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "From the window, three little pigs watched Wolf disappear around the bend."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Even after all that puffing, the bricks stayed put. How did that keep the pigs safe?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "The sturdy brick walls held firm, so all three pigs could stay snug inside while Wolf went home.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "The bricks stayed put",
+      "ambience": [
+        "wind_loop"
+      ]
+    },
+    {
+      "page_number": 10,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip poured the tea, Poppy passed the toast, and Pebble scooted over. Tomorrow they could build together, brick by brick."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Tonight there was room for three."
+        }
+      ],
+      "ambience": [
+        "wind_loop"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> Show me the house that kept all three pigs safe!",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "What helped it stay standing? I think those sturdy bricks did the trick!",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Thanks for building along with us. Subscribe and come back for our next story!",
+        "emotion": "calm"
+      }
+    ],
+    "ambience": [
+      "wind_loop"
+    ]
+  }
+}

@@ -97,13 +97,41 @@ def _is_save_result(event: AgentEvent) -> bool:
     )
 
 
+def windows_codex() -> Path | None:
+    """Query the installed app: WindowsApps cannot generally be enumerated."""
+    if os.name != "nt":
+        return None
+    try:
+        result = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Get-AppxPackage -Name OpenAI.Codex | Select-Object -ExpandProperty InstallLocation",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    for location in result.stdout.splitlines():
+        binary = Path(location.strip()) / "app/resources/codex.exe"
+        if location.strip() and binary.is_file():
+            return binary
+    return None
+
+
 def find_codex() -> Path | None:
     if os.environ.get(CODEX_BIN_ENV):
         return Path(os.environ[CODEX_BIN_ENV])
     on_path = shutil.which("codex")
     if on_path:
         return Path(on_path)
-    return next((p for p in CODEX_SEARCH if os.access(p, os.X_OK)), None)
+    return next((p for p in CODEX_SEARCH if os.access(p, os.X_OK)), None) or windows_codex()
 
 
 def codex_status() -> Path:
@@ -238,7 +266,9 @@ def run_codex(
     refused = 0
     timed_out = threading.Event()
     with (
-        tempfile.TemporaryDirectory(prefix="kiddo-agent-") as workdir,
+        # Windows helpers may briefly retain the working directory after Codex exits.
+        # Best-effort cleanup must not discard a completed generation (WinError 32).
+        tempfile.TemporaryDirectory(prefix="kiddo-agent-", ignore_cleanup_errors=True) as workdir,
         log_path.open("w", encoding="utf-8") as log,
         stderr_path.open("w", encoding="utf-8") as stderr,
     ):
@@ -250,6 +280,8 @@ def run_codex(
                 stdout=subprocess.PIPE,
                 stderr=stderr,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
         except OSError as exc:
             raise AgentUnavailable(f"Codex (ChatGPT) provider could not start: {exc}") from None

@@ -1,0 +1,149 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "696b5a3c1efb88888e6a63023801e9fbb3b41d6b8aa7480675df45990463a883",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-22T04:22:23+00:00",
+  "layers": [
+    {
+      "name": "pip_beckoning_hand",
+      "description": "Pip’s open free hand and exposed forearm, extending left to the cream sleeve.",
+      "box": [
+        856,
+        320,
+        1046,
+        412
+      ],
+      "include_points": [
+        [
+          916,
+          368
+        ],
+        [
+          989,
+          365
+        ]
+      ],
+      "exclude_points": [
+        [
+          867,
+          332
+        ],
+        [
+          1029,
+          407
+        ]
+      ],
+      "z": 5,
+      "depth": 0.83,
+      "pivot": [
+        1031,
+        369
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 1.3,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "bea_hair_tip",
+      "description": "The outward curl of Bea’s copper hair on the left side of her head.",
+      "box": [
+        451,
+        207,
+        559,
+        314
+      ],
+      "include_points": [
+        [
+          481,
+          261
+        ],
+        [
+          527,
+          289
+        ]
+      ],
+      "exclude_points": [
+        [
+          456,
+          211
+        ],
+        [
+          466,
+          309
+        ],
+        [
+          555,
+          303
+        ]
+      ],
+      "z": 4,
+      "depth": 0.72,
+      "pivot": [
+        544,
+        228
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.9,
+          "period_s": 4.8,
+          "phase": 0.16,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "lily_raised_shoe",
+      "description": "Ms. Lily’s lifted blue shoe at the far left, with a gentle ankle motion.",
+      "box": [
+        57,
+        615,
+        128,
+        764
+      ],
+      "include_points": [
+        [
+          78,
+          654
+        ],
+        [
+          98,
+          741
+        ]
+      ],
+      "exclude_points": [
+        [
+          121,
+          646
+        ]
+      ],
+      "z": 3,
+      "depth": 0.68,
+      "pivot": [
+        96,
+        635
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 1.0,
+          "period_s": 4.8,
+          "phase": 0.42,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

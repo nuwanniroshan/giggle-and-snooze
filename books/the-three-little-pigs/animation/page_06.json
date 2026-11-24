@@ -1,0 +1,154 @@
+{
+  "page_number": 6,
+  "picture": {
+    "file": "page_06.png",
+    "sha256": "bdf659d9bd849cd69523eaac8ab9f4688fbc26d2608b2cedd927f7192078296d",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:15:18+00:00",
+  "layers": [
+    {
+      "name": "wolf_scarf_tail",
+      "description": "Loose red scarf end and tassels trailing left behind Wolf’s neck",
+      "box": [
+        117,
+        433,
+        292,
+        543
+      ],
+      "include_points": [
+        [
+          219,
+          479
+        ],
+        [
+          153,
+          502
+        ]
+      ],
+      "exclude_points": [],
+      "z": 3,
+      "depth": 0.68,
+      "pivot": [
+        287,
+        457
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.4,
+          "period_s": 6.0,
+          "phase": 0.13,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "upper_straw_wisp",
+      "description": "Long curved golden straw wisp between Wolf and the doorway",
+      "box": [
+        545,
+        419,
+        642,
+        480
+      ],
+      "include_points": [
+        [
+          594,
+          456
+        ],
+        [
+          624,
+          437
+        ]
+      ],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.55,
+      "pivot": [
+        590,
+        457
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 2.8,
+          "period_s": 6.0,
+          "phase": 0.31,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "middle_straw_wisp",
+      "description": "Upturned loose straw above the bundles",
+      "box": [
+        633,
+        491,
+        730,
+        544
+      ],
+      "include_points": [
+        [
+          676,
+          529
+        ],
+        [
+          710,
+          511
+        ]
+      ],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.58,
+      "pivot": [
+        681,
+        525
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 2.5,
+          "period_s": 6.0,
+          "phase": 0.53,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "small_straw_wisp",
+      "description": "Short golden straw sliver just right of the middle wisp",
+      "box": [
+        712,
+        548,
+        790,
+        575
+      ],
+      "include_points": [
+        [
+          750,
+          560
+        ]
+      ],
+      "exclude_points": [],
+      "z": 2,
+      "depth": 0.59,
+      "pivot": [
+        749,
+        561
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 2.2,
+          "period_s": 6.0,
+          "phase": 0.68,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

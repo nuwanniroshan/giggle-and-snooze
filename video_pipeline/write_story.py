@@ -27,6 +27,7 @@ from video_pipeline.agents import (
     codex_status,
     run_codex,
 )
+from video_pipeline.art_styles import apply_style, style_art
 from video_pipeline.blueprint import (
     Blueprint,
     BlueprintError,
@@ -90,13 +91,23 @@ Use only the story tools.
    {LAYOUTS_TEXT}), "prompt" (a visual description of the page for an illustrator),
    "illustration_file" ("page_NN.png" with the page number), and "characters_on_page" (the
    names, from "characters", of the characters this page shows; [] for a page without them).
-3. "characters": the 1 to {MAX_CHARACTERS} recurring characters, each {{"name", "look"}}. The
-   look is fixed for the whole book: 1 to 2 sentences ({LOOK_LOW} to {LOOK_HIGH} characters)
-   giving body, colours, clothing and distinguishing features (for example the number of eyes).
-   Every page "prompt" uses the same names.
+3. "characters": the 1 to {MAX_CHARACTERS} recurring characters, each {{"name", "look"}}. Pick
+   fresh, varied names that fit this story; avoid overused stock names. The look is fixed for
+   the whole book: 1 to 2 sentences ({LOOK_LOW} to {LOOK_HIGH} characters) giving body, colours,
+   clothing and distinguishing features (for example the number of eyes). Every page "prompt"
+   uses the same names.
 4. Call submit_book with {{"metadata": {{"title", "subtitle", "age_range", "blurb",
    "dedication"}}, "characters": [...], "pages": [...]}}. The age_range is one of {AGE_TEXT}.
 5. {GENTLE_RULES} Warm ending.
+   Write for natural speech: each sentence is one short thought or emotional beat. Use full
+   stops to leave room after a reaction, question or reveal, and commas for brief breaths.
+   Vary short, lively sentences with gentle, unhurried ones; do not pack the page into a
+   breathless chain of clauses. Keep the 1 to 4 sentences per page limit.
+   Skip non-word vocalizations such as "Shh", "Shhhhhh", "Psst", "Brrr", "Hmm" and stretched
+   letter sounds: the local voice may spell them out. Omit them or convey their meaning with
+   ordinary words, such as "Let us be quiet." Do not repeat letters to imitate sounds.
+   Convey expression through clear wording and natural punctuation. Do not put delivery
+   commands, stage directions, emotion tags, SSML, or pause durations into the book text.
 6. If submit_book returns errors, fix every error and submit again.
 7. Finish with one short line.
 
@@ -110,8 +121,10 @@ Use only the story tools.
    (format_key, format_label, question_types 2-4, intro_hook, outro_hook, moments_min,
    moments_max, kid_notes); "sound" (ambience: library names, sfx: library names,
    music_direction); "animation" (intensity 0.25-2.0, effects); "rationale".
-2. Keys are lowercase slugs. Make it clearly different from every existing blueprint listed
-   below: a different art medium or mood, a different Q&A format, and a different palette.
+2. Keys are lowercase slugs. Follow the fixed Giggle & Snooze art preset below exactly.
+   Keep the rendering style consistent across the brand. Differentiate books through their
+   mood, character silhouettes, story setting, Q&A format and five-colour palette, not by
+   inventing another art medium. Keep palettes fresh, clear and harmonious.
 3. Library sounds you may use: {sounds}. Effects you may use: {effects}.
 4. Gentle for young children. If submit_blueprint returns errors, fix every error and submit
    again.
@@ -210,6 +223,12 @@ def generate(
                 payload = json.loads(out.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 payload = None
+            if (
+                mode == "blueprint"
+                and isinstance(payload, dict)
+                and isinstance(payload.get("art"), dict)
+            ):
+                payload = apply_style(payload)
             errors = (
                 validate_payload(mode, payload, pages, root, subject)
                 if payload is not None
@@ -363,6 +382,8 @@ def blueprint_prompt(
     )
     effects = ", ".join(sorted(ctx.effects)) if ctx else ""
     text = BLUEPRINT_PROMPT.replace("{sounds}", sounds).replace("{effects}", effects)
+    text += "\nFixed Giggle & Snooze art preset (supply your own palette):\n"
+    text += json.dumps(style_art(), ensure_ascii=False, indent=2)
     text += _others_text(others)
     return text + "\nThe book:\n" + json.dumps(subject, ensure_ascii=False, indent=2)
 
@@ -473,6 +494,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     target.add_argument("--draft")
     target.add_argument("--book")
     design.add_argument("--then-book", action="store_true")
+    # Studio jobs and the documented CLI put --root after the subcommand.
+    # Suppress the subparser default so a leading --root still takes effect.
+    for command in (ideas, candidate, book, design):
+        command.add_argument("--root", type=Path, default=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 

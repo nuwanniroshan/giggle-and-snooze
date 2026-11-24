@@ -1,0 +1,205 @@
+{
+  "page_number": 6,
+  "picture": {
+    "file": "page_06.png",
+    "sha256": "c98c8b39cba8c8c020e17b5ba041435ab827c6938732643ffdd96b651148c70e",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-22T04:24:02+00:00",
+  "layers": [
+    {
+      "name": "left_child",
+      "description": "Red-haired child in the green tunic, including clasped hands and both shoes. Mask along the boundary with the center child's hair.",
+      "box": [
+        49,
+        76,
+        373,
+        841
+      ],
+      "include_points": [
+        [
+          200,
+          134
+        ],
+        [
+          287,
+          241
+        ],
+        [
+          224,
+          443
+        ],
+        [
+          207,
+          609
+        ],
+        [
+          132,
+          790
+        ]
+      ],
+      "exclude_points": [
+        [
+          367,
+          145
+        ],
+        [
+          61,
+          638
+        ],
+        [
+          293,
+          738
+        ]
+      ],
+      "z": 2,
+      "depth": 0.83,
+      "pivot": [
+        194,
+        831
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.26,
+          "period_s": 5.8,
+          "phase": 0.23,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "center_child",
+      "description": "Child in teal overalls with both hair buns and the yellow toy trumpet held low in one hand.",
+      "box": [
+        351,
+        67,
+        688,
+        853
+      ],
+      "include_points": [
+        [
+          413,
+          171
+        ],
+        [
+          550,
+          99
+        ],
+        [
+          552,
+          267
+        ],
+        [
+          514,
+          467
+        ],
+        [
+          402,
+          646
+        ],
+        [
+          476,
+          811
+        ]
+      ],
+      "exclude_points": [
+        [
+          361,
+          338
+        ],
+        [
+          638,
+          477
+        ],
+        [
+          667,
+          722
+        ]
+      ],
+      "z": 3,
+      "depth": 0.87,
+      "pivot": [
+        510,
+        839
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.27,
+          "period_s": 6.4,
+          "phase": 0.61,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "ms_lily",
+      "description": "Ms. Lily's full leaning figure, including the raised whispering hand, cropped gray curls, and both blue shoes.",
+      "box": [
+        623,
+        0,
+        1159,
+        822
+      ],
+      "include_points": [
+        [
+          789,
+          65
+        ],
+        [
+          758,
+          251
+        ],
+        [
+          1014,
+          252
+        ],
+        [
+          931,
+          531
+        ],
+        [
+          786,
+          780
+        ],
+        [
+          876,
+          783
+        ]
+      ],
+      "exclude_points": [
+        [
+          638,
+          84
+        ],
+        [
+          1022,
+          53
+        ],
+        [
+          1137,
+          526
+        ]
+      ],
+      "z": 1,
+      "depth": 0.79,
+      "pivot": [
+        825,
+        808
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.25,
+          "period_s": 7.2,
+          "phase": 0.08,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

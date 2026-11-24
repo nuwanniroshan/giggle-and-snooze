@@ -116,7 +116,7 @@ def test_pilot_narration_never_breaks_before_a_dialogue_tag():  # AC-2.4, FR-3
                 assert not broken, f"page {page['page_number']}: {before!r} | {after!r}"
 
 
-@pytest.mark.parametrize("page_count", range(8, 33))
+@pytest.mark.parametrize("page_count", range(5, 33))
 def test_choose_qa_pages_always_valid(page_count):
     for seed in range(10):
         pages = choose_qa_pages(page_count, random.Random(seed))

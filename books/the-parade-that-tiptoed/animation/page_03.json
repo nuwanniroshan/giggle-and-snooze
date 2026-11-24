@@ -1,0 +1,163 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "e5d4d2a68b2314ec3e8360fa4ad2e88415afb8c2b22410d2a5ccf20c0a18b483",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-22T04:19:04+00:00",
+  "layers": [
+    {
+      "name": "bea",
+      "description": "Red-haired Bea, including her outstretched fingers, green tunic, and both shoes. Keep the pavement and shoe shadows outside the mask.",
+      "box": [
+        728,
+        6,
+        1382,
+        871
+      ],
+      "include_points": [
+        [
+          1068,
+          153
+        ],
+        [
+          1067,
+          367
+        ],
+        [
+          1074,
+          593
+        ],
+        [
+          965,
+          795
+        ],
+        [
+          1092,
+          804
+        ]
+      ],
+      "exclude_points": [
+        [
+          815,
+          300
+        ],
+        [
+          1168,
+          742
+        ],
+        [
+          1025,
+          877
+        ]
+      ],
+      "z": 3,
+      "depth": 0.78,
+      "pivot": [
+        1075,
+        840
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.005,
+          "period_s": 3.8,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pip",
+      "description": "Pip from hair buns to sneakers, with the tucked yellow horn held in the same mask.",
+      "box": [
+        188,
+        27,
+        634,
+        895
+      ],
+      "include_points": [
+        [
+          255,
+          156
+        ],
+        [
+          461,
+          477
+        ],
+        [
+          283,
+          422
+        ],
+        [
+          369,
+          845
+        ]
+      ],
+      "exclude_points": [
+        [
+          251,
+          576
+        ],
+        [
+          600,
+          723
+        ]
+      ],
+      "z": 2,
+      "depth": 0.76,
+      "pivot": [
+        450,
+        873
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.003,
+          "period_s": 4.6,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "cream_cloud",
+      "description": "Small cream cloud above the gate.",
+      "box": [
+        601,
+        11,
+        821,
+        98
+      ],
+      "include_points": [
+        [
+          709,
+          69
+        ]
+      ],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.08,
+      "pivot": [
+        712,
+        62
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.014,
+          "period_s": 10.0,
+          "phase": 0.2,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

@@ -55,6 +55,48 @@ def test_check_image_rejects_junk_and_small(tmp_path):
         check_image(tmp_path / "small.png")
 
 
+def test_paint_decodes_utf8_and_preserves_readonly_generated_file(tmp_path, monkeypatch):
+    import subprocess
+    import sys
+
+    from video_pipeline import illustrate as module
+
+    real_run = subprocess.run
+    crop = module.crop_to_landscape
+
+    def run(command, **kwargs):
+        # Curly quote UTF-8 contains 0x9d, which fails under Windows CP1252.
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        return real_run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from PIL import Image; import os, sys; "
+                    "Image.new('RGB', (1536, 1024), 'blue').save('out.png'); "
+                    "os.chmod('out.png', 0o444); "
+                    "sys.stdout.buffer.write(b'generated \\xe2\\x80\\x9d \\xff'); "
+                    "sys.stderr.buffer.write(b'log \\xe2\\x80\\x9d \\xff')"
+                ),
+            ],
+            **kwargs,
+        )
+
+    def crop_copy(path):
+        assert path.name != "out.png"
+        crop(path)
+        with Image.open(path.with_name("out.png")) as original:
+            assert original.size == (1536, 1024)
+
+    monkeypatch.setattr(module.subprocess, "run", run)
+    monkeypatch.setattr(module, "crop_to_landscape", crop_copy)
+    target = tmp_path / "page_01.png"
+    module.paint_one(Path("codex"), "paint", None, target)
+    with Image.open(target) as result:
+        assert result.size == (1536, 864)
+
+
 # -- plans written by illustrate (spec 009, Phase 3: FR-13) ---------------------------------------
 
 
@@ -486,6 +528,32 @@ def test_unknown_page_is_refused(repaint_world, capsys):
     assert not list(folder.illustrations.glob("*.bak"))
 
 
+@pytest.mark.parametrize("existing", [False, True])
+def test_interrupted_initial_paint_keeps_blueprint_provenance(repaint_world, monkeypatch, existing):
+    from video_pipeline import illustrate as module
+    from video_pipeline.blueprint import blueprint_sha256, read_use, record_use
+
+    folder, _events, _state, run = repaint_world
+    monkeypatch.setattr(module, "style_text", lambda _bp: "STYLE")
+    monkeypatch.setattr(module, "load_blueprint", lambda *_a: object())
+    monkeypatch.setattr(module, "load_context", lambda _root: None)
+    folder.blueprint_path.write_text("{}", encoding="utf-8")
+    if existing:
+        record_use(folder, "art", "old-blueprint")
+    else:
+        for picture in folder.illustrations.glob("*.png"):
+            picture.unlink()
+
+    def interrupted(*args, **kwargs):
+        Image.new("RGB", (600, 400)).save(folder.illustrations / "page_01.png")
+        raise IllustrateError("interrupted after first picture")
+
+    monkeypatch.setattr(module, "illustrate", interrupted)
+    assert run() == 1
+    expected = "old-blueprint" if existing else blueprint_sha256(folder.blueprint_path)
+    assert read_use(folder)["art"] == expected
+
+
 def test_single_repaint_does_not_record_blueprint_use(repaint_world, monkeypatch):
     from video_pipeline import illustrate as module
 
@@ -533,9 +601,9 @@ def test_select_images_picks_one_and_refuses_unknown():
 # -- titled covers: paint, check and retry (spec 022, Phase 2) -----------------------------------
 
 TITLE, SUBTITLE = "Plops", "A Rainy Tale"
-GOOD = '{"title": "PLOPS", "subtitle": "A  Rainy\\nTale", "logo_whole": true}'
-WRONG = '{"title": "Plosp", "subtitle": "A Rainy Tale", "logo_whole": true}'
-CUT_LOGO = '{"title": "Plops", "subtitle": "A Rainy Tale", "logo_whole": false}'
+GOOD = '{"title": "PLOPS", "subtitle": "A  Rainy\\nTale", "logo_absent": true}'
+WRONG = '{"title": "Plosp", "subtitle": "A Rainy Tale", "logo_absent": true}'
+UNWANTED_LOGO = '{"title": "Plops", "subtitle": "A Rainy Tale", "logo_absent": false}'
 
 
 def titled_book() -> dict:
@@ -571,6 +639,7 @@ class FakeCoverCodex:
         import subprocess
 
         assert kw.get("timeout") and kw.get("stdin") == subprocess.DEVNULL
+        assert kw.get("encoding") == "utf-8" and kw.get("errors") == "replace"
         if "--output-schema" in cmd:
             with Image.open(cmd[cmd.index("-i") + 1]) as im:
                 self.checked.append(im.size)
@@ -607,7 +676,7 @@ def _paint(fake, settings, root, target, lines=None, reference=None):
     painter(Path("codex"), "REQUEST", reference, target)
 
 
-def test_titled_book_paints_both_front_covers_with_logo_and_page_references(
+def test_titled_book_paints_both_front_covers_with_only_page_reference(
     tmp_path, cover_settings
 ):  # AC-1.1, AC-1.3, AC-2.1, AC-3.1
     fake = FakeCoverCodex()
@@ -625,12 +694,34 @@ def test_titled_book_paints_both_front_covers_with_logo_and_page_references(
     assert len(fake.paints) == 2
     for cmd in fake.paints:
         inputs = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-i"]
-        assert inputs == [str(tmp_path / "brand" / "logo.png"), str(folder / "page_01.png")]
+        assert inputs == [str(folder / "page_01.png")]
     with Image.open(folder / "cover_front.png") as im:
         assert im.width * 3 == im.height * 4 and min(im.size) >= 512
     with Image.open(folder / "cover_front_print.png") as im:
         assert im.width == im.height
     assert fake.checked == [(800, 600), (700, 700)]  # the check sees the trimmed cover
+
+
+@pytest.mark.parametrize("during_check", [False, True])
+def test_usage_limit_stops_cover_without_repainting(tmp_path, cover_settings, during_check):
+    import subprocess
+
+    from video_pipeline.agents import AgentUnavailable
+
+    fake = FakeCoverCodex()
+    calls = []
+
+    def limited(cmd, **kwargs):
+        calls.append(cmd)
+        if during_check and "--output-schema" not in cmd:
+            return fake(cmd, **kwargs)
+        return subprocess.CompletedProcess(cmd, 1, "", "ERROR: You've hit your usage limit.")
+
+    target = tmp_path / "cover_front.png"
+    with pytest.raises(AgentUnavailable, match="resume autopilot"):
+        _paint(limited, cover_settings, tmp_path, target)
+    assert len(calls) == (2 if during_check else 1)
+    assert not target.exists()
 
 
 def test_accepts_first_passing_try_and_logs_reading(tmp_path, cover_settings):  # AC-3.5
@@ -648,10 +739,10 @@ def test_retries_wrong_words_then_passes(tmp_path, cover_settings):  # AC-3.2, A
     assert any("accepted after 2 painting(s)" in s for s in lines)
 
 
-def test_logo_cut_counts_as_failed_try(tmp_path, cover_settings):  # AC-3.3
-    fake, lines = FakeCoverCodex([CUT_LOGO, GOOD]), []
+def test_unwanted_logo_counts_as_failed_try(tmp_path, cover_settings):  # AC-3.3
+    fake, lines = FakeCoverCodex([UNWANTED_LOGO, GOOD]), []
     _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front.png", lines)
-    assert len(fake.paints) == 2 and any("logo not whole" in s for s in lines)
+    assert len(fake.paints) == 2 and any("unwanted cover logo or branding" in s for s in lines)
 
 
 def test_check_timeout_or_bad_reply_counts_as_failed_try(tmp_path, cover_settings):  # AC-3.3
@@ -708,22 +799,13 @@ def test_failed_cover_in_a_run_keeps_the_painted_pages(tmp_path, cover_settings)
     assert sorted(p.name for p in folder.iterdir()) == ["page_01.png", "page_02.png"]
 
 
-def test_missing_logo_paints_no_cover_and_keeps_pages(tmp_path, cover_settings):  # AC-1.6
+def test_missing_logo_does_not_block_cover_generation(tmp_path, cover_settings):
     (tmp_path / "brand" / "logo.png").unlink()
     fake = FakeCoverCodex()
-    folder = tmp_path / "ill"
-    with pytest.raises(IllustrateError, match=r"logo not found: .*brand/logo\.png"):
-        illustrate(
-            titled_book(),
-            folder,
-            Path("codex"),
-            paint=_paint_real(),
-            log=lambda _: None,
-            settings=cover_settings,
-            paint_cover=_cover_painter(cover_settings, tmp_path, fake),
-        )
-    assert sorted(p.name for p in folder.iterdir()) == ["page_01.png", "page_02.png"]
-    assert fake.paints == []
+    target = tmp_path / "cover_front.png"
+    _paint(fake, cover_settings, tmp_path, target, [])
+    assert target.is_file()
+    assert len(fake.paints) == 1
 
 
 def test_repaint_print_cover_keeps_bak_and_restores_on_failure(tmp_path, cover_settings):
@@ -835,6 +917,19 @@ def test_titled_book_cover_repaint_uses_titled_painter(repaint_world, monkeypatc
 
 
 # -- artifact cleanup flags (spec 026) -----------------------------------------------------------
+
+
+def test_provider_image_path_is_copied_without_shell(tmp_path):
+    from video_pipeline.illustrate import _returned_image
+
+    source = tmp_path / "generated image.png"
+    Image.new("RGB", (600, 400), "blue").save(source)
+    work = tmp_path / "work"
+    work.mkdir()
+    result = _returned_image(f"`{source}`\n", work)
+    assert result == work / "out.png"
+    assert result.read_bytes() == source.read_bytes()
+    assert _returned_image("No image generated", work) is None
 
 
 def test_cleanup_flag_needs_page(capsys):  # AC-4.1

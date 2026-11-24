@@ -197,7 +197,7 @@ def test_download_command(env, monkeypatch, capsys):
     fetched = []
     monkeypatch.setattr(sv, "download_model", lambda settings: fetched.append(settings.repo))
     assert run(env, command="download") == 0
-    assert fetched == ["mlx-community/orpheus-3b-0.1-ft-4bit"]
+    assert fetched == ["thewh1teagle/kokoro-onnx"]
     assert "ready" in capsys.readouterr().out
 
 

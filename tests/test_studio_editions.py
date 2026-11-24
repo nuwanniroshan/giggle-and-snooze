@@ -182,6 +182,19 @@ def test_editions_older_than_sources_but_rebuilt_are_done(studio):
     assert editions(s)["state"] == "done"
 
 
+def test_a_stray_old_png_does_not_make_fresh_editions_stale(studio):
+    s = studio()
+    folder = pilot_folder(s.paths.root)
+    past = time.time() - 120
+    for path in [folder.book_json, *folder.illustrations.glob("*.png")]:
+        os.utime(path, (past, past))
+    write_editions(s)
+    stray = build_dir(s) / "layout-check-before.png"
+    stray.write_bytes(b"old layout check")  # not a builder output
+    os.utime(stray, (past - 60, past - 60))
+    assert editions(s)["state"] == "done"
+
+
 def test_status_has_editions_and_next_action_builds_after_the_video(studio, monkeypatch):
     s = studio()
     status = sb.stage_status(s.paths, s.book(), no_jobs)

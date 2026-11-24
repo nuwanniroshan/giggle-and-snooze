@@ -36,7 +36,7 @@ Design docs: [`PRD.md`](PRD.md), specs in `docs/specs/`, the deploy guide in [`d
 
 ## Requirements
 
-The video pipeline targets **Apple Silicon Macs** (developed on an M1 Pro with 16 GB) and runs stages one at a time to fit memory. Book production and the storefront run on any machine with the tools below, but the voice, animation and segmentation models need macOS on Apple Silicon.
+The video pipeline targets **Apple Silicon Macs** (developed on an M1 Pro with 16 GB) and runs stages one at a time to fit memory. Book production and the storefront run on any machine with the tools below, and voice generation runs locally on Windows and macOS with Kokoro ONNX. Layer cutting uses SAM 2.1 via ONNX Runtime on Windows and via Core ML on macOS. Both use LaMa for background fill.
 
 | Tool | Version | Needed for | Install (macOS, Homebrew) |
 |---|---|---|---|
@@ -98,8 +98,8 @@ Unit tests skip the real models and providers (see [Tests](#tests)).
 ### 4. Download the local models (one time, several GB)
 
 ```bash
-uv run python -m video_pipeline.synthesize_voices download   # Orpheus voice model (pinned)
-uv run python -m video_pipeline.cut_layers download           # SAM 2.1 Core ML + LaMa ONNX
+uv run python -m video_pipeline.synthesize_voices download   # Kokoro ONNX voice model for Windows and macOS
+uv run python -m video_pipeline.cut_layers download           # platform-specific SAM 2.1 weights and LaMa ONNX
 ```
 
 Models are stored in `$KIDDO_MODELS_DIR`, or `~/.cache/kiddo/models` if unset. Keep a copy of this folder to skip the downloads next time (see [Local files not in git](#local-files-not-in-git)).
@@ -267,6 +267,8 @@ uv run python -m video_pipeline.synthesize_voices --book <slug> --reviewed [--fo
 uv run python -m video_pipeline.synthesize_voices --book <slug> approve
 ```
 
+Install FFmpeg on PATH and run `uv run python -m video_pipeline.synthesize_voices download` once per machine. Kokoro then runs offline. Existing Orpheus cast names map to Kokoro voices. Sound tags such as `<giggle>` are omitted from speech, and per-line emotions still adjust pitch, pace and volume.
+
 Refuses to run without `--reviewed`. Outputs in `books/<slug>/build/audio/`.
 
 ### Animation and layers (optional, per page)
@@ -374,7 +376,7 @@ One project-wide channel, through an OAuth desktop client.
 ```bash
 uv run pytest                          # unit tests (fast, no models, no providers)
 uv run pytest -m codex                 # real ChatGPT run via Codex (uses plan quota)
-uv run pytest -m "ffmpeg or tts"       # real FFmpeg and Orpheus
+uv run pytest -m "ffmpeg or tts"       # real FFmpeg and Kokoro
 uv run pytest -m models                # real segmentation and fill models
 uv run pytest -m youtube               # real upload to the connected channel (opt-in)
 ```
@@ -421,7 +423,6 @@ Set in your shell profile (`~/.zshrc`) or per command. None of these belong in t
 | `KIDDO_YOUTUBE_DIR` | `youtube` | OAuth files folder (default `~/.config/kiddo/youtube`) |
 | `SUPABASE_URL` | `publish_store` | Supabase project URL (local: `http://127.0.0.1:54321`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | `publish_store` | Service-role key (server secret; local value from `supabase status`) |
-| `HF_HUB_OFFLINE=1` | voices | Set by the pipeline; models load offline after download |
 
 Storefront (`apps/web/.env.local`, copied from `.env.example`):
 
@@ -451,4 +452,4 @@ Shared settings, not secrets, are in `config/*.json`. Sensible defaults are ther
 - **Supabase `db:start` fails:** Docker must be running. Free ports `54321`–`54324` if another project uses them.
 - **Reader submodule is empty:** run `git submodule update --init --recursive`.
 - **YouTube "Reconnect needed":** run `uv run python -m video_pipeline.youtube connect`.
-- **Not on Apple Silicon:** the voice, animation and segmentation models are built for Apple Silicon. Other platforms are untested.
+- **Missing cut models:** run `uv run python -m video_pipeline.cut_layers download` once on each machine.

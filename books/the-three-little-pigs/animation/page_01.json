@@ -1,0 +1,242 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "d8ec9b045601d0abe1b4162f063282138334e8811b0ff24ad74c50b7ab5ffb33",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:07:56+00:00",
+  "layers": [
+    {
+      "name": "pip",
+      "description": "Freckled pig in yellow overalls, including the hand gripping the straw wagon handle.",
+      "box": [
+        42,
+        352,
+        320,
+        757
+      ],
+      "include_points": [
+        [
+          184,
+          458
+        ],
+        [
+          167,
+          637
+        ],
+        [
+          290,
+          615
+        ]
+      ],
+      "exclude_points": [
+        [
+          343,
+          594
+        ],
+        [
+          332,
+          684
+        ]
+      ],
+      "z": 5,
+      "depth": 0.89,
+      "pivot": [
+        200,
+        736
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.005,
+          "period_s": 4.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "poppy",
+      "description": "Pig in the green shirt, including the hand gripping the stick wagon handle.",
+      "box": [
+        489,
+        310,
+        758,
+        726
+      ],
+      "include_points": [
+        [
+          636,
+          444
+        ],
+        [
+          650,
+          572
+        ],
+        [
+          724,
+          596
+        ]
+      ],
+      "exclude_points": [
+        [
+          780,
+          581
+        ]
+      ],
+      "z": 4,
+      "depth": 0.83,
+      "pivot": [
+        646,
+        711
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.005,
+          "period_s": 4.0,
+          "phase": 0.33,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "pebble",
+      "description": "Pig in blue overalls with a cream forelock, including the hand gripping the brick wagon handle.",
+      "box": [
+        967,
+        310,
+        1244,
+        728
+      ],
+      "include_points": [
+        [
+          1097,
+          403
+        ],
+        [
+          1138,
+          563
+        ],
+        [
+          1146,
+          593
+        ]
+      ],
+      "exclude_points": [
+        [
+          1243,
+          610
+        ],
+        [
+          1272,
+          588
+        ]
+      ],
+      "z": 3,
+      "depth": 0.78,
+      "pivot": [
+        1129,
+        710
+      ],
+      "motions": [
+        {
+          "type": "bob",
+          "amplitude": 0.005,
+          "period_s": 4.0,
+          "phase": 0.66,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "lavender_sprig",
+      "description": "Tall purple lavender sprig at the bottom left, with its narrow green stem.",
+      "box": [
+        18,
+        750,
+        67,
+        864
+      ],
+      "include_points": [
+        [
+          40,
+          811
+        ],
+        [
+          43,
+          851
+        ]
+      ],
+      "exclude_points": [
+        [
+          57,
+          859
+        ]
+      ],
+      "z": 7,
+      "depth": 0.98,
+      "pivot": [
+        44,
+        862
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.4,
+          "period_s": 8.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "meadow_cloud",
+      "description": "Low cream cloud above the center-left meadow, beneath the broad cloud at the top.",
+      "box": [
+        575,
+        56,
+        851,
+        121
+      ],
+      "include_points": [
+        [
+          719,
+          98
+        ]
+      ],
+      "exclude_points": [
+        [
+          725,
+          54
+        ],
+        [
+          644,
+          123
+        ]
+      ],
+      "z": 0,
+      "depth": 0.06,
+      "pivot": [
+        713,
+        95
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.018,
+          "period_s": 8.0,
+          "phase": 0.1,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

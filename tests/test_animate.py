@@ -336,6 +336,16 @@ def test_equal_z_keeps_plan_order(tmp_path):
     assert tuple(render_frame(load(tmp_path, layers), 20)[25, 25]) == RED
 
 
+def test_stationary_foreground_stays_above_moving_background(tmp_path):
+    layers = [
+        _moving("back", (10, 10, 30, 30), BLUE, 1, amplitude=0.15),
+        _layer("front", (20, 20, 40, 40), RED, 2),
+    ]
+    anim = load(tmp_path, layers)
+    for frame in (10, 20, 30, 10):
+        assert tuple(render_frame(anim, frame)[25, 25]) == RED
+
+
 def test_empty_layers_are_skipped(tmp_path):
     layers = [_moving("a", (10, 10, 30, 30), RED, 1), _moving("gone", (40, 5, 60, 20), BLUE, 2)]
     anim = load(tmp_path, layers, empty=("gone",))
@@ -595,8 +605,8 @@ def test_renderer_refuses_frames_past_the_section(tmp_path):
 
 
 def test_module_exports_version():
-    # 2: particle speed follows intensity, rest frames match the still canvas (review fixes)
-    assert animate.ANIMATION_VERSION == 2
+    # 3: stationary foreground layers keep their z order over moving layers.
+    assert animate.ANIMATION_VERSION == 3
 
 
 def test_canvas_frames_paste_the_rest_picture_while_at_rest():

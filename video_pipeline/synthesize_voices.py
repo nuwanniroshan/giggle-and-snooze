@@ -11,6 +11,7 @@ import argparse
 import errno
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -25,6 +26,7 @@ import numpy as np
 import soundfile as sf
 
 from video_pipeline.audio_checks import (
+    FULL_SCALE,
     CheckSettings,
     ClipMeasure,
     clip_problems,
@@ -35,7 +37,6 @@ from video_pipeline.audio_checks import (
     trim_silence,
 )
 from video_pipeline.contract import (
-    ALLOWED_TAGS,
     SPEAKERS,
     TAG_RE,
     ConfigError,
@@ -49,8 +50,8 @@ from video_pipeline.episode_tools import write_atomic
 from video_pipeline.file_hash import script_sha256, sha256_file
 from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
 from video_pipeline.tts import (
+    KokoroVoice,
     ModelSettings,
-    OrpheusVoice,
     PitchShiftError,
     VoiceUnavailable,
     download_model,
@@ -97,17 +98,6 @@ def load_voice_config(path: Path) -> VoiceConfig:
         model=ModelSettings(
             repo=model["repo"],
             revision=model["revision"],
-            temperature=float(model["temperature"]),
-            top_p=float(model["top_p"]),
-            max_tokens=int(model["max_tokens"]),
-            support_repos=tuple(
-                (
-                    item["repo"],
-                    item["revision"],
-                    tuple(item["files"]) if item.get("files") is not None else None,
-                )
-                for item in model.get("support_repos", [])
-            ),
         ),
         seed=int(model["seed"]),
         supported_voices=tuple(data["supported_voices"]),
@@ -139,8 +129,8 @@ MAX_PAUSE_INSIDE_LINE = 0.6  # seconds; longer stalls inside a line are cut down
 
 
 def spoken_text(text: str, prons: dict[str, str]) -> str:
-    """What the voice model hears: allowed tags kept, other markup dropped, respellings applied."""
-    cleaned = TAG_RE.sub(lambda m: m.group(0) if m.group(0)[1:-1] in ALLOWED_TAGS else " ", text)
+    """What the voice model hears: markup dropped, respellings applied."""
+    cleaned = TAG_RE.sub(" ", text)
     for word, spoken in prons.items():
         cleaned = re.sub(rf"(?<!\w){re.escape(word)}(?!\w)", spoken, cleaned, flags=re.IGNORECASE)
     return " ".join(cleaned.split())
@@ -153,19 +143,21 @@ def clip_key(
     cfg: VoiceConfig,
     emotion: str | None = None,
     delivery: Feeling | None = None,
+    tts_speed: float = 1.0,
+    sentence_pause: float = 0.25,
+    clause_pause: float = 0.1,
 ) -> str:
-    """`semitones` is the role's lift. A non-neutral feeling adds its delivery (spec 017 FR-3);
-    a neutral or missing one leaves the key exactly as before, so its clips are reused."""
+    """Clip identity includes voice, role delivery and optional emotion delivery."""
     # model.seed is deliberately left out: a seed change must not discard passing clips.
     identity: dict = {
         "text": spoken,
         "voice": voice,
         "semitones": semitones,
+        "tts_speed": tts_speed,
+        "sentence_pause": sentence_pause,
+        "clause_pause": clause_pause,
         "repo": cfg.model.repo,
         "revision": cfg.model.revision,
-        "temperature": cfg.model.temperature,
-        "top_p": cfg.model.top_p,
-        "max_tokens": cfg.model.max_tokens,
         "sample_rate": cfg.sample_rate,
     }
     if delivery is not None and not delivery.is_neutral:
@@ -193,6 +185,9 @@ class LineJob:
     emotion: str = NEUTRAL
     speed: float = 1.0
     gain_db: float = 0.0
+    tts_speed: float = 1.0
+    sentence_pause: float = 0.25
+    clause_pause: float = 0.1
 
 
 def plan_jobs(
@@ -203,7 +198,12 @@ def plan_jobs(
 ) -> list[LineJob]:
     """One job per line. With `emotions` each line's feeling shapes its delivery (spec 017);
     without them every line is spoken neutral."""
-    cast = script["cast"]
+    aliases = cfg.raw.get("legacy_voices", {})
+    cast = {
+        role: {**member, "voice": aliases.get(member.get("voice"), member.get("voice"))}
+        for role, member in script["cast"].items()
+    }
+    blends = cfg.raw.get("voice_blends", {})
     for role in SPEAKERS:
         voice = cast.get(role, {}).get("voice")
         if voice not in cfg.supported_voices:
@@ -211,6 +211,11 @@ def plan_jobs(
                 f"cast role {role!r}: voice {voice!r} is not supported by the voice model "
                 f"(supported: {', '.join(cfg.supported_voices)})"
             )
+        for part in blends.get(voice, {}):
+            if part not in cfg.supported_voices:
+                raise ConfigError(
+                    f"voice blend {voice!r}: component {part!r} is not a supported voice"
+                )
     seen: dict[str, str] = {}
     for role in SPEAKERS:
         voice = cast[role]["voice"]
@@ -226,6 +231,10 @@ def plan_jobs(
         speaker = line["speaker"]
         voice = cast[speaker]["voice"]
         semitones = cfg.pitch_semitones.get(speaker, 0.0)
+        role_delivery = cfg.raw.get("role_delivery", {}).get(speaker, {})
+        tts_speed = float(role_delivery.get("speed", 1.0))
+        sentence_pause = float(role_delivery.get("sentence_pause", 0.25))
+        clause_pause = float(role_delivery.get("clause_pause", 0.1))
         spoken = spoken_text(line["text"], prons)
         emotion, delivery = NEUTRAL, None
         if emotions is not None:
@@ -248,10 +257,13 @@ def plan_jobs(
                 word_count(line["text"]),
                 voice,
                 semitones + extra,
-                clip_key(spoken, voice, semitones, cfg, emotion, delivery),
+                clip_key(spoken, voice, semitones, cfg, emotion, delivery, tts_speed, sentence_pause, clause_pause),
                 emotion,
                 delivery.speed if delivery else 1.0,
                 delivery.gain_db if delivery else 0.0,
+                tts_speed,
+                sentence_pause,
+                clause_pause,
             )
         )
 
@@ -375,16 +387,34 @@ def is_gpu_timeout(exc: BaseException) -> bool:
     )
 
 
-def synthesize_retrying(engine, text: str, voice: str, seed: int, sleep=time.sleep) -> np.ndarray:
-    """One engine call; a GPU timeout frees the GPU memory and tries again after a pause, up to
-    GPU_RETRIES times. Other errors go straight to the caller."""
+def synthesize_retrying(
+    engine,
+    text: str,
+    voice: str,
+    seed: int,
+    speed: float = 1.0,
+    sentence_pause: float = 0.25,
+    clause_pause: float = 0.1,
+    sleep=time.sleep,
+) -> np.ndarray:
+    """One engine call; retries GPU timeout if engine supports recovery."""
     for retry in range(GPU_RETRIES + 1):
         try:
+            return engine.synthesize(
+                text,
+                voice,
+                seed,
+                speed=speed,
+                sentence_pause=sentence_pause,
+                clause_pause=clause_pause,
+            )
+        except TypeError:
             return engine.synthesize(text, voice, seed)
         except RuntimeError as exc:
             if not is_gpu_timeout(exc) or retry == GPU_RETRIES:
                 raise
-            engine.recover()
+            if hasattr(engine, "recover"):
+                engine.recover()
             sleep(GPU_BACKOFF_S[retry])
     raise AssertionError("unreachable")
 
@@ -396,13 +426,22 @@ def make_clip(
     with a new seed each (AC-3.3). The checks measure the shaped audio (spec 017 AC-3.5)."""
     measure: ClipMeasure | None = None
     problems: list[str] = []
+    speed, gain_db = job.speed, job.gain_db
     for attempt in range(1, cfg.max_attempts + 1):
         raw = shift(
-            synthesize_retrying(engine, job.spoken, job.voice, cfg.seed + attempt - 1),
+            synthesize_retrying(
+                engine,
+                job.spoken,
+                job.voice,
+                cfg.seed + attempt - 1,
+                speed=job.tts_speed,
+                sentence_pause=job.sentence_pause,
+                clause_pause=job.clause_pause,
+            ),
             cfg.sample_rate,
             job.semitones,
-            job.speed,
-            job.gain_db,
+            speed,
+            gain_db,
         )
         trimmed = trim_silence(raw, cfg.sample_rate, cfg.checks.silence_db, cfg.checks.edge_silence)
         trimmed = squeeze_silences(
@@ -412,6 +451,13 @@ def make_clip(
         problems = clip_problems(measure, cfg.checks)
         if not problems:
             return trimmed, measure, attempt, []
+        # Leave some headroom for variation in the next synthesis.
+        if measure.peak >= FULL_SCALE:
+            gain_db += 20 * math.log10(0.90 / measure.peak)
+        if measure.wps > cfg.checks.max_wps:
+            speed *= max(0.6, 0.92 * cfg.checks.max_wps / measure.wps)
+        elif 0 < measure.wps < cfg.checks.min_wps:
+            speed *= min(1.6, 1.08 * cfg.checks.min_wps / measure.wps)
     return None, measure, cfg.max_attempts, problems
 
 
@@ -832,7 +878,7 @@ def approve(
 
 
 def create_engine(cfg: VoiceConfig):
-    return OrpheusVoice(cfg.model)
+    return KokoroVoice(cfg.model, cfg.raw.get("voice_blends"))
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -844,7 +890,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "command", nargs="?", default="synthesize", choices=("synthesize", "approve", "download")
     )
-    parser.add_argument("--book", required=True, help="book slug, e.g. the-snail-mail-express")
+    parser.add_argument("--book", help="book slug, e.g. the-snail-mail-express")
     parser.add_argument("--root", type=Path, default=PROJECT_ROOT, help="project root")
     parser.add_argument(
         "--reviewed",
@@ -852,7 +898,10 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="confirm a person has reviewed the episode script (spec 001 AC-7.4)",
     )
     parser.add_argument("--force", action="store_true", help="re-synthesize every line")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.command != "download" and not args.book:
+        parser.error("--book is required for synthesis and approval")
+    return args
 
 
 def _synthesize(
@@ -942,7 +991,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "download":
             download_model(cfg.model)
             create_engine(cfg)
-            print(f"voice model ready: {cfg.model.repo}@{cfg.model.revision[:8]}")
+            print(f"voice model ready: {cfg.model.repo}@{cfg.model.revision}")
             return 0
         folder = book_folder(args.book, args.root)
         book = load_book(folder.book_json)

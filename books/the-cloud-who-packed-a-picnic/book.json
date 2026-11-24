@@ -1,0 +1,133 @@
+{
+  "metadata": {
+    "cover_style": "titled",
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 7,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Giggle & Snooze",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "The Cloud Who Packed a Picnic",
+    "subtitle": "A Little Shade, a Lot to Share",
+    "author": "Giggle & Snooze",
+    "age_range": "Ages 3-6",
+    "blurb": "Ollo wants to bring something to a picnic, but pears and cups slip through his fluffy arms. A warm afternoon helps the little cloud discover a gift all his own.",
+    "dedication": "For every little one with something lovely to share."
+  },
+  "style_bible": {
+    "style_prompt_prefix": "Original Giggle & Snooze character design: expressive asymmetric poses, rounded bean and crescent shapes, warm playful faces, a small visual joke and a calm cosy atmosphere. Clean contemporary shapes, generous breathing room, one clear story action. Simplify hair, clothing and scenery into broad shapes; include only story-relevant props. Contemporary 2D animation shapes, distinctive silhouettes, expressive eyes, smooth colour fills and restrained soft shading.",
+    "characters": [
+      {
+        "name": "Ollo",
+        "look": "Ollo is a small cream cloud with three rounded top lobes, a single curled forelock, two short puffy arms and no legs. Ollo has two dark oval eyes, coral cheeks and an expressive curved mouth."
+      },
+      {
+        "name": "Zadie",
+        "look": "Zadie is a small child with warm brown skin and dark hair shaped into two rounded puff buns. She wears coral dungarees over a cream T-shirt and teal shoes, with a yellow crescent patch on one pocket."
+      },
+      {
+        "name": "Tavi",
+        "look": "Tavi is a tiny teal tortoise with a smooth butter-yellow domed shell and four stubby legs. Tavi has two dark oval eyes and one simple crescent marking on the shell, with no clothing."
+      }
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "An Invitation",
+      "text": "Zadie spread a picnic blanket on the hill. Tavi brought a pear. Ollo floated down to see. \"Come and share!\" called Zadie.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Zadie kneels beside a plain coral picnic blanket on one curved grassy hill; Tavi nudges a single pear onto it. Ollo floats close above them with a curious tilt; open cream-blue sky and only one distant hill.",
+      "illustration_file": "page_01.png",
+      "characters_on_page": [
+        "Ollo",
+        "Zadie",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 2,
+      "title": "A Slippery Pear",
+      "text": "Ollo reached for the pear. It slipped through his fluffy arms. Tavi stopped it with his nose. \"A rolling picnic!\" said Zadie.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Ollo cups his puffy arms with a surprised face while the single pear rests safely beside Tavi's nose directly below. Zadie leans sideways laughing gently; the same coral blanket anchors the scene, no extra props.",
+      "illustration_file": "page_02.png",
+      "characters_on_page": [
+        "Ollo",
+        "Zadie",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 3,
+      "title": "A Cup of Nothing",
+      "text": "Ollo tried a little cup. That slipped through, too. Zadie picked it up. Ollo's fluffy shoulders drooped.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Zadie lifts one small empty teal cup from the blanket; Ollo floats beside her with drooping puffy arms and a small disappointed mouth. Tavi looks kindly upward; keep the pear on the blanket and the background very simple.",
+      "illustration_file": "page_03.png",
+      "characters_on_page": [
+        "Ollo",
+        "Zadie",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 4,
+      "title": "Too Warm",
+      "text": "The sun warmed the hill. Zadie fanned her face. Tavi tucked his head into his shell. Ollo drifted closer.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Zadie sits on the coral blanket shading her warm face with one hand. Tavi's head peeks partly inside his yellow shell; Ollo approaches from the upper left. A simple sun and pale open sky establish warmth without dramatic rays.",
+      "illustration_file": "page_04.png",
+      "characters_on_page": [
+        "Ollo",
+        "Zadie",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 5,
+      "title": "A Cool Surprise",
+      "text": "A cool patch followed Ollo across the blanket. Zadie pointed to it. Tavi peeked out. \"Your shade could keep us cool!\" said Zadie.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Ollo floats directly above the picnic; a broad soft cool shadow lies across the blanket beneath him. Zadie lowers her hand with a relieved smile and Tavi stretches his head out. Make the single shadow and their changed expressions clearly readable.",
+      "illustration_file": "page_05.png",
+      "characters_on_page": [
+        "Ollo",
+        "Zadie",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 6,
+      "title": "Ollo's Gift",
+      "text": "Ollo stretched his fluffy arms. His shade reached every corner. \"I brought a cool spot!\" he said. \"Just what we needed,\" said Zadie.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Ollo stretches wider overhead with a proud asymmetric grin, keeping the same three lobes and curled forelock. Zadie and Tavi relax fully inside his broad soft shade; the pear and cup remain on the coral blanket. One joyful focal action, no extra decorations.",
+      "illustration_file": "page_06.png",
+      "characters_on_page": [
+        "Ollo",
+        "Zadie",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 7,
+      "title": "A Place for Everyone",
+      "text": "They shared the pear and the peaceful hill. Tavi rested beside Zadie. Above them, Ollo curled into a cosy puff. There was a place at the picnic for everyone.",
+      "layout": "image_top_text_bottom",
+      "prompt": "A calm wide view of the same hill: Zadie rests on the coral blanket beside sleepy Tavi, with two pear pieces and the small cup nearby. Ollo curls his puffy arms inward overhead, smiling with half-closed eyes and still shading his friends; ample quiet sky, no new scenery.",
+      "illustration_file": "page_07.png",
+      "characters_on_page": [
+        "Ollo",
+        "Zadie",
+        "Tavi"
+      ]
+    }
+  ]
+}

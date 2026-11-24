@@ -3,8 +3,8 @@
     python -m video_pipeline.cut_layers --book <slug> [--page N] [--force] [--root PATH]
     python -m video_pipeline.cut_layers download [--root PATH]
 
-Segmentation is SAM 2.1 (Core ML, on CPU_AND_GPU: the Neural Engine overflows float16 in the
-encoder); the fill is LaMa (ONNX, onnxruntime CPU provider). Every setting comes from the
+Segmentation uses SAM 2.1 through Core ML on macOS and ONNX Runtime elsewhere.
+Background fill uses LaMa on the ONNX Runtime CPU provider. Every setting comes from the
 `models` block of config/animation.json. Models load lazily, only when some page needs cutting,
 from a local folder of real files (Core ML cannot load the symlinked Hugging Face cache), and
 never touch the network. See docs/specs/009-animation-plan-layers/spike.md for the measurements.
@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -95,11 +96,19 @@ def model_path(base: Path, cfg: dict) -> Path:
     return Path(base) / f"{cfg['repo'].replace('/', '__')}@{cfg['revision'][:12]}"
 
 
+def segmenter_config(models_cfg: dict) -> dict:
+    cfg = models_cfg["segmenter"]
+    if sys.platform != "darwin" and "onnx_segmenter" in models_cfg:
+        return {**cfg, **models_cfg["onnx_segmenter"], "backend": "onnx"}
+    return cfg
+
+
 def model_ids(models_cfg: dict) -> dict[str, str]:
     """Ids that decide the cut bytes: repo@revision:compute unit / provider, plus a hash of the
     pre/post-processing settings. Used by cut_book and the studio alike."""
-    seg, fill = models_cfg["segmenter"], models_cfg["fill"]
+    seg, fill = segmenter_config(models_cfg), models_cfg["fill"]
     settings = {
+        "mask_processing_version": 2,
         "segmenter": {k: seg.get(k) for k in ("size", "prompt", "preprocess", "postprocess")},
         "fill": {k: fill.get(k) for k in ("size", "tile")},
     }
@@ -435,6 +444,37 @@ def _feather(mask: np.ndarray, px: int) -> np.ndarray:
     return np.where(mask, 1.0, np.where(dilate(mask, px), blur, 0.0)).astype(np.float32)
 
 
+def refine_layer_mask(mask: np.ndarray, layer: Layer) -> np.ndarray:
+    """Keep only prompted components near the subject, including its ink outline.
+
+    SAM can return disconnected eyes/hair from another character along with a cloud.
+    Those pixels must never enter either the moving cutout or the background hole.
+    """
+    h, w = mask.shape
+    pad = max(2, round(min(h, w) * 0.006))
+    x0, y0, x1, y1 = layer.box
+    bounds = np.zeros_like(mask, dtype=bool)
+    bounds[max(0, y0 - pad) : min(h, y1 + pad), max(0, x0 - pad) : min(w, x1 + pad)] = True
+    bounded = np.asarray(mask, bool) & bounds
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(bounded.astype(np.uint8), 8)
+    if count <= 1:
+        return bounded
+    selected = set()
+    for x, y in layer.include_points:
+        selected.update(
+            np.unique(labels[max(0, y - 2) : min(h, y + 3), max(0, x - 2) : min(w, x + 3)])
+        )
+    selected.discard(0)
+    if layer.include_points and not selected:
+        raise SegmenterError(f"{layer.name}: mask misses all include points; revise the plan")
+    if not selected:
+        selected.add(1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA])))
+    kept = np.isin(labels, list(selected))
+    # Include antialiased contour pixels that SAM often leaves just outside the mask.
+    outline = round(min(h, w) / 512)
+    return dilate(kept, outline) & bounds
+
+
 def cut_page(
     folder: BookFolder,
     page_number: int,
@@ -449,7 +489,13 @@ def cut_page(
     with Image.open(picture) as im:
         rgb = np.asarray(im.convert("RGB"))
     raw = seg.masks(rgb, plan.layers)
-    masks = occlude([np.asarray(m, bool) for m in raw], [layer.z for layer in plan.layers])
+    masks = occlude(
+        [
+            refine_layer_mask(np.asarray(m, bool), layer)
+            for m, layer in zip(raw, plan.layers, strict=True)
+        ],
+        [layer.z for layer in plan.layers],
+    )
     out.mkdir(parents=True, exist_ok=True)
     (out / MANIFEST).unlink(missing_ok=True)  # a missing manifest marks a half-written folder
     for old in out.glob("*.png"):
@@ -479,7 +525,8 @@ def cut_page(
             }
         )
         union |= mask
-    hole = dilate(union, feather_px)
+    # Remove the old antialiased contour too; feathering alone leaves a stationary ghost rim.
+    hole = dilate(union, feather_px + round(min(rgb.shape[:2]) / 128))
     background = rgb
     if hole.any():
         filled = np.asarray(fill.fill(rgb, hole))
@@ -571,6 +618,8 @@ def cut_book(
 
 
 def _segmenter_files(cfg: dict) -> list[str]:
+    if cfg.get("backend") == "onnx":
+        return [cfg[key] + suffix for key in ("encoder", "decoder") for suffix in ("", "_data")]
     return [cfg[k] for k in ("encoder", "prompt_encoder", "decoder")]
 
 
@@ -582,6 +631,8 @@ MLPACKAGE_FILES = (
 
 
 def _segmenter_required(base: Path, seg: dict) -> list[Path]:
+    if seg.get("backend") == "onnx":
+        return [model_path(base, seg) / name for name in _segmenter_files(seg)]
     return [
         model_path(base, seg) / name / part
         for name in _segmenter_files(seg)
@@ -594,7 +645,7 @@ def _required(base: Path, models_cfg: dict) -> list[Path]:
     half-finished download can leave the manifest without the weights), and the LaMa file."""
     fill = models_cfg["fill"]
     return [
-        *_segmenter_required(base, models_cfg["segmenter"]),
+        *_segmenter_required(base, segmenter_config(models_cfg)),
         model_path(base, fill) / fill["file"],
     ]
 
@@ -657,6 +708,54 @@ class SamCoreML:
         return out
 
 
+class SamOnnx:
+    """Run the pinned SAM 2.1 encoder once per picture and decode each layer prompt."""
+
+    def __init__(self, base: Path, cfg: dict) -> None:
+        import onnxruntime as ort
+
+        self.cfg = cfg
+        folder = model_path(base, cfg)
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = min(4, os.cpu_count() or 1)
+        self.encoder, self.decoder = [
+            ort.InferenceSession(str(folder / cfg[key]), options, providers=[cfg["compute_units"]])
+            for key in ("encoder", "decoder")
+        ]
+
+    def masks(self, image: np.ndarray, layers: list[Layer]) -> list[np.ndarray]:
+        cfg = self.cfg
+        h, w = image.shape[:2]
+        size = int(cfg["size"])
+        resized = Image.fromarray(image).resize((size, size), Image.Resampling.BILINEAR)
+        rgb = np.asarray(resized, dtype=np.float32) / 255
+        prep = cfg["preprocess"]
+        rgb = (rgb - np.asarray(prep["mean"], np.float32)) / np.asarray(prep["std"], np.float32)
+        embeddings = self.encoder.run(None, {"pixel_values": rgb.transpose(2, 0, 1)[None]})
+        inputs = {f"image_embeddings.{i}": value for i, value in enumerate(embeddings)}
+        post = cfg["postprocess"]
+        clean = post["clean"]
+        masks = []
+        for layer in layers:
+            pts, labels = prompt_points(
+                layer, w, h, size=size, max_points=cfg["io"]["prompt_encoder"]["max_points"]
+            )
+            scores, logits = self.decoder.run(
+                ["iou_scores", "pred_masks"],
+                {
+                    **inputs,
+                    "input_boxes": pts[:, :2].reshape(1, 1, 4),
+                    "input_points": pts[:, None, 2:],
+                    "input_labels": labels[:, None, 2:].astype(np.int64),
+                },
+            )
+            candidates = logits[0, 0]
+            best = select_mask(candidates, scores[0, 0], post["select_margin"])
+            mask = upsample_logits(candidates[best], (w, h))
+            masks.append(clean_mask(mask, clean["close_px"], clean["fill_interior_holes"]))
+        return masks
+
+
 class LamaOnnx:
     """LaMa (512x512 ONNX) on onnxruntime's CPU provider, one tile per merged hole region."""
 
@@ -665,6 +764,8 @@ class LamaOnnx:
 
         self.cfg = cfg
         options = ort.SessionOptions()
+        if sys.platform != "darwin":
+            options.intra_op_num_threads = min(4, os.cpu_count() or 1)
         options.log_severity_level = 3
         self.session = ort.InferenceSession(
             str(model_path(base, cfg) / cfg["file"]),
@@ -715,31 +816,27 @@ def load_real_models(root: Path, models_cfg: dict) -> tuple[Segmenter, Inpainter
     missing = [p for p in _required(base, models_cfg) if not p.is_file()]
     if missing:
         raise ModelsMissing(f"models not downloaded ({missing[0]} is missing): run {DOWNLOAD_HINT}")
-    compute_unit_name(models_cfg["segmenter"])  # refuse the Neural Engine before loading
-    loaded = []
-    for role, cls in (("segmenter", SamCoreML), ("fill", LamaOnnx)):
-        cfg = models_cfg[role]
-        try:
-            loaded.append(cls(base, cfg))
-        except SegmenterError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - coremltools/onnxruntime raise many kinds
-            raise ModelLoadError(
-                f"could not load the {role} model from {model_path(base, cfg)}: {exc} "
-                f"(a damaged download? delete that folder and run {DOWNLOAD_HINT})"
-            ) from exc
-    return loaded[0], loaded[1]
+    segmenter = load_real_segmenter(root, models_cfg)
+    cfg = models_cfg["fill"]
+    try:
+        return segmenter, LamaOnnx(base, cfg)
+    except Exception as exc:
+        raise ModelLoadError(
+            f"could not load the fill model from {model_path(base, cfg)}: {exc}; run {DOWNLOAD_HINT}"
+        ) from exc
 
 
 def load_real_segmenter(root: Path, models_cfg: dict) -> Segmenter:
     """Load only the segmenter (spec 025 NFR-1); same checks as `load_real_models`."""
     os.environ["HF_HUB_OFFLINE"] = "1"
-    base, cfg = models_dir(), models_cfg["segmenter"]
+    base, cfg = models_dir(), segmenter_config(models_cfg)
     missing = [p for p in _segmenter_required(base, cfg) if not p.is_file()]
     if missing:
         raise ModelsMissing(f"models not downloaded ({missing[0]} is missing): run {DOWNLOAD_HINT}")
-    compute_unit_name(cfg)  # refuse the Neural Engine before loading
     try:
+        if cfg.get("backend") == "onnx":
+            return SamOnnx(base, cfg)
+        compute_unit_name(cfg)
         return SamCoreML(base, cfg)
     except SegmenterError:
         raise
@@ -755,11 +852,16 @@ def download(root: Path, *, snapshot: Callable[..., object] | None = None, log=p
     if snapshot is None:
         from huggingface_hub import snapshot_download as snapshot
     models_cfg = read_config(root)["models"]
-    seg, fill = models_cfg["segmenter"], models_cfg["fill"]
+    seg, fill = segmenter_config(models_cfg), models_cfg["fill"]
     base = models_dir()
     stored = []
+    files = _segmenter_files(seg)
     for role, cfg, patterns in (
-        ("segmenter", seg, [f"{name}/*" for name in _segmenter_files(seg)]),
+        (
+            "segmenter",
+            seg,
+            files if seg.get("backend") == "onnx" else [f"{name}/*" for name in files],
+        ),
         ("fill", fill, [fill["file"]]),
     ):
         dest = model_path(base, cfg)

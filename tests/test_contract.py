@@ -8,6 +8,7 @@ from video_pipeline.contract import (
     load_disallowed_terms,
     normalize_ws,
     parse_banter,
+    qa_bounds,
     qa_schedule_errors,
     slugify,
     split_sentences,
@@ -84,6 +85,11 @@ def test_parse_banter_reports_field_errors():
 )
 def test_qa_schedule_errors(pages, count, expected):
     assert qa_schedule_errors(pages, count) == expected
+
+
+def test_qa_bounds_never_inverts_on_short_books():
+    assert qa_bounds(7) == (3, 3)
+    assert qa_schedule_errors([1, 3, 5], 7) == []
 
 
 def test_split_sentences_keeps_name_verb_dialogue_tag_with_quote():

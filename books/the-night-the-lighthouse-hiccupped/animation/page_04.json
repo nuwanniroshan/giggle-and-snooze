@@ -2,117 +2,90 @@
   "page_number": 4,
   "picture": {
     "file": "page_04.png",
-    "sha256": "5f4ba7915835c890fb91913237e1ca5da8e6bd1f4be8143c5a4e4873cfb164d7",
-    "width": 1254,
-    "height": 1254
+    "sha256": "f419272da87376ba7e8ce25d12ea974e0f68cb3bdf53197ef1149094ccabe8fe",
+    "width": 1672,
+    "height": 941
   },
   "provider": "codex",
-  "written_at": "2026-11-10T19:41:43+00:00",
+  "written_at": "2026-11-24T08:00:00+00:00",
   "layers": [
     {
       "name": "pip",
-      "description": "The small white gull, including both wings, beak and feet; exclude surrounding fog and motion marks.",
+      "description": "Pip as one intact cutout, including both wings, tail, beak and feet.",
       "box": [
-        712,
-        508,
-        962,
-        663
+        983,
+        234,
+        1283,
+        432
       ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 4,
-      "depth": 0.55,
+      "include_points": [
+        [
+          1034,
+          279
+        ],
+        [
+          1076,
+          327
+        ],
+        [
+          1097,
+          362
+        ],
+        [
+          1146,
+          326
+        ],
+        [
+          1187,
+          330
+        ],
+        [
+          1239,
+          345
+        ],
+        [
+          1061,
+          386
+        ],
+        [
+          1089,
+          415
+        ],
+        [
+          1118,
+          418
+        ]
+      ],
+      "exclude_points": [
+        [
+          969,
+          293
+        ],
+        [
+          973,
+          322
+        ],
+        [
+          990,
+          438
+        ],
+        [
+          1034,
+          450
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
       "pivot": [
-        839,
-        589
+        1123,
+        365
       ],
       "motions": [
         {
           "type": "bob",
-          "amplitude": 0.003,
+          "amplitude": 0.006,
           "period_s": 4.8,
-          "phase": 0.15,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "brass_bell",
-      "description": "The hanging brass bell and narrow handle below Mira's raised fingers; exclude her hand and coat.",
-      "box": [
-        726,
-        674,
-        787,
-        738
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 5,
-      "depth": 0.7,
-      "pivot": [
-        741,
-        680
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 2.0,
-          "period_s": 3.2,
           "phase": 0.0,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "lantern",
-      "description": "Mira's entire hanging lantern, including its curved handle, dark metal frame and warm glass; exclude her fingers and yellow coat.",
-      "box": [
-        531,
-        780,
-        627,
-        949
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 6,
-      "depth": 0.75,
-      "pivot": [
-        568,
-        786
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 1.1,
-          "period_s": 5.6,
-          "phase": 0.45,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "foreground_grass",
-      "description": "The slim grass blades rising along the far left edge; exclude stones, daisies, lighthouse and sand.",
-      "box": [
-        0,
-        706,
-        99,
-        1018
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 7,
-      "depth": 0.95,
-      "pivot": [
-        30,
-        1006
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 0.7,
-          "period_s": 7.2,
-          "phase": 0.3,
           "direction": null
         }
       ]
@@ -120,41 +93,18 @@
   ],
   "effects": [
     {
-      "type": "mist",
-      "region": {
-        "box": [
-          800,
-          690,
-          1254,
-          856
-        ],
-        "layer": null
-      },
-      "intensity": 0.12,
-      "colour": "#d5d7e2"
-    },
-    {
       "type": "water_ripple",
       "region": {
         "box": [
-          1004,
-          868,
-          1254,
-          1132
+          1100,
+          643,
+          1610,
+          753
         ],
         "layer": null
       },
-      "intensity": 0.14,
+      "intensity": 0.11,
       "colour": null
-    },
-    {
-      "type": "glow",
-      "region": {
-        "box": null,
-        "layer": "lantern"
-      },
-      "intensity": 0.16,
-      "colour": "#ffd480"
     }
   ]
 }

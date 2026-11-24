@@ -2,63 +2,78 @@
   "page_number": 10,
   "picture": {
     "file": "page_10.png",
-    "sha256": "3159d3a6bcd76cb3446b621a611263d82ff92f67c8bfed788f16e5dc591a1df9",
-    "width": 1254,
-    "height": 1254
+    "sha256": "556230ed27131f3dff70ff7455b1901bd31deff3cc42aa4db818bfa34e0e8e0a",
+    "width": 1672,
+    "height": 941
   },
   "provider": "codex",
-  "written_at": "2026-11-10T20:24:43+00:00",
+  "written_at": "2026-11-24T08:12:06+00:00",
   "layers": [
     {
-      "name": "cocoa_steam",
-      "description": "Only the pale curling steam above Mira's cocoa; exclude hair, face, mug and wall.",
+      "name": "distant_moored_boat",
+      "description": "Whole distant blue-and-white boat, including its hull, cabin, mast and rigging. Leave the water and reflections in the background.",
       "box": [
-        388,
-        309,
-        471,
-        411
+        1020,
+        276,
+        1092,
+        350
       ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 4,
-      "depth": 0.7,
+      "include_points": [
+        [
+          1054,
+          341
+        ],
+        [
+          1042,
+          332
+        ],
+        [
+          1045,
+          325
+        ],
+        [
+          1056,
+          284
+        ],
+        [
+          1056,
+          312
+        ],
+        [
+          1067,
+          324
+        ],
+        [
+          1074,
+          330
+        ]
+      ],
+      "exclude_points": [
+        [
+          1045,
+          356
+        ],
+        [
+          1098,
+          330
+        ],
+        [
+          1030,
+          303
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
       "pivot": [
-        409,
-        404
+        1055,
+        341
       ],
       "motions": [
         {
-          "type": "sway",
-          "amplitude": 1.5,
-          "period_s": 6.0,
-          "phase": 0.2,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "pip_breathing",
-      "description": "Pip's sleeping white and gray body and folded wing inside the basket; exclude basket rim and blanket.",
-      "box": [
-        622,
-        704,
-        857,
-        830
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 3,
-      "depth": 0.8,
-      "pivot": [
-        740,
-        825
-      ],
-      "motions": [
-        {
-          "type": "breathe",
-          "amplitude": 0.008,
-          "period_s": 5.0,
-          "phase": 0.35,
+          "type": "rotate",
+          "amplitude": 0.55,
+          "period_s": 10.0,
+          "phase": 0.15,
           "direction": null
         }
       ]
@@ -69,43 +84,29 @@
       "type": "water_ripple",
       "region": {
         "box": [
-          865,
-          431,
-          1193,
-          508
+          1007,
+          353,
+          1102,
+          447
         ],
         "layer": null
       },
       "intensity": 0.12,
-      "colour": "#edc679"
+      "colour": null
     },
     {
-      "type": "glow",
+      "type": "smoke",
       "region": {
         "box": [
-          263,
-          40,
-          409,
-          170
-        ],
-        "layer": null
-      },
-      "intensity": 0.14,
-      "colour": "#ffc768"
-    },
-    {
-      "type": "glow",
-      "region": {
-        "box": [
-          824,
-          181,
-          1168,
-          246
+          469,
+          360,
+          549,
+          440
         ],
         "layer": null
       },
       "intensity": 0.09,
-      "colour": "#ffd889"
+      "colour": "#fff0dd"
     }
   ]
 }

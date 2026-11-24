@@ -1,0 +1,130 @@
+{
+  "metadata": {
+    "cover_style": "titled",
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 7,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Giggle & Snooze",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "The Parade That Tiptoed",
+    "subtitle": "A Sidewalk Parade with a Softer Step",
+    "author": "Giggle & Snooze",
+    "age_range": "Ages 3-6",
+    "blurb": "Pip and Bea have a big, noisy parade. When a neighbor’s baby needs a nap, three tiny moves give the march a whole new rhythm.",
+    "dedication": "For everyone who makes room for one more."
+  },
+  "style_bible": {
+    "style_prompt_prefix": "Children’s picture-book illustration built from hand-modeled glazed ceramic relief tiles, rounded clay silhouettes, broad matte sidewalk tiles, soft afternoon light, and clear expressive faces.",
+    "characters": [
+      {
+        "name": "Pip",
+        "look": "Pip is a small child with warm brown skin, round cheeks, and two black puff buns. Pip wears teal overalls over a white shirt and carries a yellow toy horn."
+      },
+      {
+        "name": "Bea",
+        "look": "Bea is a lanky child with fair freckled skin and a copper bob. She wears plum leggings, a green tunic, and white sneakers with orange toes."
+      },
+      {
+        "name": "Ms. Lily",
+        "look": "Ms. Lily is a tall woman with deep brown skin, silver curls, and round blue glasses. She wears a lavender cardigan, a cream skirt, and flat blue shoes."
+      }
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "Here Comes Pip",
+      "text": "Pip lifted a yellow horn. The sidewalk parade began. Stomp, clap, toot!",
+      "layout": "image_top_text_bottom",
+      "prompt": "Sunny neighborhood sidewalk with broad matte paving tiles. Pip leads with high knees and a raised yellow horn. Bea follows mid-clap with a wide grin. Low garden walls and daisies frame their path.",
+      "illustration_file": "page_01.png",
+      "characters_on_page": [
+        "Pip",
+        "Bea"
+      ]
+    },
+    {
+      "page_number": 2,
+      "title": "At the Blue Gate",
+      "text": "Stomp, clap, toot! Ms. Lily opened her blue gate. “Could you go softly here? My baby is napping.”",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "Ms. Lily opens a low blue gate and leans toward Pip and Bea with a kind, hopeful face. Pip pauses with the horn near the chin, and Bea holds both hands apart after a clap. Leave open space at upper left.",
+      "illustration_file": "page_02.png",
+      "characters_on_page": [
+        "Pip",
+        "Bea",
+        "Ms. Lily"
+      ]
+    },
+    {
+      "page_number": 3,
+      "title": "A Quiet Step",
+      "text": "Pip tucked the horn under one arm. “Can our parade go on tiptoe?” Bea tried one tiny step. “It can!”",
+      "layout": "image_top_text_bottom",
+      "prompt": "Pip tucks the yellow horn under one arm and watches Bea rise onto her toes. Show Bea’s lifted heels and delighted face clearly. The blue gate stands behind them on a sunlit sidewalk.",
+      "illustration_file": "page_03.png",
+      "characters_on_page": [
+        "Pip",
+        "Bea"
+      ]
+    },
+    {
+      "page_number": 4,
+      "title": "Three New Moves",
+      "text": "Pip took another tiny step. Bea patted her knees. Then they both waved. Tiptoe, pat, wave!",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "Pip balances on tiptoe with the horn tucked under one arm and one hand raised in a wave. Bea bends her knees, with one hand on a knee and the other lifting into a wave. Leave open space at upper right.",
+      "illustration_file": "page_04.png",
+      "characters_on_page": [
+        "Pip",
+        "Bea"
+      ]
+    },
+    {
+      "page_number": 5,
+      "title": "Room for One More",
+      "text": "Ms. Lily smiled at the gate. Pip waved her over. She stepped out and fell in beside Bea. Tiptoe, pat, wave!",
+      "layout": "image_top_text_bottom",
+      "prompt": "Pip looks back and beckons with a free hand. Bea takes a tiny step along the broad sidewalk tiles as Ms. Lily tiptoes beside her. All three share clear, delighted smiles beside the open blue gate.",
+      "illustration_file": "page_05.png",
+      "characters_on_page": [
+        "Pip",
+        "Bea",
+        "Ms. Lily"
+      ]
+    },
+    {
+      "page_number": 6,
+      "title": "Past the Window",
+      "text": "They tiptoed past the nap window. The curtain didn’t stir. Ms. Lily whispered, “Still asleep.”",
+      "layout": "full_bleed_card_bottom_right",
+      "prompt": "Pip, Bea, and Ms. Lily tiptoe below a low house window with a still cream curtain. Ms. Lily bends close to share the good news. Pip and Bea look up with small, pleased smiles. Leave open paving at lower right.",
+      "illustration_file": "page_06.png",
+      "characters_on_page": [
+        "Pip",
+        "Bea",
+        "Ms. Lily"
+      ]
+    },
+    {
+      "page_number": 7,
+      "title": "One Last Wave",
+      "text": "At the end of the block, they stopped for one last wave. Ms. Lily waved with both hands. Pip grinned so wide that Bea grinned, too.",
+      "layout": "image_top_text_bottom",
+      "prompt": "At the sunny sidewalk corner, Ms. Lily raises both hands in an exuberant wave. Pip waves back with the yellow horn tucked under one arm. Bea grins at Pip and holds one hand high. Soft afternoon light stretches their small shadows across the pavement.",
+      "illustration_file": "page_07.png",
+      "characters_on_page": [
+        "Pip",
+        "Bea",
+        "Ms. Lily"
+      ]
+    }
+  ]
+}

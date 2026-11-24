@@ -1,0 +1,225 @@
+{
+  "page_number": 7,
+  "picture": {
+    "file": "page_07.png",
+    "sha256": "78f8bf6fba643a64f31c3cb7d2c98ea7fc5078c357fe00a2c92a82e1053d94a2",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:17:05+00:00",
+  "layers": [
+    {
+      "name": "high_cloud",
+      "description": "Cream cloud high above the meadow between the tree canopy and roof peak.",
+      "box": [
+        695,
+        6,
+        1036,
+        76
+      ],
+      "include_points": [
+        [
+          916,
+          25
+        ],
+        [
+          791,
+          59
+        ],
+        [
+          996,
+          60
+        ]
+      ],
+      "exclude_points": [
+        [
+          740,
+          25
+        ],
+        [
+          1001,
+          18
+        ]
+      ],
+      "z": 1,
+      "depth": 0.08,
+      "pivot": [
+        876,
+        51
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.014,
+          "period_s": 12.0,
+          "phase": 0.2,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "wolf_tail",
+      "description": "Bushy grey tail with a cream tip, hinged where it meets Wolf's rump.",
+      "box": [
+        28,
+        511,
+        203,
+        652
+      ],
+      "include_points": [
+        [
+          78,
+          555
+        ],
+        [
+          124,
+          555
+        ],
+        [
+          159,
+          582
+        ],
+        [
+          71,
+          606
+        ]
+      ],
+      "exclude_points": [
+        [
+          116,
+          646
+        ],
+        [
+          191,
+          612
+        ]
+      ],
+      "z": 3,
+      "depth": 0.68,
+      "pivot": [
+        186,
+        582
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.85,
+          "period_s": 6.0,
+          "phase": 0.1,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "shelf_vine",
+      "description": "Hanging leaves beside the shelf, from the rim of the pot down to the lowest leaf.",
+      "box": [
+        1130,
+        316,
+        1193,
+        425
+      ],
+      "include_points": [
+        [
+          1144,
+          333
+        ],
+        [
+          1179,
+          346
+        ],
+        [
+          1166,
+          385
+        ],
+        [
+          1148,
+          412
+        ]
+      ],
+      "exclude_points": [
+        [
+          1137,
+          383
+        ],
+        [
+          1187,
+          403
+        ]
+      ],
+      "z": 4,
+      "depth": 0.57,
+      "pivot": [
+        1140,
+        324
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.7,
+          "period_s": 6.0,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "foreground_flower_spikes",
+      "description": "Two purple flower spikes and their stems in the lower-left corner.",
+      "box": [
+        4,
+        791,
+        127,
+        941
+      ],
+      "include_points": [
+        [
+          40,
+          835
+        ],
+        [
+          91,
+          865
+        ],
+        [
+          27,
+          886
+        ],
+        [
+          74,
+          903
+        ]
+      ],
+      "exclude_points": [
+        [
+          107,
+          811
+        ],
+        [
+          58,
+          829
+        ]
+      ],
+      "z": 5,
+      "depth": 0.96,
+      "pivot": [
+        39,
+        931
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.8,
+          "period_s": 4.0,
+          "phase": 0.65,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

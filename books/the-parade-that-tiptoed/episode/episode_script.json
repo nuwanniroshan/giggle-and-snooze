@@ -1,0 +1,308 @@
+{
+  "book_slug": "the-parade-that-tiptoed",
+  "title": "The Parade That Tiptoed",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "kokoro",
+      "voice": "af_heart",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "kokoro",
+      "voice": "kid_leo",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "kokoro",
+      "voice": "kid_mia",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Come settle in for The Parade That Tiptoed.",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Hold up your hands like a parade conductor. Can you show us a beat without making a sound?",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> My hands can march right here!",
+        "emotion": "happy"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip lifted a yellow horn. The sidewalk parade began."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Stomp, clap, toot!"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Stomp, clap, toot! Ms. Lily opened her blue gate."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Could you go softly here? My baby is napping.”"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<gasp> Bea’s hands stopped right there.",
+          "emotion": "surprised"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "Can we keep the beat with one tiny finger step?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Yes. Let one finger take a tiny step on your knee while the baby naps.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "both hands apart",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip tucked the horn under one arm. “Can our parade go on tiptoe?”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Bea tried one tiny step. “It can!”"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip took another tiny step. Bea patted her knees."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Then they both waved. Tiptoe, pat, wave!"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "reaction",
+          "text": "One, two. Now I’ll count the next steps on my fingers.",
+          "emotion": "happy"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Can you lead us in order? Which move comes after tiptoe?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "A soft knee pat. <giggle> Then I’ll finish with my biggest silent wave!",
+          "emotion": "happy"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "That’s it. Lead us with a tiptoe, a soft pat, and a wave.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "Tiptoe, pat, wave",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Ms. Lily smiled at the gate. Pip waved her over."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "She stepped out and fell in beside Bea. Tiptoe, pat, wave!"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "They tiptoed past the nap window. The curtain didn’t stir. <sigh>"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Ms. Lily whispered, “Still asleep.”"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "At the end of the block, they stopped for one last wave. Ms. Lily waved with both hands."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Pip grinned so wide that Bea grinned, too. <chuckle>"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Ms. Lily used both hands! How did tiptoe, pat, and wave help her baby sleep?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "Their feet and pats were soft, and their waves made no sound. The baby got to keep napping.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "waved with both hands",
+      "ambience": [
+        "birds_morning"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Let’s conduct those last three moves together.",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "Tiptoe, then pat your knees softly.",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> Now give the baby’s window your biggest silent wave.",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Subscribe and come back for our next story.",
+        "emotion": "calm"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  }
+}

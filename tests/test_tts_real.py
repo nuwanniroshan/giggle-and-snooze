@@ -1,4 +1,4 @@
-"""Real FFmpeg and real Orpheus. Run with: uv run pytest -m "ffmpeg or tts" -v"""
+"""Real FFmpeg and real Kokoro. Run with: uv run pytest -m "ffmpeg or tts" -v"""
 
 import json
 from pathlib import Path
@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from video_pipeline.audio_checks import CheckSettings, clip_problems, measure_clip, trim_silence
-from video_pipeline.tts import ModelSettings, OrpheusVoice, pitch_shift
+from video_pipeline.tts import KokoroVoice, ModelSettings, pitch_shift
 
 SR = 24000
 CONFIG = Path(__file__).resolve().parent.parent / "config" / "voices.json"
@@ -30,16 +30,13 @@ def test_pitch_lift_raises_pitch_and_keeps_duration(semitones):  # AC-2.2
 
 
 @pytest.mark.tts
-def test_orpheus_speaks_a_line_that_passes_checks():
+def test_kokoro_speaks_a_line_that_passes_checks():
     model = json.loads(CONFIG.read_text())["model"]
     settings = ModelSettings(
         model["repo"],
         model["revision"],
-        model["temperature"],
-        model["top_p"],
-        model["max_tokens"],
     )
-    raw = OrpheusVoice(settings).synthesize("<giggle> Look at the tiny snail!", "zoe", 7)
+    raw = KokoroVoice(settings).synthesize("Look at the tiny snail!", "af_sky", 7)
     trimmed = trim_silence(raw, SR, -40, 0.1)
     measure = measure_clip(raw, trimmed, SR, 5, CheckSettings())
     assert clip_problems(measure, CheckSettings()) == []

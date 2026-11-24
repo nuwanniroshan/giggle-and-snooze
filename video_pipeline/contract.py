@@ -181,7 +181,8 @@ def load_disallowed_terms(path: Path) -> list[str]:
 
 def qa_bounds(page_count: int) -> tuple[int, int]:
     """The fewest and most Q&A pages spec 001 allows for a book of `page_count` pages."""
-    return math.ceil(page_count / 3), math.floor(page_count / 2.5)
+    low = math.ceil(page_count / 3)
+    return low, max(low, math.floor(page_count / 2.5))
 
 
 def qa_schedule_errors(qa_pages: list[int], page_count: int) -> list[str]:

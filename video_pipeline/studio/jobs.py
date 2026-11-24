@@ -21,7 +21,6 @@ before it touches any record.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import os
 import re
@@ -51,6 +50,13 @@ from video_pipeline.studio.books import (
     YOUTUBE_UPLOAD_STAGE,
     StudioPaths,
 )
+
+if os.name == "nt":
+    import msvcrt
+
+    import psutil
+else:
+    import fcntl
 
 STOP_GRACE_SECONDS = 5.0
 LOCK_FILE = "studio.lock"
@@ -255,7 +261,10 @@ class JobRunner:
         studio_dir.mkdir(parents=True, exist_ok=True)
         fd = os.open(studio_dir / LOCK_FILE, os.O_RDWR | os.O_CREAT, 0o644)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if os.name == "nt":
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
             os.close(fd)
             raise StudioLocked("another studio is already running on this project") from exc
@@ -341,7 +350,13 @@ class JobRunner:
             self.jobs_dir.mkdir(parents=True, exist_ok=True)
             log = self._log_path(job_id).open("ab")
             # KIDDO_JOB_ID lets a job name itself (spec 021: the autopilot's run file).
-            env = {**os.environ, **self.env, "PYTHONUNBUFFERED": "1", "KIDDO_JOB_ID": job_id}
+            env = {
+                **os.environ,
+                **self.env,
+                "PYTHONUNBUFFERED": "1",
+                "PYTHONIOENCODING": "utf-8",
+                "KIDDO_JOB_ID": job_id,
+            }
             try:
                 proc = subprocess.Popen(  # noqa: S603 - argv list built by stage_command
                     job.cmd,
@@ -350,7 +365,8 @@ class JobRunner:
                     stdin=subprocess.DEVNULL,
                     cwd=self.cwd,
                     env=env,
-                    start_new_session=True,
+                    start_new_session=os.name != "nt",
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
                 )
             except OSError as exc:
                 log.write(f"error: could not start {job.cmd[0]}: {exc}\n".encode())
@@ -413,7 +429,7 @@ class JobRunner:
         _signal_group(proc.pid, signal.SIGTERM)
         thread.join(self.stop_grace)
         if thread.is_alive():
-            _signal_group(proc.pid, signal.SIGKILL)
+            _signal_group(proc.pid, getattr(signal, "SIGKILL", signal.SIGTERM))
             thread.join()
         return job.to_dict()
 
@@ -466,13 +482,23 @@ class JobRunner:
 
 def _signal_group(pgid: int, sig: signal.Signals) -> None:
     with contextlib.suppress(ProcessLookupError, PermissionError):
-        os.killpg(pgid, sig)
+        if os.name == "nt":
+            with contextlib.suppress(psutil.NoSuchProcess):
+                parent = psutil.Process(pgid)
+                children = parent.children(recursive=True)
+                for process in [parent, *children]:
+                    with contextlib.suppress(psutil.NoSuchProcess):
+                        process.kill()
+        else:
+            os.killpg(pgid, sig)
 
 
 def _group_alive(pgid: int) -> bool:
     """Whether process group `pgid` still has a process we may signal. A stage is started with
     `start_new_session`, so its pid is its group id; a pid reused by an unrelated process that is
     not a group leader is left alone."""
+    if os.name == "nt":
+        return pgid > 1 and pgid != os.getpid() and psutil.pid_exists(pgid)
     if pgid <= 1 or pgid == os.getpgrp():
         return False
     try:
@@ -502,6 +528,11 @@ def _ps(field_name: str, pid: int) -> str | None:
 
 def _process_started(pid: int) -> str | None:
     """When process `pid` started, as `ps -o lstart` prints it (None if it is gone)."""
+    if os.name == "nt":
+        try:
+            return str(psutil.Process(pid).create_time())
+        except psutil.Error:
+            return None
     return _ps("lstart", pid)
 
 
@@ -512,7 +543,13 @@ def _is_recorded_stage(pid: int, proc_started: object) -> bool:
     reused pid) is not ours to kill."""
     if not isinstance(proc_started, str) or not proc_started:
         return False
-    command = _ps("command", pid)
+    if os.name == "nt":
+        try:
+            command = " ".join(psutil.Process(pid).cmdline())
+        except psutil.Error:
+            return False
+    else:
+        command = _ps("command", pid)
     if command is None or not any(marker in command for marker in STAGE_MARKERS):
         return False
     return _process_started(pid) == proc_started
@@ -527,7 +564,7 @@ def _stop_group(pgid: int, grace: float) -> str:
         if not _group_alive(pgid):
             return "terminated"
         time.sleep(0.05)
-    _signal_group(pgid, signal.SIGKILL)
+    _signal_group(pgid, getattr(signal, "SIGKILL", signal.SIGTERM))
     deadline = time.monotonic() + grace
     while _group_alive(pgid) and time.monotonic() < deadline:
         time.sleep(0.05)

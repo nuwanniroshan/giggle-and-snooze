@@ -1,14 +1,13 @@
-"""Local voice engine (spec 002 FR-2): Orpheus via mlx-audio, plus an FFmpeg pitch lift.
-
-The model is loaded once per run, from a pinned revision, offline (HF_HUB_OFFLINE=1). mlx-audio
-loads safetensors weights and never runs code shipped with the model.
-"""
+"""Offline Kokoro voice synthesis and FFmpeg delivery adjustments."""
 
 from __future__ import annotations
 
-import gc
+import hashlib
 import os
+import shutil
 import subprocess
+import tempfile
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,11 +20,6 @@ DOWNLOAD_HINT = "run: uv run python -m video_pipeline.synthesize_voices download
 class ModelSettings:
     repo: str
     revision: str
-    temperature: float
-    top_p: float
-    max_tokens: int
-    # (repo, revision, allow_patterns): None fetches the whole repo, a tuple only those files.
-    support_repos: tuple[tuple[str, str, tuple[str, ...] | None], ...] = ()
 
 
 class VoiceUnavailable(Exception):
@@ -56,8 +50,7 @@ def voice_filter(
         return pitch_filter(semitones, sample_rate)
     ratio = pitch_ratio(semitones)
     chain = (
-        f"asetrate={round(sample_rate * ratio)},aresample={sample_rate},"
-        f"atempo={speed / ratio:.6f}"
+        f"asetrate={round(sample_rate * ratio)},aresample={sample_rate},atempo={speed / ratio:.6f}"
     )
     return chain + (f",volume={gain_db:g}dB" if gain_db else "")
 
@@ -99,122 +92,102 @@ def pitch_shift(
             command, input=audio.astype("<f4").tobytes(), capture_output=True, check=True
         )
     except FileNotFoundError:
-        raise PitchShiftError("ffmpeg not found; install it with: brew install ffmpeg") from None
+        raise PitchShiftError("ffmpeg not found; install FFmpeg and add it to PATH") from None
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or b"").decode(errors="replace").strip()
         raise PitchShiftError(f"ffmpeg pitch shift failed: {detail}") from None
     return np.frombuffer(result.stdout, dtype="<f4").astype(np.float32)
 
 
-def _support_kwargs(repo: str, revision: str, patterns: tuple[str, ...] | None) -> dict:
-    kwargs: dict = {"repo_id": repo, "revision": revision}
-    if patterns is not None:
-        kwargs["allow_patterns"] = list(patterns)
-    return kwargs
+MODEL_FILES = {
+    "kokoro-v1.0.onnx": "7d5df8ecf7d4b1878015a32686053fd0eebe2bc377234608764cc0ef3636a6c5",
+    "voices-v1.0.bin": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
+}
 
 
-def _main_ref(repo: str) -> Path:
-    """The HF cache's refs/main file, which mlx-audio resolves when it loads a repo by name."""
-    from huggingface_hub import constants
-
-    try:
-        from huggingface_hub.file_download import repo_folder_name
-
-        folder = repo_folder_name(repo_id=repo, repo_type="model")
-    except ImportError:
-        folder = "models--" + repo.replace("/", "--")
-    return Path(constants.HF_HUB_CACHE) / folder / "refs" / "main"
+def model_folder(settings: ModelSettings) -> Path:
+    base = Path(os.environ.get("KIDDO_MODELS_DIR", Path.home() / ".cache/kiddo/models"))
+    return base / settings.revision
 
 
-def _pin_main_ref(repo: str, revision: str) -> None:
-    ref = _main_ref(repo)
-    ref.parent.mkdir(parents=True, exist_ok=True)
-    tmp = ref.with_name(ref.name + ".tmp")
-    tmp.write_text(revision, encoding="utf-8")
-    os.replace(tmp, ref)  # noqa: PTH105
+def checksum(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def download_model(settings: ModelSettings) -> None:
-    """The only network use (spec 002 Cost): fetch the pinned model and its support files.
-
-    mlx-audio loads the support repos by name (refs/main), so refs/main is pointed at the pin.
-    """
-    from huggingface_hub import snapshot_download
-
-    snapshot_download(repo_id=settings.repo, revision=settings.revision)
-    for repo, revision, patterns in settings.support_repos:
-        snapshot_download(**_support_kwargs(repo, revision, patterns))
-        _pin_main_ref(repo, revision)
-
-
-def _check_support_repos(settings: ModelSettings, snapshot_download) -> None:
-    for repo, revision, patterns in settings.support_repos:
-        ref = _main_ref(repo)
-        current = ref.read_text(encoding="utf-8").strip() if ref.exists() else None
-        if current != revision:
-            raise VoiceUnavailable(
-                f"voice support files {repo} are not pinned to {revision[:8]} "
-                f"(cache refs/main is {current[:8] if current else 'missing'}); {DOWNLOAD_HINT}"
-            )
+    folder = model_folder(settings)
+    folder.mkdir(parents=True, exist_ok=True)
+    for name, digest in MODEL_FILES.items():
+        target = folder / name
+        if target.is_file() and checksum(target) == digest:
+            continue
+        url = f"https://github.com/{settings.repo}/releases/download/{settings.revision}/{name}"
+        with tempfile.NamedTemporaryFile(dir=folder, delete=False) as tmp:
+            partial = Path(tmp.name)
         try:
-            snapshot_download(**_support_kwargs(repo, revision, patterns), local_files_only=True)
-        except Exception as exc:  # noqa: BLE001 - any lookup failure means "not downloaded"
-            raise VoiceUnavailable(
-                f"voice support files {repo}@{revision[:8]} are not downloaded "
-                f"({type(exc).__name__}); {DOWNLOAD_HINT}"
-            ) from None
+            with urllib.request.urlopen(url, timeout=120) as response, partial.open("wb") as out:
+                shutil.copyfileobj(response, out)
+            if checksum(partial) != digest:
+                raise VoiceUnavailable(f"incorrect checksum for {name}; {DOWNLOAD_HINT}")
+            partial.replace(target)
+        finally:
+            partial.unlink(missing_ok=True)
 
 
-class OrpheusVoice:
-    def __init__(self, settings: ModelSettings) -> None:
-        os.environ["HF_HUB_OFFLINE"] = "1"
+def _resolve_voice(model, voice: str, blends: dict[str, dict[str, float]]):
+    recipe = blends.get(voice)
+    if not recipe:
+        return voice
+    mix = None
+    for name, weight in recipe.items():
+        style = model.get_voice_style(name)
+        mix = style * float(weight) if mix is None else mix + style * float(weight)
+    if mix is None:
+        raise VoiceUnavailable(f"voice blend {voice!r} has no components")
+    return mix.astype(np.float32)
+
+
+class KokoroVoice:
+    sample_rate = 24000
+
+    def __init__(self, settings: ModelSettings, voice_blends: dict[str, dict[str, float]] | None = None) -> None:
         try:
-            import mlx.core as mx
-            from huggingface_hub import snapshot_download
-            from mlx_audio.tts.utils import load_model
+            import onnxruntime as ort
+            from kokoro_onnx import Kokoro
         except ImportError as exc:
-            raise VoiceUnavailable(
-                f"voice engine not installed ({exc.name}); run: uv sync --inexact"
-            ) from None
-        try:  # huggingface_hub may have read HF_HUB_OFFLINE at import, before it was set above
-            from huggingface_hub import constants
-
-            if hasattr(constants, "HF_HUB_OFFLINE"):
-                constants.HF_HUB_OFFLINE = True
-        except ImportError:
-            pass
-        _check_support_repos(settings, snapshot_download)
+            raise VoiceUnavailable(f"Kokoro runtime unavailable ({exc}); run uv sync") from exc
+        folder = model_folder(settings)
         try:
-            path = snapshot_download(
-                repo_id=settings.repo, revision=settings.revision, local_files_only=True
+            options = ort.SessionOptions()
+            options.intra_op_num_threads = min(4, os.cpu_count() or 1)
+            session = ort.InferenceSession(
+                str(folder / "kokoro-v1.0.onnx"), options, providers=["CPUExecutionProvider"]
             )
-            self._model = load_model(path)
-        except Exception as exc:  # noqa: BLE001 - any load failure means "not usable"
+            self._model = Kokoro.from_session(session, str(folder / "voices-v1.0.bin"))
+        except Exception as exc:
             raise VoiceUnavailable(
-                f"voice model {settings.repo}@{settings.revision[:8]} is not downloaded "
-                f"or cannot load ({type(exc).__name__}); {DOWNLOAD_HINT}"
-            ) from None
-        self._mx = mx
-        self.settings = settings
-        self.sample_rate = int(self._model.sample_rate)
+                f"cannot load Kokoro from {folder}: {exc}; {DOWNLOAD_HINT}"
+            ) from exc
+        self._voice_blends = voice_blends or {}
 
-    def recover(self) -> None:
-        """Free what a failed GPU run left behind, before a retry."""
-        gc.collect()
-        self._mx.clear_cache()
-
-    def synthesize(self, text: str, voice: str, seed: int) -> np.ndarray:
-        self._mx.random.seed(seed)
-        chunks = [
-            np.asarray(result.audio, dtype=np.float32)
-            for result in self._model.generate(
-                text=text,
-                voice=voice,
-                temperature=self.settings.temperature,
-                top_p=self.settings.top_p,
-                max_tokens=self.settings.max_tokens,
-                verbose=False,
-            )
-        ]
-        self._mx.clear_cache()
-        return np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32)
+    def synthesize(
+        self,
+        text: str,
+        voice: str,
+        seed: int,
+        speed: float = 1.0,
+        sentence_pause: float = 0.25,
+        clause_pause: float = 0.1,
+    ) -> np.ndarray:
+        resolved = _resolve_voice(self._model, voice, self._voice_blends)
+        audio, _ = self._model.create(
+            text,
+            voice=resolved,
+            lang="en-us",
+            speed=speed,
+            trim=False,
+            sentence_pause=sentence_pause,
+            clause_pause=clause_pause,
+        )
+        return audio

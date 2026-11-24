@@ -2,124 +2,98 @@
   "page_number": 1,
   "picture": {
     "file": "page_01.png",
-    "sha256": "098b34d4eccd7273d303e670b6a0a544dce7adcf52488baf2758f77666477350",
-    "width": 1254,
-    "height": 1254
+    "sha256": "7fb1a5816bc04bc9a034b6ab188be366a7162e28dfe02b053d0cb0a8630d57a2",
+    "width": 1536,
+    "height": 864
   },
   "provider": "codex",
-  "written_at": "2026-11-10T19:37:00+00:00",
+  "written_at": "2026-11-24T07:54:41+00:00",
   "layers": [
     {
-      "name": "lighthouse",
-      "description": "Entire friendly lighthouse including red roof, glowing lantern room, expressive stone tower, red door and both rounded stone feet; exclude surrounding sky, beam and grass.",
+      "name": "pip",
+      "description": "Whole airborne seagull cutout with both wings, tail, orange beak and both feet.",
       "box": [
-        603,
-        1,
-        1113,
-        863
+        278,
+        85,
+        534,
+        271
       ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 3,
-      "depth": 0.55,
+      "include_points": [
+        [
+          310,
+          127
+        ],
+        [
+          351,
+          165
+        ],
+        [
+          424,
+          179
+        ],
+        [
+          453,
+          181
+        ],
+        [
+          393,
+          219
+        ],
+        [
+          497,
+          188
+        ],
+        [
+          519,
+          171
+        ],
+        [
+          328,
+          233
+        ],
+        [
+          367,
+          258
+        ],
+        [
+          394,
+          261
+        ]
+      ],
+      "exclude_points": [
+        [
+          262,
+          123
+        ],
+        [
+          263,
+          155
+        ],
+        [
+          279,
+          170
+        ],
+        [
+          278,
+          255
+        ],
+        [
+          363,
+          295
+        ]
+      ],
+      "z": 1,
+      "depth": 0.12,
       "pivot": [
-        854,
-        795
+        398,
+        212
       ],
       "motions": [
         {
           "type": "bob",
-          "amplitude": 0.006,
+          "amplitude": 0.012,
           "period_s": 4.8,
           "phase": 0.0,
-          "direction": null
-        },
-        {
-          "type": "rotate",
-          "amplitude": 0.7,
-          "period_s": 4.8,
-          "phase": 0.25,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "mira_curls",
-      "description": "Mira's dark windswept curls around her head, preserving her face and raincoat.",
-      "box": [
-        49,
-        480,
-        342,
-        699
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 5,
-      "depth": 0.75,
-      "pivot": [
-        248,
-        608
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 1.1,
-          "period_s": 5.5,
-          "phase": 0.2,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "pip",
-      "description": "Whole small white seagull with gray wings, orange beak and feet beside Mira.",
-      "box": [
-        306,
-        828,
-        507,
-        1051
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 5,
-      "depth": 0.76,
-      "pivot": [
-        433,
-        1040
-      ],
-      "motions": [
-        {
-          "type": "breathe",
-          "amplitude": 0.008,
-          "period_s": 3.8,
-          "phase": 0.4,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "mira_lantern",
-      "description": "Handheld warm glowing lantern including its curved handle, metal frame and base; exclude Mira's fingers.",
-      "box": [
-        193,
-        776,
-        286,
-        938
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 6,
-      "depth": 0.8,
-      "pivot": [
-        233,
-        784
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 1.2,
-          "period_s": 5.2,
-          "phase": 0.15,
           "direction": null
         }
       ]
@@ -129,31 +103,8 @@
     {
       "type": "rain",
       "region": null,
-      "intensity": 0.16,
-      "colour": "#b8c7dd"
-    },
-    {
-      "type": "glow",
-      "region": {
-        "box": [
-          838,
-          121,
-          1065,
-          271
-        ],
-        "layer": null
-      },
-      "intensity": 0.18,
-      "colour": "#ffd176"
-    },
-    {
-      "type": "glow",
-      "region": {
-        "box": null,
-        "layer": "mira_lantern"
-      },
-      "intensity": 0.16,
-      "colour": "#ffd176"
+      "intensity": 0.12,
+      "colour": null
     }
   ]
 }

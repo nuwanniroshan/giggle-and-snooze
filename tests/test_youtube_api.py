@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import stat
 import subprocess
@@ -213,9 +214,10 @@ def test_connected_writes_token_0600_and_channel(tmp_path):
     assert flow.code == CODE
     assert (channel.id, channel.title) == ("UC123", "Giggle & Snooze")
     assert channel.connected_at.startswith("1970-01-01T00:16:50")
-    assert stat.S_IMODE(folder.stat().st_mode) == 0o700
-    for name in ("token.json", "channel.json"):
-        assert stat.S_IMODE((folder / name).stat().st_mode) == 0o600
+    if os.name != "nt":  # Windows has no POSIX mode bits
+        assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+        for name in ("token.json", "channel.json"):
+            assert stat.S_IMODE((folder / name).stat().st_mode) == 0o600
     assert json.loads((folder / "token.json").read_text())["token"] == TOKEN
     assert api.connected_channel(folder) == channel
     assert not list(folder.glob("*.tmp"))
@@ -303,7 +305,8 @@ def test_refresh_resaves_token_0600(tmp_path):
     assert creds.token == "NEW-ACCESS"
     saved = tmp_path / "token.json"
     assert json.loads(saved.read_text())["token"] == "NEW-ACCESS"
-    assert stat.S_IMODE(saved.stat().st_mode) == 0o600
+    if os.name != "nt":  # Windows has no POSIX mode bits
+        assert stat.S_IMODE(saved.stat().st_mode) == 0o600
 
 
 # --- video body -----------------------------------------------------------------------------

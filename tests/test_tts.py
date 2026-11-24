@@ -1,16 +1,11 @@
-import os
 import subprocess
-import sys
-import types
 
 import numpy as np
 import pytest
 
 from video_pipeline import tts
 from video_pipeline.tts import (
-    DOWNLOAD_HINT,
     ModelSettings,
-    OrpheusVoice,
     PitchShiftError,
     VoiceUnavailable,
     download_model,
@@ -20,7 +15,7 @@ from video_pipeline.tts import (
     voice_filter,
 )
 
-SETTINGS = ModelSettings("org/model", "abc12345def", 0.6, 0.8, 3000)
+SETTINGS = ModelSettings("org/model", "abc12345def")
 
 
 def test_pitch_ratio():
@@ -69,198 +64,18 @@ def test_pitch_shift_builds_an_argument_list(monkeypatch):
     assert out.dtype == np.float32 and len(out) == 4
 
 
-class FakeResult:
-    def __init__(self, audio):
-        self.audio = audio
+def test_download_checks_digest_before_replacing_cached_file(tmp_path, monkeypatch):
+    import io
 
-
-class FakeModel:
-    sample_rate = 24000
-
-    def __init__(self):
-        self.calls = []
-
-    def generate(self, **kwargs):
-        self.calls.append(kwargs)
-        yield FakeResult(np.ones(3, dtype=np.float32))
-        yield FakeResult(np.zeros(2, dtype=np.float32))
-
-
-def install_fakes(monkeypatch, snapshot=None, model=None, cache=None):
-    monkeypatch.setenv("HF_HUB_OFFLINE", "0")  # restored after each test
-    calls = {"seed": [], "clear": 0, "snapshot": []}
-    constants = types.ModuleType("huggingface_hub.constants")
-    constants.HF_HUB_CACHE = str(cache or "/nonexistent-hf-cache")
-    constants.HF_HUB_OFFLINE = False
-    core = types.SimpleNamespace(
-        random=types.SimpleNamespace(seed=lambda s: calls["seed"].append(s)),
-        clear_cache=lambda: calls.__setitem__("clear", calls["clear"] + 1),
-    )
-    mlx = types.ModuleType("mlx")
-    mlx.core = core
-    hub = types.ModuleType("huggingface_hub")
-
-    def default_snapshot(**kwargs):
-        calls["snapshot"].append(kwargs)
-        return "/models/orpheus"
-
-    hub.snapshot_download = snapshot or default_snapshot
-    hub.constants = constants
-    utils = types.ModuleType("mlx_audio.tts.utils")
-    utils.load_model = lambda path: model or FakeModel()
-    for name, module in {
-        "mlx": mlx,
-        "mlx.core": core,
-        "huggingface_hub": hub,
-        "huggingface_hub.constants": constants,
-        "mlx_audio": types.ModuleType("mlx_audio"),
-        "mlx_audio.tts": types.ModuleType("mlx_audio.tts"),
-        "mlx_audio.tts.utils": utils,
-    }.items():
-        monkeypatch.setitem(sys.modules, name, module)
-    return calls
-
-
-def test_download_fetches_only_listed_files_from_support_repos(monkeypatch, tmp_path):
-    calls = install_fakes(monkeypatch, cache=tmp_path)
-    settings = ModelSettings(
-        "org/model",
-        "abc12345def",
-        0.6,
-        0.8,
-        3000,
-        support_repos=(
-            ("org/codec", "rev1", None),
-            ("org/full", "rev2", ("config.json", "tokenizer.json")),
-        ),
-    )
-    download_model(settings)
-    assert calls["snapshot"] == [
-        {"repo_id": "org/model", "revision": "abc12345def"},
-        {"repo_id": "org/codec", "revision": "rev1"},
-        {
-            "repo_id": "org/full",
-            "revision": "rev2",
-            "allow_patterns": ["config.json", "tokenizer.json"],
-        },
-    ]
-
-
-def test_engine_loads_pinned_model_offline(monkeypatch):
-    calls = install_fakes(monkeypatch)
-    engine = OrpheusVoice(SETTINGS)
-    assert engine.sample_rate == 24000
-    assert calls["snapshot"] == [
-        {"repo_id": "org/model", "revision": "abc12345def", "local_files_only": True}
-    ]
-    assert os.environ["HF_HUB_OFFLINE"] == "1"
-
-
-def test_engine_synthesizes_with_seed_and_settings(monkeypatch):
-    model = FakeModel()
-    calls = install_fakes(monkeypatch, model=model)
-    audio = OrpheusVoice(SETTINGS).synthesize("<giggle> Hi!", "zoe", 9)
-    assert audio.dtype == np.float32 and len(audio) == 5
-    assert calls["seed"] == [9] and calls["clear"] == 1
-    assert model.calls == [
-        {
-            "text": "<giggle> Hi!",
-            "voice": "zoe",
-            "temperature": 0.6,
-            "top_p": 0.8,
-            "max_tokens": 3000,
-            "verbose": False,
-        }
-    ]
-
-
-def test_engine_reports_missing_model(monkeypatch):  # Error scenario: model not downloaded
-    def missing(**kwargs):
-        raise FileNotFoundError("not cached")
-
-    install_fakes(monkeypatch, snapshot=missing)
-    with pytest.raises(VoiceUnavailable, match="not downloaded") as excinfo:
-        OrpheusVoice(SETTINGS)
-    assert DOWNLOAD_HINT in str(excinfo.value)
-
-
-def test_engine_reports_missing_package(monkeypatch):
-    monkeypatch.setenv("HF_HUB_OFFLINE", "0")
-    monkeypatch.setitem(sys.modules, "mlx_audio.tts.utils", None)
-    monkeypatch.setitem(sys.modules, "mlx_audio", None)
-    with pytest.raises(VoiceUnavailable, match="uv sync"):
-        OrpheusVoice(SETTINGS)
-
-
-SUPPORT = ModelSettings(
-    "org/model",
-    "abc12345def",
-    0.6,
-    0.8,
-    3000,
-    support_repos=(("org/codec", "rev1", None), ("org/full", "rev2", ("config.json",))),
-)
-
-
-def ref_file(cache, repo):
-    return cache / f"models--{repo.replace('/', '--')}" / "refs" / "main"
-
-
-def test_download_pins_support_repo_refs(monkeypatch, tmp_path):  # review fix 5
-    install_fakes(monkeypatch, cache=tmp_path)
-    download_model(SUPPORT)
-    assert ref_file(tmp_path, "org/codec").read_text() == "rev1"
-    assert ref_file(tmp_path, "org/full").read_text() == "rev2"
-    assert not ref_file(tmp_path, "org/model").exists()  # loaded by path, not by name
-
-
-def pin_refs(cache, refs):
-    for repo, revision in refs.items():
-        ref_file(cache, repo).parent.mkdir(parents=True, exist_ok=True)
-        ref_file(cache, repo).write_text(revision)
-
-
-def test_engine_checks_pinned_support_repos(monkeypatch, tmp_path):  # review fix 5
-    calls = install_fakes(monkeypatch, cache=tmp_path)
-    pin_refs(tmp_path, {"org/codec": "rev1", "org/full": "rev2"})
-    OrpheusVoice(SUPPORT)
-    assert {
-        "repo_id": "org/codec",
-        "revision": "rev1",
-        "local_files_only": True,
-    } in calls["snapshot"]
-    assert {
-        "repo_id": "org/full",
-        "revision": "rev2",
-        "local_files_only": True,
-        "allow_patterns": ["config.json"],
-    } in calls["snapshot"]
-    assert sys.modules["huggingface_hub.constants"].HF_HUB_OFFLINE is True
-
-
-@pytest.mark.parametrize("refs", [{"org/full": "rev2"}, {"org/codec": "other", "org/full": "rev2"}])
-def test_engine_refuses_unpinned_support_repo(monkeypatch, tmp_path, refs):  # review fix 5
-    install_fakes(monkeypatch, cache=tmp_path)
-    pin_refs(tmp_path, refs)
-    with pytest.raises(VoiceUnavailable, match="org/codec") as excinfo:
-        OrpheusVoice(SUPPORT)
-    assert DOWNLOAD_HINT in str(excinfo.value)
-
-
-def test_engine_refuses_missing_support_snapshot(monkeypatch, tmp_path):  # review fix 5
-    def snapshot(**kwargs):
-        if kwargs["repo_id"] == "org/full":
-            raise FileNotFoundError("not cached")
-        return "/models/x"
-
-    install_fakes(monkeypatch, snapshot=snapshot, cache=tmp_path)
-    pin_refs(tmp_path, {"org/codec": "rev1", "org/full": "rev2"})
-    with pytest.raises(VoiceUnavailable, match="org/full") as excinfo:
-        OrpheusVoice(SUPPORT)
-    assert DOWNLOAD_HINT in str(excinfo.value)
-
-
-# --- spec 017: feelings (AC-3.1, AC-3.2) ----------------------------------------------------
+    monkeypatch.setattr(tts, "model_folder", lambda settings: tmp_path)
+    monkeypatch.setattr(tts, "MODEL_FILES", {"voice.bin": "invalid"})
+    monkeypatch.setattr(tts.urllib.request, "urlopen", lambda *a, **kw: io.BytesIO(b"bad"))
+    cached = tmp_path / "voice.bin"
+    cached.write_bytes(b"previous")
+    with pytest.raises(VoiceUnavailable, match="checksum"):
+        download_model(SETTINGS)
+    assert cached.read_bytes() == b"previous"
+    assert list(tmp_path.iterdir()) == [cached]
 
 
 def test_voice_filter_equals_pitch_filter_for_neutral_delivery():  # AC-3.2

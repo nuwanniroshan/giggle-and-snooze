@@ -67,6 +67,14 @@ def test_start_runs_to_done_with_log_and_record(runner, studio, tmp_path):
     assert runner.latest("moon", "script")["id"] == job.id
 
 
+def test_job_logs_unicode_on_windows(runner):
+    message = "Pig says \u201chello\u201d \u732a"
+    job = runner.start("moon", "script", py(f"print({message!r})"))
+    assert runner.wait(10)
+    assert runner.latest("moon", "script")["exit_code"] == 0
+    assert message in full_log(runner, job.id)
+
+
 def test_failing_command_is_failed_with_exit_code_and_stderr(runner, studio):
     code = "import sys; print('to out'); print('boom', file=sys.stderr); sys.exit(3)"
     job = runner.start("moon", "voices", py(code))
@@ -461,7 +469,12 @@ def test_second_studio_process_is_locked_out_and_leaves_the_live_stage_alone(run
     current = runner.current()
     assert current is not None and current["id"] == job.id
     assert read_record(studio, job.id)["state"] == "running"
-    os.killpg(job.pid, 0)  # still alive
+    if os.name == "nt":
+        import psutil
+
+        assert psutil.pid_exists(job.pid)
+    else:
+        os.killpg(job.pid, 0)  # still alive
 
 
 def test_second_runner_in_the_same_process_is_locked(runner, studio, tmp_path):

@@ -2,160 +2,94 @@
   "page_number": 2,
   "picture": {
     "file": "page_02.png",
-    "sha256": "d3b9a8686b7e4b4ec782e698f9a42b55688e61303c2a483152f8dc818ad949ca",
-    "width": 1254,
-    "height": 1254
+    "sha256": "e20be7ec8f2a339d31c73735a87e83dac41b94a7b6b445cb515c5e974c16f17e",
+    "width": 1672,
+    "height": 941
   },
   "provider": "codex",
-  "written_at": "2026-11-10T19:38:46+00:00",
+  "written_at": "2026-11-24T07:56:43+00:00",
   "layers": [
     {
-      "name": "lighthouse",
-      "description": "Entire friendly white lighthouse, including red lantern roof, balcony, face, door and tiny stone feet; preserve the surrounding branches and light beam.",
+      "name": "pip",
+      "description": "Whole perched white-and-gray gull, including beak, tail, both legs, and toes, with a gentle rock about its perch.",
       "box": [
-        593,
-        187,
-        1189,
-        1048
+        239,
+        510,
+        401,
+        650
       ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 2,
-      "depth": 0.62,
-      "pivot": [
-        817,
-        1018
-      ],
-      "motions": [
-        {
-          "type": "rotate",
-          "amplitude": 0.6,
-          "period_s": 6.0,
-          "phase": 0.15,
-          "direction": null
-        },
-        {
-          "type": "bob",
-          "amplitude": 0.002,
-          "period_s": 6.0,
-          "phase": 0.4,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "tickling_branch",
-      "description": "Leafy diagonal branch that Mira is easing aside, from her raised hand toward the lamp; keep Mira's hands outside the moving mask.",
-      "box": [
-        364,
-        220,
-        891,
-        607
-      ],
-      "include_points": [],
-      "exclude_points": [
+      "include_points": [
         [
-          486,
+          348,
+          529
+        ],
+        [
+          375,
+          523
+        ],
+        [
+          379,
           541
         ],
         [
-          476,
-          566
+          356,
+          572
+        ],
+        [
+          307,
+          581
+        ],
+        [
+          250,
+          600
+        ],
+        [
+          317,
+          623
+        ],
+        [
+          334,
+          625
+        ],
+        [
+          329,
+          644
+        ],
+        [
+          348,
+          641
         ]
       ],
-      "z": 4,
-      "depth": 0.76,
+      "exclude_points": [
+        [
+          322,
+          657
+        ],
+        [
+          297,
+          638
+        ],
+        [
+          406,
+          535
+        ],
+        [
+          429,
+          573
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
       "pivot": [
-        875,
-        231
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 0.7,
-          "period_s": 7.0,
-          "phase": 0.1,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "mira_curls",
-      "description": "Outer dark curly hair behind and to the left of Mira's head, excluding face, scarf, and coat.",
-      "box": [
-        172,
-        496,
-        367,
-        735
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 3,
-      "depth": 0.72,
-      "pivot": [
-        327,
-        546
-      ],
-      "motions": [
-        {
-          "type": "sway",
-          "amplitude": 0.5,
-          "period_s": 7.0,
-          "phase": 0.35,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "pip",
-      "description": "Complete white and gray seagull Pip, including beak, wings, orange legs and feet, excluding the rock.",
-      "box": [
-        23,
-        753,
-        213,
-        949
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 4,
-      "depth": 0.82,
-      "pivot": [
-        141,
-        934
+        333,
+        643
       ],
       "motions": [
         {
           "type": "rotate",
-          "amplitude": 0.5,
-          "period_s": 5.5,
-          "phase": 0.6,
-          "direction": null
-        }
-      ]
-    },
-    {
-      "name": "foreground_right_fern",
-      "description": "Drooping yellow green fern fronds to the right of the lighthouse, above the foreground rocks.",
-      "box": [
-        1018,
-        717,
-        1226,
-        1001
-      ],
-      "include_points": [],
-      "exclude_points": [],
-      "z": 5,
-      "depth": 0.92,
-      "pivot": [
-        1183,
-        980
-      ],
-      "motions": [
-        {
-          "type": "sway",
           "amplitude": 0.8,
-          "period_s": 8.0,
-          "phase": 0.55,
+          "period_s": 6.0,
+          "phase": 0.0,
           "direction": null
         }
       ]
@@ -167,41 +101,27 @@
       "region": {
         "box": [
           0,
-          400,
-          1254,
-          1254
+          273,
+          1672,
+          941
         ],
         "layer": null
       },
-      "intensity": 0.16,
+      "intensity": 0.12,
       "colour": null
-    },
-    {
-      "type": "glow",
-      "region": {
-        "box": [
-          890,
-          310,
-          1142,
-          474
-        ],
-        "layer": null
-      },
-      "intensity": 0.18,
-      "colour": "#ffd56b"
     },
     {
       "type": "water_ripple",
       "region": {
         "box": [
-          434,
-          1083,
-          842,
-          1237
+          468,
+          841,
+          1035,
+          927
         ],
         "layer": null
       },
-      "intensity": 0.1,
+      "intensity": 0.16,
       "colour": null
     }
   ]

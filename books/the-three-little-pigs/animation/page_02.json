@@ -1,0 +1,232 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "0814bca73a423252a8e3bc47db88e9f6ed2986d910879cccfba4ef7f41ca2721",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-21T17:09:16+00:00",
+  "layers": [
+    {
+      "name": "pip_patting_arm",
+      "description": "Pip’s raised foreleg and hoof, from the shoulder seam to the straw. Keep the yellow strap and roof out of the mask.",
+      "box": [
+        459,
+        354,
+        693,
+        580
+      ],
+      "include_points": [
+        [
+          497,
+          537
+        ],
+        [
+          553,
+          483
+        ],
+        [
+          622,
+          422
+        ],
+        [
+          665,
+          381
+        ]
+      ],
+      "exclude_points": [
+        [
+          449,
+          548
+        ],
+        [
+          579,
+          552
+        ],
+        [
+          675,
+          431
+        ],
+        [
+          696,
+          378
+        ]
+      ],
+      "z": 3,
+      "depth": 0.72,
+      "pivot": [
+        491,
+        535
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.65,
+          "period_s": 4.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "roof_bundle",
+      "description": "The tied yellow straw bundle at the roof peak, including its rope tie.",
+      "box": [
+        623,
+        194,
+        1027,
+        399
+      ],
+      "include_points": [
+        [
+          675,
+          333
+        ],
+        [
+          753,
+          306
+        ],
+        [
+          814,
+          280
+        ],
+        [
+          883,
+          253
+        ],
+        [
+          967,
+          279
+        ]
+      ],
+      "exclude_points": [
+        [
+          712,
+          229
+        ],
+        [
+          890,
+          347
+        ],
+        [
+          1019,
+          333
+        ]
+      ],
+      "z": 2,
+      "depth": 0.67,
+      "pivot": [
+        826,
+        315
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 0.4,
+          "period_s": 4.0,
+          "phase": 0.06,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "right_cloud",
+      "description": "The long cream cloud below and left of the sun.",
+      "box": [
+        1041,
+        94,
+        1448,
+        174
+      ],
+      "include_points": [
+        [
+          1110,
+          156
+        ],
+        [
+          1237,
+          125
+        ],
+        [
+          1352,
+          156
+        ]
+      ],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.08,
+      "pivot": [
+        1245,
+        150
+      ],
+      "motions": [
+        {
+          "type": "shift",
+          "amplitude": 0.02,
+          "period_s": 12.0,
+          "phase": 0.25,
+          "direction": [
+            1.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "purple_flower_spikes",
+      "description": "The two purple flower spikes and visible stems at the lower-left edge.",
+      "box": [
+        19,
+        808,
+        160,
+        941
+      ],
+      "include_points": [
+        [
+          62,
+          864
+        ],
+        [
+          66,
+          914
+        ],
+        [
+          124,
+          882
+        ],
+        [
+          111,
+          927
+        ]
+      ],
+      "exclude_points": [
+        [
+          90,
+          855
+        ],
+        [
+          144,
+          927
+        ]
+      ],
+      "z": 4,
+      "depth": 0.97,
+      "pivot": [
+        79,
+        938
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.35,
+          "period_s": 6.0,
+          "phase": 0.4,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}
