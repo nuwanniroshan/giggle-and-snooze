@@ -1,0 +1,143 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "89f64c4165cb732e74fff7cb16691d0e51644a38314b2d34c813eed2e0dc8d5c",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T12:23:19+00:00",
+  "layers": [
+    {
+      "name": "tavi",
+      "description": "Tavi leans in to inspect the shelf, rocking gently around his planted boots. Keep his rust-red hair, freckled face, green jacket and gold patch, hands, shorts, socks, and boots together as one cutout. Bea’s fingers meet the hanging sign, and Zella and Idris have overlapping silhouettes, so Tavi has the clearest room for a whole-body movement.",
+      "box": [
+        699,
+        314,
+        1076,
+        873
+      ],
+      "include_points": [
+        [
+          781,
+          370
+        ],
+        [
+          875,
+          400
+        ],
+        [
+          805,
+          479
+        ],
+        [
+          881,
+          490
+        ],
+        [
+          939,
+          515
+        ],
+        [
+          973,
+          579
+        ],
+        [
+          903,
+          653
+        ],
+        [
+          973,
+          663
+        ],
+        [
+          945,
+          694
+        ],
+        [
+          890,
+          726
+        ],
+        [
+          985,
+          723
+        ],
+        [
+          921,
+          785
+        ],
+        [
+          1015,
+          789
+        ],
+        [
+          901,
+          840
+        ],
+        [
+          1043,
+          850
+        ]
+      ],
+      "exclude_points": [
+        [
+          687,
+          377
+        ],
+        [
+          688,
+          529
+        ],
+        [
+          761,
+          554
+        ],
+        [
+          807,
+          605
+        ],
+        [
+          844,
+          758
+        ],
+        [
+          952,
+          289
+        ],
+        [
+          1010,
+          376
+        ],
+        [
+          1085,
+          472
+        ],
+        [
+          1104,
+          605
+        ],
+        [
+          1104,
+          812
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        950,
+        860
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.25,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

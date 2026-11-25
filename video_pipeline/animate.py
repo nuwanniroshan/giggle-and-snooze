@@ -900,6 +900,25 @@ def page_eligibility(
     except (OSError, ValueError) as exc:  # changed between the checks and the hash
         return PageEligibility(False, f"files changed while checking ({exc})")
     scale = settings.intensity * (float(override) if override is not None else 1.0)
+    # A valid plan and cut do not imply local animation: the planner can deliberately
+    # keep every layer still. Use the camera-only path and report it honestly in Studio.
+    present = {entry.get("name") for entry in manifest["layers"] if not entry.get("empty")}
+    moving = any(
+        layer.name in present
+        and (
+            any(motion.amplitude > 0 for motion in layer.motions)
+            or (layer.depth > 0 and settings.parallax_max_shift > 0)
+        )
+        for layer in st.plan.layers
+    )
+    effects = any(
+        effect.intensity > 0
+        and (effect.region is None or not effect.region.layer or effect.region.layer in present)
+        and (effect.type not in settings.effects or settings.effects[effect.type].strength > 0)
+        for effect in st.plan.effects
+    )
+    if scale <= 0 or not (moving or effects):
+        return PageEligibility(False, "camera only – no active layer motion or effects")
     return PageEligibility(True, "", st.plan, scale, plan_sha, manifest_sha, files_sha)
 
 

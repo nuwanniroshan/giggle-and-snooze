@@ -1,0 +1,127 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "1826d06caa3de591e9a7e63bf45c63a1bc2dc3bf4bfeb9ca044432782438b985",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T07:56:24+00:00",
+  "layers": [
+    {
+      "name": "tavi_bent_knee_wave",
+      "description": "Tavi holds the illustrated bent-knee wave and rocks gently as a complete cutout around the sole of the planted yellow high-top. Preserve the raised hand, bent leg, copper curl, and clothing exactly as drawn. Mina and Davi stay still because their clasped hands and Davi’s grip on the plum stroller connect their silhouettes. Tavi’s isolated pose carries the loop while the lower band stays clear.",
+      "box": [
+        1292,
+        180,
+        1532,
+        686
+      ],
+      "include_points": [
+        [
+          1430,
+          206
+        ],
+        [
+          1422,
+          295
+        ],
+        [
+          1325,
+          274
+        ],
+        [
+          1364,
+          332
+        ],
+        [
+          1416,
+          397
+        ],
+        [
+          1383,
+          453
+        ],
+        [
+          1508,
+          388
+        ],
+        [
+          1484,
+          446
+        ],
+        [
+          1414,
+          499
+        ],
+        [
+          1480,
+          475
+        ],
+        [
+          1510,
+          501
+        ],
+        [
+          1461,
+          548
+        ],
+        [
+          1428,
+          575
+        ],
+        [
+          1455,
+          652
+        ],
+        [
+          1483,
+          670
+        ]
+      ],
+      "exclude_points": [
+        [
+          1262,
+          266
+        ],
+        [
+          1330,
+          214
+        ],
+        [
+          1289,
+          520
+        ],
+        [
+          1371,
+          649
+        ],
+        [
+          1566,
+          534
+        ],
+        [
+          1463,
+          690
+        ]
+      ],
+      "z": 3,
+      "depth": 0.0,
+      "pivot": [
+        1462,
+        677
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.5,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

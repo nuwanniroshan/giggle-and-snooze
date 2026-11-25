@@ -1,0 +1,91 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "024f8354aa1cb39d0b836ca58aca1ed6c5d4bd8ea64e4d3012a570a0e143fb97",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-24T18:02:48+00:00",
+  "layers": [
+    {
+      "name": "window_sun",
+      "description": "The yellow sun disk and its eight detached rays in the upper-right windowpane.",
+      "box": [
+        770,
+        128,
+        901,
+        256
+      ],
+      "include_points": [
+        [
+          835,
+          192
+        ],
+        [
+          834,
+          141
+        ],
+        [
+          871,
+          154
+        ],
+        [
+          887,
+          189
+        ],
+        [
+          875,
+          224
+        ],
+        [
+          839,
+          243
+        ],
+        [
+          801,
+          232
+        ],
+        [
+          784,
+          197
+        ],
+        [
+          798,
+          158
+        ]
+      ],
+      "exclude_points": [
+        [
+          854,
+          139
+        ],
+        [
+          857,
+          242
+        ],
+        [
+          899,
+          247
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        835,
+        192
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 1.2,
+          "period_s": 8.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

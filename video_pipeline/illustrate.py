@@ -35,6 +35,7 @@ from PIL import Image
 
 from video_pipeline import cleanup, cut_layers
 from video_pipeline.agents import AgentUnavailable, codex_status
+from video_pipeline.art_styles import STYLES
 from video_pipeline.blueprint import (
     BlueprintError,
     blueprint_sha256,
@@ -116,6 +117,13 @@ def plan_images(
     def with_characters(prompt: str, block: str) -> str:
         return f"{prompt}\n\n{block}" if block else prompt
 
+    if not style:
+        bible = book.get("style_bible") or {}
+        if bible.get("medium_key") in STYLES:
+            style = "\n".join(
+                str(bible[key]) for key in ("style_prompt_prefix", "line", "lighting", "composition")
+                if bible.get(key)
+            )
     pages = sorted(book["pages"], key=lambda p: p["page_number"])
     items = [
         (Path(_page_file(p)).stem, with_characters(p["prompt"], page_characters_text(book, p)))
@@ -328,6 +336,8 @@ def paint_titled_cover(
     painted again, up to `settings.tries`; only a passing cover is written to `target`."""
     logo = root / settings.logo
     shape = settings.shapes[target.stem]
+    if target.stem == "cover_front":
+        words = (words[0], "")
     reason = ""
     for attempt in range(1, settings.tries + 1):
         with tempfile.TemporaryDirectory(prefix="kiddo-cover-", ignore_cleanup_errors=True) as tmp:

@@ -1,0 +1,79 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "004d824afbfa440182d2e3e9529edca2f48770a289a1fcbf60b90ce117c4ef09",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T18:53:02+00:00",
+  "status": "ok",
+  "reason": "",
+  "subject": {
+    "name": "tall white sailing ship",
+    "source": "sam",
+    "box": [
+      268,
+      582,
+      1000,
+      864
+    ]
+  },
+  "target": {
+    "x": 0.4128,
+    "y": 0.8368,
+    "zoom": 1.825
+  },
+  "band": "top",
+  "narration": [
+    {
+      "line": 0,
+      "phrase": "smooth stone in Tavi’s palm",
+      "target": {
+        "x": 0.7145,
+        "y": 0.3102,
+        "zoom": 2.0
+      }
+    },
+    {
+      "line": 1,
+      "phrase": "paper boat and Tavi’s pointing hand",
+      "target": {
+        "x": 0.6865,
+        "y": 0.6372,
+        "zoom": 2.0
+      }
+    }
+  ],
+  "narration_text": [
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "Tavi borrowed the smooth stone. He brought it back warm from his pocket."
+    },
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "“My paper boat kept tipping, so I gave it a stone to sit on. We sailed all the way to the far side of the puddle.”"
+    },
+    {
+      "speaker": "kid_younger",
+      "role": "reaction",
+      "text": "<gasp> That paper boat looks huge in the puddle!",
+      "emotion": "surprised"
+    },
+    {
+      "speaker": "kid_younger",
+      "role": "question",
+      "text": "Can I pretend to sail it? Point where I should go, around a leaf or straight across?",
+      "emotion": "curious"
+    },
+    {
+      "speaker": "storyteller",
+      "role": "answer",
+      "text": "You can be the captain. Tavi borrowed the smooth stone. He used it to help his paper boat stay steady.",
+      "emotion": "calm"
+    }
+  ]
+}

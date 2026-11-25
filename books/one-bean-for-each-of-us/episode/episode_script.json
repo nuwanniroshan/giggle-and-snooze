@@ -1,0 +1,331 @@
+{
+  "book_slug": "one-bean-for-each-of-us",
+  "title": "One Bean for Each of Us",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "kokoro",
+      "voice": "af_heart",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "kokoro",
+      "voice": "kid_leo",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "kokoro",
+      "voice": "kid_mia",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Come sit with us for One Bean for Each of Us.",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "kid_older",
+        "text": "Say it with us. Up, up, little bean!",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> What would you draw in each pot this morning?",
+        "emotion": "curious"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Rafi planted one bean. His cousin Nila planted one, too."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "They tucked the beans under the soil like toes under a blanket."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Every morning, they sang to their pots. “Up, up, little bean!”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "On Monday, all they saw was soil."
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "Up, up, little bean!",
+          "emotion": "happy"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "Can you point to the blue pot?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "I see dirt in that one. Is there dirt in the yellow one too?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "The blue pot shows bare soil. The yellow pot does too.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "blue and yellow pots",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "On Tuesday, Nila saw a green hook in her pot. “Up, up, little bean!”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Rafi leaned over his own pot. “I wish mine would come up, too.”"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Let’s draw what we see,” said Nila. She drew her green hook."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Rafi drew his soil, right down to the little white pebble."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Which pot matches the drawing with the green hook?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "<giggle> Can you find the little white pebble in the other drawing?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "The green hook matches Nila’s yellow pot. The little white pebble is in Rafi’s blue pot.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "one pot per page",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "On Wednesday, Nila’s hook stood up tall. “Up, up, little bean!”"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Rafi drew the pebble again. He left room above it, just in case."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 6,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_pull_out"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "On Thursday, the soil in Rafi’s pot had a bump. <gasp> A little green tip peeked out beside the pebble."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Up, up, little bean!” This time, Rafi sang to something he could see."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 7,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "By Sunday, Nila’s bean had leaves as wide as thumbs. Rafi’s bean had two little leaves of its own."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "They drew both again, and Rafi gave his pebble a spot in the picture, too."
+        },
+        {
+          "speaker": "kid_older",
+          "role": "reaction",
+          "text": "<gasp> Look at those little leaves!",
+          "emotion": "surprised"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "What do you see in Rafi’s blue pot now that wasn’t there on Thursday?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "On Thursday, we saw a green tip by the pebble. Now Rafi has two little leaves.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "two little leaves",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 8,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "They turned back to the first pictures. “Look how far they’ve come,” said Rafi."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Nila tucked a fresh page under the pencil. “Let’s see what they do tomorrow.”"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Which little change would you add to the last drawing?",
+        "emotion": "curious"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> I’d draw one leaf a little bigger than my thumb.",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Thanks for reading with us. Subscribe and come back for our next story.",
+        "emotion": "calm"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  }
+}

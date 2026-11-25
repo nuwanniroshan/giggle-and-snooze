@@ -55,6 +55,7 @@ from video_pipeline.motion_plan import (
     picture_identity,
     plan_path,
     plan_state,
+    subject_selection_problems,
 )
 from video_pipeline.render_episode import VideoPaths, render_check_detail
 from video_pipeline.timeline import AnimationSettings, load_render_config
@@ -1047,7 +1048,12 @@ def page_animation(paths: StudioPaths, book: Book) -> list[dict]:
                 "page_number": number,
                 "picture": page_picture(folder, page).name,
                 "plan_state": st.state,
-                "detail": st.detail,
+                "detail": st.detail or (
+                    "Only small details animate. Replan this page to focus on a main character "
+                    "or larger scenery."
+                    if st.state == "ok" and st.plan and subject_selection_problems(st.plan)
+                    else ""
+                ),
                 "plan": st.plan,
                 "cut_state": cut,
                 "empty_layers": empty,

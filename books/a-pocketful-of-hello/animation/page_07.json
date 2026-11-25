@@ -1,0 +1,204 @@
+{
+  "page_number": 7,
+  "picture": {
+    "file": "page_07.png",
+    "sha256": "d1719e581cd0effe44dfb74fbf15fd791a74f2e3069dec35e6f708bb226cea1b",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T11:40:17+00:00",
+  "layers": [
+    {
+      "name": "mina_with_pocket_bird",
+      "description": "Mina sways gently over her forward red shoe. Keep both puff buns, both arms and shoes, the teal overalls, and the yellow bird facing Tavi together in one cutout.",
+      "box": [
+        153,
+        347,
+        505,
+        839
+      ],
+      "include_points": [
+        [
+          199,
+          440
+        ],
+        [
+          349,
+          373
+        ],
+        [
+          333,
+          471
+        ],
+        [
+          228,
+          604
+        ],
+        [
+          466,
+          642
+        ],
+        [
+          318,
+          652
+        ],
+        [
+          368,
+          607
+        ],
+        [
+          240,
+          769
+        ],
+        [
+          403,
+          796
+        ]
+      ],
+      "exclude_points": [
+        [
+          178,
+          369
+        ],
+        [
+          481,
+          516
+        ],
+        [
+          510,
+          749
+        ],
+        [
+          417,
+          832
+        ],
+        [
+          246,
+          823
+        ]
+      ],
+      "z": 2,
+      "depth": 0.0,
+      "pivot": [
+        414,
+        821
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.6,
+          "period_s": 4.4,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "tavi_with_pocket_frog",
+      "description": "Tavi sways gently over their forward yellow high-top. Keep the copper curl, open hand, jacket, both legs and shoes, and the green frog facing Mina together in one cutout.",
+      "box": [
+        464,
+        205,
+        799,
+        827
+      ],
+      "include_points": [
+        [
+          576,
+          236
+        ],
+        [
+          607,
+          347
+        ],
+        [
+          542,
+          467
+        ],
+        [
+          751,
+          421
+        ],
+        [
+          584,
+          516
+        ],
+        [
+          612,
+          578
+        ],
+        [
+          567,
+          620
+        ],
+        [
+          654,
+          614
+        ],
+        [
+          562,
+          672
+        ],
+        [
+          668,
+          700
+        ],
+        [
+          520,
+          765
+        ],
+        [
+          729,
+          781
+        ]
+      ],
+      "exclude_points": [
+        [
+          683,
+          222
+        ],
+        [
+          481,
+          517
+        ],
+        [
+          485,
+          639
+        ],
+        [
+          434,
+          793
+        ],
+        [
+          853,
+          715
+        ],
+        [
+          708,
+          585
+        ],
+        [
+          788,
+          705
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        729,
+        806
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.5,
+          "period_s": 4.4,
+          "phase": 0.12,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

@@ -1,0 +1,135 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "2ba407d987cda02e1643d6a6b8a76f006ef2d854b4634eea3702553b12c59082",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T07:57:07+00:00",
+  "layers": [
+    {
+      "name": "mina_with_paper_bird",
+      "description": "Mina sways gently from her seated contact with the wall. Her hair, face, arms, overalls, legs, both shoes, and folded yellow bird move together, with the beak and wing tips peeking out of her bib pocket.",
+      "box": [
+        449,
+        55,
+        1053,
+        852
+      ],
+      "include_points": [
+        [
+          514,
+          166
+        ],
+        [
+          791,
+          103
+        ],
+        [
+          680,
+          215
+        ],
+        [
+          727,
+          339
+        ],
+        [
+          637,
+          443
+        ],
+        [
+          640,
+          513
+        ],
+        [
+          875,
+          417
+        ],
+        [
+          749,
+          477
+        ],
+        [
+          815,
+          477
+        ],
+        [
+          848,
+          475
+        ],
+        [
+          805,
+          535
+        ],
+        [
+          706,
+          609
+        ],
+        [
+          901,
+          609
+        ],
+        [
+          719,
+          714
+        ],
+        [
+          732,
+          799
+        ],
+        [
+          975,
+          709
+        ]
+      ],
+      "exclude_points": [
+        [
+          568,
+          428
+        ],
+        [
+          884,
+          312
+        ],
+        [
+          956,
+          373
+        ],
+        [
+          1087,
+          694
+        ],
+        [
+          790,
+          842
+        ],
+        [
+          615,
+          680
+        ],
+        [
+          1062,
+          613
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        718,
+        621
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.2,
+          "period_s": 5.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

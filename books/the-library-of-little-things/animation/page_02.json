@@ -1,0 +1,130 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "004d824afbfa440182d2e3e9529edca2f48770a289a1fcbf60b90ce117c4ef09",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T12:26:27+00:00",
+  "layers": [
+    {
+      "name": "tavi_with_stone",
+      "description": "Tavi sways as one complete crouching cutout around the contact point beneath his planted right-side boot. Keep the gray stone seated in his open palm and the pointing arm connected to his jacket. Bea stays still because her high puff is clipped by the top of the frame.",
+      "box": [
+        1042,
+        98,
+        1446,
+        571
+      ],
+      "include_points": [
+        [
+          1252,
+          150
+        ],
+        [
+          1223,
+          230
+        ],
+        [
+          1092,
+          255
+        ],
+        [
+          1095,
+          280
+        ],
+        [
+          1157,
+          325
+        ],
+        [
+          1327,
+          314
+        ],
+        [
+          1343,
+          316
+        ],
+        [
+          1260,
+          438
+        ],
+        [
+          1193,
+          504
+        ],
+        [
+          1208,
+          407
+        ],
+        [
+          1381,
+          397
+        ],
+        [
+          1276,
+          511
+        ],
+        [
+          1384,
+          535
+        ]
+      ],
+      "exclude_points": [
+        [
+          965,
+          188
+        ],
+        [
+          919,
+          333
+        ],
+        [
+          935,
+          494
+        ],
+        [
+          997,
+          545
+        ],
+        [
+          1459,
+          313
+        ]
+      ],
+      "z": 2,
+      "depth": 0.0,
+      "pivot": [
+        1382,
+        563
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.6,
+          "period_s": 4.5,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "water_ripple",
+      "region": {
+        "box": [
+          183,
+          614,
+          1251,
+          817
+        ],
+        "layer": null
+      },
+      "intensity": 0.52,
+      "colour": null
+    }
+  ]
+}

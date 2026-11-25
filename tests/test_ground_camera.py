@@ -201,11 +201,15 @@ def test_phrase_subject_runs_segmenter_once(book):
     assert data["band"] == "top"  # the subject sits low, so the words go on top
 
 
-def test_no_qa_page_records_band_only(book):
-    codex = FakeCodex({})
+def test_no_qa_page_records_narration_focus(book):
+    codex = FakeCodex(
+        {1: [{"narration": [{"line": 0, "phrase": "red car", "box": [40, 60, 100, 90]}]}]}
+    )
     out = run(book, codex, pages=[1])
     data = read(book, 1)
-    assert out[0].status == "no_qa" and not codex.commands
+    assert out[0].status == "no_qa" and len(codex.commands) == 1
+    assert data["narration"][0]["line"] == 0
+    assert data["narration"][0]["target"]["x"] == 0.4375
     assert data["status"] == "no_qa" and data["subject"] is None and data["target"] is None
     assert data["band"] == "top"  # the cut car covers the bottom rows
 
@@ -381,3 +385,20 @@ def test_mask_share_boundary(book):  # AC-1.6
         codex = FakeCodex({3: [{"phrase": "big", "box": [0, 0, W, H]}]})
         out = run(book, codex, Seg(), pages=[3], force=True)
         assert out[0].status == status, (extra, out[0].reason)
+
+
+def test_changed_narration_replans_camera(book):
+    payload = {"narration": [{"line": 0, "phrase": "car", "box": [40, 30, 80, 60]}]}
+    codex = FakeCodex({1: [payload, payload]})
+    run(book, codex, pages=[1])
+    script = json.loads(book.script_path.read_text(encoding="utf-8"))
+    script["pages"][0]["lines"][0]["text"] = "The car stopped."
+    book.script_path.write_text(json.dumps(script), encoding="utf-8")
+    run(book, codex, pages=[1])
+    assert len(codex.commands) == 2
+    assert read(book, 1)["narration_text"] == script["pages"][0]["lines"]
+
+
+def test_narration_cue_cannot_reference_question(book):
+    payload = {"layer": "car", "narration": [{"line": 1, "phrase": "car", "box": [40, 30, 80, 60]}]}
+    assert run(book, FakeCodex({2: [payload]}), pages=[2])[0].status == "failed"

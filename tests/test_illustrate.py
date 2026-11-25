@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -644,6 +645,10 @@ class FakeCoverCodex:
             with Image.open(cmd[cmd.index("-i") + 1]) as im:
                 self.checked.append(im.size)
             reply = self.replies.pop(0) if self.replies else GOOD
+            if isinstance(reply, str) and reply in (GOOD, WRONG, UNWANTED_LOGO) and im.width != im.height:
+                payload = json.loads(reply)
+                payload["subtitle"] = ""
+                reply = json.dumps(payload)
             if isinstance(reply, BaseException):
                 raise reply
             if reply is not None:
@@ -651,7 +656,7 @@ class FakeCoverCodex:
         else:
             self.paints.append(list(cmd))
             size = self.sizes.pop(0) if self.sizes else None
-            size = size or ((700, 700) if "square 1:1" in cmd[-1] else (900, 600))
+            size = size or ((700, 700) if "square 1:1" in cmd[-1] else (960, 640))
             Image.new("RGB", size, "blue").save(Path(cwd) / "out.png")
         return __import__("subprocess").CompletedProcess(cmd, 0, "", "")
 
@@ -696,10 +701,10 @@ def test_titled_book_paints_both_front_covers_with_only_page_reference(
         inputs = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-i"]
         assert inputs == [str(folder / "page_01.png")]
     with Image.open(folder / "cover_front.png") as im:
-        assert im.width * 3 == im.height * 4 and min(im.size) >= 512
+        assert im.width * 9 == im.height * 16 and min(im.size) >= 512
     with Image.open(folder / "cover_front_print.png") as im:
         assert im.width == im.height
-    assert fake.checked == [(800, 600), (700, 700)]  # the check sees the trimmed cover
+    assert fake.checked == [(960, 540), (700, 700)]  # the check sees the trimmed cover
 
 
 @pytest.mark.parametrize("during_check", [False, True])
@@ -954,3 +959,11 @@ def test_cleanup_with_page_and_yes_parses():
 def test_plain_page_repaint_has_no_cleanup_or_yes():
     args = parse_args(["--book", "x", "--page", "3"])
     assert args.cleanup is False and args.yes is False
+
+
+def test_video_cover_retries_an_unwanted_subtitle(tmp_path, cover_settings):
+    unexpected = json.dumps({"title": TITLE, "subtitle": "Not for video", "logo_absent": True})
+    fake, lines = FakeCoverCodex([unexpected, GOOD]), []
+    _paint(fake, cover_settings, tmp_path, tmp_path / "cover_front.png", lines)
+    assert len(fake.paints) == 2
+    assert any("subtitle read as" in line for line in lines)

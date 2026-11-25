@@ -1,0 +1,143 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "d3f760d2d5bd886db734f63e347dadbcb2a518282f9f24262607be692a5fa975",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T07:57:59+00:00",
+  "layers": [
+    {
+      "name": "mina",
+      "description": "Complete Mina silhouette, including both puff buns, both hands, both red shoes and the yellow beak tucked into her pocket. She gently rocks with delight around the pavement contact between her soles. Keep the painted excitement marks and pavement shadow in the base art. Tavi stays steady so the paper frog stays seated in the offering hand, where its folded foot overlaps the fingers.",
+      "box": [
+        416,
+        155,
+        774,
+        838
+      ],
+      "include_points": [
+        [
+          477,
+          290
+        ],
+        [
+          690,
+          193
+        ],
+        [
+          649,
+          242
+        ],
+        [
+          623,
+          391
+        ],
+        [
+          511,
+          301
+        ],
+        [
+          558,
+          456
+        ],
+        [
+          631,
+          462
+        ],
+        [
+          731,
+          454
+        ],
+        [
+          746,
+          510
+        ],
+        [
+          568,
+          593
+        ],
+        [
+          650,
+          536
+        ],
+        [
+          650,
+          573
+        ],
+        [
+          511,
+          693
+        ],
+        [
+          667,
+          718
+        ],
+        [
+          488,
+          783
+        ],
+        [
+          675,
+          782
+        ]
+      ],
+      "exclude_points": [
+        [
+          528,
+          141
+        ],
+        [
+          589,
+          148
+        ],
+        [
+          482,
+          167
+        ],
+        [
+          404,
+          420
+        ],
+        [
+          791,
+          467
+        ],
+        [
+          819,
+          253
+        ],
+        [
+          879,
+          299
+        ],
+        [
+          921,
+          370
+        ],
+        [
+          577,
+          823
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        592,
+        819
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.25,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

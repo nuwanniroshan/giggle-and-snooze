@@ -864,7 +864,7 @@ def _write_config(tmp_path, data):
 def test_config_animation_block_read(cfg):
     anim = cfg.animation
     assert anim.enabled is True
-    assert anim.intensity == pytest.approx(1.0)
+    assert anim.intensity == pytest.approx(1.4)
     assert anim.ease_in_s == pytest.approx(1.0)
     assert anim.parallax_max_shift == pytest.approx(0.006)
     assert anim.parallax_period_s == pytest.approx(9.0)
@@ -1075,3 +1075,54 @@ def test_section_key_payload_shape(cfg, qa_timing, monkeypatch):  # AC-3.5
         "caption_fonts",
         *timeline._frame_settings(cfg),
     }
+
+
+def test_narration_focus_eases_holds_and_matches_ffmpeg():
+    cam = Camera(
+        "static",
+        180,
+        (1, 0.5, 0.5),
+        (1, 0.5, 0.5),
+        qa_frame=140,
+        qa_target=(1.4, 0.6, 0.5),
+        ease_frames=20,
+        narration_cues=((10, 35, (1.8, 0.3, 0.35)), (70, 95, (1.7, 0.7, 0.6))),
+    )
+    assert camera_at(cam, 0) == (1, 0.5, 0.5)
+    assert camera_at(cam, 35) == camera_at(cam, 69)
+    assert camera_at(cam, 95) == camera_at(cam, 140)
+    for frame in range(cam.frames):
+        assert in_bounds(*camera_at(cam, frame))
+    check_expressions(cam)
+
+
+def test_narration_cues_follow_voice_timing_and_ignore_changed_script(cfg):
+    page = {
+        "page_number": 1,
+        "lines": [
+            {"role": "narration", "text": "Mina smiled."},
+            {"role": "narration", "text": "She found the bird."},
+        ],
+        "ffmpeg_camera": {"narration_motion": "static"},
+    }
+    timing = {
+        "duration": 8,
+        "lines": [
+            {"role": "narration", "text": "Mina smiled.", "start": 0, "end": 3},
+            {"role": "narration", "text": "She found the bird.", "start": 4, "end": 7},
+        ],
+    }
+    grounding = {
+        "status": "no_qa",
+        "band": "bottom",
+        "picture": {"width": 1600, "height": 900},
+        "narration_text": page["lines"],
+        "narration": [{"line": 1, "target": {"x": 0.7, "y": 0.4, "zoom": 1.8}}],
+    }
+    section = timeline.page_section(page, timing, cfg, "page_01", grounding)
+    assert section.camera.narration_cues[0][0] == round((cfg.lead_in + 4) * cfg.fps)
+    assert section.camera.narration_cues[0][2] == pytest.approx((1.8, 0.7, 0.4))
+    changed = {**page, "lines": [{"role": "narration", "text": "Different story."}]}
+    assert not timeline.page_section(
+        changed, timing, cfg, "page_01", grounding
+    ).camera.narration_cues

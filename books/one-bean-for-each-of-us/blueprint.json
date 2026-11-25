@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "sunny-patience",
+    "label": "Sunny Patience",
+    "summary": "An eager morning ritual softens into delight at the small changes each cousin can see.",
+    "roles": {
+      "storyteller": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Leave a small breath between descriptions of the two pots."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "lively",
+        "quirk": "Stretch the second ‘up’ like a stem reaching for light."
+      },
+      "kid_younger": {
+        "pace": "brisk",
+        "energy": "lively",
+        "quirk": "Say ‘little bean’ like a greeting to a friend just waking up."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "animated-storybook",
+    "medium_label": "Animated Storybook",
+    "palette": [
+      {
+        "name": "Blueberry Ink",
+        "hex": "#252666"
+      },
+      {
+        "name": "Mulberry Pot",
+        "hex": "#A14E92"
+      },
+      {
+        "name": "Pea Shoot",
+        "hex": "#9AC47B"
+      },
+      {
+        "name": "Periwinkle Window",
+        "hex": "#929BDF"
+      },
+      {
+        "name": "Pink Chalk",
+        "hex": "#F5C9DC"
+      }
+    ],
+    "line": "Clean tapered contours; use coloured edges instead of heavy black outlines.",
+    "lighting": "Soft warm light with one simple shadow tone; no dramatic lighting.",
+    "composition": "Large expressive characters, one focal action, two or three broad background shapes and clear space around faces and hands.",
+    "style_prompt_prefix": "Original Giggle & Snooze character design: expressive asymmetric poses, rounded bean and crescent shapes, warm playful faces, a small visual joke and a calm cosy atmosphere. Clean contemporary shapes, generous breathing room, one clear story action. Simplify hair, clothing and scenery into broad shapes; include only story-relevant props. Contemporary 2D animation shapes, distinctive silhouettes, expressive eyes, smooth colour fills and restrained soft shading.",
+    "avoid": [
+      "aged paper, sepia washes and vintage styling",
+      "heavy brush texture, grain and crosshatching",
+      "ornate decoration and cluttered scenery",
+      "individual fur strands and intricate clothing detail",
+      "photorealism, glossy 3D and cinematic lighting",
+      "existing franchise characters or imitation of an artist"
+    ]
+  },
+  "qa": {
+    "format_key": "windowsill-drawing-detectives",
+    "format_label": "Windowsill Drawing Detectives",
+    "question_types": [
+      "find-a-visible-detail",
+      "match-drawing-to-pot",
+      "compare-the-same-pot-over-time"
+    ],
+    "intro_hook": "Say ‘Up, up, little bean!’ with us. What would you draw in each pot this morning?",
+    "outro_hook": "Which little change would you add to the last drawing?",
+    "moments_min": 3,
+    "moments_max": 4,
+    "kid_notes": {
+      "kid_older": "Ask children to match a drawing to its pot and spot a change since yesterday.",
+      "kid_younger": "Lead the chant, pause for pointing or a word, and notice a detail in each pot."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "birds_morning"
+    ],
+    "sfx": [
+      "page_flip"
+    ],
+    "music_direction": "Use sparse, soft piano. Leave room for the chant and drawing pauses. Use the same brief phrase when each sprout appears."
+  },
+  "animation": {
+    "intensity": 0.55,
+    "effects": [
+      "glow"
+    ]
+  },
+  "rationale": "At a periwinkle kitchen window, Rafi has a tall bean silhouette and one curl. His cousin has a low crescent silhouette and swooping fringe. Both lean at the angle of the first crooked sprout. Repeat the pot framing in soft morning glow so the drawings let children follow each bean’s changes over the week."
+}

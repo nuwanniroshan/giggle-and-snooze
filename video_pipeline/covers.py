@@ -179,7 +179,7 @@ def _art_block(book: dict, art: dict | None) -> str:
 def _logo_rule(settings: CoverSettings) -> str:
     return (
         f'- Do not add the "{settings.logo_name}" (Giggle and Snooze) logo, channel name, '
-        'publisher mark, branding badge or watermark anywhere on the cover. '
+        "publisher mark, branding badge or watermark anywhere on the cover. "
         f"Keep the title, subtitle and main character at least {settings.safe_side_pct}% of the finished "
         "cover's width away from the left and right edges and at least "
         f"{settings.safe_top_bottom_pct}% from the top and bottom edges."
@@ -191,7 +191,9 @@ def cover_request(book: dict, art: dict | None, stem: str, settings: CoverSettin
     shape = settings.shapes.get(stem)
     if shape is None:
         raise CoverError(f"no cover shape for '{stem}' in {SETTINGS_FILE}")
-    meta = book.get("metadata") or {}
+    meta = dict(book.get("metadata") or {})
+    if stem == "cover_front":
+        meta["subtitle"] = ""
     parts = [
         "Create the finished FRONT COVER of a children's picture book, "
         f"{shape.frame}. Keep everything important inside the safe area described below.",
@@ -205,7 +207,14 @@ def cover_request(book: dict, art: dict | None, stem: str, settings: CoverSettin
         "Reference image 1, when supplied, is a page from this book: "
         "keep the characters' looks exactly as shown there."
     )
-    rules = [f"- {rule}" for rule in settings.layout_rules] + [_logo_rule(settings)]
+    layout_rules = settings.layout_rules
+    if stem == "cover_front":
+        layout_rules = [
+            "Place only the exact book title in the middle of the frame, horizontally and vertically centered as a balanced multiline block. No subtitle or other text.",
+            "Large highly legible hand-painted brush lettering with imperfect edges, visible bristle breaks and light pencil strokes, matching the illustration. Keep characters and props clear of the title.",
+            "Frame the central title with distinctive characters and sparse scenery; use vibrant local colours and fresh paper breathing room.",
+        ]
+    rules = [f"- {rule}" for rule in layout_rules] + [_logo_rule(settings)]
     parts.append("Cover layout, like a real published picture book cover:\n" + "\n".join(rules))
     looks = cover_characters_text(book)
     if looks:

@@ -49,7 +49,7 @@
   },
   "animation": {
     "enabled": true,
-    "intensity": 1.0,
+    "intensity": 1.4,
     "ease_in_s": 1.0,
     "parallax_max_shift": 0.006,
     "parallax_period_s": 9.0,

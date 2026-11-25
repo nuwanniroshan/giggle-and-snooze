@@ -1,0 +1,71 @@
+{
+  "page_number": 7,
+  "picture": {
+    "file": "page_07.png",
+    "sha256": "3969442f144f6354111e55bd3d49eb23e7ce3fd7ea9cce5bb0d61976aec27472",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-24T18:05:52+00:00",
+  "layers": [
+    {
+      "name": "yellow_pot_plant",
+      "description": "The entire visible green bean plant in the real yellow pot, with all three leaves and their joined stems.",
+      "box": [
+        1165,
+        458,
+        1471,
+        630
+      ],
+      "include_points": [
+        [
+          1225,
+          510
+        ],
+        [
+          1360,
+          484
+        ],
+        [
+          1418,
+          547
+        ],
+        [
+          1296,
+          614
+        ]
+      ],
+      "exclude_points": [
+        [
+          1142,
+          552
+        ],
+        [
+          1280,
+          638
+        ],
+        [
+          1376,
+          651
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        1296,
+        625
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 0.65,
+          "period_s": 8.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

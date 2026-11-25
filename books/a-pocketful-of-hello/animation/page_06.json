@@ -1,0 +1,143 @@
+{
+  "page_number": 6,
+  "picture": {
+    "file": "page_06.png",
+    "sha256": "a31a4975a6174e894bdb416aaaf71befb872a6e5b041110fa9326f99de6aefb6",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T07:58:24+00:00",
+  "layers": [
+    {
+      "name": "mina",
+      "description": "Keep Mina’s full visible silhouette together for a gentle giggle breath anchored where she sits on the wall. Include both puff buns, bangs, face, both hands and arms, peach shirt, teal overalls and both red shoes. Tavi stays still to preserve their hold on the frog, and the frog and bird stay still to preserve the foot-to-beak touch. The tree crown and large side bushes meet the frame edges. Keep the wall, shadows and lower band still.",
+      "box": [
+        253,
+        117,
+        608,
+        785
+      ],
+      "include_points": [
+        [
+          302,
+          207
+        ],
+        [
+          347,
+          157
+        ],
+        [
+          526,
+          148
+        ],
+        [
+          384,
+          236
+        ],
+        [
+          486,
+          194
+        ],
+        [
+          488,
+          331
+        ],
+        [
+          457,
+          389
+        ],
+        [
+          491,
+          401
+        ],
+        [
+          562,
+          385
+        ],
+        [
+          578,
+          436
+        ],
+        [
+          419,
+          409
+        ],
+        [
+          488,
+          471
+        ],
+        [
+          420,
+          526
+        ],
+        [
+          550,
+          552
+        ],
+        [
+          402,
+          624
+        ],
+        [
+          534,
+          632
+        ],
+        [
+          353,
+          690
+        ],
+        [
+          514,
+          728
+        ]
+      ],
+      "exclude_points": [
+        [
+          617,
+          185
+        ],
+        [
+          629,
+          427
+        ],
+        [
+          609,
+          507
+        ],
+        [
+          629,
+          544
+        ],
+        [
+          642,
+          389
+        ],
+        [
+          422,
+          113
+        ],
+        [
+          449,
+          790
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        443,
+        531
+      ],
+      "motions": [
+        {
+          "type": "breathe",
+          "amplitude": 0.025,
+          "period_s": 4.4,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

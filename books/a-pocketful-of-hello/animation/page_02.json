@@ -1,0 +1,86 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "8a253f2859aa479abf2f1684638b15b614bff5b490a0eea2252e3316da97508c",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T07:56:46+00:00",
+  "layers": [
+    {
+      "name": "center_hedge",
+      "description": "The rounded hedge behind Mina sways gently about its base. Keep Mina and the foreground lawn out of the cutout. Mina’s upper puff and shoes meet the frame edges, so her complete silhouette stays fixed.",
+      "box": [
+        674,
+        322,
+        1045,
+        451
+      ],
+      "include_points": [
+        [
+          710,
+          391
+        ],
+        [
+          805,
+          356
+        ],
+        [
+          936,
+          402
+        ],
+        [
+          1001,
+          435
+        ]
+      ],
+      "exclude_points": [
+        [
+          672,
+          411
+        ],
+        [
+          711,
+          443
+        ],
+        [
+          869,
+          467
+        ]
+      ],
+      "z": 0,
+      "depth": 0.0,
+      "pivot": [
+        861,
+        447
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.2,
+          "period_s": 5.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          724,
+          462,
+          1345,
+          730
+        ],
+        "layer": null
+      },
+      "intensity": 0.4,
+      "colour": "#ffe389"
+    }
+  ]
+}

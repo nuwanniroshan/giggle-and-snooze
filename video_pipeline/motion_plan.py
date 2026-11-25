@@ -25,6 +25,7 @@ from video_pipeline.agents import (
     codex_status,
     run_codex,
 )
+from video_pipeline.characters import page_characters_text
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import PROJECT_ROOT, BookFolder, LibraryError, book_folder
 
@@ -34,6 +35,7 @@ PLAN_DIR = "animation"
 LIMITS_FILE = "animation.json"
 RESERVED_LAYER_NAMES = frozenset({"background"})  # cut_layers writes background.png
 MAX_SAVES = 3
+MIN_SUBJECT_AREA = 0.05  # new plans need a substantial animated subject, not a tiny detail
 SERVER_FIELDS = ("page_number", "picture", "provider", "written_at")
 
 
@@ -228,6 +230,51 @@ def load_plan(path: Path, limits: Limits) -> MotionPlan:
     return MotionPlan.model_validate(data)
 
 
+def subject_selection_problems(plan: MotionPlan) -> list[str]:
+    """Planning-time visibility gate; legacy plans remain readable and renderable.
+
+    Tight bounding-box area is only a proxy for prominence, not a segmentation guarantee.
+    Small accents are fine alongside a substantial moving subject or scene-wide effect.
+    An explicitly still plan remains a valid fallback when nothing can move safely.
+    """
+    area = plan.picture.width * plan.picture.height
+    if area <= 0:
+        return []  # malformed picture dimensions are not a subject-selection decision
+
+    def share(box):
+        x0, y0, x1, y1 = box
+        return (x1 - x0) * (y1 - y0) / area
+
+    moving = [
+        layer for layer in plan.layers
+        if any(m.amplitude > 0 for m in layer.motions) or layer.depth > 0
+    ]
+    active_effects = [effect for effect in plan.effects if effect.intensity > 0]
+    if not moving and not active_effects:
+        return []
+    if any(share(layer.box) >= MIN_SUBJECT_AREA for layer in moving):
+        return []
+    layers = {layer.name: layer for layer in plan.layers}
+    for effect in active_effects:
+        region = effect.region
+        if effect.intensity < 0.25:
+            continue
+        if region is None or (region.box is None and not region.layer):
+            return []
+        box = region.box if region.box else layers[region.layer].box
+        if share(box) >= MIN_SUBJECT_AREA:
+            return []
+    largest = max((share(layer.box) for layer in moving), default=0)
+    return [
+        f"Only small details move (largest moving subject: {largest:.1%} of the frame). "
+        "Assess the main characters first, then substantial scenery. Include a safe moving "
+        "subject with a tight box covering at least 5% of the frame, or a scene-appropriate "
+        "effect over a substantial region. Do not enlarge a box around a tiny object to pass. "
+        "If neither is safe, use motions [], depth 0 and no effects, and explain why in the "
+        "stationary layer's description."
+    ]
+
+
 def save_plan(path: Path, plan: MotionPlan) -> None:
     write_atomic(Path(path), plan.model_dump(mode="json"))
 
@@ -343,6 +390,8 @@ class PlanTools:
             "written_at": datetime.now(UTC).isoformat(timespec="seconds"),
         }
         errors = plan_problems(data, self.limits)
+        if not errors:
+            errors = subject_selection_problems(MotionPlan.model_validate(data))
         if errors:
             return {"saved": False, "errors": errors}
         save_plan(self.out, MotionPlan.model_validate(data))
@@ -354,12 +403,27 @@ The picture is attached. It is {width}x{height} pixels; all coordinates are in t
 Page text: {text}
 What the picture shows: {prompt}
 Characters: {characters}
-Choose 1-{max_layers} safe, isolated whole shapes worth moving (clouds, detached leaves, \
-or a whole character with clear space around it). This is cutout animation, not skeletal rigging. \
+Choose 1-{max_layers} layers by STORY IMPORTANCE and SCREEN PRESENCE, not ease of cutting. \
+First assess every named character shown on this page. Prefer a complete main character with \
+a gentle whole-body sway or breathe about its support point. A seated or grounded character \
+is not automatically unsafe: keep its support point anchored and depth 0. Next consider \
+substantial scenery such as a large bush, tree crown, curtain or water region. Only then add \
+small clouds, grass tufts or props as secondary accents. At least one moving subject's tight \
+box must cover 5% of the frame, or use a scene-appropriate effect over a substantial region. \
+Never pad boxes to meet this requirement. Tiny details alone will be refused by the save tool. \
+This is cutout animation, not skeletal rigging. \
 Do not detach heads, limbs, facial features, shells or overlapping body parts: there is no \
 reconstructed joint or hidden anatomy behind them. Do not move a shape clipped by the frame. \
-Prefer one clean movement over several risky ones. If nothing can move cleanly, use one layer \
-with motions [] and depth 0, and let the camera supply motion. Include points on every intended \
+Prefer one clean movement over several risky ones. Aim for at least one clearly visible local \
+movement during normal playback, not just camera zoom. A plant can sway about its soil-line \
+pivot while its pot stays fixed; grounded does not mean motionless. Choose a sufficiently large \
+safe subject and amplitude to read at video size: a tiny shape rotating a fraction of a degree \
+is effectively still. Use the allowed limits below without exceeding them. If nothing can move \
+cleanly, consider a scene-appropriate effect over a meaningful area; do not add unrelated weather \
+or decorative effects just to pass this check. Only when neither movement nor an effect is safe, \
+use one layer with motions [] and depth 0; explain why the main characters and substantial \
+scenery cannot move safely in that layer's description and your final line. \
+Include points on every intended \
 component; exclude nearby characters. Use depth 0 for grounded subjects to avoid sliding. \
 For each: name (snake_case), description, a tight box \
 [x0,y0,x1,y1], optional include_points/exclude_points, z (higher = in front), depth \
@@ -369,7 +433,13 @@ max {shift}; scale fraction for breathe max {breathe}; period_s {pmin}-{pmax}; p
 shift needs direction [dx,dy] with each in -1..1, not both 0). Add 0-{max_effects} effects from {effects} that fit the scene, \
 each with intensity 0-1, optional region {{"box": [...]}} or {{"layer": name}}, optional \
 colour #rrggbb.
-Keep everything subtle. Call save_motion_plan with {{"layers": [...], "effects": [...]}}; \
+Keep movement gentle but perceptible, with a visible change within 2-4 seconds. Check that the \
+chosen amplitudes and effect area/intensity will be visible at normal viewing size, rather than \
+only when zoomed in. For isolated subjects with enough clearance, aim around 60-90% of the \
+allowed amplitude and periods of 3-6 seconds; use smaller values when clearance requires it. \
+For scene-appropriate effects, start around intensity 0.4-0.7 rather than near-zero values. \
+These are visual targets, not minimums: avoid clipping, sliding feet or distracting motion. \
+Call save_motion_plan with {{"layers": [...], "effects": [...]}}; \
 fix every error it returns and save again (at most {saves} saves). Finish with one short line."""
 
 
@@ -397,7 +467,9 @@ def read_planning(root: Path) -> tuple[int, float]:
 
 def plan_prompt(page: dict, book: dict, picture: PictureId, limits: Limits) -> str:
     style = book.get("style_bible") or {}
-    characters = " ".join(str(v) for k, v in style.items() if k.endswith("_description") and v)
+    characters = page_characters_text(book, page) or " ".join(
+        str(v) for k, v in style.items() if k.endswith("_description") and v
+    )
     return PLAN_PROMPT.format(
         width=picture.width,
         height=picture.height,
@@ -436,17 +508,19 @@ def plan_page(
     force: bool = False,
     provider: Provider | None = None,
 ) -> PlanOutcome:
-    """Plan one page: keep an existing valid, current plan (unless forced), else run the agent
+    """Plan one page: keep a valid, current plan with substantial subjects (unless forced), else run the agent
     until it saves a valid plan or the attempts run out, feeding back the refusals. A stale
     (picture changed) or invalid plan is replanned without force; the old file stays as .bak."""
     number = int(page["page_number"])
     target, picture = plan_path(folder, number), page_picture(folder, page)
     replanned = ""
     if target.exists() and not force:
-        state = plan_state(folder, page, limits).state
-        if state not in ("stale", "invalid"):
+        current = plan_state(folder, page, limits)
+        state = current.state
+        weak_subjects = state == "ok" and current.plan and subject_selection_problems(current.plan)
+        if state not in ("stale", "invalid") and not weak_subjects:
             return PlanOutcome(number, "kept")
-        replanned = f"replanned: {state} plan"
+        replanned = "replanned: only small details moved" if weak_subjects else f"replanned: {state} plan"
     if not picture.is_file():
         return PlanOutcome(number, "failed", f"{picture.name} is missing")
     attempts, time_limit = read_planning(root)
@@ -486,6 +560,9 @@ def plan_page(
                 continue
             try:
                 plan = load_plan(out, limits)  # the tool validated it; check again on the way in
+                selection_errors = subject_selection_problems(plan)
+                if selection_errors:
+                    raise PlanError("; ".join(selection_errors))
             except PlanError as exc:
                 feedback = [str(exc)]
                 out.unlink(missing_ok=True)

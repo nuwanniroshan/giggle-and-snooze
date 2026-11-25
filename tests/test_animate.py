@@ -672,6 +672,49 @@ def test_override_number_scales_the_intensity(tmp_path):  # FR-9
     assert el.animated and el.scale == pytest.approx(0.75)
 
 
+@pytest.mark.parametrize("amplitude", [None, 0.0])
+def test_motionless_plan_uses_camera_only(tmp_path, amplitude):
+    folder, ah = _eligible_world(tmp_path)
+    motions = (
+        [] if amplitude is None else [{"type": "sway", "amplitude": amplitude, "period_s": 6.0}]
+    )
+    ah.write_plan(folder, layers=[ah.layer(depth=0, motions=motions)])
+    el = _eligibility(folder)
+    assert not el.animated
+    assert "camera only" in el.reason
+
+
+def test_stationary_layer_with_glow_is_animated(tmp_path):
+    folder, ah = _eligible_world(tmp_path)
+    ah.write_plan(
+        folder, layers=[ah.layer(depth=0, motions=[])], effects=[{"type": "glow", "intensity": 0.5}]
+    )
+    assert _eligibility(folder).animated
+
+
+def test_parallax_counts_only_when_enabled(tmp_path):
+    folder, ah = _eligible_world(tmp_path)
+    ah.write_plan(folder, layers=[ah.layer(depth=0.5, motions=[])])
+    assert _eligibility(folder).animated
+    assert not _eligibility(folder, settings=AnimationSettings(parallax_max_shift=0)).animated
+
+
+def test_empty_cut_cannot_supply_motion_or_layer_effect(tmp_path):
+    folder, ah = _eligible_world(tmp_path)
+    ah.write_plan(
+        folder,
+        layers=[ah.layer(name="nothing")],
+        effects=[{"type": "glow", "intensity": 0.5, "region": {"layer": "nothing"}}],
+    )
+    ah.cut(folder, pages=[1])
+    assert not _eligibility(folder).animated
+
+
+def test_zero_intensity_is_camera_only(tmp_path):
+    folder, _ah = _eligible_world(tmp_path)
+    assert not _eligibility(folder, settings=AnimationSettings(intensity=0)).animated
+
+
 def test_animation_off_is_still(tmp_path):
     folder, _ah = _eligible_world(tmp_path)
     el = _eligibility(folder, settings=AnimationSettings(enabled=False))

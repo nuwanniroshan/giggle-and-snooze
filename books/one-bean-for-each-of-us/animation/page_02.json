@@ -1,0 +1,66 @@
+{
+  "page_number": 2,
+  "picture": {
+    "file": "page_02.png",
+    "sha256": "f3c242dcd6481676140f2bb4381d8e60383125ef1232daa4794cbf48405adf21",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-24T17:59:57+00:00",
+  "layers": [
+    {
+      "name": "tabletop_morning_light",
+      "description": "The fixed diagonal stripe of morning light on the front-center tabletop.",
+      "box": [
+        630,
+        703,
+        805,
+        732
+      ],
+      "include_points": [
+        [
+          686,
+          719
+        ],
+        [
+          740,
+          712
+        ]
+      ],
+      "exclude_points": [
+        [
+          640,
+          730
+        ],
+        [
+          797,
+          729
+        ]
+      ],
+      "z": 0,
+      "depth": 0.0,
+      "pivot": [
+        721,
+        721
+      ],
+      "motions": []
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          655,
+          707,
+          780,
+          729
+        ],
+        "layer": null
+      },
+      "intensity": 0.08,
+      "colour": "#ffd68a"
+    }
+  ]
+}

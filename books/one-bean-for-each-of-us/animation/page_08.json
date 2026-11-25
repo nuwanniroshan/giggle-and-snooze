@@ -1,0 +1,79 @@
+{
+  "page_number": 8,
+  "picture": {
+    "file": "page_08.png",
+    "sha256": "84dca6a9a0aa5468c326eb5e01548d1efa59670a4b98a974315152de3f08c529",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-24T18:06:59+00:00",
+  "layers": [
+    {
+      "name": "yellow_pot_seedling",
+      "description": "The whole green seedling in the yellow pot, including its stem and all three leaves.",
+      "box": [
+        734,
+        67,
+        943,
+        240
+      ],
+      "include_points": [
+        [
+          784,
+          111
+        ],
+        [
+          864,
+          88
+        ],
+        [
+          902,
+          172
+        ],
+        [
+          842,
+          142
+        ],
+        [
+          854,
+          223
+        ]
+      ],
+      "exclude_points": [
+        [
+          853,
+          245
+        ],
+        [
+          950,
+          161
+        ],
+        [
+          927,
+          130
+        ],
+        [
+          768,
+          149
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        851,
+        237
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.2,
+          "period_s": 8.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

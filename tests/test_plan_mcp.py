@@ -81,6 +81,30 @@ def test_save_limit(tools):
     assert not tools.out.exists()
 
 
+def test_tiny_only_motion_is_refused_but_main_character_passes(tools):
+    tuft = make_layer("grass", box=[815, 591, 890, 632], depth=0)
+    result = tools.save_motion_plan(body(layers=[tuft], effects=[]))
+    assert not result["saved"]
+    assert "Only small details move" in result["errors"][0]
+    assert not tools.out.exists()
+    result = tools.save_motion_plan(body(layers=[make_layer("mina"), tuft], effects=[]))
+    assert result["saved"]
+
+
+def test_stationary_large_box_cannot_hide_tiny_only_motion(tools):
+    still = make_layer("mina", motions=[], depth=0)
+    tuft = make_layer("grass", box=[815, 591, 890, 632], depth=0)
+    assert not tools.save_motion_plan(body(layers=[still, tuft], effects=[]))["saved"]
+
+
+def test_effect_must_cover_substantial_area_or_plan_can_be_camera_only(tools):
+    still = make_layer(motions=[], depth=0)
+    tiny_glow = {"type": "glow", "intensity": 0.6, "region": {"box": [10, 10, 30, 30]}}
+    assert not tools.save_motion_plan(body(layers=[still], effects=[tiny_glow]))["saved"]
+    assert tools.save_motion_plan(body(layers=[still], effects=[]))["saved"]
+    assert tools.save_motion_plan(body(layers=[still], effects=[{"type": "rain", "intensity": 0.5}]))["saved"]
+
+
 def test_server_args_and_tools_come_from_argv(tmp_path, picture):
     out = tmp_path / "o.json"
     args = plan_mcp.parse_args(

@@ -1,0 +1,48 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "d7adc15befbdc6b51aa828c4f8b3eeee6d937e4704946cfb25e66d2428f0a930",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T18:53:19+00:00",
+  "status": "no_qa",
+  "reason": "",
+  "subject": null,
+  "target": null,
+  "band": "bottom",
+  "narration": [
+    {
+      "line": 0,
+      "phrase": "whisk with yellow ribbon",
+      "target": {
+        "x": 0.4473,
+        "y": 0.3611,
+        "zoom": 2.0
+      }
+    },
+    {
+      "line": 1,
+      "phrase": "coral kite above rooftops",
+      "target": {
+        "x": 0.8607,
+        "y": 0.2037,
+        "zoom": 2.0
+      }
+    }
+  ],
+  "narration_text": [
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "Zella borrowed the tiny whisk. She brought it back with a yellow ribbon tied to the handle."
+    },
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "“I waved it to whisk up the wind. The wind lifted my kite right over the rooftops.” <gasp>"
+    }
+  ]
+}

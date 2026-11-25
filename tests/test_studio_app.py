@@ -860,7 +860,7 @@ def _animated(tmp_path, commands=None):
     for n in (1, 2):
         ah.write_picture(folder, n)
     effect = {"type": "fireflies", "region": {"box": [0, 0, 32, 24]}, "intensity": 0.4}
-    two = [ah.layer(), ah.layer("lamp", box=[2, 30, 12, 44], z=2, pivot=[7, 44])]
+    two = [ah.layer(), ah.layer("lamp", box=[2, 30, 12, 44], z=2, pivot=[7, 44], include_points=[[7, 37]])]
     ah.write_plan(folder, 1, layers=two, effects=[effect])
     return Studio(tmp_path, commands), folder, ah
 
@@ -1127,6 +1127,26 @@ def test_animation_view_shows_an_animated_page(voiced):  # AC-4.3
     html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
     row = re.search(r"Page 4</a>.*?</li>", html, re.S).group(0)
     assert "animated" in text_of(row) and "still" not in text_of(row)
+
+
+def test_animation_view_reports_camera_only_plan(voiced):
+    s, world, ah = voiced
+    ah.write_plan(world["folder"], 4, layers=[ah.layer(depth=0, motions=[])])
+    ah.cut(world["folder"], pages=[4])
+    html = s.client.get(f"/books/{PILOT_SLUG}/animation").text
+    row = re.search(r"Page 4</a>.*?</li>", html, re.S).group(0)
+    assert "camera only" in text_of(row)
+    assert "animated" not in text_of(row)
+    detail = s.client.get(f"/books/{PILOT_SLUG}/animation/4").text
+    assert "camera only" in text_of(detail)
+
+
+def test_animation_view_warns_when_only_tiny_details_move(voiced):
+    s, world, ah = voiced
+    ah.write_plan(world["folder"], 4, layers=[ah.layer(box=(20, 12, 23, 15), depth=0)])
+    for suffix in ("animation", "animation/4"):
+        html = s.client.get(f"/books/{PILOT_SLUG}/{suffix}").text
+        assert "Only small details animate" in text_of(html)
 
 
 def test_page_view_plays_an_existing_preview(voiced):  # AC-6.2

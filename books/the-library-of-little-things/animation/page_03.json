@@ -1,0 +1,188 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "d7adc15befbdc6b51aa828c4f8b3eeee6d937e4704946cfb25e66d2428f0a930",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T12:29:22+00:00",
+  "layers": [
+    {
+      "name": "bea",
+      "description": "Bea gently sways as she looks up, with her full silhouette, curls, clothes, copper key and both boots moving together around her planted stance. Zella holds her pose so her outstretched hand, whisk and long yellow ribbon stay aligned.",
+      "box": [
+        284,
+        177,
+        636,
+        785
+      ],
+      "include_points": [
+        [
+          365,
+          244
+        ],
+        [
+          485,
+          290
+        ],
+        [
+          476,
+          397
+        ],
+        [
+          522,
+          414
+        ],
+        [
+          467,
+          499
+        ],
+        [
+          511,
+          499
+        ],
+        [
+          577,
+          543
+        ],
+        [
+          476,
+          601
+        ],
+        [
+          539,
+          616
+        ],
+        [
+          454,
+          752
+        ],
+        [
+          575,
+          746
+        ]
+      ],
+      "exclude_points": [
+        [
+          671,
+          347
+        ],
+        [
+          675,
+          273
+        ],
+        [
+          698,
+          308
+        ],
+        [
+          396,
+          529
+        ],
+        [
+          663,
+          554
+        ]
+      ],
+      "z": 2,
+      "depth": 0.0,
+      "pivot": [
+        509,
+        778
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.5,
+          "period_s": 5.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "coral_kite",
+      "description": "The coral kite rocks in the imagined gust, carrying its spars, bow and complete curling coral tail as one cutout.",
+      "box": [
+        1219,
+        6,
+        1413,
+        258
+      ],
+      "include_points": [
+        [
+          1366,
+          14
+        ],
+        [
+          1308,
+          64
+        ],
+        [
+          1351,
+          78
+        ],
+        [
+          1290,
+          116
+        ],
+        [
+          1271,
+          145
+        ],
+        [
+          1238,
+          155
+        ],
+        [
+          1272,
+          183
+        ],
+        [
+          1337,
+          182
+        ],
+        [
+          1346,
+          224
+        ],
+        [
+          1399,
+          233
+        ]
+      ],
+      "exclude_points": [
+        [
+          1181,
+          128
+        ],
+        [
+          1197,
+          66
+        ],
+        [
+          1243,
+          99
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        1334,
+        70
+      ],
+      "motions": [
+        {
+          "type": "rotate",
+          "amplitude": 3.2,
+          "period_s": 5.0,
+          "phase": 0.2,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

@@ -1,0 +1,126 @@
+{
+  "metadata": {
+    "cover_style": "titled",
+    "grade_level": "Grades 1–3",
+    "trim_size_inches": [
+      8.5,
+      8.5
+    ],
+    "bleed_inches": 0.125,
+    "kdp_page_count": 24,
+    "digital_page_count": 7,
+    "isbn_placeholder": "979-8-00000-000-0",
+    "publisher": "Giggle & Snooze",
+    "publication_year": 2026,
+    "illustrator": "",
+    "title": "A Pocketful of Hello",
+    "subtitle": "A Stroller Club Story",
+    "author": "Giggle & Snooze",
+    "age_range": "Ages 4-7",
+    "blurb": "On her first walk with the stroller club, Mina has a hello tucked in her pocket. A folded yellow bird helps it find its way to a new friend.",
+    "dedication": "For everyone with a little hello tucked away."
+  },
+  "style_bible": {
+    "style_prompt_prefix": "Original Giggle & Snooze character design: expressive asymmetric poses, rounded bean and crescent shapes, warm playful faces, a small visual joke and a calm cosy atmosphere. Clean contemporary shapes, generous breathing room, one clear story action. Simplify hair, clothing and scenery into broad shapes; include only story-relevant props. Modern comic-strip cartoons with springy ink contours, expressive eyebrows and flat cheerful colours on clean backgrounds.",
+    "characters": [
+      {
+        "name": "Mina",
+        "look": "Mina is a small, round-cheeked child with warm brown skin, black crescent bangs and two puff buns. She wears teal overalls with a big front pocket, a peach shirt and red shoes."
+      },
+      {
+        "name": "Tavi",
+        "look": "Tavi is a lanky child with light olive skin, a copper curl and one dimple. They wear a lilac jacket with deep patch pockets, navy shorts and yellow high-tops."
+      },
+      {
+        "name": "Davi",
+        "look": "Davi is a tall, soft-bellied adult with deep brown skin, close-cropped black hair and round blue glasses. He wears a moss-green shirt, cream trousers and plum sneakers."
+      }
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "title": "The Stroller Club",
+      "text": "Today was Mina’s first walk with the stroller club. She held Davi’s hand as the wheels rolled down her street. Up ahead, a child waved at every stroller.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Mina holds Davi’s hand on a gently curving neighborhood sidewalk. Davi pushes a plum stroller with its canopy down. Farther along the curve, Tavi waves beside two more canopy-down strollers. Give Tavi a bent-knee wave and leave the lower band clear.",
+      "illustration_file": "page_01.png",
+      "characters_on_page": [
+        "Mina",
+        "Davi",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 2,
+      "title": "A Hello Waiting",
+      "text": "Mina wanted to wave, too. But she felt shy, and her hand stayed in her pocket. Her fingers found a yellow square of paper.",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "Mina tucks one shoulder toward her cheek, with one hand deep in the front pocket of her teal overalls. A yellow paper corner catches against her thumb. A plum stroller wheel grazes the edge of the frame. Keep the top right clear.",
+      "illustration_file": "page_02.png",
+      "characters_on_page": [
+        "Mina"
+      ]
+    },
+    {
+      "page_number": 3,
+      "title": "Fold and Tuck",
+      "text": "Mina sat on a low wall. She folded a wing, then folded another. She tucked her bird into her pocket, with its beak peeking out.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Mina sits on a low, rounded garden wall, one shoe swinging. She tucks a small folded yellow bird with two broad wings into her bib pocket, leaving the pointed beak and wing tips visible. Keep the lower band clear.",
+      "illustration_file": "page_03.png",
+      "characters_on_page": [
+        "Mina"
+      ]
+    },
+    {
+      "page_number": 4,
+      "title": "Peek, Little Bird",
+      "text": "The child came back along the wall. Mina tipped her pocket their way. Peek, little bird. The child stopped and smiled.",
+      "layout": "full_bleed_card_top_left",
+      "prompt": "Mina leans sideways on the garden wall so the yellow bird’s beak peeks toward Tavi. Tavi pauses mid-step, one heel raised and one eyebrow lifted in a smile. Leave open space at the top left.",
+      "illustration_file": "page_04.png",
+      "characters_on_page": [
+        "Mina",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 5,
+      "title": "A Pocket Frog",
+      "text": "The child reached into a pocket, too. Out came a green paper frog. Peek, little frog. It waved one folded foot.",
+      "layout": "full_bleed_card_bottom_left",
+      "prompt": "Tavi offers a folded leaf-green paper frog at Mina’s eye level and wiggles one folded corner like a waving foot. Mina’s eyes brighten above the yellow beak in her pocket. Place both children above and to the right of the clear bottom-left corner.",
+      "illustration_file": "page_05.png",
+      "characters_on_page": [
+        "Mina",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 6,
+      "title": "Room for Two",
+      "text": "“I’m Tavi,” said the child. Mina scooted over to make room. Tavi sat down, and the frog hopped right up to the bird. Mina giggled.",
+      "layout": "image_top_text_bottom",
+      "prompt": "Mina and Tavi sit shoulder to shoulder on the low wall with their feet angled in opposite directions. Tavi holds the green frog close to the yellow bird, its folded foot just touching the beak. Frame Mina’s giggle and leave the lower band clear.",
+      "illustration_file": "page_06.png",
+      "characters_on_page": [
+        "Mina",
+        "Tavi"
+      ]
+    },
+    {
+      "page_number": 7,
+      "title": "Side by Side",
+      "text": "When the wheels started rolling again, Tavi walked beside Mina. The bird peeked from one pocket. The frog peeked from another. And the two friends took the long way home.",
+      "layout": "full_bleed_card_top_right",
+      "prompt": "Mina and Tavi stroll side by side behind Davi and the plum stroller on a broad, sunlit sidewalk. Show the yellow beak and green frog peeking from the children’s pockets, angled toward each other. Ahead, the sidewalk curves around a low garden wall. Leave the top right clear.",
+      "illustration_file": "page_07.png",
+      "characters_on_page": [
+        "Mina",
+        "Tavi",
+        "Davi"
+      ]
+    }
+  ]
+}

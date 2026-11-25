@@ -19,14 +19,29 @@
     "blurb": "When a lighthouse hiccups right off its hill, Mira and Pip follow its bouncing beam through a blustery night. A little calm and a little kindness help bring the light—and the boats—home.",
     "dedication": "For anyone who needs a little breath and a kind friend."
   },
-  "style_bible": {},
+  "style_bible": {
+    "medium_key": "paper-cut",
+    "medium_label": "Paper Cutout",
+    "style_prompt_prefix": "Original Giggle & Snooze character design: expressive asymmetric poses, rounded bean and crescent shapes, warm playful faces, a small visual joke and a calm cosy atmosphere. Clean contemporary shapes, generous breathing room, one clear story action. Simplify hair, clothing and scenery into broad shapes; include only story-relevant props. Layered cut-paper cartoons with broad scalloped shapes, crisp cut edges, overlapping colour planes and playful off-centre silhouettes.",
+    "line": "No drawn outlines; define forms with clean cut-paper edges.",
+    "lighting": "Small soft shadows between paper layers; matte colours, no glossy highlights.",
+    "composition": "Stage-like layers, bold readable silhouettes and simple curved scenery framing one expressive action.",
+    "avoid": [
+      "aged paper, sepia washes and vintage styling",
+      "heavy brush texture, grain and crosshatching",
+      "ornate decoration and cluttered scenery",
+      "individual fur strands and intricate clothing detail",
+      "photorealism, glossy 3D and cinematic lighting",
+      "existing franchise characters or imitation of an artist"
+    ]
+  },
   "pages": [
     {
       "page_number": 1,
       "title": "HIC!",
       "text": "Mira polished the lighthouse lamp while Pip fluffed his feathers. Then—HIC!—the lighthouse lifted its little stone feet and bounced off the hill. Its beam bobbed away, so Mira grabbed her raincoat and followed.",
       "layout": "image_top_text_bottom",
-      "prompt": "Warm whimsical watercolor picture book, soft navy and golden yellow palette. Mira is a small lighthouse keeper with brown skin, dark curly hair, a yellow raincoat, red boots and a lantern; Pip is a small white seagull with gray wings and orange beak. A friendly white lighthouse with red roof, expressive windows and little rounded stone feet hiccups and hops gently off a grassy hill onto a winding path. Its golden beam swings skyward. Breezy rainy evening, cozy playful mood, no danger. Establish consistent character designs.",
+      "prompt": "Warm whimsical cut-paper cartoon picture book, soft navy and golden yellow palette. Mira is a small lighthouse keeper with brown skin, dark curly hair, a yellow raincoat, red boots and a lantern; Pip is a small white seagull with gray wings and orange beak. A friendly white lighthouse with red roof, expressive windows and little rounded stone feet hiccups and hops gently off a grassy hill onto a winding path. Its golden beam swings skyward. Breezy rainy evening, cozy playful mood, no danger. Establish consistent character designs.",
       "illustration_file": "page_01.png"
     },
     {
@@ -34,7 +49,7 @@
       "title": "The Forest Path",
       "text": "HIC! The lighthouse bounced into the forest, where branches tickled its lamp. “Slow feet, soft voice,” said Mira, easing the branches aside. With room to move, the lighthouse followed her down the path.",
       "layout": "full_bleed_card_top_left",
-      "prompt": "Whimsical watercolor, consistent brown-skinned curly-haired Mira in yellow raincoat and red boots, white and gray seagull Pip, white lighthouse with red roof and tiny stone feet. Forest path at rainy dusk, Mira gently moving leafy branches away from lighthouse lamp, Pip perched nearby, warm golden light among soft green trees. Friendly lighthouse leaning forward to follow Mira. Leave quiet pale space at top left for text.",
+      "prompt": "Whimsical cut-paper cartoon, consistent brown-skinned curly-haired Mira in yellow raincoat and red boots, white and gray seagull Pip, white lighthouse with red roof and tiny stone feet. Forest path at rainy dusk, Mira gently moving leafy branches away from lighthouse lamp, Pip perched nearby, warm golden light among soft green trees. Friendly lighthouse leaning forward to follow Mira. Leave quiet pale space at top left for text.",
       "illustration_file": "page_02.png"
     },
     {
@@ -42,7 +57,7 @@
       "title": "One Step, Then Two",
       "text": "A stream burbled across the path, and the lighthouse stopped with a shiver. Pip found a wide stone bridge just around the bend. “One step, then two,” called Mira, and the lighthouse crossed with a tiny hic.",
       "layout": "image_top_text_bottom",
-      "prompt": "Gentle watercolor picture book scene. Consistent Mira in yellow raincoat and red boots guides small friendly white lighthouse with red roof and stone feet across a broad low stone bridge over a shallow burbling woodland stream. Pip the white and gray seagull shows the way from bridge railing. Lighthouse fits comfortably on bridge. Rain makes small rings in water; warm beam illuminates safe crossing, no peril.",
+      "prompt": "Gentle cut-paper cartoon picture book scene. Consistent Mira in yellow raincoat and red boots guides small friendly white lighthouse with red roof and stone feet across a broad low stone bridge over a shallow burbling woodland stream. Pip the white and gray seagull shows the way from bridge railing. Lighthouse fits comfortably on bridge. Rain makes small rings in water; warm beam illuminates safe crossing, no peril.",
       "illustration_file": "page_03.png"
     },
     {
@@ -50,7 +65,7 @@
       "title": "Lost in the Fog",
       "text": "On the shore, fog wrapped the lighthouse in a fluffy gray scarf. HIC! Its beam swung round and round, so Mira rang her little bell. “Follow the ding,” she said, and the lighthouse followed her sound.",
       "layout": "full_bleed_card_top_right",
-      "prompt": "Soft watercolor foggy shore, consistent Mira with brown skin and curly hair in yellow raincoat holding a small brass bell and lantern, Pip flying close beside her. Friendly white red-roofed lighthouse with little stone feet follows on firm sandy shore, golden beam making gentle swirls in pearly fog. Cozy visibility around characters, no danger. Reserve light uncluttered top right for text.",
+      "prompt": "Soft cut-paper cartoon foggy shore, consistent Mira with brown skin and curly hair in yellow raincoat holding a small brass bell and lantern, Pip flying close beside her. Friendly white red-roofed lighthouse with little stone feet follows on firm sandy shore, golden beam making gentle swirls in pearly fog. Cozy visibility around characters, no danger. Reserve light uncluttered top right for text.",
       "illustration_file": "page_04.png"
     },
     {
@@ -58,7 +73,7 @@
       "title": "Rumble, Rumble",
       "text": "Thunder rumbled over the sea, and the lighthouse gave a great big HIC! “That was loud,” said Mira, sitting beside it in a sheltered cove. Pip tucked close, and together they waited until the rumble rolled away.",
       "layout": "image_top_text_bottom",
-      "prompt": "Warm reassuring watercolor. Consistent Mira in yellow raincoat and Pip seagull sit close to friendly red-roofed white lighthouse beneath an ample rocky overhang on high dry ground beside the sea. Rounded purple rain clouds recede offshore, soft rippling sea, lighthouse golden light makes shelter cozy. Lighthouse visibly relaxing, stone feet resting. No lightning, no threatening waves, no peril.",
+      "prompt": "Warm reassuring cut-paper cartoon. Consistent Mira in yellow raincoat and Pip seagull sit close to friendly red-roofed white lighthouse beneath an ample rocky overhang on high dry ground beside the sea. Rounded purple rain clouds recede offshore, soft rippling sea, lighthouse golden light makes shelter cozy. Lighthouse visibly relaxing, stone feet resting. No lightning, no threatening waves, no peril.",
       "illustration_file": "page_05.png"
     },
     {
@@ -66,7 +81,7 @@
       "title": "A Little Breath",
       "text": "“I tried to shine past all the clouds,” whispered the lighthouse. “But now my light keeps jumping.” “You can rest a moment,” said Mira, and they breathed in slowly, then blew out softly—whooooo.",
       "layout": "full_bleed_card_bottom_left",
-      "prompt": "Intimate gentle watercolor in cozy sheltered seaside cove. Consistent Mira brown-skinned curly-haired child in yellow raincoat models a slow breath beside friendly white lighthouse with red roof, expressive glowing windows and tiny stone feet; Pip rests against her shoulder. Lighthouse glow becoming steady, small illustrated soft breeze curls without lettering. Rain thinning outside shelter. Clear quiet pale area bottom left for story text.",
+      "prompt": "Intimate gentle cut-paper cartoon in cozy sheltered seaside cove. Consistent Mira brown-skinned curly-haired child in yellow raincoat models a slow breath beside friendly white lighthouse with red roof, expressive glowing windows and tiny stone feet; Pip rests against her shoulder. Lighthouse glow becoming steady, small illustrated soft breeze curls without lettering. Rain thinning outside shelter. Clear quiet pale area bottom left for story text.",
       "illustration_file": "page_06.png"
     },
     {
@@ -74,7 +89,7 @@
       "title": "One Last Hic",
       "text": "Hic! A tiny jump rattled the lamp shade crooked. Pip nudged it straight, and Mira patted the lighthouse’s warm wall. They tried one more soft whooooo—and this time, the beam stayed still.",
       "layout": "image_top_text_bottom",
-      "prompt": "Whimsical watercolor close view of friendly small white lighthouse red roof with open lamp gallery, Pip white and gray seagull gently straightens tilted golden lamp shade with beak. Consistent Mira in yellow raincoat and red boots pats lighthouse wall lovingly. All on firm dry cove ground, lighthouse relaxed, golden beam now a smooth steady band, clouds parting behind. No written sound effects.",
+      "prompt": "Whimsical cut-paper cartoon close view of friendly small white lighthouse red roof with open lamp gallery, Pip white and gray seagull gently straightens tilted golden lamp shade with beak. Consistent Mira in yellow raincoat and red boots pats lighthouse wall lovingly. All on firm dry cove ground, lighthouse relaxed, golden beam now a smooth steady band, clouds parting behind. No written sound effects.",
       "illustration_file": "page_07.png"
     },
     {
@@ -82,7 +97,7 @@
       "title": "Homeward Light",
       "text": "“The boats will be coming home soon,” said Mira. So they followed the shore, crossed the bridge, and took the forest path uphill. “Slow feet, soft voice,” she said, and the lighthouse walked without a single hiccup.",
       "layout": "full_bleed_card_top_left",
-      "prompt": "Wide watercolor view of winding route from sheltered shore over broad stone bridge through gentle woods to grassy lighthouse hill. Consistent Mira yellow raincoat and red boots leads white red-roofed lighthouse with tiny stone feet uphill in foreground, Pip flying near. Steady golden light, rain stopped, clouds clearing, peaceful sea distant with boats far offshore. Reserve calm sky top left for text.",
+      "prompt": "Wide cut-paper cartoon view of winding route from sheltered shore over broad stone bridge through gentle woods to grassy lighthouse hill. Consistent Mira yellow raincoat and red boots leads white red-roofed lighthouse with tiny stone feet uphill in foreground, Pip flying near. Steady golden light, rain stopped, clouds clearing, peaceful sea distant with boats far offshore. Reserve calm sky top left for text.",
       "illustration_file": "page_08.png"
     },
     {
@@ -90,7 +105,7 @@
       "title": "Shine, Little Light",
       "text": "Back on its hill, the lighthouse settled its feet into the grass. Mira opened the lamp shutters, and a long golden beam stretched over the water. One boat, then two, followed the light into the quiet harbor.",
       "layout": "image_top_text_bottom",
-      "prompt": "Joyful watercolor panoramic harbor night. Friendly white lighthouse red roof firmly settled at original grassy hill overlooking safe calm harbor, steady golden beam across water. Consistent Mira brown skin curly hair yellow raincoat at lamp gallery with Pip white and gray seagull beside her. Two small fishing boats entering protected harbor, cozy lit homes, clearing clouds and stars, no hazard.",
+      "prompt": "Joyful cut-paper cartoon panoramic harbor night. Friendly white lighthouse red roof firmly settled at original grassy hill overlooking safe calm harbor, steady golden beam across water. Consistent Mira brown skin curly hair yellow raincoat at lamp gallery with Pip white and gray seagull beside her. Two small fishing boats entering protected harbor, cozy lit homes, clearing clouds and stars, no hazard.",
       "illustration_file": "page_09.png"
     },
     {
@@ -98,7 +113,7 @@
       "title": "Good Night, Hiccups",
       "text": "With every boat tucked in, Mira made cocoa and Pip nestled in his basket. “Thank you for waiting with me,” murmured the lighthouse. Its light swept softly over the sea, and Mira whispered, “That’s what friends do.”",
       "layout": "full_bleed_card_bottom_right",
-      "prompt": "Warm final watercolor interior of lighthouse keeper room, consistent brown-skinned curly-haired Mira with yellow raincoat hung on peg and red boots beside chair, wearing cozy cream sweater and sipping cocoa. White and gray seagull Pip snuggled in woven basket. Through round window, quiet harbor with moored boats under stars and steady golden lighthouse beam over sea. Loving restful atmosphere, gentle glow suggesting contented lighthouse. Leave uncluttered pale bottom right for text.",
+      "prompt": "Warm final cut-paper cartoon interior of lighthouse keeper room, consistent brown-skinned curly-haired Mira with yellow raincoat hung on peg and red boots beside chair, wearing cozy cream sweater and sipping cocoa. White and gray seagull Pip snuggled in woven basket. Through round window, quiet harbor with moored boats under stars and steady golden lighthouse beam over sea. Loving restful atmosphere, gentle glow suggesting contented lighthouse. Leave uncluttered pale bottom right for text.",
       "illustration_file": "page_10.png"
     }
   ]

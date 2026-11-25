@@ -1,4 +1,4 @@
-"""Spec 025: grounded Q&A camera targets and caption bands, from picture masks."""
+"""Narration focus boxes, grounded Q&A camera targets and caption bands."""
 
 from __future__ import annotations
 
@@ -144,6 +144,24 @@ def problems(data: object) -> list[str]:
                 out.append("target x and y must be in [0, 1]")
             if not (1 <= target["zoom"] <= 2):
                 out.append("target zoom must be in [1, 2]")
+    beats = data.get("narration", [])
+    if not isinstance(beats, list) or len(beats) > 8:
+        out.append("narration must be a list of at most 8 cues")
+    else:
+        previous = -1
+        for beat in beats:
+            if not isinstance(beat, dict):
+                out.append("narration cue must be an object")
+                continue
+            index = beat.get("line")
+            if not isinstance(index, int) or isinstance(index, bool) or index <= previous:
+                out.append("narration line indices must be increasing nonnegative integers")
+            else:
+                previous = index
+            if not isinstance(beat.get("target"), dict):
+                out.append("narration cue requires a target")
+            else:
+                out.extend(problems({"picture": pic, "band": "bottom", "target": beat["target"]}))
     return out
 
 
@@ -193,8 +211,10 @@ def load_groundings(
                     )
                 )
             continue
+        if data.get("narration_text") != page.get("lines", []):
+            data = {**data, "narration": []}
         found[name] = data
-        if data.get("status", "ok") != "ok":  # failed grounding: page_section ignores its target
+        if data.get("status", "ok") == "failed":  # failed grounding: page_section ignores its target
             notes.append(
                 (
                     f"page {number:02d}",
@@ -214,6 +234,25 @@ def subject_problems(
     """Every reason a named subject is refused (empty list: accepted)."""
     if not isinstance(subject, dict):
         return ["subject must be an object with `layer`, or `phrase` and `box`"]
+    if "narration" in subject:
+        beats = subject["narration"]
+        if not isinstance(beats, list) or len(beats) > 8:
+            return ["narration must be a list of at most 8 focus cues"]
+        previous = -1
+        for beat in beats:
+            if not isinstance(beat, dict):
+                return ["each narration cue must be an object"]
+            line = beat.get("line")
+            if not isinstance(line, int) or isinstance(line, bool) or line <= previous:
+                return ["narration line indices must be increasing nonnegative integers"]
+            previous = line
+            errors = subject_problems(
+                {"phrase": beat.get("phrase"), "box": beat.get("box")}, [], picture_size
+            )
+            if errors:
+                return errors
+        if not any(key in subject for key in ("layer", "phrase", "box")):
+            return []
     layer, phrase, box = subject.get("layer"), subject.get("phrase"), subject.get("box")
     if layer is not None:
         if phrase is not None or box is not None:
@@ -270,13 +309,23 @@ def subject_prompt(
         for line in page.get("lines", [])
         if line.get("role") != "narration"
     ]
+    narration = [
+        f"{i}: {line['text']}"
+        for i, line in enumerate(page.get("lines", []))
+        if line.get("role") == "narration"
+    ]
     layers = [f"- {name}: {desc}" for name, desc in layer_names_with_descriptions]
     w, h = picture_size
     grounding = page.get("qa_grounding") or "(none)"
     return "\n".join(
         [
-            "The attached picture is a page of a children's book. Two kids ask questions about it.",
+            "The attached picture is a narrated children's book page, sometimes followed by kids' Q&A.",
             "",
+            "Narration lines (zero-based indices in the script):",
+            *narration,
+            "Include a narration list in your save: [{line: index, phrase: subject, box: [x0,y0,x1,y1]}].",
+            "Choose up to 8 meaningful focus changes matching these spoken lines. Focus on faces for feelings, reactions or speech; on visible objects and hands for actions or discoveries. Use picture pixels, never guessed coordinates from text alone. Frame the whole face or object with context. Omit cues when the wide view tells the story better or the subject is not visible. Do not alternate targets unnecessarily. Use an empty list if no focus is needed.",
+            "For a page without Q&A, save only {narration: [...]}. For a page with Q&A, also include the Q&A layer or phrase and box as below.",
             "The kids' questions and answers:",
             *qa,
             "",
@@ -286,7 +335,7 @@ def subject_prompt(
             "Layers of this picture (name: description):",
             *(layers or ["- (none)"]),
             "",
-            "Name the single thing the kids' question is about and save it with the "
+            "If Q&A is present, name the single thing the question is about and include it with narration in the "
             "save_camera_subject tool. If it is one of the listed layers, save "
             '{"layer": "<name>"}. Otherwise save {"phrase": "<2-6 words>", '
             '"box": [x0, y0, x1, y1]} with the box in picture pixels around that thing.',
@@ -380,6 +429,8 @@ def _write(
     subject: dict | None,
     target: dict | None,
     band: str,
+    narration: list | None = None,
+    narration_text: list | None = None,
 ) -> None:
     write_atomic(
         camera_path(folder, number),
@@ -393,6 +444,8 @@ def _write(
             "subject": subject,
             "target": target,
             "band": band,
+            "narration": narration or [],
+            "narration_text": narration_text or [],
         },
     )
 
@@ -481,7 +534,9 @@ def ground_page(
     size = (identity.width, identity.height)
     if not force:
         data, _ = load_current(folder, number, identity.sha256)
-        if data is not None:  # AC-4.1: a current file is kept whatever its status
+        if data is not None and data.get("narration_text") == script_page.get(
+            "lines", []
+        ):  # AC-4.1: a current file is kept whatever its status
             if data.get("status", "ok") == "failed":
                 return GroundOutcome(
                     number, "kept", f"grounding failed earlier: {data.get('reason', '')}"
@@ -499,12 +554,20 @@ def ground_page(
     def fail(reason: str) -> GroundOutcome:
         retry = f"re-run ground_camera --book {folder.slug} --page {number} --force"
         reason = f"{reason} - to retry, {retry}"
-        _write(folder, number, ident, "failed", reason, None, None, band_of())
+        _write(
+            folder,
+            number,
+            ident,
+            "failed",
+            reason,
+            None,
+            None,
+            band_of(),
+            [],
+            script_page.get("lines", []),
+        )
         return GroundOutcome(number, "failed", reason)
 
-    if not script_page.get("has_qa"):
-        _write(folder, number, ident, "no_qa", "", None, None, band_of())
-        return GroundOutcome(number, "no_qa")
     subject, reason = _name_subject(
         folder,
         number,
@@ -519,6 +582,24 @@ def ground_page(
     )
     if subject is None:
         return fail(reason)
+    narration = []
+    lines = script_page.get("lines", [])
+    for beat in subject.get("narration", []):
+        index = beat["line"]
+        if index >= len(lines) or lines[index].get("role") != "narration":
+            return fail("narration cue references a missing or non-narration line")
+        narration.append(
+            {
+                "line": index,
+                "phrase": beat["phrase"],
+                "target": target_for_box(tuple(beat["box"]), size, canvas, settings),
+            }
+        )
+    if not script_page.get("has_qa"):
+        _write(folder, number, ident, "no_qa", "", None, None, band_of(), narration, lines)
+        return GroundOutcome(number, "no_qa")
+    if "layer" not in subject and "phrase" not in subject:
+        return fail("Q&A requires a subject as well as narration cues")
     try:
         if "layer" in subject:
             name, source = subject["layer"], "layer"
@@ -562,6 +643,8 @@ def ground_page(
         {"name": name, "source": source, "box": [int(v) for v in box]},
         target,
         band_of(mask),
+        narration,
+        lines,
     )
     return GroundOutcome(number, "written")
 

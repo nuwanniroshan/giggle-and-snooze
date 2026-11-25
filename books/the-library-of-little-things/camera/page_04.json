@@ -1,0 +1,79 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "7ff254c0207ad426d7e0f11e5c86df8d74cd23c068dcae934eea1926362bac15",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T18:53:43+00:00",
+  "status": "ok",
+  "reason": "",
+  "subject": {
+    "name": "the lonely moon",
+    "source": "sam",
+    "box": [
+      509,
+      0,
+      612,
+      55
+    ]
+  },
+  "target": {
+    "x": 0.3649,
+    "y": 0.0318,
+    "zoom": 2.0
+  },
+  "band": "bottom",
+  "narration": [
+    {
+      "line": 0,
+      "phrase": "Idris’s cupped hands and star button",
+      "target": {
+        "x": 0.4307,
+        "y": 0.6001,
+        "zoom": 2.0
+      }
+    },
+    {
+      "line": 1,
+      "phrase": "Idris’s face",
+      "target": {
+        "x": 0.5238,
+        "y": 0.3339,
+        "zoom": 1.902
+      }
+    }
+  ],
+  "narration_text": [
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "Idris borrowed the star button. He brought it back in his cupped hands."
+    },
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "“I held it up when the moon looked lonely. Then I watched the whole sky fill with friends.” <sigh>"
+    },
+    {
+      "speaker": "kid_older",
+      "role": "reaction",
+      "text": "If I borrowed that star button, I’d take it on a night walk.",
+      "emotion": "happy"
+    },
+    {
+      "speaker": "kid_older",
+      "role": "question",
+      "text": "Can you add one thing we’d see? What did Idris see when he held up the button?",
+      "emotion": "curious"
+    },
+    {
+      "speaker": "storyteller",
+      "role": "answer",
+      "text": "He held up the little star button. Then he watched the sky fill with stars, like friends for the moon.",
+      "emotion": "calm"
+    }
+  ]
+}

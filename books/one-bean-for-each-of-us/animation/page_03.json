@@ -1,0 +1,63 @@
+{
+  "page_number": 3,
+  "picture": {
+    "file": "page_03.png",
+    "sha256": "1bcb18b0942c993886924cf24fffa070244cfe9b8a7392c62c80a35809b34bd7",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-24T18:01:15+00:00",
+  "layers": [
+    {
+      "name": "bean_shoot",
+      "description": "The tiny green hooked shoot in Nila’s yellow pot, held still at the soil line while the camera supplies the gentle motion.",
+      "box": [
+        950,
+        529,
+        992,
+        584
+      ],
+      "include_points": [
+        [
+          963,
+          540
+        ],
+        [
+          975,
+          536
+        ],
+        [
+          983,
+          548
+        ],
+        [
+          962,
+          570
+        ]
+      ],
+      "exclude_points": [
+        [
+          947,
+          576
+        ],
+        [
+          981,
+          581
+        ],
+        [
+          980,
+          509
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        965,
+        580
+      ],
+      "motions": []
+    }
+  ],
+  "effects": []
+}

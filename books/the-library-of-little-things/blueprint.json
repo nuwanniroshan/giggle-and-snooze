@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "neighborly-make-believe",
+    "label": "Neighborly Make-Believe",
+    "summary": "A neighborhood library hums with anticipation as everyday objects come back carrying wildly different adventures.",
+    "roles": {
+      "storyteller": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Give each returned object a tiny pause before revealing where it has been."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "lively",
+        "quirk": "Start an adventure and invite a younger listener to add a detail."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "lively",
+        "quirk": "Act out a borrower's idea, like stirring a soup as big as a pond."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "pencil-and-brush",
+    "medium_label": "Vibrant Pencil & Brush",
+    "palette": [
+      {
+        "name": "Library Teal",
+        "hex": "#087F83"
+      },
+      {
+        "name": "Persimmon Coral",
+        "hex": "#F65C58"
+      },
+      {
+        "name": "Pea Shoot Green",
+        "hex": "#71BA3D"
+      },
+      {
+        "name": "Whisk Gold",
+        "hex": "#FFBB35"
+      },
+      {
+        "name": "Mulberry Plum",
+        "hex": "#833970"
+      }
+    ],
+    "style_prompt_prefix": "Original Giggle & Snooze pencil-and-brush illustration: distinctive asymmetric silhouettes, angular faces and varied proportions, warm expressive characters. Define each character by unique face geometry, hair silhouette, wardrobe and a signature detail; preserve these across pages. Confident imperfect graphite and coloured pencil with visible searching strokes, matte gouache and broken dry-brush edges on fresh light paper. Vibrant rich teal, coral, leaf green, copper, lilac, gold and plum adapted to the story; preserve natural skin tones. Avoid interchangeable round bean-shaped characters.",
+    "line": "Broken pencil contours, visible overshoots, sparse construction strokes and light hatching; irregular brush edges, never uniform vector outlines.",
+    "lighting": "Rich local colour, restrained matte painted shadows and fresh paper highlights; no dusty grey veil, neon or glossy gradients.",
+    "composition": "One clear action, readable faces and hands, distinctive silhouettes and breathing room. Asymmetric scenery: crooked roofs, mismatched windows and bent trunks where appropriate to the setting.",
+    "avoid": [
+      "aged paper, sepia washes and vintage styling",
+      "ornate decoration and cluttered scenery",
+      "individual fur strands and intricate clothing detail",
+      "photorealism, glossy 3D and cinematic lighting",
+      "existing franchise characters or imitation of an artist",
+      "texture that obscures faces, gestures or story-relevant props"
+    ]
+  },
+  "qa": {
+    "format_key": "checkout-return-counter",
+    "format_label": "At the Checkout and Return Counter",
+    "question_types": [
+      "object-to-adventure",
+      "shared-story-handoff",
+      "same-object-new-story"
+    ],
+    "intro_hook": "Welcome to Bea’s library! If you checked out this tiny whisk, what adventure would you take it on?",
+    "outro_hook": "Pick an everyday thing to lend someone. What story would you love to hear when they bring it back?",
+    "moments_min": 3,
+    "moments_max": 4,
+    "kid_notes": {
+      "kid_older": "Start an adventure, then invite another listener to add a detail.",
+      "kid_younger": "Offer two ideas if needed and leave room for a word, gesture, or sentence."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "birds_morning"
+    ],
+    "sfx": [
+      "bell_chime",
+      "page_flip"
+    ],
+    "music_direction": "Soft pizzicato and felt piano. Give returns a short answering phrase, use a soft bell for arrivals, and lower the music during questions."
+  },
+  "animation": {
+    "intensity": 0.65,
+    "effects": [
+      "glow",
+      "water_ripple"
+    ]
+  },
+  "rationale": "Use the same look on covers and pages. Bea has a wedge-shaped face, side braid, teal apron and coral ear pencil. A tall, long-faced neighbor has a flat top and green coat with a gold cuff patch. A short, diamond-faced neighbor has an off-center puff, coral vest and plum scarf. In the crooked corner shop, the cover shows Bea lending the star button, inviting readers to imagine where it goes."
+}

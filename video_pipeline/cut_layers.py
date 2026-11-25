@@ -295,9 +295,17 @@ def _point_count(layer: Layer) -> int:
     return 2 + len(layer.include_points) + len(layer.exclude_points)
 
 
-def _points_problem(layer: Layer, max_points: int) -> str | None:
+def prompt_point_limit(models_cfg: dict) -> int | None:
+    """ONNX has a dynamic point axis; only the Core ML export caps it at 14."""
+    cfg = segmenter_config(models_cfg)
+    if cfg.get("backend") == "onnx":
+        return None
+    return int(cfg["io"]["prompt_encoder"]["max_points"])
+
+
+def _points_problem(layer: Layer, max_points: int | None) -> str | None:
     count = _point_count(layer)
-    if count <= max_points:
+    if max_points is None or count <= max_points:
         return None
     return (
         f"layer {layer.name!r} has {count} prompt points (the box counts as 2), "
@@ -311,7 +319,7 @@ def prompt_points(
     height: int,
     *,
     size: int,
-    max_points: int,
+    max_points: int | None,
     labels: dict[str, int] = PROMPT_LABELS,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Box corners, include and exclude points in the stretched size x size space:
@@ -571,7 +579,7 @@ def cut_book(
     feather = int(config["cut"]["feather_px"])
     models_cfg = config["models"]
     ids = model_ids(models_cfg)
-    max_points = int(models_cfg["segmenter"]["io"]["prompt_encoder"]["max_points"])
+    max_points = prompt_point_limit(models_cfg)
     book = json.loads(folder.book_json.read_text(encoding="utf-8"))
     models = None
     results: list[CutResult] = []
@@ -738,7 +746,7 @@ class SamOnnx:
         masks = []
         for layer in layers:
             pts, labels = prompt_points(
-                layer, w, h, size=size, max_points=cfg["io"]["prompt_encoder"]["max_points"]
+                layer, w, h, size=size, max_points=None
             )
             scores, logits = self.decoder.run(
                 ["iou_scores", "pred_masks"],

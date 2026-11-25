@@ -1,0 +1,82 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "7ff254c0207ad426d7e0f11e5c86df8d74cd23c068dcae934eea1926362bac15",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T14:45:27+00:00",
+  "layers": [
+    {
+      "name": "star_button",
+      "description": "The gold star button stays fixed in Idris’s cupped hands. Idris’s boots and Bea’s boots are cropped by the bottom edge, so both characters hold their original poses.",
+      "box": [
+        622,
+        474,
+        702,
+        543
+      ],
+      "include_points": [
+        [
+          661,
+          481
+        ],
+        [
+          634,
+          502
+        ],
+        [
+          691,
+          502
+        ],
+        [
+          646,
+          528
+        ],
+        [
+          681,
+          529
+        ]
+      ],
+      "exclude_points": [
+        [
+          612,
+          500
+        ],
+        [
+          709,
+          510
+        ],
+        [
+          664,
+          551
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        662,
+        510
+      ],
+      "motions": []
+    }
+  ],
+  "effects": [
+    {
+      "type": "glow",
+      "region": {
+        "box": [
+          510,
+          0,
+          1072,
+          120
+        ],
+        "layer": null
+      },
+      "intensity": 0.55,
+      "colour": "#FFE6A6"
+    }
+  ]
+}

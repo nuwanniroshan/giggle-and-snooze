@@ -1,0 +1,48 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "89f64c4165cb732e74fff7cb16691d0e51644a38314b2d34c813eed2e0dc8d5c",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T18:52:34+00:00",
+  "status": "no_qa",
+  "reason": "",
+  "subject": null,
+  "target": null,
+  "band": "top",
+  "narration": [
+    {
+      "line": 0,
+      "phrase": "stone, whisk, and star button",
+      "target": {
+        "x": 0.401,
+        "y": 0.6217,
+        "zoom": 2.0
+      }
+    },
+    {
+      "line": 1,
+      "phrase": "Bea speaking",
+      "target": {
+        "x": 0.1292,
+        "y": 0.1902,
+        "zoom": 2.0
+      }
+    }
+  ],
+  "narration_text": [
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "Bea opened a library on her front steps. On the shelf sat a smooth stone, a tiny whisk, and a button shaped like a star."
+    },
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "“Borrow a little thing,” said Bea. “Bring back a story.”"
+    }
+  ]
+}

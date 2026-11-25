@@ -1,0 +1,33 @@
+{
+  "page_number": 1,
+  "picture": {
+    "file": "page_01.png",
+    "sha256": "99f8f56d32b363a8fbf2faeb8a4ffd540b730c79ed82c82a28316bca8bb81a1f",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-24T17:58:55+00:00",
+  "layers": [
+    {
+      "name": "planting_scene",
+      "description": "Full illustration held still for gentle camera motion.",
+      "box": [
+        0,
+        0,
+        1536,
+        864
+      ],
+      "include_points": [],
+      "exclude_points": [],
+      "z": 0,
+      "depth": 0.0,
+      "pivot": [
+        768,
+        432
+      ],
+      "motions": []
+    }
+  ],
+  "effects": []
+}

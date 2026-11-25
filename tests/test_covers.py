@@ -26,7 +26,7 @@ def test_settings_load_from_config():
     assert settings.tries == 3
     assert tuple(settings.shapes) == covers.TITLED_STEMS
     video = settings.shapes["cover_front"]
-    assert video.ratio == (4, 3) and video.accept == (1.0, None)
+    assert video.ratio == (16, 9) and video.accept == (1.0, None)
     print_shape = settings.shapes["cover_front_print"]
     assert print_shape.ratio == (1, 1) and print_shape.accept == (0.769, 1.3)
     assert print_shape.label == "print cover" and "1024x1024" in print_shape.frame
@@ -118,7 +118,7 @@ def test_request_has_exact_words_art_layout_and_safe_area():  # AC-1.2, AC-1.3
         "Create the finished FRONT COVER of a children's picture book, "
         + settings.shapes["cover_front"].frame
     )
-    assert 'Book: "Mira and the Moon Kite" — subtitle "A Windy Hill Story".' in request
+    assert 'Book: "Mira and the Moon Kite" — subtitle "".' in request
     assert "Story: Mira builds a kite that wants to reach the moon." in request
     assert 'Do not add the "Giggle & Snooze" (Giggle and Snooze) logo' in request
     assert "Soft gouache on cold-press paper, gentle grain." in request
@@ -127,8 +127,9 @@ def test_request_has_exact_words_art_layout_and_safe_area():  # AC-1.2, AC-1.3
     assert "Palette: moss #6B8F3A, plum #6A3D6E. Avoid: neon colours, photo realism." in request
     assert "Reference image 1, when supplied, is a page from this book" in request
     assert "Reference image 2" not in request
-    for rule in settings.layout_rules:
-        assert f"- {rule}" in request
+    assert "horizontally and vertically centered" in request
+    assert "No subtitle" in request
+    assert "bristle breaks" in request
     assert "branding badge or watermark" in request
     assert (
         "at least 12% of the finished cover's width away from the left and right edges" in request
@@ -245,7 +246,7 @@ def test_trim_to_4_3_and_square_exactly(tmp_path):  # AC-1.1, AC-2.1
     with Image.open(wide) as im:
         width, height = im.size
         assert im.mode == "RGB"
-    assert width * 3 == height * 4 and height >= 1000
+    assert width * 9 == height * 16 and height >= 864
     square = _png(tmp_path / "cover_front_print.png", (1024, 1024))
     covers.trim_to_ratio(square, settings.shapes["cover_front_print"])
     with Image.open(square) as im:
@@ -344,3 +345,11 @@ def test_check_problem_reasons():
     assert covers.check_problem(with_logo, "Mira and the Moon Kite", "A Windy Hill Story") == (
         "unwanted cover logo or branding"
     )
+
+
+def test_print_cover_keeps_subtitle_and_independent_layout():
+    request = covers.cover_request(_book(), ART, "cover_front_print", _settings())
+    assert 'subtitle "A Windy Hill Story"' in request
+    assert "horizontally and vertically centered" not in request
+    for rule in _settings().layout_rules:
+        assert rule in request

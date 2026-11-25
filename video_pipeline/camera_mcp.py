@@ -42,7 +42,9 @@ def create_server(tools: SubjectTools) -> MCPServer:
     def save_camera_subject(subject: dict) -> dict:
         """Save the thing the kids' question is about. Use {"layer": name} when it is one
         of the listed layers, otherwise {"phrase": "<2-6 words>", "box": [x0, y0, x1, y1]}
-        with the box in the picture's own pixels (its size is in the prompt). Returns
+        with the box in the picture's own pixels (its size is in the prompt). Include
+        narration: [{line: zero-based script line index, phrase: subject, box: pixel box}]
+        for narration focus changes; on pages without Q&A save only narration. Returns
         {saved, errors}; fix every error and save again. At most 3 saves."""
         return tools.save_camera_subject(subject)
 

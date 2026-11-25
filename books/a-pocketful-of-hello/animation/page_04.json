@@ -1,0 +1,123 @@
+{
+  "page_number": 4,
+  "picture": {
+    "file": "page_04.png",
+    "sha256": "f20ce9c612d1c39f62e6e96d1ca05b760c1dac2cc04f5316c3c5a045af79db13",
+    "width": 1536,
+    "height": 864
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T07:57:36+00:00",
+  "layers": [
+    {
+      "name": "tavi",
+      "description": "Keep Tavi intact from copper curl to both yellow high-tops. Gently sway the whole paused pose around the sole of the planted shoe, with the raised heel and smile following as part of the same cutout. Mina stays in place because her elbow rests on the wall while her shoes meet the path.",
+      "box": [
+        837,
+        67,
+        1200,
+        840
+      ],
+      "include_points": [
+        [
+          921,
+          108
+        ],
+        [
+          924,
+          266
+        ],
+        [
+          1048,
+          234
+        ],
+        [
+          974,
+          414
+        ],
+        [
+          1129,
+          434
+        ],
+        [
+          1055,
+          476
+        ],
+        [
+          1110,
+          523
+        ],
+        [
+          987,
+          551
+        ],
+        [
+          1067,
+          548
+        ],
+        [
+          979,
+          648
+        ],
+        [
+          1090,
+          602
+        ],
+        [
+          951,
+          782
+        ],
+        [
+          1160,
+          687
+        ]
+      ],
+      "exclude_points": [
+        [
+          583,
+          360
+        ],
+        [
+          566,
+          530
+        ],
+        [
+          771,
+          168
+        ],
+        [
+          766,
+          561
+        ],
+        [
+          1221,
+          602
+        ],
+        [
+          1275,
+          470
+        ],
+        [
+          1094,
+          830
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        929,
+        831
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.1,
+          "period_s": 4.8,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

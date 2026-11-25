@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "mood": {
+    "key": "pocket-sized-welcome",
+    "label": "Pocket-Sized Welcome",
+    "summary": "An easy neighborhood stroll with pockets of quiet and a little lift when two paper animals meet.",
+    "roles": {
+      "storyteller": {
+        "pace": "steady",
+        "energy": "calm",
+        "quirk": "Leaves a beat of quiet each time the paper bird peeks out."
+      },
+      "kid_older": {
+        "pace": "steady",
+        "energy": "lively",
+        "quirk": "Sounds gently delighted whenever a familiar thing turns into a paper animal."
+      },
+      "kid_younger": {
+        "pace": "slow",
+        "energy": "calm",
+        "quirk": "Lets the word ‘peek’ come out in a tiny rising lilt."
+      }
+    }
+  },
+  "art": {
+    "medium_key": "ink-and-colour",
+    "medium_label": "Ink & Colour",
+    "palette": [
+      {
+        "name": "Mulberry Ink",
+        "hex": "#25152D"
+      },
+      {
+        "name": "Daffodil Paper",
+        "hex": "#F9C73A"
+      },
+      {
+        "name": "Pea Shoot",
+        "hex": "#8BCB68"
+      },
+      {
+        "name": "Sidewalk Lilac",
+        "hex": "#DAD2F2"
+      },
+      {
+        "name": "Cobalt Pocket",
+        "hex": "#3758B8"
+      }
+    ],
+    "style_prompt_prefix": "Original Giggle & Snooze character design: expressive asymmetric poses, rounded bean and crescent shapes, warm playful faces, a small visual joke and a calm cosy atmosphere. Clean contemporary shapes, generous breathing room, one clear story action. Simplify hair, clothing and scenery into broad shapes; include only story-relevant props. Modern comic-strip cartoons with springy ink contours, expressive eyebrows and flat cheerful colours on clean backgrounds.",
+    "line": "Confident dark rounded outlines with a few lively interior strokes; no crosshatching.",
+    "lighting": "Flat colour with one small graphic shadow; no gradients.",
+    "composition": "Playful asymmetry, expressive full-body gestures and broad uncluttered scenery; no panels or speech bubbles.",
+    "avoid": [
+      "aged paper, sepia washes and vintage styling",
+      "heavy brush texture, grain and crosshatching",
+      "ornate decoration and cluttered scenery",
+      "individual fur strands and intricate clothing detail",
+      "photorealism, glossy 3D and cinematic lighting",
+      "existing franchise characters or imitation of an artist"
+    ]
+  },
+  "qa": {
+    "format_key": "paper-animal-postcards",
+    "format_label": "Paper Animal Postcards",
+    "question_types": [
+      "spot-the-peek",
+      "read-the-reply",
+      "invent-a-paper-greeting"
+    ],
+    "intro_hook": "Something pointy is peeking out of Mina’s pocket. Can you spot it?",
+    "outro_hook": "If a paper animal could say hello for you, which animal would you choose?",
+    "moments_min": 3,
+    "moments_max": 3,
+    "kid_notes": {
+      "kid_older": "After a quiet beat at the frog’s wave, offer one possible meaning.",
+      "kid_younger": "Answer with a word or a small wave. A quiet thought counts, too."
+    }
+  },
+  "sound": {
+    "ambience": [
+      "birds_morning"
+    ],
+    "sfx": [
+      "page_flip"
+    ],
+    "music_direction": "Use sparse felt piano in an easy walking rhythm. Leave a quiet beat for Mina’s first peek and add two soft answering notes when the frog waves. Keep the score well below the voices."
+  },
+  "animation": {
+    "intensity": 0.45,
+    "effects": []
+  },
+  "rationale": "On a lilac sidewalk, Mina’s bean-shaped raincoat frames an oversized cobalt pocket. The yellow bird’s beak briefly catches on the seam before a squat green frog waves back. Carry the same silhouettes, palette, ink contours and flat shadows through both covers. Keep motion to the peek, the wave and relaxed stroller rolls."
+}

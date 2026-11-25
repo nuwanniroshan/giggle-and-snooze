@@ -27,7 +27,7 @@ from video_pipeline.agents import (
     codex_status,
     run_codex,
 )
-from video_pipeline.art_styles import apply_style, style_art
+from video_pipeline.art_styles import STYLES, apply_style, choose_style, style_art
 from video_pipeline.blueprint import (
     Blueprint,
     BlueprintError,
@@ -121,10 +121,10 @@ Use only the story tools.
    (format_key, format_label, question_types 2-4, intro_hook, outro_hook, moments_min,
    moments_max, kid_notes); "sound" (ambience: library names, sfx: library names,
    music_direction); "animation" (intensity 0.25-2.0, effects); "rationale".
-2. Keys are lowercase slugs. Follow the fixed Giggle & Snooze art preset below exactly.
-   Keep the rendering style consistent across the brand. Differentiate books through their
-   mood, character silhouettes, story setting, Q&A format and five-colour palette, not by
-   inventing another art medium. Keep palettes fresh, clear and harmonious.
+2. Keys are lowercase slugs. Follow the selected Giggle & Snooze art preset below exactly.
+   Keep that style consistent within this book, including its covers. Across books, keep the approved pencil-and-brush house style and vary
+   mood, distinctive character silhouettes, setting, Q&A and vibrant five-colour palette.
+   Repeating a style is required for brand recognition; avoid interchangeable round characters.
 3. Library sounds you may use: {sounds}. Effects you may use: {effects}.
 4. Gentle for young children. If submit_blueprint returns errors, fix every error and submit
    again.
@@ -195,6 +195,7 @@ def generate(
     root: Path,
     provider=None,
     subject: str | None = None,
+    style_id: str | None = None,
 ) -> Outcome:
     """Run the agent until a valid payload is saved or the attempts run out (FR-7)."""
     attempts, time_limit = read_limits(root)
@@ -228,7 +229,9 @@ def generate(
                 and isinstance(payload, dict)
                 and isinstance(payload.get("art"), dict)
             ):
-                payload = apply_style(payload)
+                selected = style_id or payload["art"].get("medium_key")
+                if selected in STYLES:
+                    payload = apply_style(payload, selected)
             errors = (
                 validate_payload(mode, payload, pages, root, subject)
                 if payload is not None
@@ -369,7 +372,8 @@ def _others_text(others: dict[str, Blueprint]) -> str:
 
 
 def blueprint_prompt(
-    subject: dict, others: dict[str, Blueprint], ctx: Context | None = None
+    subject: dict, others: dict[str, Blueprint], ctx: Context | None = None,
+    *, style_id: str | None = None,
 ) -> str:
     """The design brief: the idea (or the book), the allowed sounds and effects, and every other
     blueprint to differ from (FR-4, AC-2.10)."""
@@ -382,8 +386,9 @@ def blueprint_prompt(
     )
     effects = ", ".join(sorted(ctx.effects)) if ctx else ""
     text = BLUEPRINT_PROMPT.replace("{sounds}", sounds).replace("{effects}", effects)
-    text += "\nFixed Giggle & Snooze art preset (supply your own palette):\n"
-    text += json.dumps(style_art(), ensure_ascii=False, indent=2)
+    selected = style_id or choose_style([bp.art.medium_key for bp in others.values()])
+    text += "\nSelected Giggle & Snooze art preset (supply your own palette):\n"
+    text += json.dumps(style_art(selected), ensure_ascii=False, indent=2)
     text += _others_text(others)
     return text + "\nThe book:\n" + json.dumps(subject, ensure_ascii=False, indent=2)
 
@@ -434,7 +439,9 @@ def run_blueprint(
     try:
         ctx = load_context(root)
         exclude = tuple(subject.split(":", 1))
-        prompt = blueprint_prompt(brief_subject, others_for(root, ctx, exclude), ctx)
+        others = others_for(root, ctx, exclude)
+        selected = choose_style([bp.art.medium_key for bp in others.values()])
+        prompt = blueprint_prompt(brief_subject, others, ctx, style_id=selected)
         outcome = generate(
             mode="blueprint",
             prompt=prompt,
@@ -443,6 +450,7 @@ def run_blueprint(
             root=root,
             provider=provider,
             subject=subject,
+            style_id=selected,
         )
     except (AgentUnavailable, BlueprintError) as exc:
         outcome = Outcome(payload=None, problems=[str(exc)])

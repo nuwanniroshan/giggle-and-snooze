@@ -1,0 +1,83 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "00dbef365ec954fb90d5d29755f613b10db719233a206c1527db4cd870f1c458",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-24T18:03:47+00:00",
+  "layers": [
+    {
+      "name": "bean_sprout",
+      "description": "Whole green bean sprout with both leaves and its upright stem, ending at the soil line.",
+      "box": [
+        894,
+        333,
+        982,
+        450
+      ],
+      "include_points": [
+        [
+          913,
+          362
+        ],
+        [
+          960,
+          352
+        ],
+        [
+          938,
+          384
+        ],
+        [
+          939,
+          408
+        ],
+        [
+          941,
+          443
+        ]
+      ],
+      "exclude_points": [
+        [
+          887,
+          365
+        ],
+        [
+          985,
+          349
+        ],
+        [
+          931,
+          451
+        ],
+        [
+          957,
+          447
+        ],
+        [
+          926,
+          424
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        941,
+        447
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.4,
+          "period_s": 6.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

@@ -6,6 +6,7 @@ the autopilot reads through its probe functions), and records each child's argv.
 
 from __future__ import annotations
 
+import dataclasses
 import signal
 import sys
 
@@ -22,7 +23,18 @@ from video_pipeline.drafts import DraftStore
 from video_pipeline.studio import books as sb
 from video_pipeline.studio.jobs import stage_command
 
-ALL_STEPS = ["paint", "plan", "cut", "script", "review", "voices", "approve", "render", "build"]
+ALL_STEPS = [
+    "paint",
+    "plan",
+    "cut",
+    "script",
+    "review",
+    "voices",
+    "approve",
+    "ground",
+    "render",
+    "build",
+]
 
 
 def stage_of(cmd: list[str]) -> str:
@@ -33,6 +45,7 @@ def stage_of(cmd: list[str]) -> str:
         ("video_pipeline.cut_layers", "cut"),
         ("video_pipeline.generate_script", "script"),
         ("video_pipeline.synthesize_voices", "voices"),
+        ("video_pipeline.ground_camera", "ground"),
         ("video_pipeline.render_episode", "render"),
         ("build_book.py", "build"),
         ("video_pipeline.write_story", "story"),
@@ -53,6 +66,7 @@ class World:
         self.script = "missing"  # missing | ok | unreadable | stale_blueprint
         self.reviewed = False
         self.voices = "not_started"
+        self.grounded = False
         self.video = "not_started"
         self.editions = "not_started"
         self.__dict__.update(states)
@@ -67,7 +81,7 @@ class World:
     def finished(cls, **states):
         base = dict(
             missing=[], unplanned=[], uncut=[], script="ok", reviewed=True,
-            voices="approved", video="done", editions="done",
+            voices="approved", grounded=True, video="done", editions="done",
         )  # fmt: skip
         return cls(**{**base, **states})
 
@@ -143,6 +157,8 @@ class World:
             self.script, self.reviewed = "ok", False
         elif stage == "voices":
             self.voices = "needs_review"
+        elif stage == "ground":
+            self.grounded = True
         elif stage == "render":
             self.video = "done"
         elif stage == "build":
@@ -150,6 +166,18 @@ class World:
         return 0, [f"{stage} ok"]
 
     def install(self, monkeypatch):
+        monkeypatch.setattr(
+            ap,
+            "STEPS",
+            tuple(
+                dataclasses.replace(
+                    step, needs=lambda p, b: None if self.grounded else "camera missing"
+                )
+                if step.name == "ground"
+                else step
+                for step in ap.STEPS
+            ),
+        )
         for name in (
             "pictures_state", "animation_rows", "script_state", "script_reviewed",
             "voices_state", "video_state", "editions_state", "mark_review", "approve_audio",
@@ -197,7 +225,7 @@ def test_no_editions_finishes_after_the_video(paths, monkeypatch):
 def test_done_steps_are_skipped(paths, monkeypatch):  # AC-2.2
     world = World(missing=[], unplanned=[], uncut=[], script="ok").install(monkeypatch)
     assert go(paths, world) == 0
-    assert world.calls == ["review", "voices", "approve", "render", "build"]
+    assert world.calls == ["review", "voices", "approve", "ground", "render", "build"]
     steps = {s["stage"]: s["result"] for s in run_file(paths)["steps"]}
     assert steps["paint"] == steps["plan"] == steps["cut"] == steps["script"] == "skipped"
 
@@ -468,7 +496,7 @@ def test_children_use_stage_command_argv(paths, monkeypatch):  # FR-1
     book = sb.get_book(paths, PILOT_SLUG)
     expected = [
         stage_command(stage, book, paths)
-        for stage in ("paint", "plan", "cut", "script", "voices", "render", "build")
+        for stage in ("paint", "plan", "cut", "script", "voices", "ground", "render", "build")
     ]
     assert world.cmds == expected
     assert "--reviewed" in world.cmds[4]  # FR-4: the gate stays in the CLI

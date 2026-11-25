@@ -738,6 +738,43 @@ def test_refused_plans_are_retried_with_the_errors(book_root) -> None:  # FR-6 r
     assert "amplitude" in fake.commands[1][-1]
 
 
+def test_tiny_subject_is_replanned_with_selection_feedback(book_root):
+    tiny = {"layers": [make_layer("tuft", box=[100, 100, 130, 120], depth=0)], "effects": []}
+    fake = FakeCodex({3: [tiny, _plan_body()]})
+    outcomes = _plan_book(book_root, fake, pages=[3])
+    assert outcomes[0].status == "written" and len(fake.commands) == 2
+    assert "Only small details move" in fake.commands[1][-1]
+
+
+def test_existing_tiny_only_plan_is_replanned_without_force(book_root):
+    path = plan_path(book_root, 3)
+    tiny = make_plan(
+        picture=picture_identity(book_root.illustrations / "page_03.png").model_dump(),
+        layers=[make_layer("tuft", box=[100, 100, 130, 120], depth=0)], effects=[],
+    )
+    save_plan(path, MotionPlan.model_validate(tiny))
+    before = path.read_bytes()
+    outcomes = _plan_book(book_root, FakeCodex(), pages=[3])
+    assert outcomes[0].status == "written"
+    assert "only small details" in outcomes[0].reason
+    assert path.with_name(path.name + ".bak").read_bytes() == before
+
+
+def test_planner_receives_characters_on_this_page():
+    from video_pipeline.motion_plan import PictureId, plan_prompt
+
+    book = {"style_bible": {"characters": [
+        {"name": "Mina", "look": "Teal overalls and two puff buns."},
+        {"name": "Tavi", "look": "Lilac jacket and copper curl."},
+    ]}}
+    page = {"text": "Mina folds a bird.", "characters_on_page": ["Mina"]}
+    picture = PictureId(file="page.png", sha256="x", width=1536, height=864)
+    prompt = plan_prompt(page, book, picture, LIMITS)
+    assert "Mina: Teal overalls and two puff buns." in prompt
+    assert "Lilac jacket and copper curl." not in prompt
+    assert "STORY IMPORTANCE and SCREEN PRESENCE" in prompt
+
+
 def test_one_failing_page_does_not_stop_the_others(book_root) -> None:  # AC-1.5
     outcomes = _plan_book(book_root, FakeCodex({5: [None, None, None]}))
     failed = [o for o in outcomes if o.status == "failed"]

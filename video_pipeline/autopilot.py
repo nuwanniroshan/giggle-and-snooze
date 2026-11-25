@@ -4,7 +4,7 @@
 
 The stages run one at a time, in this order, each as a child process with exactly the argv the
 studio uses (`jobs.stage_command`, FR-1): paint (which also plans each page) -> plan -> cut layers
--> script -> automatic review mark -> voices -> automatic approval -> render -> build editions.
+-> script -> automatic review mark -> voices -> automatic approval -> camera grounding -> render -> build editions.
 With `--no-editions` the run finishes after the video and never calls build_book.py.
 A stage that is already done and up to date is skipped (AC-2.2), so a new run resumes at the first
 unfinished stage (AC-4.2). The first failure stops the run with the stage and the reason; nothing
@@ -28,6 +28,7 @@ and passes its id in `KIDDO_JOB_ID`, so a `running` file whose job is gone shows
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import signal
 import subprocess
@@ -62,6 +63,7 @@ STEP_LABELS = {
     "review": "automatic review mark",
     "voices": sb.STAGE_LABELS["voices"],
     "approve": "automatic audio approval",
+    "ground": "narration and Q&A camera focus",
     "render": sb.STAGE_LABELS["render"],
     "build": sb.STAGE_LABELS[sb.BUILD_STAGE],
 }
@@ -229,6 +231,23 @@ def _needs_approve(paths: sb.StudioPaths, book: sb.Book) -> str | None:
     return f"the audio is not usable: {state.get('detail') or state['state']}"
 
 
+def _needs_ground(paths: sb.StudioPaths, book: sb.Book) -> str | None:
+    from video_pipeline.camera_ground import load_current
+    from video_pipeline.motion_plan import page_picture, picture_identity
+
+    folder = sb.folder_of(paths, book)
+    script = json.loads(folder.script_path.read_text(encoding="utf-8"))
+    pages = {p["page_number"]: p for p in load_book(folder.book_json)["pages"]}
+    for page in script["pages"]:
+        picture = page_picture(folder, pages[page["page_number"]])
+        data, _ = load_current(folder, page["page_number"], picture_identity(picture).sha256)
+        if data is None or data.get("narration_text") != page.get("lines", []):
+            return "camera focus needs planning for the current narration and pictures"
+        if data.get("status") == "failed":
+            raise Blocked(f"Camera planning failed; rerun ground_camera --book {book.slug} --force")
+    return None
+
+
 def _needs_render(paths: sb.StudioPaths, book: sb.Book) -> str | None:
     state = video_state(paths, book)
     return None if state["state"] == "done" else (state.get("detail") or "not rendered")
@@ -257,6 +276,7 @@ STEPS = (
     Step("review", _needs_review, mark=lambda p, b: mark_review(p, b)),
     Step("voices", _needs_voices, stage="voices"),
     Step("approve", _needs_approve, mark=lambda p, b: approve_audio(p, b)),
+    Step("ground", _needs_ground, stage="ground"),
     Step("render", _needs_render, stage="render"),
     Step("build", _needs_build, stage=sb.BUILD_STAGE),
 )
@@ -358,7 +378,12 @@ def _failure_reason(label: str, code: int, tail: list[str]) -> str:
 
 
 def _run_steps(
-    paths: sb.StudioPaths, slug: str, record: RunRecord, run_child: RunChild, *, editions: bool = True
+    paths: sb.StudioPaths,
+    slug: str,
+    record: RunRecord,
+    run_child: RunChild,
+    *,
+    editions: bool = True,
 ) -> int:
     book = sb.get_book(paths, slug)
     if book is None:

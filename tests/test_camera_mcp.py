@@ -57,7 +57,7 @@ def test_subject_prompt_has_questions_layers_and_size():
     text = cg.subject_prompt(page, [("car", "a red toy car"), ("boy", "a boy")], (1672, 941))
     assert "Why is the car red?" in text and "the toy car" in text
     assert "car" in text and "boy" in text and "1672" in text and "941" in text
-    assert "Secret narration." not in text
+    assert "0: Secret narration." in text
     assert "save_camera_subject" in text
 
 

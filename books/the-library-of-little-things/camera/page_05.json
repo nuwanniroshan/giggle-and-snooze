@@ -1,0 +1,39 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "3781f2e640057a396b9e7add27cd45baf722639a0e498ba8b05307d6bb4287e9",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T18:54:00+00:00",
+  "status": "no_qa",
+  "reason": "",
+  "subject": null,
+  "target": null,
+  "band": "top",
+  "narration": [
+    {
+      "line": 0,
+      "phrase": "Bea’s smiling face",
+      "target": {
+        "x": 0.1355,
+        "y": 0.3783,
+        "zoom": 2.0
+      }
+    }
+  ],
+  "narration_text": [
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "Bea put the three little things back on the shelf. “Borrow a little thing,” she said."
+    },
+    {
+      "speaker": "storyteller",
+      "role": "narration",
+      "text": "Idris reached for the whisk, Zella took the stone, and Tavi picked up the star. “We’ll bring back a story,” they said."
+    }
+  ]
+}

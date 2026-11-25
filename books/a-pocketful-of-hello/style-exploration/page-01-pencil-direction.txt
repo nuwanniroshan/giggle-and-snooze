@@ -1,0 +1,28 @@
+Giggle & Snooze — pencil-and-paint identity exploration
+Sample: A Pocketful of Hello, page 1, The Stroller Club
+
+Direction: distinguish the series through silhouette, drawing rhythm and environment,
+not texture alone. Angular, asymmetrical proportions; searching graphite contours;
+broken dry-painted edges; fresh paper showing through restrained colour.
+
+Mina: unequal puff buns, wedge fringe, tapered face, crooked oversized teal pocket.
+Davi: long rectangular face, broad nose, blue glasses, sloping shoulders, soft belly.
+Tavi: wiry limbs, kite-shaped face, flame-like copper curl, oversized yellow shoes.
+Retain the story's skin tones, wardrobe colours, ages and relationships.
+
+World: leaning roof wedges, mismatched windows, bent trunks, irregular garden walls
+and looping paths. Draw scenery with the same pencil vocabulary as the characters.
+Palette: teal, moss, plum, lilac, peach and small yellow accents on warm white.
+Keep emotional clarity and readable hands; avoid identical round faces and glossy eyes.
+
+Motion proposal, not yet implemented or tested: 8–12 distinct pose updates per second,
+held expressions, deliberate small gestures and restrained two- or three-drawing line
+boil. Preserve stable facial landmarks and silhouettes. Pencil texture can soften
+cutout boundaries but cannot hide missing background pixels or incorrect overlaps.
+
+This is a reference exploration. Existing production images and rendering settings
+remain in place. Review this sample before propagating the design to every book.
+
+Style reference supplied by user:
+https://www.toonsmag.com/wp-content/uploads/2024/09/arinorway_Art_Styles_in_Cartooning_4214c162-4ddc-448c-a284-261449bbb7c3-1024x574.png
+Generation: built-in image_gen tool. See page-01-generation-prompt.txt for exact prompt.

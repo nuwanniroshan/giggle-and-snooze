@@ -1,4 +1,4 @@
-"""CLI: ground each page's Q&A camera target and caption band (spec 025)."""
+"""CLI: ground narration focus cues, Q&A targets and caption bands (spec 025)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from video_pipeline.library import PROJECT_ROOT, LibraryError, book_folder
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m video_pipeline.ground_camera",
-        description="Find the Q&A subject in each page picture for the camera and captions.",
+        description="Plan narration face/object focus, Q&A targets and captions from each page picture.",
     )
     parser.add_argument("--book", required=True)
     parser.add_argument("--page", type=int, action="append", help="ground only this page (repeat)")

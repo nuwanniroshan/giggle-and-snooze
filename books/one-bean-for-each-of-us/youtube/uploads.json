@@ -1,0 +1,40 @@
+{
+  "uploads": [
+    {
+      "video_id": "iEQYlpcRMkU",
+      "url": "https://www.youtube.com/watch?v=iEQYlpcRMkU",
+      "channel_id": "UClYlIXPK2NtB7rospIa9H0Q",
+      "channel_title": "Giggle & Snooze",
+      "uploaded_at": "2026-11-24T18:35:46+00:00",
+      "final_key": "574bf40fd441c59fe741a6ba768009c9ac5c241a78b12b2e4398f16154256cf1",
+      "video_sha256": "bf6e53a6c6c1ed467a1fab49081e2f7e5453ca29854dfdb0c2c1fe2d3d517040",
+      "text_sha256": "3a697f8888ccd0d154ae553ea0469baaaf2d6438824a0eddaca659cbf190c3e1",
+      "category_id": "27",
+      "privacy": "private",
+      "made_for_kids": true,
+      "warnings": [
+        "thumbnail not set: HTTP 403 The authenticated user doesn't have permissions to upload and set custom video thumbnails."
+      ],
+      "state": "uploaded",
+      "checked_at": null
+    },
+    {
+      "video_id": "krYsmfhJQPA",
+      "url": "https://www.youtube.com/watch?v=krYsmfhJQPA",
+      "channel_id": "UClYlIXPK2NtB7rospIa9H0Q",
+      "channel_title": "Giggle & Snooze",
+      "uploaded_at": "2026-11-25T04:33:42+00:00",
+      "final_key": "7256c7c83a6d40b66d9c2a6372971857c459b22c70f25f6210eb67d64b639b6f",
+      "video_sha256": "53d38d0f0c1db36270838c3da53280ba607efbdd6bb5e6d59cef2cf06e456a48",
+      "text_sha256": "3a697f8888ccd0d154ae553ea0469baaaf2d6438824a0eddaca659cbf190c3e1",
+      "category_id": "27",
+      "privacy": "private",
+      "made_for_kids": true,
+      "warnings": [
+        "thumbnail not set: HTTP 403 The authenticated user doesn't have permissions to upload and set custom video thumbnails."
+      ],
+      "state": "uploaded",
+      "checked_at": null
+    }
+  ]
+}

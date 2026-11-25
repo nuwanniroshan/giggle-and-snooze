@@ -1,0 +1,71 @@
+{
+  "page_number": 6,
+  "picture": {
+    "file": "page_06.png",
+    "sha256": "d282f01314efb4f3e1ee290f2df14ceea89380db1c0cc1a62146828e4fea97ff",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-24T18:04:44+00:00",
+  "layers": [
+    {
+      "name": "rafi_bean_tip",
+      "description": "The whole light-green bean tip emerging from the soil in Rafi’s blue pot, with a gentle sway anchored where it meets the mound.",
+      "box": [
+        656,
+        534,
+        686,
+        579
+      ],
+      "include_points": [
+        [
+          670,
+          541
+        ],
+        [
+          664,
+          558
+        ],
+        [
+          674,
+          568
+        ]
+      ],
+      "exclude_points": [
+        [
+          649,
+          567
+        ],
+        [
+          686,
+          574
+        ],
+        [
+          671,
+          583
+        ],
+        [
+          710,
+          588
+        ]
+      ],
+      "z": 1,
+      "depth": 0.0,
+      "pivot": [
+        670,
+        576
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 2.5,
+          "period_s": 5.0,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

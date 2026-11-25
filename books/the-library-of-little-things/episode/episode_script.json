@@ -1,0 +1,235 @@
+{
+  "book_slug": "the-library-of-little-things",
+  "title": "The Library of Little Things",
+  "aspect_ratio": "16:9",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "cast": {
+    "storyteller": {
+      "name": "Storyteller",
+      "engine": "kokoro",
+      "voice": "af_heart",
+      "description": "Warm, soothing adult storyteller who reads the book and answers the kids' questions"
+    },
+    "kid_older": {
+      "name": "Leo (Age 8)",
+      "engine": "kokoro",
+      "voice": "kid_leo",
+      "description": "Curious 8-year-old who asks about the plot and loves guessing mysteries"
+    },
+    "kid_younger": {
+      "name": "Mia (Age 5)",
+      "engine": "kokoro",
+      "voice": "kid_mia",
+      "description": "Playful 5-year-old who notices funny and cute visual details, giggles and gasps"
+    }
+  },
+  "intro": {
+    "ffmpeg_effect": "zoom_in_center",
+    "lines": [
+      {
+        "speaker": "storyteller",
+        "text": "Welcome to Bea’s library. Our book is The Library of Little Things.",
+        "emotion": "calm"
+      },
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> I’d use that tiny whisk to stir a puddle as big as my kitchen.",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "If you borrowed the tiny whisk, what adventure would you take it on?",
+        "emotion": "curious"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Bea opened a library on her front steps. On the shelf sat a smooth stone, a tiny whisk, and a button shaped like a star."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“Borrow a little thing,” said Bea. “Bring back a story.”"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 2,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Tavi borrowed the smooth stone. He brought it back warm from his pocket."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“My paper boat kept tipping, so I gave it a stone to sit on. We sailed all the way to the far side of the puddle.”"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "reaction",
+          "text": "<gasp> That paper boat looks huge in the puddle!",
+          "emotion": "surprised"
+        },
+        {
+          "speaker": "kid_younger",
+          "role": "question",
+          "text": "Can I pretend to sail it? Point where I should go, around a leaf or straight across?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "You can be the captain. Tavi borrowed the smooth stone. He used it to help his paper boat stay steady.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "a tall white sailing ship",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 3,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "slow_push_in"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Zella borrowed the tiny whisk. She brought it back with a yellow ribbon tied to the handle."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“I waved it to whisk up the wind. The wind lifted my kite right over the rooftops.” <gasp>"
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 4,
+      "has_qa": true,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_left",
+        "qa_zoom_target": {
+          "x": 0.5,
+          "y": 0.5,
+          "zoom": 1.3
+        }
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Idris borrowed the star button. He brought it back in his cupped hands."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "“I held it up when the moon looked lonely. Then I watched the whole sky fill with friends.” <sigh>"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "reaction",
+          "text": "If I borrowed that star button, I’d take it on a night walk.",
+          "emotion": "happy"
+        },
+        {
+          "speaker": "kid_older",
+          "role": "question",
+          "text": "Can you add one thing we’d see? What did Idris see when he held up the button?",
+          "emotion": "curious"
+        },
+        {
+          "speaker": "storyteller",
+          "role": "answer",
+          "text": "He held up the little star button. Then he watched the sky fill with stars, like friends for the moon.",
+          "emotion": "calm"
+        }
+      ],
+      "qa_grounding": "the moon looked lonely",
+      "ambience": [
+        "birds_morning"
+      ]
+    },
+    {
+      "page_number": 5,
+      "has_qa": false,
+      "ffmpeg_camera": {
+        "narration_motion": "pan_right"
+      },
+      "lines": [
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Bea put the three little things back on the shelf. “Borrow a little thing,” she said."
+        },
+        {
+          "speaker": "storyteller",
+          "role": "narration",
+          "text": "Idris reached for the whisk, Zella took the stone, and Tavi picked up the star. “We’ll bring back a story,” they said."
+        }
+      ],
+      "ambience": [
+        "birds_morning"
+      ]
+    }
+  ],
+  "outro": {
+    "ffmpeg_effect": "zoom_out_warm_fade",
+    "lines": [
+      {
+        "speaker": "kid_younger",
+        "text": "<giggle> I’d lend my spoon. I’d love to hear it went digging for treasure.",
+        "emotion": "happy"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "What everyday thing would you lend, and what story would you love to hear when it comes back?",
+        "emotion": "curious"
+      },
+      {
+        "speaker": "storyteller",
+        "text": "Thanks for reading with us. Subscribe and come back for our next story.",
+        "emotion": "calm"
+      }
+    ],
+    "ambience": [
+      "birds_morning"
+    ]
+  }
+}

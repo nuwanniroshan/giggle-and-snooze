@@ -610,6 +610,7 @@ class Camera:
     qa_target: Point | None = None
     ease_frames: int = 0
     fade_out_frames: int = 0
+    narration_cues: tuple[tuple[int, int, Point], ...] = ()
 
 
 def narration_camera(motion: str, cfg: RenderConfig) -> tuple[Point, Point]:
@@ -653,6 +654,20 @@ def camera_at(cam: Camera, frame: int) -> Point:
     """The camera at a frame of the section. Endpoints are clamped first, so the interpolated path
     stays inside the canvas and moves monotonically; the final clamp only guards rounding."""
     start, end = _clamp_point(cam.start), _clamp_point(cam.end)
+    if cam.narration_cues:
+        end = _clamp_point(cam.narration_cues[-1][2])
+        if cam.qa_frame is None or frame < cam.qa_frame:
+            point = start
+            for begin, finish, target in cam.narration_cues:
+                if frame < begin:
+                    break
+                target = _clamp_point(target)
+                if frame < finish:
+                    return _lerp(
+                        point, target, smoothstep((frame - begin) / max(1, finish - begin))
+                    )
+                point = target
+            return point
     if cam.qa_frame is None or cam.qa_target is None or frame < cam.qa_frame:
         p = min(max(frame / _narration_span(cam), 0.0), 1.0)
         z, cx, cy = _lerp(start, end, p * p * (3 - 2 * p))
@@ -688,6 +703,18 @@ def zoompan_expr(cam: Camera) -> tuple[str, str, str]:
     p = f"clip(on/{_narration_span(cam)},0,1)"
     s_narr = _smooth_expr(p)
     narr = [_interp_expr(start[i], end[i], s_narr) for i in range(3)]
+    if cam.narration_cues:
+        narr = [_num(v) for v in start]
+        previous = start
+        for begin, finish, target in cam.narration_cues:
+            target = _clamp_point(target)
+            ease = _smooth_expr(f"clip((on-{begin})/{max(1, finish - begin)},0,1)")
+            narr = [
+                f"if(lt(on,{begin}),{narr[i]},{_interp_expr(previous[i], target[i], ease)})"
+                for i in range(3)
+            ]
+            previous = target
+        end = previous
     if cam.qa_frame is None or cam.qa_target is None:
         values = narr
     else:
@@ -826,6 +853,34 @@ def page_section(
             qa_target = qa_target_on_canvas(target, cfg)
         if qa_target is not None:
             qa_frame = round((cfg.lead_in + float(qa_line["start"])) * cfg.fps)
+    cues = []
+    if usable and grounding.get("narration_text") == page.get("lines", []):
+        for beat in grounding.get("narration", []):
+            index = beat["line"]
+            if index >= len(timing["lines"]):
+                continue
+            line = timing["lines"][index]
+            if line.get("role") != "narration":
+                continue
+            begin = round((cfg.lead_in + float(line["start"])) * cfg.fps)
+            finish = begin + max(
+                1, round(min(1.2, max(0.1, float(line["end"]) - float(line["start"]))) * cfg.fps)
+            )
+            if cues and begin < cues[-1][1]:
+                continue
+            if qa_frame is not None and finish > qa_frame:
+                continue
+            cues.append(
+                (
+                    begin,
+                    finish,
+                    grounded_target_on_canvas(
+                        beat["target"],
+                        (grounding["picture"]["width"], grounding["picture"]["height"]),
+                        cfg,
+                    ),
+                )
+            )
     return Section(
         name,
         "page",
@@ -841,6 +896,7 @@ def page_section(
             qa_frame,
             qa_target,
             round(cfg.motion.qa_ease * cfg.fps) if qa_frame is not None else 0,
+            narration_cues=tuple(cues),
         ),
         caption_band=band,
     )

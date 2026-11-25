@@ -1,0 +1,180 @@
+{
+  "page_number": 5,
+  "picture": {
+    "file": "page_05.png",
+    "sha256": "3781f2e640057a396b9e7add27cd45baf722639a0e498ba8b05307d6bb4287e9",
+    "width": 1672,
+    "height": 941
+  },
+  "provider": "codex",
+  "written_at": "2026-11-25T18:03:10+00:00",
+  "layers": [
+    {
+      "name": "bea",
+      "description": "Bea’s complete seated silhouette sways gently around her seat on the step. Her curls, overalls, copper key and boots stay together.",
+      "box": [
+        76,
+        218,
+        442,
+        855
+      ],
+      "include_points": [
+        [
+          155,
+          305
+        ],
+        [
+          268,
+          380
+        ],
+        [
+          182,
+          500
+        ],
+        [
+          333,
+          439
+        ],
+        [
+          229,
+          656
+        ],
+        [
+          170,
+          669
+        ],
+        [
+          319,
+          785
+        ],
+        [
+          399,
+          815
+        ]
+      ],
+      "exclude_points": [
+        [
+          61,
+          529
+        ],
+        [
+          411,
+          304
+        ],
+        [
+          430,
+          440
+        ],
+        [
+          477,
+          555
+        ],
+        [
+          235,
+          750
+        ]
+      ],
+      "z": 2,
+      "depth": 0.0,
+      "pivot": [
+        219,
+        714
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.45,
+          "period_s": 5.2,
+          "phase": 0.0,
+          "direction": null
+        }
+      ]
+    },
+    {
+      "name": "tavi_with_star",
+      "description": "Tavi leans gently about the center of his boot stance, with the gold star button held in his fingers throughout.",
+      "box": [
+        1262,
+        234,
+        1613,
+        843
+      ],
+      "include_points": [
+        [
+          1438,
+          291
+        ],
+        [
+          1421,
+          362
+        ],
+        [
+          1298,
+          386
+        ],
+        [
+          1304,
+          449
+        ],
+        [
+          1478,
+          476
+        ],
+        [
+          1533,
+          601
+        ],
+        [
+          1451,
+          672
+        ],
+        [
+          1536,
+          706
+        ],
+        [
+          1420,
+          809
+        ],
+        [
+          1574,
+          813
+        ]
+      ],
+      "exclude_points": [
+        [
+          1230,
+          444
+        ],
+        [
+          1228,
+          693
+        ],
+        [
+          1337,
+          574
+        ],
+        [
+          1400,
+          710
+        ]
+      ],
+      "z": 3,
+      "depth": 0.0,
+      "pivot": [
+        1490,
+        824
+      ],
+      "motions": [
+        {
+          "type": "sway",
+          "amplitude": 1.6,
+          "period_s": 5.2,
+          "phase": 0.25,
+          "direction": null
+        }
+      ]
+    }
+  ],
+  "effects": []
+}

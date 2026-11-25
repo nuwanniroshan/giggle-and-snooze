@@ -425,13 +425,29 @@ def test_invalid_plan_fails_the_page(book: BookFolder) -> None:
     assert by_page[1].status == "cut"
 
 
-def test_too_many_points_fails_the_page_naming_the_layer(book: BookFolder) -> None:
+def test_too_many_points_fails_the_page_naming_the_layer(book: BookFolder, monkeypatch) -> None:
+    monkeypatch.setattr(sys, "platform", "darwin")
     points = [[1 + i, 1] for i in range(13)]  # box (2) + 13 = 15 > 14
     write_plan(book, layers=[layer(include_points=points)])
     results = run(book, load_models=no_models)
     (r,) = [r for r in results if r.page_number == 1]
     assert r.status == "failed"
     assert "square" in r.detail and "14" in r.detail
+
+
+def test_onnx_accepts_dynamic_prompt_count(book: BookFolder, monkeypatch) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    points = [[21 + i % 5, 13 + i // 5] for i in range(25)]
+    write_plan(book, layers=[layer(include_points=points)])
+    results = run(book)
+    assert next(r for r in results if r.page_number == 1).status == "cut"
+    limit = cut_layers.prompt_point_limit(MODELS_CFG)
+    assert limit is None
+    pts, labels = prompt_points(
+        Layer.model_validate(layer(include_points=points)), W, H, size=1024, max_points=limit
+    )
+    assert pts.shape == (1, 27, 2)
+    assert labels.shape == (1, 27)
 
 
 # -- AC-4.8: models missing ---------------------------------------------------------------------------

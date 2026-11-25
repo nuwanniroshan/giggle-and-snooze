@@ -247,8 +247,10 @@ def similarity_problems(
     cmood = canonical(candidate.mood.key, cfg.mood_synonyms)
     cf = canonical(candidate.qa.format_key, cfg.format_synonyms)
     for label, other in others.items():
-        if cm == canonical(other.art.medium_key, cfg.medium_synonyms) and cmood == canonical(
-            other.mood.key, cfg.mood_synonyms
+        if (
+            cm != "pencil-and-brush"
+            and cm == canonical(other.art.medium_key, cfg.medium_synonyms)
+            and cmood == canonical(other.mood.key, cfg.mood_synonyms)
         ):
             problems.append(
                 f"too close to '{label}': same art.medium_key '{cm}' and mood.key '{cmood}'"

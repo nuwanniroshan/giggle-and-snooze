@@ -13,6 +13,7 @@ from tests.test_story_tools import book, idea
 from tests.test_write_story import FakeCodex, prompt_of, server_args, use
 from video_pipeline import story_mcp
 from video_pipeline import write_story as ws
+from video_pipeline.art_styles import apply_style
 from video_pipeline.drafts import DraftStore
 from video_pipeline.episode_tools import write_atomic
 from video_pipeline.library import PROJECT_ROOT, BookFolder
@@ -75,7 +76,9 @@ def test_blueprint_job_saves_a_valid_blueprint_and_starts_the_story(
     assert (store.draft_folder(draft["id"]) / "blueprint.json").is_file()
     story_prompt = prompt_of(fake.commands[1])  # AC-3.3
     assert "Sleepy drift" in story_prompt and "Slow, hushed, dreamy." in story_prompt
-    assert valid_blueprint()["art"]["style_prompt_prefix"] in story_prompt
+    saved = json.loads(store.blueprint_path(draft["id"]).read_text(encoding="utf-8"))
+    assert saved["art"]["style_prompt_prefix"] in story_prompt
+    assert saved["art"]["medium_key"] in prompt_of(fake.commands[0])
     assert "without naming a painting medium" in prompt_of(fake.commands[1])
 
 
@@ -148,9 +151,10 @@ def test_regenerating_a_book_excludes_its_own_blueprint(root, monkeypatch):  # A
     folder = write_book_with_blueprint(root, "moon-book", valid_blueprint())
     old = folder.blueprint_path.read_text(encoding="utf-8")
     fresh = valid_blueprint(rationale="A new hushed night look, redone.")
+    monkeypatch.setattr(ws, "choose_style", lambda used: "paper-cut")
     use(monkeypatch, FakeCodex([fresh]))
     assert ws.run_blueprint(root, slug="moon-book") == 0
-    assert json.loads(folder.blueprint_path.read_text(encoding="utf-8")) == fresh
+    assert json.loads(folder.blueprint_path.read_text(encoding="utf-8")) == apply_style(fresh, "paper-cut")
     assert (folder.folder / "blueprint.json.bak").read_text(encoding="utf-8") == old
 
 
