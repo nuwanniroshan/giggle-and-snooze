@@ -1,24 +1,29 @@
-import { Container } from "@/components/ui/container";
-import { Link } from "@/components/ui/link";
-import { Page } from "@/components/ui/page";
+import { SiteFooter } from "@/components/layout/site-footer";
+import { SiteHeader } from "@/components/layout/site-header";
+import { ButtonLink } from "@/components/ui/button";
+import { BookIcon } from "@/components/ui/icons";
 
-export default function NotFoundError() {
+export default function NotFound() {
   return (
-    <Page className="flex flex-1 flex-col">
-      <Container className="flex flex-1 flex-col items-center justify-center text-center">
-        <div className="flex flex-col items-center text-center gap-2.5">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl">Page Not Found</h1>
-          <p className="text-sm md:text-base text-muted-foreground max-w-xl">
-            The link may be incorrect, or the page has been removed.
-          </p>
-          <Link
-            href="/collections/all"
-            className="inline-flex items-center justify-center h-12 px-8 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Browse the library
-          </Link>
+    <main className="flex min-h-screen flex-col bg-[#fffdf8]">
+      <SiteHeader />
+      <section className="mx-auto flex max-w-2xl flex-1 flex-col items-center justify-center px-8 py-20 text-center">
+        <div className="grid size-16 place-items-center rounded-full bg-[#dff5f2] text-[#173f47]">
+          <BookIcon className="size-8" />
         </div>
-      </Container>
-    </Page>
+        <p className="eyebrow mt-6">Lost in the bookshelf</p>
+        <h1 className="mt-2 text-4xl font-black tracking-[-.05em] text-[#173f47] sm:text-5xl">
+          Page not found
+        </h1>
+        <p className="mt-4 font-semibold leading-7 text-[#61777b]">
+          The story page you&apos;re looking for doesn&apos;t exist or has been
+          tucked onto another shelf.
+        </p>
+        <ButtonLink href="/" variant="primary" className="mt-8">
+          ← Back to Home
+        </ButtonLink>
+      </section>
+      <SiteFooter />
+    </main>
   );
 }

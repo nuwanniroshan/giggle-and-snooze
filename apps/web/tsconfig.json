@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "allowArbitraryExtensions": true,
     "allowJs": true,
     "esModuleInterop": true,
     "incremental": true,
@@ -23,12 +22,11 @@
     "strict": true,
     "target": "ES2017"
   },
-  "exclude": ["node_modules", "scripts", "tmp", ".eve", ".output", ".nitro", "dist"],
+  "exclude": ["node_modules", ".next", "dist"],
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "global.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
