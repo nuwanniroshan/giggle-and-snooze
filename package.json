@@ -1,12 +1,15 @@
 {
   "name": "giggle-and-snooze",
   "private": true,
-  "description": "Monorepo: local Python studio (root), public store (apps/web), eReader (apps/reader), Supabase (supabase/).",
+  "description": "Monorepo: Python studio & video pipeline (apps/studio), public web app (apps/web), Supabase (supabase/).",
   "scripts": {
-    "studio": "uv run python -m video_pipeline.studio",
-    "web": "pnpm --filter @gns/web dev",
-    "web:build": "pnpm --filter @gns/web build",
-    "reader": "pnpm --dir apps/reader/apps/readest-app dev-web",
+    "dev": "node scripts/dev-launcher.mjs both",
+    "web": "node scripts/dev-launcher.mjs web",
+    "web:start": "node scripts/dev-launcher.mjs web-start",
+    "web:build": "node scripts/dev-launcher.mjs web-build",
+    "web:typecheck": "node scripts/dev-launcher.mjs web-typecheck",
+    "studio": "node scripts/dev-launcher.mjs studio",
+    "studio:test": "uv --directory apps/studio run pytest",
     "db:start": "supabase start",
     "db:reset": "supabase db reset"
   },

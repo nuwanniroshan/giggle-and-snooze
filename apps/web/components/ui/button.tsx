@@ -1,50 +1,70 @@
-import { mergeProps } from "@base-ui/react/merge-props";
-import { useRender } from "@base-ui/react/use-render";
-import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "cn";
+import Link from "next/link";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3 aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20",
-        outline: "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
-      size: {
-        default: "h-9 px-5 py-2 has-[>svg]:px-2.5",
-        sm: "h-8 gap-1.5 px-2.5 has-[>svg]:px-2.5",
-        lg: "h-10 px-5 has-[>svg]:px-5",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  },
-);
+export type ButtonVariant = "primary" | "secondary" | "nav";
 
-interface ButtonProps
-  extends useRender.ComponentProps<"button">, VariantProps<typeof buttonVariants> {}
+const variantClasses: Record<ButtonVariant, string> = {
+  primary: "primary-button",
+  secondary: "secondary-button",
+  nav: "inline-flex items-center justify-center rounded-full bg-[#173f47] px-6 py-3 text-sm font-bold text-white shadow-[0_6px_0_#0d2d33] transition hover:-translate-y-0.5",
+};
 
-function Button({ className, render, size, variant, ...props }: ButtonProps) {
-  return useRender({
-    defaultTagName: "button",
-    render,
-    state: { slot: "button" },
-    props: mergeProps<"button">(
-      { className: cn(buttonVariants({ variant, size, className })) },
-      props,
-    ),
-  });
+type BaseProps = {
+  variant?: ButtonVariant;
+  className?: string;
+  children: ReactNode;
+};
+
+type ButtonProps = BaseProps & ButtonHTMLAttributes<HTMLButtonElement>;
+
+export function Button({
+  variant = "primary",
+  className = "",
+  children,
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      className={`${variantClasses[variant]} ${className}`.trim()}
+      {...props}
+    >
+      {children}
+    </button>
+  );
 }
 
-export { Button };
+type ButtonLinkProps = BaseProps & {
+  href: string;
+  external?: boolean;
+} & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href">;
+
+export function ButtonLink({
+  href,
+  variant = "primary",
+  external = false,
+  className = "",
+  children,
+  ...props
+}: ButtonLinkProps) {
+  const classes = `${variantClasses[variant]} ${className}`.trim();
+
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={classes}
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} className={classes} {...props}>
+      {children}
+    </Link>
+  );
+}
